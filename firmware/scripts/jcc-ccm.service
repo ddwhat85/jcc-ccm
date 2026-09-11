@@ -1,0 +1,24 @@
+[Unit]
+# JCC-CCM 수집 에이전트 — systemd 서비스 유닛
+# 설치: /etc/systemd/system/jcc-ccm.service 로 복사 후
+#       sudo systemctl enable --now jcc-ccm
+Description=JCC-CCM sensor collection agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sshu
+WorkingDirectory=/opt/jcc-ccm
+ExecStart=/usr/bin/python3 -m jcc_ccm --config /opt/jcc-ccm/config.toml
+Environment=PYTHONPATH=/opt/jcc-ccm
+Environment=PYTHONUNBUFFERED=1
+# 죽으면 되살린다 — 현장 무인 운용 대비
+Restart=always
+RestartSec=5
+# 로그는 journald로 (journalctl -u jcc-ccm)
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

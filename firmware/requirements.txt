@@ -1,0 +1,10 @@
+# JCC-CCM 펌웨어 런타임 의존성 (CCM Debian에 설치)
+# 표준 라이브러리만으로도 HTTP 전송·내장센서는 동작한다.
+# 아래는 MQTT 전송과 Modbus 외부센서를 쓸 때 필요.
+
+paho-mqtt>=1.6,<3        # MQTT 전송
+pymodbus>=3.5,<4         # Modbus RTU 외부센서
+pyserial>=3.5,<4         # RS485 시리얼 (pymodbus 백엔드)
+
+# Python 3.10 이하(구형 Debian)에서 tomllib이 없을 때만:
+# tomli>=2.0 ; python_version < "3.11"
