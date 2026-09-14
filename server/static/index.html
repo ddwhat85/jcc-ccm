@@ -59,8 +59,12 @@
   .toolbar .brand b{color:var(--run)}
   .toolbar .tag{font-family:var(--mono);font-size:11px;color:#8a929c;
                 border:1px solid #2c333c;border-radius:3px;padding:2px 7px}
+  .toolbar{overflow-x:auto;scrollbar-width:none}
+  .toolbar::-webkit-scrollbar{display:none}
+  .toolbar>*{flex-shrink:0}
   .tb-btn{font:inherit;font-size:12.5px;color:var(--toolbar-ink);background:#20262e;
-          border:1px solid #333b45;border-radius:4px;padding:5px 11px;cursor:pointer}
+          border:1px solid #333b45;border-radius:4px;padding:5px 11px;cursor:pointer;
+          white-space:nowrap;flex:0 0 auto}
   .tb-btn:hover{background:#2a323c}
   .tb-btn.run{background:var(--run);color:#1a1e07;border-color:var(--run);font-weight:600}
   .tb-btn.run:hover{filter:brightness(1.06)}
@@ -72,6 +76,25 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .tb-sep{width:1px;height:22px;background:#2c333c;margin:0 2px}
   .tb-status{font-family:var(--mono);font-size:12px;color:#8a929c}
+  .tb-btn.add{background:#243247;color:#dbe6f5;border-color:#375073;font-weight:600}
+  .tb-btn.add:hover{background:#2c3d57}
+  .tb-btn.add .caret{font-size:9px;opacity:.8;margin-left:2px}
+  /* + 노드 추가 드롭다운 */
+  .tb-menu{position:relative;display:flex}
+  .tb-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:216px;
+    background:var(--surface);border:1px solid var(--rule);border-radius:7px;
+    box-shadow:0 10px 30px rgba(0,0,0,.32);padding:8px}
+  .dd-group{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+            color:var(--ink-3);margin:9px 6px 4px}
+  .dd-group:first-child{margin-top:2px}
+  .dd-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;
+           border:none;background:none;border-radius:5px;font:inherit;font-size:13px;
+           color:var(--ink);text-align:left;cursor:pointer}
+  .dd-item:hover{background:var(--accent-soft)}
+  .pal-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .dd-legend{margin-top:9px;padding:8px 6px 3px;border-top:1px solid var(--rule);
+             font-size:10.5px;color:var(--ink-3);line-height:1.7}
+  .dd-legend b{color:var(--ink-2);font-weight:600}
   .toolbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
   .clock{font-family:var(--mono);font-size:12px;color:#9aa2ac;font-variant-numeric:tabular-nums}
   .conn{display:flex;align-items:center;gap:7px;font-size:12px;font-family:var(--mono)}
@@ -79,27 +102,8 @@
   .conn.live .dot{background:var(--run);box-shadow:0 0 0 3px rgba(180,198,43,.25)}
   .conn.dead .dot{background:#e4716e;box-shadow:0 0 0 3px rgba(228,113,110,.25)}
 
-  /* ── 본체: 팔레트 | 캔버스 | 인스펙터 ── */
+  /* ── 본체: 캔버스 | 인스펙터 (좌측바 없음) ── */
   .body{flex:1 1 auto;display:flex;min-height:0}
-
-  .palette{flex:0 0 194px;background:var(--surface);border-right:1px solid var(--rule);
-           overflow-y:auto;padding:12px}
-  .palette h3{margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.04em;
-              text-transform:uppercase;color:var(--ink-3)}
-  .palette .hint{font-size:11px;color:var(--ink-3);margin:0 0 12px;line-height:1.4}
-  .pal-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;margin-bottom:5px;
-            border:1px solid var(--rule);border-radius:5px;background:var(--canvas);
-            font:inherit;font-size:12.5px;color:var(--ink-2);text-align:left;cursor:pointer}
-  .pal-item:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
-  .pal-item:active{transform:translateY(1px)}
-  .pal-item .k{margin-left:auto;font:600 9px var(--mono);color:var(--ink-3);letter-spacing:.05em}
-  .pal-group{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;
-             color:var(--ink-3);margin:13px 0 6px}
-  .pal-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
-  .pal-legend{margin-top:16px;border-top:1px solid var(--rule);padding-top:12px}
-  .pal-legend .row{display:flex;align-items:center;gap:8px;font-size:11.5px;
-                   color:var(--ink-3);margin-bottom:6px}
-  .pal-legend .wireswatch{width:22px;height:0;border-top:2px solid var(--wire)}
 
   .canvas{flex:1 1 auto;position:relative;overflow:auto;background:var(--canvas);
     background-image:radial-gradient(var(--rule-2) 1px, transparent 1px);
@@ -205,6 +209,24 @@
     <button class="tb-btn" id="btn-save">저장</button>
     <button class="tb-btn" id="btn-saveas">다른 이름</button>
     <span class="tb-sep"></span>
+    <div class="tb-menu">
+      <button class="tb-btn add" id="btn-addmenu">＋ 노드 추가 <span class="caret">▾</span></button>
+      <div class="tb-dropdown" id="addmenu" hidden>
+        <div class="dd-group">소스</div>
+        <button class="dd-item" data-add="sensor"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서</button>
+        <button class="dd-item" data-add="ccm"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이</button>
+        <div class="dd-group">구성 · 로직</div>
+        <button class="dd-item" data-add="panel"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬 그룹</button>
+        <button class="dd-item" data-add="threshold"><span class="pal-swatch" style="background:var(--warn)"></span>임계값 경보</button>
+        <button class="dd-item" data-add="aggregate"><span class="pal-swatch" style="background:var(--port-agg)"></span>상태 집계</button>
+        <div class="dd-group">출력</div>
+        <button class="dd-item" data-add="server"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드</button>
+        <button class="dd-item" data-add="notify"><span class="pal-swatch" style="background:var(--crit)"></span>알림 (메일·SMS)</button>
+        <button class="dd-item" data-add="store"><span class="pal-swatch" style="background:var(--ink-3)"></span>데이터 저장</button>
+        <div class="dd-legend">센서 <b>→RS485→</b> CCM <b>→이더넷→</b> 판넬 <b>→MQTT→</b> 클라우드<br>헤더 끌어 배치 · 포트(점) 끌어 연결 · <b>저장</b>으로 기억</div>
+      </div>
+    </div>
+    <span class="tb-sep"></span>
     <button class="tb-btn" id="btn-delete">노드 삭제</button>
     <button class="tb-btn" id="btn-arrange">자동 정렬</button>
     <span class="tb-sep"></span>
@@ -218,31 +240,6 @@
   </div>
 
   <div class="body">
-    <aside class="palette">
-      <h3>노드</h3>
-      <p class="hint">항목을 클릭하면 캔버스에 노드가 놓입니다. 헤더를 끌어 배치하고, <b>포트(점)를 끌어</b> 다른 노드에 연결합니다. <b>저장</b>으로 기억시킵니다.</p>
-
-      <div class="pal-group">소스</div>
-      <button class="pal-item" data-add="sensor"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서<span class="k">+</span></button>
-      <button class="pal-item" data-add="ccm"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이<span class="k">+</span></button>
-
-      <div class="pal-group">구성 · 로직</div>
-      <button class="pal-item" data-add="panel"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬 그룹<span class="k">+</span></button>
-      <button class="pal-item" data-add="threshold"><span class="pal-swatch" style="background:var(--warn)"></span>임계값 경보<span class="k">+</span></button>
-      <button class="pal-item" data-add="aggregate"><span class="pal-swatch" style="background:var(--port-agg)"></span>상태 집계<span class="k">+</span></button>
-
-      <div class="pal-group">출력</div>
-      <button class="pal-item" data-add="server"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드<span class="k">+</span></button>
-      <button class="pal-item" data-add="notify"><span class="pal-swatch" style="background:var(--crit)"></span>알림 (메일·SMS)<span class="k">+</span></button>
-      <button class="pal-item" data-add="store"><span class="pal-swatch" style="background:var(--ink-3)"></span>데이터 저장<span class="k">+</span></button>
-
-      <div class="pal-legend">
-        <div class="row"><span class="wireswatch"></span>연결(배선)</div>
-        <div class="row">센서 →<b style="color:var(--ink-2)">&nbsp;RS485&nbsp;</b>→ CCM</div>
-        <div class="row">CCM →<b style="color:var(--ink-2)">&nbsp;이더넷&nbsp;</b>→ 판넬</div>
-        <div class="row">판넬 →<b style="color:var(--ink-2)">&nbsp;MQTT&nbsp;</b>→ 클라우드</div>
-      </div>
-    </aside>
 
     <div class="canvas" id="canvas">
       <div class="graph" id="graph">
@@ -727,7 +724,20 @@ function setStatus(t){ const s=$("#status"); if(!s) return; s.textContent=t;
   clearTimeout(statusTimer); statusTimer=setTimeout(()=>s.textContent="준비",1800); }
 
 // ── 툴바 ──────────────────────────────────────────────
-document.querySelectorAll(".pal-item[data-add]").forEach(b=>{ b.onclick = ()=>addUserNode(b.dataset.add); });
+// + 노드 추가 드롭다운
+const addMenu = $("#addmenu");
+function toggleAddMenu(show){
+  const open = show===undefined ? addMenu.hidden : show;
+  addMenu.hidden = !open;
+  $("#btn-addmenu").classList.toggle("open", open);
+}
+$("#btn-addmenu").onclick = (e)=>{ e.stopPropagation(); toggleAddMenu(); };
+document.addEventListener("click", (e)=>{
+  if(!addMenu.hidden && !e.target.closest(".tb-menu")) toggleAddMenu(false);
+});
+document.querySelectorAll(".dd-item[data-add]").forEach(b=>{
+  b.onclick = ()=>{ addUserNode(b.dataset.add); toggleAddMenu(false); };
+});
 $("#btn-new").onclick = ()=>{
   if((userNodes.length||userWires.length) && !confirm("추가한 노드·연결을 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
   userNodes.forEach(n=>{ nodes.get(n.id)?.el.remove(); nodes.delete(n.id); delete nodePos[n.id]; });
