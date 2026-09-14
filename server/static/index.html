@@ -103,6 +103,10 @@
   .wirepath{fill:none;stroke:var(--wire);stroke-width:2}
   .wirepath.flow{stroke-dasharray:5 6;animation:flow 1s linear infinite}
   .wirepath.off{stroke:var(--rule);stroke-dasharray:3 5}
+  .wirepath.user{stroke:var(--sel);stroke-width:2.5;pointer-events:stroke;cursor:pointer}
+  .wirepath.user.sel{stroke-width:4;filter:drop-shadow(0 0 3px var(--sel))}
+  .wirepath.temp{stroke:var(--sel);stroke-width:2;stroke-dasharray:4 4;opacity:.85}
+  .port,.headport{cursor:crosshair}
   @keyframes flow{to{stroke-dashoffset:-11}}
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
              paint-order:stroke;stroke:var(--canvas);stroke-width:3px}
@@ -200,7 +204,7 @@
   <div class="body">
     <aside class="palette">
       <h3>노드</h3>
-      <p class="hint">항목을 클릭하면 캔버스에 노드가 놓입니다. 헤더를 끌어 배치하고 <b>저장</b>으로 기억시킵니다.</p>
+      <p class="hint">항목을 클릭하면 캔버스에 노드가 놓입니다. 헤더를 끌어 배치하고, <b>포트(점)를 끌어</b> 다른 노드에 연결합니다. <b>저장</b>으로 기억시킵니다.</p>
 
       <div class="pal-group">소스</div>
       <button class="pal-item" data-add="sensor"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서<span class="k">+</span></button>
@@ -250,6 +254,7 @@ const $ = s => document.querySelector(s);
 const REFRESH_MS = 3000;
 const LS_POS = "jcc-node-pos-v1";
 const LS_USER = "jcc-user-nodes-v1";
+const LS_WIRES = "jcc-user-wires-v1";
 
 // 팔레트로 추가할 수 있는 노드 종류
 const KIND_KO  = {sensor:"센서",ccm:"CCM 게이트웨이",panel:"판넬",threshold:"임계값 경보",
@@ -283,6 +288,14 @@ let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노�
 let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
 function saveUser(){ try{ localStorage.setItem(LS_USER, JSON.stringify(userNodes)); }catch(e){} }
+
+let userWires = loadWires();   // [{id,from,to}]  포트를 끌어 만든 연결
+let wireCounter = userWires.reduce((m,w)=>Math.max(m, +((w.id||"w0").slice(1))||0),0);
+let wiring = null;             // 드래그 중 {fromId, fromNode}
+let tempPt = null;             // 드래그 중 커서 위치(그래프 좌표)
+let selectedWireId = null;
+function loadWires(){ try{ return JSON.parse(localStorage.getItem(LS_WIRES)||"[]"); }catch(e){ return []; } }
+function saveWires(){ try{ localStorage.setItem(LS_WIRES, JSON.stringify(userWires)); }catch(e){} }
 
 // ── 데이터 → 그래프 ───────────────────────────────────
 function topoSignature(panels){
@@ -492,6 +505,20 @@ function drawWires(){
     const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 5;
     labels += `<text class="wirelabel" x="${mx}" y="${my}" text-anchor="middle">${escapeHtml(w.label)}</text>`;
   }
+  // 사용자 배선 (포트를 끌어 만든 연결). 끝점이 아직 없으면 건너뛴다(파괴적 정리 금지).
+  for(const w of userWires){
+    const a = portCenter(w.from), b = portCenter(w.to);
+    if(!a || !b) continue;
+    const dx = Math.max(36, Math.abs(b.x - a.x)/2);
+    const d = `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
+    paths += `<path class="wirepath user${w.id===selectedWireId?" sel":""}" data-wire="${w.id}" d="${d}"></path>`;
+  }
+  // 드래그 중 임시선
+  if(wiring && tempPt){
+    const a = portCenter(wiring.fromId);
+    if(a){ const dx = Math.max(36, Math.abs(tempPt.x - a.x)/2);
+      paths += `<path class="wirepath temp" d="M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${tempPt.x-dx} ${tempPt.y}, ${tempPt.x} ${tempPt.y}"></path>`; }
+  }
   svg.innerHTML = paths + labels;
 }
 
@@ -518,8 +545,59 @@ function makeDraggable(el){
   });
 }
 
+// ── 배선 드래그 (포트 → 포트 연결) ────────────────────
+// #graph의 캡처 단계에서 포트 mousedown을 먼저 가로채, 노드 드래그/선택보다 우선한다.
+$("#graph").addEventListener("mousedown", e=>{
+  const portEl = e.target.closest("[data-port]");
+  if(!portEl) return;
+  e.stopPropagation(); e.preventDefault();
+  wiring = { fromId: portEl.getAttribute("data-port"), fromNode: portEl.closest(".node")?.dataset.id };
+  document.body.style.cursor = "crosshair";
+}, true);
+window.addEventListener("mousemove", e=>{
+  if(!wiring) return;
+  const gr = $("#graph").getBoundingClientRect();
+  tempPt = { x: e.clientX - gr.left, y: e.clientY - gr.top };
+  drawWires();
+});
+window.addEventListener("mouseup", e=>{
+  if(!wiring) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const portEl = el && el.closest ? el.closest("[data-port]") : null;
+  if(portEl){
+    const toId = portEl.getAttribute("data-port");
+    const toNode = portEl.closest(".node")?.dataset.id;
+    if(toNode === wiring.fromNode){ setStatus("같은 노드끼리는 연결할 수 없습니다"); }
+    else if(toId && toId !== wiring.fromId &&
+       !userWires.some(w=>(w.from===wiring.fromId&&w.to===toId)||(w.from===toId&&w.to===wiring.fromId))){
+      userWires.push({id:"w"+(++wireCounter), from:wiring.fromId, to:toId});
+      saveWires(); setStatus("연결 추가됨");
+    }
+  }
+  wiring = null; tempPt = null; document.body.style.cursor = "";
+  requestAnimationFrame(drawWires);
+});
+// 연결선 클릭 → 선택 (svg는 pointer-events:none이지만 user 배선 path는 stroke로 클릭 가능)
+$("#wires").addEventListener("click", e=>{
+  const p = e.target.closest("[data-wire]"); if(!p) return;
+  selectWire(p.getAttribute("data-wire"));
+});
+function selectWire(id){
+  selectedWireId = id;
+  if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); selectedId = null; }
+  $("#inspector").classList.remove("open");
+  setStatus("연결 선택됨 · Delete 또는 [노드 삭제]로 제거");
+  requestAnimationFrame(drawWires);
+}
+// 빈 캔버스 클릭 → 선택 해제
+$("#canvas").addEventListener("mousedown", e=>{
+  if(e.target.closest("[data-port]") || e.target.closest(".node") || e.target.closest("[data-wire]")) return;
+  if(selectedWireId){ selectedWireId = null; requestAnimationFrame(drawWires); }
+});
+
 // ── 선택 · 인스펙터 ───────────────────────────────────
 function select(id){
+  selectedWireId = null;
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); }
   selectedId = id; const n = nodes.get(id); if(!n) return;
   n.el.classList.add("sel");
@@ -601,11 +679,20 @@ function renderUserNodes(){
   applyPositions();
 }
 function deleteSelected(){
-  if(!selectedId || !selectedId.startsWith("user:")){ setStatus("삭제할 사용자 노드를 먼저 선택하세요"); return; }
+  // 연결이 선택돼 있으면 연결부터 삭제
+  if(selectedWireId){
+    userWires = userWires.filter(w=>w.id!==selectedWireId);
+    selectedWireId = null; saveWires();
+    requestAnimationFrame(drawWires); setStatus("연결 삭제됨"); return;
+  }
+  if(!selectedId || !selectedId.startsWith("user:")){ setStatus("삭제할 사용자 노드/연결을 먼저 선택하세요"); return; }
+  // 이 노드에 물린 사용자 배선도 함께 제거
+  const pin = "uin:"+cssAttr(selectedId), pout = "uout:"+cssAttr(selectedId);
+  userWires = userWires.filter(w=> w.from!==pin && w.to!==pin && w.from!==pout && w.to!==pout);
   userNodes = userNodes.filter(n=>n.id!==selectedId);
   delete nodePos[selectedId];
   nodes.get(selectedId)?.el.remove(); nodes.delete(selectedId);
-  saveUser(); savePos(nodePos);
+  saveUser(); savePos(nodePos); saveWires();
   $("#inspector").classList.remove("open"); selectedId = null;
   requestAnimationFrame(drawWires); setStatus("노드 삭제됨");
 }
@@ -618,25 +705,27 @@ function setStatus(t){ const s=$("#status"); if(!s) return; s.textContent=t;
 // ── 툴바 ──────────────────────────────────────────────
 document.querySelectorAll(".pal-item[data-add]").forEach(b=>{ b.onclick = ()=>addUserNode(b.dataset.add); });
 $("#btn-new").onclick = ()=>{
-  if(userNodes.length && !confirm("추가한 노드를 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
+  if((userNodes.length||userWires.length) && !confirm("추가한 노드·연결을 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
   userNodes.forEach(n=>{ nodes.get(n.id)?.el.remove(); nodes.delete(n.id); delete nodePos[n.id]; });
-  userNodes = []; saveUser(); savePos(nodePos);
+  userNodes = []; userWires = []; selectedWireId = null;
+  saveUser(); saveWires(); savePos(nodePos);
   $("#inspector").classList.remove("open"); selectedId=null;
   requestAnimationFrame(drawWires); setStatus("새 구성");
 };
-$("#btn-open").onclick = ()=>{ userNodes=loadUser(); nodePos=loadPos(); renderUserNodes();
+$("#btn-open").onclick = ()=>{ userNodes=loadUser(); userWires=loadWires(); nodePos=loadPos(); renderUserNodes();
   requestAnimationFrame(drawWires); setStatus("불러옴"); };
-$("#btn-save").onclick = ()=>{ saveUser(); savePos(nodePos); setStatus("저장됨 ✓"); };
+$("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨 ✓"); };
 $("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
-  if(name!==null){ saveUser(); savePos(nodePos); setStatus("저장됨: "+name); } };
+  if(name!==null){ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨: "+name); } };
 $("#btn-delete").onclick = deleteSelected;
 $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 노드 배치는 보존
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
 $("#btn-run").onclick = ()=>{ setStatus("실행 — 데이터 갱신 중"); refresh(); };
 window.addEventListener("keydown", e=>{
-  if((e.key==="Delete"||e.key==="Backspace") && selectedId && selectedId.startsWith("user:")
-     && !/^(input|textarea)$/i.test(e.target.tagName)){ e.preventDefault(); deleteSelected(); }
+  const editable = /^(input|textarea)$/i.test(e.target.tagName);
+  const canDelete = selectedWireId || (selectedId && selectedId.startsWith("user:"));
+  if((e.key==="Delete"||e.key==="Backspace") && canDelete && !editable){ e.preventDefault(); deleteSelected(); }
 });
 window.addEventListener("resize", ()=>requestAnimationFrame(drawWires));
 
