@@ -19,8 +19,12 @@
     --crit:#a81917; --crit-soft:#f3dad9;
     --toolbar:#14171c; --toolbar-ink:#e6e8ea; --run:#b4c62b;
     --sel:#e6912a;
-    --sans:"Segoe UI Variable","Segoe UI",-apple-system,"Malgun Gothic",sans-serif;
-    --mono:"Cascadia Mono","Consolas",ui-monospace,monospace;
+    /* macOS 메뉴바 (light) */
+    --menubar-bg:rgba(246,246,248,.72); --menubar-border:rgba(0,0,0,.10);
+    --menu-hover:rgba(0,0,0,.06); --menu-bg:rgba(250,250,252,.86);
+    --menu-border:rgba(0,0,0,.10); --menu-accent:#0a84ff;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable","Segoe UI","Malgun Gothic",sans-serif;
+    --mono:"SF Mono","Cascadia Mono","Consolas",ui-monospace,monospace;
   }
   :root:not([data-theme="light"]){}
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
@@ -34,6 +38,9 @@
     --ok:#84c462; --ok-soft:#1f2f18; --warn:#dcb63c; --warn-soft:#372e12;
     --crit:#e4716e; --crit-soft:#3a1e1d;
     --toolbar:#0c0e11; --toolbar-ink:#dfe2e6;
+    --menubar-bg:rgba(28,29,33,.66); --menubar-border:rgba(255,255,255,.09);
+    --menu-hover:rgba(255,255,255,.08); --menu-bg:rgba(42,43,48,.82);
+    --menu-border:rgba(255,255,255,.10); --menu-accent:#0a84ff;
   }}
   :root[data-theme="dark"]{
     --ground:#0f1113; --canvas:#15181d; --surface:#1c2026; --surface-2:#232830;
@@ -46,61 +53,59 @@
     --ok:#84c462; --ok-soft:#1f2f18; --warn:#dcb63c; --warn-soft:#372e12;
     --crit:#e4716e; --crit-soft:#3a1e1d;
     --toolbar:#0c0e11; --toolbar-ink:#dfe2e6;
+    --menubar-bg:rgba(28,29,33,.66); --menubar-border:rgba(255,255,255,.09);
+    --menu-hover:rgba(255,255,255,.08); --menu-bg:rgba(42,43,48,.82);
+    --menu-border:rgba(255,255,255,.10); --menu-accent:#0a84ff;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
        font-size:14px;line-height:1.45;display:flex;flex-direction:column;overflow:hidden}
 
-  /* ── 상단 툴바 (SmartRay 다크바) ── */
-  .toolbar{display:flex;align-items:center;gap:14px;padding:0 16px;height:46px;
-           background:var(--toolbar);color:var(--toolbar-ink);flex:0 0 auto}
-  .toolbar .brand{font-weight:700;font-size:15px;letter-spacing:.02em}
-  .toolbar .brand b{color:var(--run)}
-  .toolbar .tag{font-family:var(--mono);font-size:11px;color:#8a929c;
-                border:1px solid #2c333c;border-radius:3px;padding:2px 7px}
-  .toolbar{overflow-x:auto;scrollbar-width:none}
-  .toolbar::-webkit-scrollbar{display:none}
-  .toolbar>*{flex-shrink:0}
-  .tb-btn{font:inherit;font-size:12.5px;color:var(--toolbar-ink);background:#20262e;
-          border:1px solid #333b45;border-radius:4px;padding:5px 11px;cursor:pointer;
-          white-space:nowrap;flex:0 0 auto}
-  .tb-btn:hover{background:#2a323c}
-  .tb-btn.run{background:var(--run);color:#1a1e07;border-color:var(--run);font-weight:600}
-  .tb-btn.run:hover{filter:brightness(1.06)}
-  .tb-btn.ai{background:#2b3f78;color:#e8eefb;border-color:#3a5296;font-weight:600}
-  .tb-btn.ai:hover{background:#33488a}
-  .tb-btn.ai.busy{opacity:.7;pointer-events:none}
-  .tb-btn.ai.busy::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
-    border:2px solid #9fb4e6;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px}
+  /* ── macOS 스타일 메뉴바 (프로스티드 글래스) ── */
+  .menubar{display:flex;align-items:center;gap:1px;height:40px;padding:0 12px;flex:0 0 auto;
+           background:var(--menubar-bg);
+           -webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);
+           border-bottom:1px solid var(--menubar-border);position:relative;z-index:50}
+  .mb-app{font-weight:700;font-size:14px;letter-spacing:-.01em;color:var(--ink);
+          padding:0 14px 0 4px}
+  .mb-app b{color:var(--accent)}
+  .mb-menu{position:relative}
+  .mb-title{font:inherit;font-size:13px;color:var(--ink);background:none;border:none;
+            padding:5px 11px;border-radius:6px;cursor:pointer;white-space:nowrap}
+  .mb-title:hover{background:var(--menu-hover)}
+  .mb-menu.open .mb-title{background:var(--menu-accent);color:#fff}
+  .mb-dd{position:absolute;top:calc(100% + 5px);left:0;min-width:206px;z-index:60;
+         background:var(--menu-bg);
+         -webkit-backdrop-filter:blur(26px) saturate(1.7);backdrop-filter:blur(26px) saturate(1.7);
+         border:1px solid var(--menu-border);border-radius:10px;
+         box-shadow:0 14px 44px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.12);padding:5px}
+  .mb-item{display:flex;align-items:center;gap:9px;width:100%;padding:6px 11px;
+           border:none;background:none;border-radius:6px;font:inherit;font-size:13px;
+           color:var(--ink);text-align:left;cursor:pointer;white-space:nowrap}
+  .mb-item:hover{background:var(--menu-accent);color:#fff}
+  .mb-item i{width:9px;height:9px;border-radius:50%;flex:0 0 auto;display:inline-block}
+  .mb-item .sc{margin-left:auto;font-size:11px;opacity:.5;font-family:var(--mono)}
+  .mb-label{font-size:11px;color:var(--ink-3);padding:7px 11px 3px;font-weight:600}
+  .mb-div{height:1px;background:var(--menu-border);margin:5px 8px}
+  .mb-right{margin-left:auto;display:flex;align-items:center;gap:13px}
+  .mb-status{font-size:12px;color:var(--ink-3);font-family:var(--mono);
+             max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mb-ai{font:inherit;font-size:12.5px;font-weight:600;color:#fff;
+         background:linear-gradient(180deg,#3a90ff,#2b6fe0);border:none;border-radius:7px;
+         padding:6px 13px;cursor:pointer;box-shadow:0 1px 2px rgba(43,111,224,.5);white-space:nowrap}
+  .mb-ai:hover{filter:brightness(1.06)}
+  .mb-ai:active{transform:translateY(1px)}
+  .mb-ai.busy{opacity:.72;pointer-events:none}
+  .mb-ai.busy::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
+    border:2px solid rgba(255,255,255,.6);border-top-color:transparent;border-radius:50%;
+    animation:spin .7s linear infinite;vertical-align:-1px}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .tb-sep{width:1px;height:22px;background:#2c333c;margin:0 2px}
-  .tb-status{font-family:var(--mono);font-size:12px;color:#8a929c}
-  .tb-btn.add{background:#243247;color:#dbe6f5;border-color:#375073;font-weight:600}
-  .tb-btn.add:hover{background:#2c3d57}
-  .tb-btn.add .caret{font-size:9px;opacity:.8;margin-left:2px}
-  /* + 노드 추가 드롭다운 */
-  .tb-menu{position:relative;display:flex}
-  .tb-dropdown{position:absolute;top:calc(100% + 6px);left:0;z-index:40;min-width:216px;
-    background:var(--surface);border:1px solid var(--rule);border-radius:7px;
-    box-shadow:0 10px 30px rgba(0,0,0,.32);padding:8px}
-  .dd-group{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;
-            color:var(--ink-3);margin:9px 6px 4px}
-  .dd-group:first-child{margin-top:2px}
-  .dd-item{display:flex;align-items:center;gap:10px;width:100%;padding:7px 9px;
-           border:none;background:none;border-radius:5px;font:inherit;font-size:13px;
-           color:var(--ink);text-align:left;cursor:pointer}
-  .dd-item:hover{background:var(--accent-soft)}
-  .pal-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
-  .dd-legend{margin-top:9px;padding:8px 6px 3px;border-top:1px solid var(--rule);
-             font-size:10.5px;color:var(--ink-3);line-height:1.7}
-  .dd-legend b{color:var(--ink-2);font-weight:600}
-  .toolbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
-  .clock{font-family:var(--mono);font-size:12px;color:#9aa2ac;font-variant-numeric:tabular-nums}
-  .conn{display:flex;align-items:center;gap:7px;font-size:12px;font-family:var(--mono)}
-  .conn .dot{width:9px;height:9px;border-radius:50%;background:#5a636e}
-  .conn.live .dot{background:var(--run);box-shadow:0 0 0 3px rgba(180,198,43,.25)}
-  .conn.dead .dot{background:#e4716e;box-shadow:0 0 0 3px rgba(228,113,110,.25)}
+  .clock{font-family:var(--mono);font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .conn{display:flex;align-items:center;gap:6px;font-size:12px;font-family:var(--mono);color:var(--ink-2)}
+  .conn .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+  .conn.live .dot{background:#30d158;box-shadow:0 0 0 3px rgba(48,209,88,.22)}
+  .conn.dead .dot{background:#ff453a;box-shadow:0 0 0 3px rgba(255,69,58,.22)}
 
   /* ── 본체: 캔버스 | 인스펙터 (좌측바 없음) ── */
   .body{flex:1 1 auto;display:flex;min-height:0}
@@ -200,42 +205,58 @@
 </style>
 </head>
 <body>
-  <div class="toolbar">
-    <span class="brand">JCC<b>·</b>CCM</span>
-    <span class="tag">노드 에디터</span>
-    <span class="tb-sep"></span>
-    <button class="tb-btn" id="btn-new">새로</button>
-    <button class="tb-btn" id="btn-open">열기</button>
-    <button class="tb-btn" id="btn-save">저장</button>
-    <button class="tb-btn" id="btn-saveas">다른 이름</button>
-    <span class="tb-sep"></span>
-    <div class="tb-menu">
-      <button class="tb-btn add" id="btn-addmenu">＋ 노드 추가 <span class="caret">▾</span></button>
-      <div class="tb-dropdown" id="addmenu" hidden>
-        <div class="dd-group">소스</div>
-        <button class="dd-item" data-add="sensor"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서</button>
-        <button class="dd-item" data-add="ccm"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이</button>
-        <div class="dd-group">구성 · 로직</div>
-        <button class="dd-item" data-add="panel"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬 그룹</button>
-        <button class="dd-item" data-add="threshold"><span class="pal-swatch" style="background:var(--warn)"></span>임계값 경보</button>
-        <button class="dd-item" data-add="aggregate"><span class="pal-swatch" style="background:var(--port-agg)"></span>상태 집계</button>
-        <div class="dd-group">출력</div>
-        <button class="dd-item" data-add="server"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드</button>
-        <button class="dd-item" data-add="notify"><span class="pal-swatch" style="background:var(--crit)"></span>알림 (메일·SMS)</button>
-        <button class="dd-item" data-add="store"><span class="pal-swatch" style="background:var(--ink-3)"></span>데이터 저장</button>
-        <div class="dd-legend">센서 <b>→RS485→</b> CCM <b>→이더넷→</b> 판넬 <b>→MQTT→</b> 클라우드<br>헤더 끌어 배치 · 포트(점) 끌어 연결 · <b>저장</b>으로 기억</div>
+  <div class="menubar">
+    <div class="mb-app">JCC<b>·</b>CCM</div>
+
+    <div class="mb-menu" data-menu="file">
+      <button class="mb-title">파일</button>
+      <div class="mb-dd" hidden>
+        <button class="mb-item" id="btn-new">새로 만들기</button>
+        <button class="mb-item" id="btn-open">열기</button>
+        <button class="mb-item" id="btn-save">저장<span class="sc">⌘S</span></button>
+        <button class="mb-item" id="btn-saveas">다른 이름으로 저장…</button>
       </div>
     </div>
-    <span class="tb-sep"></span>
-    <button class="tb-btn" id="btn-delete">노드 삭제</button>
-    <button class="tb-btn" id="btn-arrange">자동 정렬</button>
-    <span class="tb-sep"></span>
-    <button class="tb-btn ai" id="btn-discover">✨ AI 자동연결</button>
-    <button class="tb-btn run" id="btn-run">실행</button>
-    <span class="tb-status" id="status">준비</span>
-    <div class="right">
-      <span class="clock" id="clock">--:--:--</span>
+
+    <div class="mb-menu" data-menu="edit">
+      <button class="mb-title">편집</button>
+      <div class="mb-dd" hidden>
+        <button class="mb-item" id="btn-delete">노드 삭제<span class="sc">⌫</span></button>
+        <button class="mb-item" id="btn-arrange">자동 정렬</button>
+      </div>
+    </div>
+
+    <div class="mb-menu" data-menu="add">
+      <button class="mb-title">추가</button>
+      <div class="mb-dd" hidden>
+        <div class="mb-label">소스</div>
+        <button class="mb-item" data-add="sensor"><i style="background:var(--port-sensor)"></i>센서</button>
+        <button class="mb-item" data-add="ccm"><i style="background:var(--port-data)"></i>CCM 게이트웨이</button>
+        <div class="mb-div"></div>
+        <div class="mb-label">구성 · 로직</div>
+        <button class="mb-item" data-add="panel"><i style="background:var(--port-agg)"></i>판넬 그룹</button>
+        <button class="mb-item" data-add="threshold"><i style="background:var(--warn)"></i>임계값 경보</button>
+        <button class="mb-item" data-add="aggregate"><i style="background:var(--port-agg)"></i>상태 집계</button>
+        <div class="mb-div"></div>
+        <div class="mb-label">출력</div>
+        <button class="mb-item" data-add="server"><i style="background:var(--accent)"></i>JCC 클라우드</button>
+        <button class="mb-item" data-add="notify"><i style="background:var(--crit)"></i>알림 (메일·SMS)</button>
+        <button class="mb-item" data-add="store"><i style="background:var(--ink-3)"></i>데이터 저장</button>
+      </div>
+    </div>
+
+    <div class="mb-menu" data-menu="tools">
+      <button class="mb-title">도구</button>
+      <div class="mb-dd" hidden>
+        <button class="mb-item" id="btn-run">데이터 새로고침</button>
+      </div>
+    </div>
+
+    <div class="mb-right">
+      <span class="mb-status" id="status"></span>
+      <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
+      <span class="clock" id="clock">--:--:--</span>
     </div>
   </div>
 
@@ -669,11 +690,15 @@ function addUserNode(kind){
   userCounter++;
   const id = "user:"+kind+":"+userCounter;
   userNodes.push({id, kind, name: KIND_KO[kind]+" "+userCounter});
-  nodePos[id] = {x: 360 + (userCounter%5)*26, y: 40 + (userCounter%7)*30};
+  // 지금 보고 있는 화면 중앙 근처에 놓는다(스크롤된 위치 반영) + 겹침 방지 캐스케이드
+  const cv = $("#canvas");
+  const cx = cv.scrollLeft + Math.max(40, cv.clientWidth/2 - 80);
+  const cy = cv.scrollTop  + Math.max(40, cv.clientHeight/2 - 80);
+  nodePos[id] = {x: Math.round(cx + (userCounter%5)*22), y: Math.round(cy + (userCounter%5)*22)};
   saveUser(); savePos(nodePos);
   renderUserNodes(); select(id);
   requestAnimationFrame(drawWires);
-  setStatus(KIND_KO[kind]+" 노드 추가됨");
+  setStatus(KIND_KO[kind]+" 노드 추가됨 — 화면 중앙에 배치");
 }
 function mkUserNode(rec){
   const el = document.createElement("div");
@@ -721,23 +746,27 @@ function deleteSelected(){
 // ── 상태표시 ──────────────────────────────────────────
 let statusTimer;
 function setStatus(t){ const s=$("#status"); if(!s) return; s.textContent=t;
-  clearTimeout(statusTimer); statusTimer=setTimeout(()=>s.textContent="준비",1800); }
+  clearTimeout(statusTimer); statusTimer=setTimeout(()=>s.textContent="",2600); }
 
-// ── 툴바 ──────────────────────────────────────────────
-// + 노드 추가 드롭다운
-const addMenu = $("#addmenu");
-function toggleAddMenu(show){
-  const open = show===undefined ? addMenu.hidden : show;
-  addMenu.hidden = !open;
-  $("#btn-addmenu").classList.toggle("open", open);
+// ── macOS 메뉴바 ──────────────────────────────────────
+let openMenu = null;
+function openMB(m){
+  if(openMenu && openMenu!==m) closeMB();
+  m.classList.add("open"); m.querySelector(".mb-dd").hidden = false; openMenu = m;
 }
-$("#btn-addmenu").onclick = (e)=>{ e.stopPropagation(); toggleAddMenu(); };
-document.addEventListener("click", (e)=>{
-  if(!addMenu.hidden && !e.target.closest(".tb-menu")) toggleAddMenu(false);
+function closeMB(){
+  if(openMenu){ openMenu.classList.remove("open"); openMenu.querySelector(".mb-dd").hidden = true; openMenu = null; }
+}
+document.querySelectorAll(".mb-menu").forEach(m=>{
+  const title = m.querySelector(".mb-title");
+  title.addEventListener("click", e=>{ e.stopPropagation(); openMenu===m ? closeMB() : openMB(m); });
+  title.addEventListener("mouseenter", ()=>{ if(openMenu && openMenu!==m) openMB(m); }); // macOS 메뉴 전환
 });
-document.querySelectorAll(".dd-item[data-add]").forEach(b=>{
-  b.onclick = ()=>{ addUserNode(b.dataset.add); toggleAddMenu(false); };
-});
+document.addEventListener("click", e=>{ if(openMenu && !e.target.closest(".mb-menu")) closeMB(); });
+// 메뉴 항목 클릭 시 메뉴 닫힘 (개별 동작은 각 버튼 핸들러가 처리)
+document.querySelectorAll(".mb-dd .mb-item").forEach(b=> b.addEventListener("click", ()=> closeMB()));
+// 노드 추가 항목
+document.querySelectorAll(".mb-item[data-add]").forEach(b=>{ b.onclick = ()=>addUserNode(b.dataset.add); });
 $("#btn-new").onclick = ()=>{
   if((userNodes.length||userWires.length) && !confirm("추가한 노드·연결을 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
   userNodes.forEach(n=>{ nodes.get(n.id)?.el.remove(); nodes.delete(n.id); delete nodePos[n.id]; });
