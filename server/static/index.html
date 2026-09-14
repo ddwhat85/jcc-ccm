@@ -3,291 +3,570 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JCC-CCM 판넬 모니터링</title>
+<title>JCC-CCM 노드 모니터</title>
 <style>
-  /* RAL 팬덱 기반 팔레트: 7035 함체그레이 · 5010 젠티안블루 · 신호색 */
+  /* RAL 팬덱 기반 팔레트 + SmartRay 노드에디터 시각언어 */
   :root{
-    --ground:#e9ebe6; --surface:#f7f8f5; --surface-2:#dfe2da;
-    --ink:#1a1d19; --ink-2:#4a4f48; --ink-3:#6d7368;
-    --rule:#c7cabf; --accent:#00437a; --accent-soft:#d6e0ec;
+    --ground:#eef0ec; --canvas:#f6f7f4; --surface:#ffffff; --surface-2:#e7eae3;
+    --ink:#1a1d19; --ink-2:#4a4f48; --ink-3:#727870;
+    --rule:#c9ccc2; --rule-2:#d9dcd3;
+    --accent:#00437a; --accent-soft:#d6e0ec;
+    --node-head-1:#2f3f6b; --node-head-2:#3c4f85; --node-head-ink:#eef2fb;
+    --node-body:#eef1f6; --node-border:#c3ccd9;
+    --port-sensor:#5c9a4f; --port-data:#3f7fb0; --port-agg:#8a6db0;
+    --wire:#3f8fb0; --wire-label:#3a4658;
     --ok:#3f7d2b; --ok-soft:#deebd6; --warn:#9a7800; --warn-soft:#f5e9c4;
     --crit:#a81917; --crit-soft:#f3dad9;
+    --toolbar:#14171c; --toolbar-ink:#e6e8ea; --run:#b4c62b;
+    --sel:#e6912a;
     --sans:"Segoe UI Variable","Segoe UI",-apple-system,"Malgun Gothic",sans-serif;
     --mono:"Cascadia Mono","Consolas",ui-monospace,monospace;
   }
-  @media (prefers-color-scheme:dark){:root{
-    --ground:#151714; --surface:#1d201b; --surface-2:#272b24;
-    --ink:#e9ebe6; --ink-2:#b4b9af; --ink-3:#888e83; --rule:#343930;
+  :root:not([data-theme="light"]){}
+  @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+    --ground:#0f1113; --canvas:#15181d; --surface:#1c2026; --surface-2:#232830;
+    --ink:#e7eae6; --ink-2:#b2b8ae; --ink-3:#868c82;
+    --rule:#2f343c; --rule-2:#262b32;
     --accent:#79aede; --accent-soft:#1a2c3c;
+    --node-head-1:#20304f; --node-head-2:#2a3c63; --node-head-ink:#dbe4f5;
+    --node-body:#222834; --node-border:#333c4a;
+    --wire:#4f9fc0; --wire-label:#aab4c2;
     --ok:#84c462; --ok-soft:#1f2f18; --warn:#dcb63c; --warn-soft:#372e12;
     --crit:#e4716e; --crit-soft:#3a1e1d;
+    --toolbar:#0c0e11; --toolbar-ink:#dfe2e6;
   }}
+  :root[data-theme="dark"]{
+    --ground:#0f1113; --canvas:#15181d; --surface:#1c2026; --surface-2:#232830;
+    --ink:#e7eae6; --ink-2:#b2b8ae; --ink-3:#868c82;
+    --rule:#2f343c; --rule-2:#262b32;
+    --accent:#79aede; --accent-soft:#1a2c3c;
+    --node-head-1:#20304f; --node-head-2:#2a3c63; --node-head-ink:#dbe4f5;
+    --node-body:#222834; --node-border:#333c4a;
+    --wire:#4f9fc0; --wire-label:#aab4c2;
+    --ok:#84c462; --ok-soft:#1f2f18; --warn:#dcb63c; --warn-soft:#372e12;
+    --crit:#e4716e; --crit-soft:#3a1e1d;
+    --toolbar:#0c0e11; --toolbar-ink:#dfe2e6;
+  }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
-  header{display:flex;align-items:center;gap:16px;padding:14px 24px;background:var(--surface);border-bottom:3px solid var(--accent)}
-  .brand{font-weight:700;font-size:19px;letter-spacing:-.01em}
-  .brand span{color:var(--accent)}
-  .sub{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
-  header .right{margin-left:auto;display:flex;align-items:center;gap:16px}
-  .clock{font-family:var(--mono);font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
-  .conn{display:flex;align-items:center;gap:7px;font-size:13px;font-family:var(--mono)}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3)}
-  .conn.live .dot{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
-  .conn.dead .dot{background:var(--crit);box-shadow:0 0 0 3px var(--crit-soft)}
+  html,body{height:100%}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);
+       font-size:14px;line-height:1.45;display:flex;flex-direction:column;overflow:hidden}
 
-  main{max-width:1200px;margin:0 auto;padding:24px}
-  .empty{text-align:center;padding:80px 20px;color:var(--ink-3)}
-  .empty h2{color:var(--ink-2);font-weight:600}
+  /* ── 상단 툴바 (SmartRay 다크바) ── */
+  .toolbar{display:flex;align-items:center;gap:14px;padding:0 16px;height:46px;
+           background:var(--toolbar);color:var(--toolbar-ink);flex:0 0 auto}
+  .toolbar .brand{font-weight:700;font-size:15px;letter-spacing:.02em}
+  .toolbar .brand b{color:var(--run)}
+  .toolbar .tag{font-family:var(--mono);font-size:11px;color:#8a929c;
+                border:1px solid #2c333c;border-radius:3px;padding:2px 7px}
+  .tb-btn{font:inherit;font-size:12.5px;color:var(--toolbar-ink);background:#20262e;
+          border:1px solid #333b45;border-radius:4px;padding:5px 11px;cursor:pointer}
+  .tb-btn:hover{background:#2a323c}
+  .tb-btn.run{background:var(--run);color:#1a1e07;border-color:var(--run);font-weight:600}
+  .tb-btn.run:hover{filter:brightness(1.06)}
+  .toolbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  .clock{font-family:var(--mono);font-size:12px;color:#9aa2ac;font-variant-numeric:tabular-nums}
+  .conn{display:flex;align-items:center;gap:7px;font-size:12px;font-family:var(--mono)}
+  .conn .dot{width:9px;height:9px;border-radius:50%;background:#5a636e}
+  .conn.live .dot{background:var(--run);box-shadow:0 0 0 3px rgba(180,198,43,.25)}
+  .conn.dead .dot{background:#e4716e;box-shadow:0 0 0 3px rgba(228,113,110,.25)}
 
-  /* 판넬 (최상위: 한 판넬 = CCM 여러 대) */
-  .panels{display:flex;flex-direction:column;gap:22px}
-  .panel-card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
-  .panel-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--rule)}
-  .panel-name{font-weight:700;font-size:17px;letter-spacing:-.01em}
-  .panel-site{color:var(--ink-3);font-size:13px}
-  .ccm-count{font-family:var(--mono);font-size:12px;color:var(--ink-3);background:var(--ground);padding:2px 8px;border-radius:2px}
+  /* ── 본체: 팔레트 | 캔버스 | 인스펙터 ── */
+  .body{flex:1 1 auto;display:flex;min-height:0}
 
-  .pill{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;
-        padding:3px 10px;border-radius:2px;border:1px solid currentColor;text-transform:uppercase}
-  .panel-head .pill{margin-left:auto}
-  .pill.sm{font-size:10px;padding:2px 7px}
-  .pill.on{background:var(--ok-soft);color:var(--ok)}
-  .pill.off{background:var(--crit-soft);color:var(--crit)}
-  .seen{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:10px}
+  .palette{flex:0 0 194px;background:var(--surface);border-right:1px solid var(--rule);
+           overflow-y:auto;padding:12px}
+  .palette h3{margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.04em;
+              text-transform:uppercase;color:var(--ink-3)}
+  .palette .hint{font-size:11px;color:var(--ink-3);margin:0 0 12px;line-height:1.4}
+  .pal-item{display:flex;align-items:center;gap:9px;padding:8px 10px;margin-bottom:6px;
+            border:1px solid var(--rule);border-radius:5px;background:var(--canvas);
+            font-size:12.5px;color:var(--ink-2)}
+  .pal-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .pal-legend{margin-top:16px;border-top:1px solid var(--rule);padding-top:12px}
+  .pal-legend .row{display:flex;align-items:center;gap:8px;font-size:11.5px;
+                   color:var(--ink-3);margin-bottom:6px}
+  .pal-legend .wireswatch{width:22px;height:0;border-top:2px solid var(--wire)}
 
-  /* CCM (판넬 하위) */
-  .ccms{display:flex;flex-direction:column}
-  .ccm + .ccm{border-top:1px solid var(--rule)}
-  .ccm-head{display:flex;align-items:center;gap:10px;padding:9px 18px;background:var(--surface)}
-  .ccm-id{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink-2)}
+  .canvas{flex:1 1 auto;position:relative;overflow:auto;background:var(--canvas);
+    background-image:radial-gradient(var(--rule-2) 1px, transparent 1px);
+    background-size:22px 22px}
+  .graph{position:relative;min-width:100%;min-height:100%}
+  .graph svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .wirepath{fill:none;stroke:var(--wire);stroke-width:2}
+  .wirepath.flow{stroke-dasharray:5 6;animation:flow 1s linear infinite}
+  .wirepath.off{stroke:var(--rule);stroke-dasharray:3 5}
+  @keyframes flow{to{stroke-dashoffset:-11}}
+  .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
+             paint-order:stroke;stroke:var(--canvas);stroke-width:3px}
 
-  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--rule)}
-  .tile{background:var(--surface);padding:14px 16px;cursor:pointer;transition:background .12s;border:none;text-align:left;font:inherit;color:inherit}
-  .tile:hover{background:var(--surface-2)}
-  .tile:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
-  .tile .t-name{font-size:12.5px;color:var(--ink-3);margin-bottom:6px}
-  .tile .t-val{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .tile .t-unit{font-size:13px;color:var(--ink-3);font-weight:400;margin-left:3px}
-  .tile.stale .t-val{color:var(--crit)}
-  .tile .t-hint{font-size:11px;color:var(--ink-3);margin-top:4px;opacity:0;transition:opacity .12s}
-  .tile:hover .t-hint{opacity:1}
+  /* ── 노드 카드 ── */
+  .node{position:absolute;width:200px;background:var(--node-body);
+        border:1px solid var(--node-border);border-radius:7px;
+        box-shadow:0 2px 6px rgba(20,24,32,.12);user-select:none}
+  .node.sel{border-color:var(--sel);box-shadow:0 0 0 2px var(--sel),0 3px 10px rgba(20,24,32,.2)}
+  .node .nhead{display:flex;align-items:center;gap:8px;padding:7px 11px;cursor:grab;
+    background:linear-gradient(180deg,var(--node-head-2),var(--node-head-1));
+    color:var(--node-head-ink);border-radius:6px 6px 0 0;position:relative}
+  .node .nhead:active{cursor:grabbing}
+  .node .ntitle{font-weight:600;font-size:12.5px;letter-spacing:-.01em;
+                white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .node .nkind{font:600 9px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+               color:#aeb9d4;margin-left:auto;flex:0 0 auto}
+  .node .nbody{padding:6px 0}
+  .prow{display:flex;align-items:center;gap:7px;padding:4px 11px;position:relative;min-height:24px}
+  .prow .pname{font-size:11.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .pval{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:600;
+              font-variant-numeric:tabular-nums;white-space:nowrap}
+  .prow .pval.ok{color:var(--ink)} .prow .pval.warn{color:var(--warn)}
+  .prow .pval.crit{color:var(--crit)} .prow .pval.stale{color:var(--ink-3)}
+  .punit{font-size:9px;color:var(--ink-3);margin-left:2px;font-weight:400}
+  /* 포트 점: 카드 가장자리에 물림 */
+  .port{width:11px;height:11px;border-radius:50%;border:2px solid var(--node-body);
+        position:absolute;top:50%;transform:translateY(-50%);z-index:2}
+  .port.in{left:-6px} .port.out{right:-6px}
+  .port.sensor{background:var(--port-sensor)} .port.data{background:var(--port-data)}
+  .port.agg{background:var(--port-agg)}
+  .headport{position:absolute;top:50%;right:-6px;transform:translateY(-50%);
+            width:11px;height:11px;border-radius:50%;border:2px solid var(--node-head-1)}
+  .bigval{padding:8px 11px 10px;display:flex;align-items:baseline;gap:4px}
+  .bigval .v{font:700 24px var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .bigval .u{font-size:11px;color:var(--ink-3)}
+  .bigval.ok .v{color:var(--ink)} .bigval.warn .v{color:var(--warn)}
+  .bigval.crit .v{color:var(--crit)} .bigval.stale .v{color:var(--ink-3)}
+  .npill{font:600 9px var(--mono);letter-spacing:.05em;text-transform:uppercase;
+         padding:2px 6px;border-radius:3px;border:1px solid currentColor}
+  .npill.on{background:var(--ok-soft);color:var(--ok)}
+  .npill.off{background:var(--crit-soft);color:var(--crit)}
+  .nsub{padding:4px 11px 8px;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .nhistory{margin:2px 11px 9px;font:inherit;font-size:11px;color:var(--accent);
+            background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
+            text-underline-offset:2px}
 
-  /* 차트 패널 */
-  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+  /* ── 인스펙터 ── */
+  .inspector{flex:0 0 0;width:0;background:var(--surface);border-left:1px solid var(--rule);
+             overflow:hidden;transition:flex-basis .16s ease}
+  .inspector.open{flex-basis:264px;width:264px}
+  .insp-in{width:264px;padding:16px 18px}
+  .insp-kind{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+  .insp-title{font-weight:700;font-size:17px;margin:2px 0 12px;letter-spacing:-.01em}
+  .insp-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
+            border-bottom:1px solid var(--rule);font-size:12.5px}
+  .insp-row .k{color:var(--ink-3)} .insp-row .v{font-family:var(--mono);text-align:right}
+  .insp-close{float:right;background:none;border:none;font-size:18px;color:var(--ink-3);cursor:pointer;line-height:1}
+
+  /* ── 이력 차트 오버레이 ── */
+  .overlay{position:fixed;inset:0;background:rgba(10,12,16,.55);display:none;
+           align-items:center;justify-content:center;z-index:50}
   .overlay.open{display:flex}
-  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:4px;width:min(760px,100%);max-height:90vh;overflow:auto}
-  .panel-head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--rule)}
-  .panel-head h3{margin:0;font-size:16px}
-  .panel-head .x{margin-left:auto;background:none;border:none;font-size:22px;color:var(--ink-3);cursor:pointer;line-height:1;padding:0 4px}
-  .panel-body{padding:20px}
-  canvas{width:100%;height:280px;display:block}
-  .stat-row{display:flex;gap:24px;margin-top:14px;font-family:var(--mono);font-size:13px;color:var(--ink-2)}
-  .stat-row b{color:var(--ink);font-weight:600}
-  footer{max-width:1200px;margin:0 auto;padding:16px 24px 40px;color:var(--ink-3);font-size:12px;font-family:var(--mono)}
+  .modal{background:var(--surface);border-radius:8px;padding:18px 20px;width:min(680px,92vw);
+         box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .modal-head{display:flex;align-items:center;margin-bottom:10px}
+  .modal-head h3{margin:0;font-size:15px}
+  .modal-head button{margin-left:auto;background:none;border:none;font-size:20px;color:var(--ink-3);cursor:pointer}
+  #chart{width:100%;height:280px} .chart-stats{display:flex;gap:20px;margin-top:8px;
+         font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+  .chart-stats b{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){.wirepath.flow{animation:none}}
 </style>
 </head>
 <body>
-<header>
-  <div>
-    <div class="brand"><span>JCC</span>-CCM</div>
-    <div class="sub">판넬 모니터링</div>
-  </div>
-  <div class="right">
-    <div class="clock" id="clock">--:--:--</div>
-    <div class="conn" id="conn"><span class="dot"></span><span id="conn-txt">연결 중…</span></div>
-  </div>
-</header>
-
-<main>
-  <div id="root"><div class="empty"><h2>데이터를 기다리는 중…</h2>
-    <p>CCM 펌웨어가 <code>POST /v1/telemetry</code> 로 데이터를 보내면 여기에 나타납니다.</p></div></div>
-</main>
-
-<footer>JCC SOLUTION · 자체 판넬 모니터링 플랫폼 · <span id="ver">v0.1</span></footer>
-
-<div class="overlay" id="overlay">
-  <div class="panel">
-    <div class="panel-head">
-      <h3 id="chart-title">센서 이력</h3>
-      <button class="x" id="close-chart" aria-label="닫기">×</button>
-    </div>
-    <div class="panel-body">
-      <canvas id="chart" width="720" height="280"></canvas>
-      <div class="stat-row" id="chart-stats"></div>
+  <div class="toolbar">
+    <span class="brand">JCC<b>·</b>CCM</span>
+    <span class="tag">노드 모니터</span>
+    <button class="tb-btn" id="btn-arrange">자동 정렬</button>
+    <button class="tb-btn" id="btn-save">배치 저장</button>
+    <button class="tb-btn run" id="btn-refresh">새로고침</button>
+    <div class="right">
+      <span class="clock" id="clock">--:--:--</span>
+      <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
     </div>
   </div>
-</div>
+
+  <div class="body">
+    <aside class="palette">
+      <h3>노드</h3>
+      <p class="hint">현장 배선을 노드로 표시합니다. 헤더를 끌어 배치하고 <b>배치 저장</b>으로 기억시킵니다.</p>
+      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서</div>
+      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이</div>
+      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬</div>
+      <div class="pal-item"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드</div>
+      <div class="pal-legend">
+        <div class="row"><span class="wireswatch"></span>연결(배선)</div>
+        <div class="row">센서 →<b style="color:var(--ink-2)">&nbsp;RS485&nbsp;</b>→ CCM</div>
+        <div class="row">CCM →<b style="color:var(--ink-2)">&nbsp;이더넷&nbsp;</b>→ 판넬</div>
+        <div class="row">판넬 →<b style="color:var(--ink-2)">&nbsp;MQTT&nbsp;</b>→ 클라우드</div>
+      </div>
+    </aside>
+
+    <div class="canvas" id="canvas">
+      <div class="graph" id="graph">
+        <svg class="wires" id="wires"></svg>
+        <div class="empty" id="empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--ink-3);flex-direction:column">
+          <div style="font-size:15px;color:var(--ink-2);font-weight:600">데이터를 기다리는 중…</div>
+          <div style="font-size:12px;margin-top:6px">CCM이 텔레메트리를 보내면 노드가 나타납니다.</div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="inspector" id="inspector"><div class="insp-in" id="insp-in"></div></aside>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <div class="modal-head"><h3 id="chart-title">이력</h3><button id="close-chart">×</button></div>
+      <canvas id="chart" width="640" height="280"></canvas>
+      <div class="chart-stats" id="chart-stats"></div>
+    </div>
+  </div>
 
 <script>
-"use strict";
-const $ = (s) => document.querySelector(s);
-const REFRESH_MS = 5000;
+const $ = s => document.querySelector(s);
+const REFRESH_MS = 3000;
+const LS_POS = "jcc-node-pos-v1";
 
-// ── 유틸 ────────────────────────────────────────────────
-function fmtValue(v){ if(v===null||v===undefined) return "--"; return (Math.round(v*100)/100).toLocaleString(); }
-function ago(sec){ if(!sec) return "-"; const d=Date.now()/1000-sec;
-  if(d<60) return Math.floor(d)+"초 전"; if(d<3600) return Math.floor(d/60)+"분 전"; return Math.floor(d/3600)+"시간 전"; }
-function tickClock(){ $("#clock").textContent = new Date().toLocaleTimeString("ko-KR",{hour12:false}); }
-setInterval(tickClock, 1000); tickClock();
-
-// 센서 성격별 임계 판정 (경보 색). 현장 튜닝은 추후 서버 설정으로.
-function severity(key, v){
-  if(v===null||v===undefined) return "";
+// ── 유틸 ──────────────────────────────────────────────
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function fmtValue(v){ return v===null||v===undefined ? "—" : (Math.round(v*100)/100).toString(); }
+function ago(ts){ if(!ts) return ""; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
+  if(s<60) return s+"초 전"; if(s<3600) return Math.floor(s/60)+"분 전"; return Math.floor(s/3600)+"시간 전"; }
+function severity(key,v){ if(v===null||v===undefined) return "";
+  key=key.toLowerCase();
   if(key.includes("h2"))   return v>=2 ? "crit" : (v>=1 ? "warn" : "");
   if(key.includes("temp")) return v>=45 ? "crit" : (v>=38 ? "warn" : "");
-  return "";
+  if(key.includes("vibr")) return v>=4 ? "crit" : (v>=2.5 ? "warn" : "");
+  return ""; }
+function loadPos(){ try{ return JSON.parse(localStorage.getItem(LS_POS)||"{}"); }catch(e){ return {}; } }
+function savePos(p){ try{ localStorage.setItem(LS_POS, JSON.stringify(p)); }catch(e){} }
+
+// ── 상태 ──────────────────────────────────────────────
+let nodePos = loadPos();       // {nodeId: {x,y}}  사용자 배치
+let nodes = new Map();         // nodeId -> {el, kind}
+let wires = [];                // {fromId, toId, label, live}
+let topoSig = "";
+let selectedId = null;
+
+// ── 데이터 → 그래프 ───────────────────────────────────
+function topoSignature(panels){
+  return panels.map(p=>p.panel+"["+(p.ccms||[]).map(c=>c.device_id+":"+(c.latest||[]).map(r=>r.sensor_key).join(",")).join(";")+"]").join("|");
 }
 
-// ── 데이터 렌더 ─────────────────────────────────────────
-let lastOk = false;
-async function refresh(){
-  try{
-    const res = await fetch("/api/panels",{cache:"no-store"});
-    if(!res.ok) throw new Error(res.status);
-    const data = await res.json();
+function refresh(){
+  fetch("/api/panels",{cache:"no-store"}).then(r=>{
+    if(!r.ok) throw 0; return r.json();
+  }).then(data=>{
     setConn(true);
-    render(data.panels||[]);
-  }catch(e){ setConn(false); }
+    const panels = data.panels||[];
+    $("#empty").style.display = panels.length ? "none" : "flex";
+    const sig = topoSignature(panels);
+    if(sig !== topoSig){ buildGraph(panels); topoSig = sig; }
+    updateValues(panels);
+    requestAnimationFrame(drawWires);
+  }).catch(()=> setConn(false));
 }
+
 function setConn(ok){
-  lastOk = ok;
   const c = $("#conn");
-  c.className = "conn " + (ok ? "live" : "dead");
-  $("#conn-txt").textContent = ok ? "실시간" : "서버 응답 없음";
+  c.className = "conn " + (ok?"live":"dead");
+  $("#conn-t").textContent = ok ? "실시간" : "서버 응답 없음";
 }
 
-// 3계층: 판넬 → CCM → 센서. 한 판넬을 CCM 여러 대가 나눠 감시한다.
-// 구성이 바뀔 때만 DOM을 다시 짓고, 평소엔 값·상태만 제자리 갱신(무깜빡임).
-let _layoutKey = "";
-function layoutSignature(panels){
-  return panels.map(p => p.panel + "{" +
-    (p.ccms||[]).map(c => c.device_id + ":" + (c.latest||[]).map(r=>r.sensor_key).join(",")).join(";")
-  + "}").join("|");
-}
+// 노드 DOM 생성 (토폴로지 변경 시에만)
+function buildGraph(panels){
+  const graph = $("#graph");
+  // 기존 노드 제거 (wires svg, empty는 보존)
+  graph.querySelectorAll(".node").forEach(n=>n.remove());
+  nodes.clear(); wires = [];
 
-function render(panels){
-  const root = $("#root");
-  if(!panels.length){ return; } // keep empty state
-  const sig = layoutSignature(panels);
-  if(sig !== _layoutKey){ buildLayout(root, panels); _layoutKey = sig; }
-  updateValues(panels);
-}
+  const SERVER_ID = "server:jcc";
+  // 서버 노드 1개
+  const serverEl = mkNode(SERVER_ID, "server", "JCC 클라우드", "CLOUD");
+  serverEl.querySelector(".nbody").innerHTML =
+    `<div class="prow"><span class="port in data" data-port="in:server"></span>`+
+    `<span class="pname">텔레메트리 수신</span></div>`+
+    `<div class="nsub" data-role="server-sub">판넬 –</div>`;
+  graph.appendChild(serverEl); nodes.set(SERVER_ID,{el:serverEl,kind:"server"});
 
-function buildLayout(root, panels){
-  root.innerHTML = "";
-  const wrap = document.createElement("div"); wrap.className="panels";
   for(const p of panels){
-    const panel = document.createElement("section"); panel.className="panel-card";
-    panel.dataset.panel = p.panel;
-
-    const head = document.createElement("div"); head.className="panel-head";
-    head.innerHTML = `<span class="panel-name">${escapeHtml(p.panel_name||p.panel)}</span>`+
-      (p.site?`<span class="panel-site">${escapeHtml(p.site)}</span>`:"")+
-      `<span class="ccm-count">CCM ${p.ccm_count}대</span>`+
-      `<span class="pill" data-role="ppill"></span>`;
-    panel.appendChild(head);
-
-    const ccmWrap = document.createElement("div"); ccmWrap.className="ccms";
+    const panelId = "panel:"+p.panel;
+    const pEl = mkNode(panelId, "panel", p.panel_name||p.panel, "PANEL");
+    // 헤더 우측 출력 포트 + 온라인 pill
+    pEl.querySelector(".nhead").insertAdjacentHTML("beforeend",
+      `<span class="npill off" data-role="pill">OFF</span><span class="headport" data-port="out:panel:${cssAttr(p.panel)}"></span>`);
+    let pbody = "";
     for(const c of (p.ccms||[])){
-      const dev = document.createElement("div"); dev.className="ccm"; dev.dataset.dev=c.device_id;
-      const ch = document.createElement("div"); ch.className="ccm-head";
-      ch.innerHTML = `<span class="ccm-id">${escapeHtml(c.device_id)}</span>`+
-        `<span class="pill sm" data-role="cpill"></span>`+
-        `<span class="seen" data-role="seen"></span>`;
-      dev.appendChild(ch);
-
-      const tiles = document.createElement("div"); tiles.className="tiles";
-      for(const r of (c.latest||[])){
-        const t = document.createElement("button");
-        t.className="tile"; t.dataset.sensor=r.sensor_key;
-        t.innerHTML = `<div class="t-name">${escapeHtml(r.name||r.sensor_key)}</div>`+
-          `<div class="t-val" data-role="val"></div>`+
-          `<div class="t-hint">이력 보기 →</div>`;
-        t.onclick = () => openChart(c.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||"");
-        tiles.appendChild(t);
-      }
-      dev.appendChild(tiles);
-      ccmWrap.appendChild(dev);
+      pbody += `<div class="prow"><span class="port in agg" data-port="in:panel:${cssAttr(p.panel)}:${cssAttr(c.device_id)}"></span>`+
+        `<span class="pname">${escapeHtml(c.device_id)}</span>`+
+        `<span class="npill off" data-role="cpill:${cssAttr(c.device_id)}">OFF</span></div>`;
     }
-    panel.appendChild(ccmWrap);
-    wrap.appendChild(panel);
+    pEl.querySelector(".nbody").innerHTML = pbody;
+    graph.appendChild(pEl); nodes.set(panelId,{el:pEl,kind:"panel"});
+    wires.push({fromId:"out:panel:"+p.panel, toId:"in:server", label:"MQTT"});
+
+    for(const c of (p.ccms||[])){
+      const ccmId = "ccm:"+c.device_id;
+      const cEl = mkNode(ccmId, "ccm", c.device_id, "CCM");
+      cEl.querySelector(".nhead").insertAdjacentHTML("beforeend",
+        `<span class="npill off" data-role="pill">OFF</span><span class="headport" data-port="out:ccm:${cssAttr(c.device_id)}"></span>`);
+      let cbody = "";
+      for(const r of (c.latest||[])){
+        cbody += `<div class="prow"><span class="port in sensor" data-port="in:ccm:${cssAttr(c.device_id)}:${cssAttr(r.sensor_key)}"></span>`+
+          `<span class="pname">${escapeHtml(r.name||r.sensor_key)}</span>`+
+          `<span class="pval stale" data-role="cv:${cssAttr(r.sensor_key)}">—</span></div>`;
+      }
+      cEl.querySelector(".nbody").innerHTML = cbody || `<div class="nsub">센서 없음</div>`;
+      graph.appendChild(cEl); nodes.set(ccmId,{el:cEl,kind:"ccm"});
+      wires.push({fromId:"out:ccm:"+c.device_id, toId:"in:panel:"+p.panel+":"+c.device_id, label:"이더넷"});
+
+      for(const r of (c.latest||[])){
+        const sId = "sensor:"+c.device_id+":"+r.sensor_key;
+        const sEl = mkNode(sId, "sensor", r.name||r.sensor_key, "SENSOR");
+        sEl.querySelector(".nbody").innerHTML =
+          `<div class="bigval stale" data-role="sv"><span class="v">—</span><span class="u">${escapeHtml(r.unit||"")}</span></div>`+
+          `<button class="nhistory">이력 보기 →</button>`+
+          `<span class="port out sensor" data-port="out:sensor:${cssAttr(c.device_id)}:${cssAttr(r.sensor_key)}" style="top:38px"></span>`;
+        sEl.querySelector(".nhistory").onclick = (e)=>{ e.stopPropagation();
+          openChart(c.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||""); };
+        graph.appendChild(sEl); nodes.set(sId,{el:sEl,kind:"sensor"});
+        wires.push({fromId:"out:sensor:"+c.device_id+":"+r.sensor_key,
+                    toId:"in:ccm:"+c.device_id+":"+r.sensor_key, label:"RS485"});
+      }
+    }
   }
-  root.appendChild(wrap);
+  autoLayout(panels);        // 저장된 배치 없으면 자동 정렬
+  applyPositions();
 }
 
+function mkNode(id, kind, title, kindLabel){
+  const el = document.createElement("div");
+  el.className = "node " + kind; el.dataset.id = id;
+  el.innerHTML = `<div class="nhead"><span class="ntitle">${escapeHtml(title)}</span><span class="nkind">${kindLabel}</span></div><div class="nbody"></div>`;
+  makeDraggable(el);
+  el.addEventListener("mousedown", ()=>select(id), true);
+  return el;
+}
+function cssAttr(s){ return String(s).replace(/[^a-zA-Z0-9_:.-]/g,"_"); }
+
+// ── 자동 배치 (티어: 센서→CCM→판넬→서버) ───────────────
+const TIER_X = {sensor:24, ccm:300, panel:620, server:900};
+const GAP_Y = 18;
+function autoLayout(panels){
+  const auto = {};
+  let sy = 24;                    // 센서 세로 커서
+  const ccmY = {}, panelY = {};
+  for(const p of panels){
+    const ccmCenters = [];
+    for(const c of (p.ccms||[])){
+      const sensors = c.latest||[];
+      const first = sy;
+      for(const r of sensors){
+        auto["sensor:"+c.device_id+":"+r.sensor_key] = {x:TIER_X.sensor, y:sy};
+        sy += nodeH("sensor") + GAP_Y;
+      }
+      const last = sy - GAP_Y;
+      const cy = sensors.length ? (first + last)/2 - nodeH("ccm")/2 : sy;
+      if(!sensors.length){ sy += nodeH("ccm") + GAP_Y; }
+      auto["ccm:"+c.device_id] = {x:TIER_X.ccm, y:Math.max(24,cy)};
+      ccmCenters.push(auto["ccm:"+c.device_id].y + nodeH("ccm")/2);
+    }
+    const py = ccmCenters.length ? avg(ccmCenters) - nodeH("panel")/2 : sy;
+    auto["panel:"+p.panel] = {x:TIER_X.panel, y:Math.max(24,py)};
+    panelY[p.panel] = py;
+  }
+  const pys = Object.values(panelY);
+  auto["server:jcc"] = {x:TIER_X.server, y: (pys.length? avg(pys):40)};
+  // 저장된 사용자 배치가 있으면 그것을 우선, 없으면 자동
+  autoPositions = auto;
+}
+let autoPositions = {};
+function avg(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
+function nodeH(kind){ return kind==="sensor"?92 : kind==="ccm"?120 : kind==="panel"?110 : 70; }
+
+function applyPositions(){
+  let maxR=0, maxB=0;
+  for(const [id,{el}] of nodes){
+    const pos = nodePos[id] || autoPositions[id] || {x:24,y:24};
+    el.style.left = pos.x+"px"; el.style.top = pos.y+"px";
+    maxR = Math.max(maxR, pos.x + el.offsetWidth);
+    maxB = Math.max(maxB, pos.y + el.offsetHeight);
+  }
+  const g = $("#graph");
+  g.style.width = (maxR+60)+"px"; g.style.height = (maxB+60)+"px";
+}
+
+// ── 값·상태 갱신 (제자리) ─────────────────────────────
 function updateValues(panels){
+  let onlinePanels = 0, lastSeen = 0;
   for(const p of panels){
-    const panel = document.querySelector(`.panel-card[data-panel="${cssEsc(p.panel)}"]`);
-    if(!panel) continue;
-    const pp = panel.querySelector('[data-role="ppill"]');
-    pp.className = "pill " + (p.online?"on":"off");
-    pp.textContent = p.online?"온라인":"오프라인";
+    if(p.online) onlinePanels++;
+    const pEl = nodes.get("panel:"+p.panel)?.el; if(!pEl) continue;
+    setPill(pEl.querySelector('[data-role="pill"]'), p.online);
     for(const c of (p.ccms||[])){
-      const dev = panel.querySelector(`.ccm[data-dev="${cssEsc(c.device_id)}"]`);
-      if(!dev) continue;
-      const cp = dev.querySelector('[data-role="cpill"]');
-      cp.className = "pill sm " + (c.online?"on":"off");
-      cp.textContent = c.online?"온라인":"오프라인";
-      dev.querySelector('[data-role="seen"]').textContent = ago(c.last_seen);
+      lastSeen = Math.max(lastSeen, c.last_seen||0);
+      const cpill = pEl.querySelector(`[data-role="cpill:${cssAttr(c.device_id)}"]`);
+      setPill(cpill, c.online);
+      const cEl = nodes.get("ccm:"+c.device_id)?.el; if(!cEl) continue;
+      setPill(cEl.querySelector('[data-role="pill"]'), c.online);
       for(const r of (c.latest||[])){
-        const tile = dev.querySelector(`.tile[data-sensor="${cssEsc(r.sensor_key)}"]`);
-        if(!tile) continue;
-        const sev = severity(r.sensor_key, r.value);
-        tile.className = "tile" + (r.ok?"":" stale") + (sev?(" "+sev):"");
-        tile.querySelector('[data-role="val"]').innerHTML =
-          `${fmtValue(r.value)}<span class="t-unit">${escapeHtml(r.unit||"")}</span>`;
+        const sev = severity(r.sensor_key, r.value) || (r.ok?"ok":"stale");
+        // CCM 안 입력행 값
+        const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
+        if(cv){ cv.className = "pval "+sev; cv.innerHTML = fmtValue(r.value)+`<span class="punit">${escapeHtml(r.unit||"")}</span>`; }
+        // 센서 노드 큰 값
+        const sEl = nodes.get("sensor:"+c.device_id+":"+r.sensor_key)?.el;
+        if(sEl){ const bv=sEl.querySelector('[data-role="sv"]');
+          bv.className = "bigval "+sev;
+          bv.querySelector(".v").textContent = fmtValue(r.value); }
       }
     }
   }
+  // 서버 노드 요약
+  const sSub = nodes.get("server:jcc")?.el.querySelector('[data-role="server-sub"]');
+  if(sSub) sSub.textContent = `판넬 ${onlinePanels}/${panels.length} · ${ago(lastSeen)||"–"}`;
+  // 배선 흐름 애니메이션 상태
+  for(const w of wires){ w.live = true; }
 }
-function cssEsc(s){ return String(s).replace(/["\\]/g,"\\$&"); }
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function setPill(el, online){ if(!el) return;
+  el.className = "npill " + (online?"on":"off"); el.textContent = online?"ON":"OFF"; }
 
-// ── 차트 (직접 그림, 외부 라이브러리 없음) ──────────────
+// ── 배선 그리기 (포트 중심 실측) ───────────────────────
+function portCenter(portId){
+  const el = $(`.graph [data-port="${cssAttr2(portId)}"]`);
+  if(!el) return null;
+  const gr = $("#graph").getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return { x: r.left - gr.left + r.width/2, y: r.top - gr.top + r.height/2 };
+}
+function cssAttr2(s){ // data-port 값은 cssAttr로 안전화되어 저장됨 → 조회도 동일 변환
+  return String(s).replace(/[^a-zA-Z0-9_:.-]/g,"_").replace(/["\\]/g,"\\$&"); }
+
+function drawWires(){
+  const svg = $("#wires");
+  let paths = "", labels = "";
+  for(const w of wires){
+    const a = portCenter(w.fromId), b = portCenter(w.toId);
+    if(!a || !b) continue;
+    const dx = Math.max(36, (b.x - a.x)/2);
+    const d = `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
+    const cls = "wirepath" + (w.live ? " flow" : " off");
+    paths += `<path class="${cls}" d="${d}"></path>`;
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 5;
+    labels += `<text class="wirelabel" x="${mx}" y="${my}" text-anchor="middle">${escapeHtml(w.label)}</text>`;
+  }
+  svg.innerHTML = paths + labels;
+}
+
+// ── 드래그 ────────────────────────────────────────────
+function makeDraggable(el){
+  const head = ()=>el.querySelector(".nhead");
+  let sx,sy,ox,oy,drag=false;
+  el.querySelector(".nhead") || 0;
+  el.addEventListener("mousedown", e=>{
+    if(!e.target.closest(".nhead")) return;
+    drag=true; sx=e.clientX; sy=e.clientY;
+    ox=parseFloat(el.style.left)||0; oy=parseFloat(el.style.top)||0;
+    el.style.zIndex=10; e.preventDefault();
+  });
+  window.addEventListener("mousemove", e=>{
+    if(!drag) return;
+    const nx=Math.max(0,ox+(e.clientX-sx)), ny=Math.max(0,oy+(e.clientY-sy));
+    el.style.left=nx+"px"; el.style.top=ny+"px";
+    drawWires();
+  });
+  window.addEventListener("mouseup", ()=>{
+    if(!drag) return; drag=false; el.style.zIndex="";
+    nodePos[el.dataset.id] = {x:parseFloat(el.style.left)||0, y:parseFloat(el.style.top)||0};
+  });
+}
+
+// ── 선택 · 인스펙터 ───────────────────────────────────
+function select(id){
+  if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); }
+  selectedId = id; const n = nodes.get(id); if(!n) return;
+  n.el.classList.add("sel");
+  renderInspector(id, n);
+}
+function renderInspector(id, n){
+  const insp = $("#inspector"), box = $("#insp-in");
+  const kindKo = {sensor:"센서",ccm:"CCM 게이트웨이",panel:"판넬",server:"JCC 클라우드"}[n.kind];
+  const title = n.el.querySelector(".ntitle").textContent;
+  let rows = "";
+  if(n.kind==="sensor"){
+    const bv = n.el.querySelector(".v")?.textContent||"—";
+    const parts = id.split(":");
+    rows = `<div class="insp-row"><span class="k">현재값</span><span class="v">${escapeHtml(bv)}</span></div>`+
+           `<div class="insp-row"><span class="k">소속 CCM</span><span class="v">${escapeHtml(parts[1])}</span></div>`+
+           `<div class="insp-row"><span class="k">센서 키</span><span class="v">${escapeHtml(parts[2])}</span></div>`+
+           `<div class="insp-row"><span class="k">연결</span><span class="v">RS485 → CCM</span></div>`;
+  } else if(n.kind==="ccm"){
+    const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
+    const ports = n.el.querySelectorAll(".prow").length;
+    rows = `<div class="insp-row"><span class="k">상태</span><span class="v">${on?"온라인":"오프라인"}</span></div>`+
+           `<div class="insp-row"><span class="k">센서 수</span><span class="v">${ports}</span></div>`+
+           `<div class="insp-row"><span class="k">상행 연결</span><span class="v">이더넷 → 판넬</span></div>`;
+  } else if(n.kind==="panel"){
+    const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
+    const ccms = n.el.querySelectorAll(".prow").length;
+    rows = `<div class="insp-row"><span class="k">상태</span><span class="v">${on?"온라인":"오프라인"}</span></div>`+
+           `<div class="insp-row"><span class="k">CCM 수</span><span class="v">${ccms}</span></div>`+
+           `<div class="insp-row"><span class="k">상행 연결</span><span class="v">MQTT → 클라우드</span></div>`;
+  } else {
+    const sub = n.el.querySelector('[data-role="server-sub"]')?.textContent||"";
+    rows = `<div class="insp-row"><span class="k">역할</span><span class="v">텔레메트리 수신</span></div>`+
+           `<div class="insp-row"><span class="k">요약</span><span class="v">${escapeHtml(sub)}</span></div>`;
+  }
+  box.innerHTML = `<button class="insp-close" id="insp-close">×</button>`+
+    `<div class="insp-kind">${kindKo}</div><div class="insp-title">${escapeHtml(title)}</div>${rows}`;
+  $("#insp-close").onclick = ()=>{ insp.classList.remove("open");
+    nodes.get(selectedId)?.el.classList.remove("sel"); selectedId=null; };
+  insp.classList.add("open");
+}
+
+// ── 툴바 ──────────────────────────────────────────────
+$("#btn-arrange").onclick = ()=>{ nodePos = {}; savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); };
+$("#btn-save").onclick = ()=>{ savePos(nodePos);
+  const b=$("#btn-save"); const t=b.textContent; b.textContent="저장됨 ✓"; setTimeout(()=>b.textContent=t,1200); };
+$("#btn-refresh").onclick = refresh;
+window.addEventListener("resize", ()=>requestAnimationFrame(drawWires));
+
+// ── 시계 ──────────────────────────────────────────────
+function tick(){ const d=new Date();
+  $("#clock").textContent = d.toLocaleTimeString("ko-KR",{hour12:false}); }
+tick(); setInterval(tick,1000);
+
+// ── 이력 차트 (외부 라이브러리 없음) ───────────────────
 async function openChart(deviceId, sensor, name, unit){
   $("#chart-title").textContent = `${name} — ${deviceId}`;
   $("#overlay").classList.add("open");
-  try{
-    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/history?sensor=${encodeURIComponent(sensor)}&limit=200`,{cache:"no-store"});
-    const data = await res.json();
-    drawChart(data.points||[], unit);
+  try{ const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/history?sensor=${encodeURIComponent(sensor)}&limit=200`,{cache:"no-store"});
+    drawChart((await res.json()).points||[], unit);
   }catch(e){ drawChart([], unit); }
 }
 $("#close-chart").onclick = ()=>$("#overlay").classList.remove("open");
-$("#overlay").onclick = (e)=>{ if(e.target===$("#overlay")) $("#overlay").classList.remove("open"); };
-
+$("#overlay").onclick = e=>{ if(e.target===$("#overlay")) $("#overlay").classList.remove("open"); };
 function cssVar(n){ return getComputedStyle(document.body).getPropertyValue(n).trim(); }
 function drawChart(points, unit){
-  const cv = $("#chart"), ctx = cv.getContext("2d");
-  const W = cv.width, H = cv.height, pad = {l:52,r:16,t:16,b:28};
+  const cv=$("#chart"), ctx=cv.getContext("2d"), W=cv.width, H=cv.height, pad={l:52,r:16,t:16,b:28};
   ctx.clearRect(0,0,W,H);
-  const ink3=cssVar("--ink-3"), rule=cssVar("--rule"), accent=cssVar("--accent"), ink=cssVar("--ink");
-  const vals = points.filter(p=>p.ok && p.value!==null).map(p=>p.value);
-  const stats = $("#chart-stats");
+  const ink3=cssVar("--ink-3"),rule=cssVar("--rule"),accent=cssVar("--accent");
+  const vals=points.filter(p=>p.ok&&p.value!==null).map(p=>p.value), stats=$("#chart-stats");
   if(vals.length<1){ ctx.fillStyle=ink3; ctx.font="14px sans-serif"; ctx.fillText("이력 데이터가 없습니다.",pad.l,H/2); stats.innerHTML=""; return; }
-  let min=Math.min(...vals), max=Math.max(...vals);
-  if(min===max){ min-=1; max+=1; }
+  let min=Math.min(...vals),max=Math.max(...vals); if(min===max){min-=1;max+=1;}
   const pth=(max-min)*0.12; min-=pth; max+=pth;
-  const x=(i)=>pad.l+(W-pad.l-pad.r)*(points.length<=1?0:i/(points.length-1));
-  const y=(v)=>pad.t+(H-pad.t-pad.b)*(1-(v-min)/(max-min));
-
-  // 격자 + y축 라벨
+  const x=i=>pad.l+(W-pad.l-pad.r)*(points.length<=1?0:i/(points.length-1));
+  const y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-min)/(max-min));
   ctx.strokeStyle=rule; ctx.fillStyle=ink3; ctx.font="11px monospace"; ctx.lineWidth=1;
-  for(let g=0;g<=4;g++){ const val=min+(max-min)*g/4, yy=y(val);
+  for(let g=0;g<=4;g++){ const val=min+(max-min)*g/4,yy=y(val);
     ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
-    ctx.fillText((Math.round(val*100)/100).toString(), 6, yy+4); }
-
-  // 면적 + 선
+    ctx.fillText((Math.round(val*100)/100).toString(),6,yy+4); }
   ctx.beginPath();
-  points.forEach((p,i)=>{ const v=(p.ok&&p.value!==null)?p.value:null; if(v===null) return;
+  points.forEach((p,i)=>{ const v=(p.ok&&p.value!==null)?p.value:null; if(v===null)return;
     const xx=x(i),yy=y(v); i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy); });
   ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.stroke();
-  // 끝점 강조
-  const lastIdx=points.length-1, lv=points[lastIdx].value;
-  if(lv!==null){ ctx.beginPath(); ctx.arc(x(lastIdx),y(lv),3.5,0,7); ctx.fillStyle=accent; ctx.fill(); }
-
+  const li=points.length-1, lv=points[li].value;
+  if(lv!==null){ ctx.beginPath(); ctx.arc(x(li),y(lv),3.5,0,7); ctx.fillStyle=accent; ctx.fill(); }
   const cur=vals[vals.length-1];
-  stats.innerHTML = `<span>현재 <b>${fmtValue(cur)} ${escapeHtml(unit)}</b></span>`+
+  stats.innerHTML=`<span>현재 <b>${fmtValue(cur)} ${escapeHtml(unit)}</b></span>`+
     `<span>최소 <b>${fmtValue(Math.min(...vals))}</b></span>`+
     `<span>최대 <b>${fmtValue(Math.max(...vals))}</b></span>`+
     `<span>표본 <b>${vals.length}</b></span>`;
