@@ -659,6 +659,41 @@ $("#graph").addEventListener("mousedown", e=>{
   wiring = { fromId: portEl.getAttribute("data-port"), fromNode: portEl.closest(".node")?.dataset.id };
   document.body.style.cursor = "crosshair";
 }, true);
+// 포트 id를 해석: 종류·소속 장비/판넬을 뽑는다.
+function parsePort(pid){
+  if(pid.startsWith("uin:") || pid.startsWith("uout:")) return {kind:"user"};
+  const p = pid.split(":");           // 예: out:sensor:ccm-2661:h2_lel
+  const kind = p[1];
+  if(kind==="sensor") return {kind, dev:p[2], key:p[3]};
+  if(kind==="ccm")    return {kind, dev:p[2]};                 // in:ccm:DEV:KEY / out:ccm:DEV
+  if(kind==="panel")  return {kind, panel:p[2], dev:p[3]};     // in:panel:PANEL:DEV / out:panel:PANEL
+  if(kind==="server") return {kind:"server"};
+  return {kind:"unknown"};
+}
+
+// 연결이 물리 토폴로지에 맞는지 검사. 어긋나면 막는다.
+function validateConnection(fromId, toId){
+  const A = parsePort(fromId), B = parsePort(toId);
+  // 사용자가 직접 추가한 노드가 하나라도 끼면 자유 연결(설계용)
+  if(A.kind==="user" || B.kind==="user") return {ok:true};
+  const pair = [A.kind, B.kind].sort().join("-");
+  if(pair==="ccm-sensor"){
+    const s = A.kind==="sensor"?A:B, c = A.kind==="ccm"?A:B;
+    if(s.dev !== c.dev)
+      return {ok:false, reason:`이 센서는 ${s.dev}에 물려 있어 ${c.dev}에는 연결할 수 없습니다`};
+    return {ok:true};
+  }
+  if(pair==="ccm-panel"){
+    const c = A.kind==="ccm"?A:B, p = A.kind==="panel"?A:B;
+    if(!p.dev) return {ok:false, reason:"판넬 출력에는 CCM을 연결할 수 없습니다"};
+    if(c.dev !== p.dev)
+      return {ok:false, reason:`이 CCM(${c.dev})은 그 판넬 자리에 연결할 수 없습니다`};
+    return {ok:true};
+  }
+  if(pair==="panel-server") return {ok:true};
+  return {ok:false, reason:"연결할 수 없는 조합입니다 (센서→CCM→판넬→클라우드 순서만 가능)"};
+}
+
 // 커서에서 가장 가까운 포트를 찾는다(같은 노드 제외). 자석 스냅용.
 function findSnapPort(gx, gy, gr){
   let best = null, bestD = SNAP_RADIUS*SNAP_RADIUS;
@@ -695,10 +730,13 @@ window.addEventListener("mouseup", e=>{
   }
   if(toId){
     if(toNode === wiring.fromNode){ setStatus("같은 노드끼리는 연결할 수 없습니다"); }
-    else if(toId !== wiring.fromId &&
-       !userWires.some(w=>(w.from===wiring.fromId&&w.to===toId)||(w.from===toId&&w.to===wiring.fromId))){
-      userWires.push({id:"w"+(++wireCounter), from:wiring.fromId, to:toId});
-      saveWires(); setStatus("연결됨");
+    else if(toId !== wiring.fromId){
+      const v = validateConnection(wiring.fromId, toId);
+      if(!v.ok){ setStatus("⛔ " + v.reason); }
+      else if(!userWires.some(w=>(w.from===wiring.fromId&&w.to===toId)||(w.from===toId&&w.to===wiring.fromId))){
+        userWires.push({id:"w"+(++wireCounter), from:wiring.fromId, to:toId});
+        saveWires(); setStatus("연결됨");
+      }
     }
   }
   clearSnap();
