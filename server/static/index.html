@@ -124,9 +124,10 @@
   .wirepath.temp{stroke:var(--sel);stroke-width:2;stroke-dasharray:4 4;opacity:.85}
   .wirehit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
   .wire-del{cursor:pointer;pointer-events:all}
-  .wire-del circle{fill:var(--crit);stroke:var(--surface);stroke-width:1.5}
-  .wire-del path{stroke:#fff;stroke-width:2;stroke-linecap:round}
-  .wire-del:hover circle{fill:#c81f1c}
+  .wire-del circle.hit{fill:transparent;stroke:none}
+  .wire-del circle:not(.hit){fill:var(--crit);stroke:var(--surface);stroke-width:1.5}
+  .wire-del path{stroke:#fff;stroke-width:2;stroke-linecap:round;pointer-events:none}
+  .wire-del:hover circle:not(.hit){fill:#c81f1c}
   .port,.headport{cursor:crosshair}
   @keyframes flow{to{stroke-dashoffset:-11}}
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
@@ -547,7 +548,9 @@ function cssAttr2(s){ // data-port 값은 cssAttr로 안전화되어 저장됨 �
 
 function delMark(x,y,id){
   return `<g class="wire-del" data-wire-del="${id}" transform="translate(${x},${y})">`+
-    `<circle r="9"></circle><path d="M-3.4,-3.4 L3.4,3.4 M3.4,-3.4 L-3.4,3.4"></path></g>`;
+    `<circle class="hit" r="15"></circle>`+                       // 넓은 클릭영역(투명)
+    `<circle r="10"></circle>`+
+    `<path d="M-3.6,-3.6 L3.6,3.6 M3.6,-3.6 L-3.6,3.6"></path></g>`;
 }
 function drawWires(){
   const svg = $("#wires");
