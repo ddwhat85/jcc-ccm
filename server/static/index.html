@@ -118,6 +118,7 @@
   .wirepath{fill:none;stroke:var(--wire);stroke-width:2}
   .wirepath.flow{stroke-dasharray:5 6;animation:flow 1s linear infinite}
   .wirepath.off{stroke:var(--rule);stroke-dasharray:3 5}
+  .wirepath.sel{stroke:var(--sel);stroke-width:3.5;filter:drop-shadow(0 0 3px var(--sel))}
   .wirepath.user{stroke:var(--sel);stroke-width:2.5;pointer-events:none}
   .wirepath.user.sel{stroke-width:4;filter:drop-shadow(0 0 3px var(--sel))}
   .wirepath.temp{stroke:var(--sel);stroke-width:2;stroke-dasharray:4 4;opacity:.85}
@@ -226,7 +227,8 @@
     <div class="mb-menu" data-menu="edit">
       <button class="mb-title">편집</button>
       <div class="mb-dd" hidden>
-        <button class="mb-item" id="btn-delete">노드 삭제<span class="sc">⌫</span></button>
+        <button class="mb-item" id="btn-delete">노드·연결 삭제<span class="sc">⌫</span></button>
+        <button class="mb-item" id="btn-restore">연결 복원(끊은 것 되살리기)</button>
         <button class="mb-item" id="btn-arrange">자동 정렬</button>
       </div>
     </div>
@@ -336,6 +338,12 @@ let tempPt = null;             // 드래그 중 커서 위치(그래프 좌표)
 let selectedWireId = null;
 function loadWires(){ try{ return JSON.parse(localStorage.getItem(LS_WIRES)||"[]"); }catch(e){ return []; } }
 function saveWires(){ try{ localStorage.setItem(LS_WIRES, JSON.stringify(userWires)); }catch(e){} }
+
+// 끊어놓은 자동 배선(센서→CCM 등)을 기억한다. key = fromId|toId
+const LS_CUT = "jcc-cut-wires-v1";
+let cutWires = new Set(loadCut());
+function loadCut(){ try{ return JSON.parse(localStorage.getItem(LS_CUT)||"[]"); }catch(e){ return []; } }
+function saveCut(){ try{ localStorage.setItem(LS_CUT, JSON.stringify([...cutWires])); }catch(e){} }
 
 // ── 데이터 → 그래프 ───────────────────────────────────
 function topoSignature(panels){
@@ -537,21 +545,30 @@ function portCenter(portId){
 function cssAttr2(s){ // data-port 값은 cssAttr로 안전화되어 저장됨 → 조회도 동일 변환
   return String(s).replace(/[^a-zA-Z0-9_:.-]/g,"_").replace(/["\\]/g,"\\$&"); }
 
+function delMark(x,y,id){
+  return `<g class="wire-del" data-wire-del="${id}" transform="translate(${x},${y})">`+
+    `<circle r="9"></circle><path d="M-3.4,-3.4 L3.4,3.4 M3.4,-3.4 L-3.4,3.4"></path></g>`;
+}
 function drawWires(){
   const svg = $("#wires");
-  let paths = "", labels = "";
+  let paths = "", labels = "", delBtns = "";
+  // 자동 배선(현장 토폴로지). 클릭하면 선택·끊기 가능. 끊긴 것은 건너뛴다.
   for(const w of wires){
+    const key = w.fromId+"|"+w.toId;
+    if(cutWires.has(key)) continue;
     const a = portCenter(w.fromId), b = portCenter(w.toId);
     if(!a || !b) continue;
     const dx = Math.max(36, (b.x - a.x)/2);
     const d = `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
-    const cls = "wirepath" + (w.live ? " flow" : " off");
-    paths += `<path class="${cls}" d="${d}"></path>`;
+    const wid = "auto:"+key, sel = wid===selectedWireId;
+    const cls = "wirepath" + (w.live ? " flow" : " off") + (sel ? " sel" : "");
+    paths += `<path class="wirehit" data-wire="${wid}" d="${d}"></path>`;
+    paths += `<path class="${cls}" data-wire="${wid}" d="${d}"></path>`;
     const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 5;
     labels += `<text class="wirelabel" x="${mx}" y="${my}" text-anchor="middle">${escapeHtml(w.label)}</text>`;
+    if(sel) delBtns += delMark((a.x+b.x)/2, (a.y+b.y)/2, wid);
   }
   // 사용자 배선 (포트를 끌어 만든 연결). 끝점이 아직 없으면 건너뛴다(파괴적 정리 금지).
-  let delBtns = "";
   for(const w of userWires){
     const a = portCenter(w.from), b = portCenter(w.to);
     if(!a || !b) continue;
@@ -560,11 +577,7 @@ function drawWires(){
     const sel = w.id===selectedWireId;
     paths += `<path class="wirehit" data-wire="${w.id}" d="${d}"></path>`;   // 넓은 클릭영역
     paths += `<path class="wirepath user${sel?" sel":""}" data-wire="${w.id}" d="${d}"></path>`;
-    if(sel){   // 선택된 연결 중앙에 끊기(✕) 버튼
-      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-      delBtns += `<g class="wire-del" data-wire-del="${w.id}" transform="translate(${mx},${my})">`+
-        `<circle r="9"></circle><path d="M-3.4,-3.4 L3.4,3.4 M3.4,-3.4 L-3.4,3.4"></path></g>`;
-    }
+    if(sel) delBtns += delMark((a.x+b.x)/2, (a.y+b.y)/2, w.id);   // 끊기(✕) 버튼
   }
   labels += delBtns;
   // 드래그 중 임시선
@@ -741,9 +754,14 @@ function renderUserNodes(){
   applyPositions();
 }
 function deleteSelected(){
-  // 연결이 선택돼 있으면 연결부터 삭제
+  // 연결이 선택돼 있으면 연결부터 끊는다
   if(selectedWireId){
-    userWires = userWires.filter(w=>w.id!==selectedWireId);
+    if(selectedWireId.startsWith("auto:")){        // 자동 배선 → 끊긴 것으로 기억
+      cutWires.add(selectedWireId.slice(5)); saveCut();
+      selectedWireId = null; requestAnimationFrame(drawWires);
+      setStatus("연결 끊음 · 편집▸연결 복원으로 되돌리기"); return;
+    }
+    userWires = userWires.filter(w=>w.id!==selectedWireId);   // 직접 그린 연결 → 삭제
     selectedWireId = null; saveWires();
     requestAnimationFrame(drawWires); setStatus("연결 삭제됨"); return;
   }
@@ -797,6 +815,8 @@ $("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setSta
 $("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
   if(name!==null){ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨: "+name); } };
 $("#btn-delete").onclick = deleteSelected;
+$("#btn-restore").onclick = ()=>{ const n=cutWires.size; cutWires.clear(); saveCut();
+  requestAnimationFrame(drawWires); setStatus(n?`연결 ${n}개 복원됨`:"복원할 연결이 없습니다"); };
 $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 노드 배치는 보존
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
