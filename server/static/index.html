@@ -129,9 +129,9 @@
   .wire-del path{stroke:#fff;stroke-width:2;stroke-linecap:round;pointer-events:none}
   .wire-del:hover circle:not(.hit){fill:#c81f1c}
   .port,.headport{cursor:crosshair;transition:box-shadow .08s,transform .08s}
-  /* 자석: 드래그 중 붙는 대상 포트 강조 */
-  .port.snap{transform:translateY(-50%) scale(1.6);box-shadow:0 0 0 4px rgba(58,143,176,.5),0 0 8px rgba(58,143,176,.6)}
-  .headport.snap{transform:translateY(-50%) scale(1.6);box-shadow:0 0 0 4px rgba(58,143,176,.5),0 0 8px rgba(58,143,176,.6)}
+  /* 자석: 드래그 중 붙는 대상 포트 강조 (또렷한 링 + 확대, 글로우 없음) */
+  .port.snap{transform:translateY(-50%) scale(1.7);box-shadow:0 0 0 3px var(--canvas),0 0 0 5px var(--accent)}
+  .headport.snap{transform:translateY(-50%) scale(1.7);box-shadow:0 0 0 3px var(--node-head-1),0 0 0 5px var(--accent)}
   @keyframes flow{to{stroke-dashoffset:-11}}
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
              paint-order:stroke;stroke:var(--canvas);stroke-width:3px}
