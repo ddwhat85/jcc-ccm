@@ -117,54 +117,56 @@
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
              paint-order:stroke;stroke:var(--canvas);stroke-width:3px}
 
-  /* ── 노드 카드 ── */
-  .node{position:absolute;width:200px;background:var(--node-body);
-        border:1px solid var(--node-border);border-radius:7px;
-        box-shadow:0 2px 6px rgba(20,24,32,.12);user-select:none}
-  .node.sel{border-color:var(--sel);box-shadow:0 0 0 2px var(--sel),0 3px 10px rgba(20,24,32,.2)}
-  .node .nhead{display:flex;align-items:center;gap:8px;padding:7px 11px;cursor:grab;
+  /* ── 노드 카드 (SmartRay풍 조밀 카드) ── */
+  .node{position:absolute;width:158px;background:var(--node-body);
+        border:1px solid var(--node-border);border-radius:5px;
+        box-shadow:0 1px 3px rgba(20,24,32,.14);user-select:none}
+  .node.sel{border-color:var(--sel);box-shadow:0 0 0 2px var(--sel),0 2px 7px rgba(20,24,32,.22)}
+  .node .nhead{display:flex;align-items:center;gap:5px;padding:4px 8px;cursor:grab;
     background:linear-gradient(180deg,var(--node-head-2),var(--node-head-1));
-    color:var(--node-head-ink);border-radius:6px 6px 0 0;position:relative}
+    color:var(--node-head-ink);border-radius:4px 4px 0 0;position:relative}
   .node .nhead:active{cursor:grabbing}
-  .node .ntitle{font-weight:600;font-size:12.5px;letter-spacing:-.01em;
+  .node .ntitle{font-weight:600;font-size:11px;letter-spacing:-.01em;
                 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .node .nkind{font:600 9px var(--mono);letter-spacing:.08em;text-transform:uppercase;
+  .node .nkind{font:600 7.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;
                color:#aeb9d4;margin-left:auto;flex:0 0 auto}
-  .node .nbody{padding:6px 0}
-  .prow{display:flex;align-items:center;gap:7px;padding:4px 11px;position:relative;min-height:24px}
-  .prow .pname{font-size:11.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .prow .pval{margin-left:auto;font-family:var(--mono);font-size:12px;font-weight:600;
+  .node .nbody{padding:3px 0}
+  .prow{display:flex;align-items:center;gap:5px;padding:2px 8px;position:relative;min-height:18px}
+  .prow .pname{font-size:10px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .prow .pval{margin-left:auto;font-family:var(--mono);font-size:10.5px;font-weight:600;
               font-variant-numeric:tabular-nums;white-space:nowrap}
   .prow .pval.ok{color:var(--ink)} .prow .pval.warn{color:var(--warn)}
   .prow .pval.crit{color:var(--crit)} .prow .pval.stale{color:var(--ink-3)}
-  .punit{font-size:9px;color:var(--ink-3);margin-left:2px;font-weight:400}
+  .punit{font-size:8px;color:var(--ink-3);margin-left:2px;font-weight:400}
+  /* 값 pill (SmartRay 타입 pill 자리 = 실시간 값) */
+  .vpill{margin-left:auto;display:inline-flex;align-items:baseline;gap:2px;cursor:pointer;
+         font-family:var(--mono);font-size:10.5px;font-weight:600;padding:1px 6px;border-radius:3px;
+         background:var(--surface-2);border:1px solid var(--rule);font-variant-numeric:tabular-nums}
+  .vpill .u{font-size:8px;color:var(--ink-3);font-weight:400}
+  .vpill:hover{border-color:var(--accent)}
+  .vpill.ok .v{color:var(--ink)}
+  .vpill.warn{background:var(--warn-soft);border-color:var(--warn)} .vpill.warn .v{color:var(--warn)}
+  .vpill.crit{background:var(--crit-soft);border-color:var(--crit)} .vpill.crit .v{color:var(--crit)}
+  .vpill.stale .v{color:var(--ink-3)}
   /* 포트 점: 카드 가장자리에 물림 */
-  .port{width:11px;height:11px;border-radius:50%;border:2px solid var(--node-body);
+  .port{width:9px;height:9px;border-radius:50%;border:2px solid var(--node-body);
         position:absolute;top:50%;transform:translateY(-50%);z-index:2}
-  .port.in{left:-6px} .port.out{right:-6px}
+  .port.in{left:-5px} .port.out{right:-5px}
   .port.sensor{background:var(--port-sensor)} .port.data{background:var(--port-data)}
   .port.agg{background:var(--port-agg)}
-  .headport{position:absolute;top:50%;right:-6px;transform:translateY(-50%);
-            width:11px;height:11px;border-radius:50%;border:2px solid var(--node-head-1)}
-  .bigval{padding:8px 11px 10px;display:flex;align-items:baseline;gap:4px}
-  .bigval .v{font:700 24px var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .bigval .u{font-size:11px;color:var(--ink-3)}
-  .bigval.ok .v{color:var(--ink)} .bigval.warn .v{color:var(--warn)}
-  .bigval.crit .v{color:var(--crit)} .bigval.stale .v{color:var(--ink-3)}
-  .npill{font:600 9px var(--mono);letter-spacing:.05em;text-transform:uppercase;
-         padding:2px 6px;border-radius:3px;border:1px solid currentColor}
+  .headport{position:absolute;top:50%;right:-5px;transform:translateY(-50%);
+            width:9px;height:9px;border-radius:50%;border:2px solid var(--node-head-1)}
+  .npill{font:600 8px var(--mono);letter-spacing:.04em;text-transform:uppercase;
+         padding:1px 5px;border-radius:3px;border:1px solid currentColor}
   .npill.on{background:var(--ok-soft);color:var(--ok)}
   .npill.off{background:var(--crit-soft);color:var(--crit)}
-  .nsub{padding:4px 11px 8px;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
-  .guess{display:inline-block;font:600 9px var(--mono);letter-spacing:.04em;
+  .nsub{padding:2px 8px 5px;font-size:9.5px;color:var(--ink-3);font-family:var(--mono)}
+  .guess{display:inline-block;font:600 7.5px var(--mono);letter-spacing:.03em;
          color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn);
-         border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+         border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
   .node.guess-node{border-style:dashed}
-  .nsource{padding:0 11px 8px;font-size:10.5px;color:var(--ink-3);font-family:var(--mono);
+  .nsource{padding:0 8px 5px;font-size:9px;color:var(--ink-3);font-family:var(--mono);
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .nhistory{margin:2px 11px 9px;font:inherit;font-size:11px;color:var(--accent);
-            background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
-            text-underline-offset:2px}
 
   /* ── 인스펙터 ── */
   .inspector{flex:0 0 0;width:0;background:var(--surface);border-left:1px solid var(--rule);
@@ -392,11 +394,11 @@ function buildGraph(panels){
         if(guess) sEl.classList.add("guess-node");
         if(guess) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="guess">추정</span>`);
         sEl.querySelector(".nbody").innerHTML =
-          `<div class="bigval stale" data-role="sv"><span class="v">—</span><span class="u">${escapeHtml(r.unit||"")}</span></div>`+
-          (r.source?`<div class="nsource">${escapeHtml(r.source)}</div>`:"")+
-          `<button class="nhistory">이력 보기 →</button>`+
-          `<span class="port out sensor" data-port="out:sensor:${cssAttr(c.device_id)}:${cssAttr(r.sensor_key)}" style="top:38px"></span>`;
-        sEl.querySelector(".nhistory").onclick = (e)=>{ e.stopPropagation();
+          `<div class="prow"><span class="pname">실시간</span>`+
+            `<span class="vpill stale" data-role="sv" title="클릭하면 이력"><b class="v">—</b><span class="u">${escapeHtml(r.unit||"")}</span></span>`+
+            `<span class="port out sensor" data-port="out:sensor:${cssAttr(c.device_id)}:${cssAttr(r.sensor_key)}"></span></div>`+
+          (r.source?`<div class="nsource">${escapeHtml(r.source)}</div>`:"");
+        sEl.querySelector(".vpill").onclick = (e)=>{ e.stopPropagation();
           openChart(c.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||""); };
         graph.appendChild(sEl); nodes.set(sId,{el:sEl,kind:"sensor"});
         wires.push({fromId:"out:sensor:"+c.device_id+":"+r.sensor_key,
@@ -420,8 +422,8 @@ function mkNode(id, kind, title, kindLabel){
 function cssAttr(s){ return String(s).replace(/[^a-zA-Z0-9_:.-]/g,"_"); }
 
 // ── 자동 배치 (티어: 센서→CCM→판넬→서버) ───────────────
-const TIER_X = {sensor:24, ccm:300, panel:620, server:900};
-const GAP_Y = 18;
+const TIER_X = {sensor:24, ccm:250, panel:500, server:740};
+const GAP_Y = 14;
 function autoLayout(panels){
   const auto = {};
   let sy = 24;                    // 센서 세로 커서
@@ -452,7 +454,7 @@ function autoLayout(panels){
 }
 let autoPositions = {};
 function avg(a){ return a.reduce((x,y)=>x+y,0)/a.length; }
-function nodeH(kind){ return kind==="sensor"?92 : kind==="ccm"?120 : kind==="panel"?110 : 70; }
+function nodeH(kind){ return kind==="sensor"?72 : kind==="ccm"?96 : kind==="panel"?88 : 52; }
 
 function applyPositions(){
   let maxR=0, maxB=0;
@@ -487,7 +489,7 @@ function updateValues(panels){
         // 센서 노드 큰 값
         const sEl = nodes.get("sensor:"+c.device_id+":"+r.sensor_key)?.el;
         if(sEl){ const bv=sEl.querySelector('[data-role="sv"]');
-          bv.className = "bigval "+sev;
+          bv.className = "vpill "+sev;
           bv.querySelector(".v").textContent = fmtValue(r.value); }
       }
     }
