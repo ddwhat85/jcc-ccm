@@ -190,6 +190,10 @@
          color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn);
          border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
   .node.guess-node{border-style:dashed}
+  .node.disabled-node{opacity:.5;border-style:dashed}
+  .offbadge{display:inline-block;font:600 7.5px var(--mono);letter-spacing:.03em;
+            color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule);
+            border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
   .nsource{padding:0 8px 5px;font-size:9px;color:var(--ink-3);font-family:var(--mono);
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -238,7 +242,7 @@
       <button class="mb-title">편집</button>
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-delete">노드·연결 삭제<span class="sc">⌫</span></button>
-        <button class="mb-item" id="btn-restore">연결 복원(끊은 것 되살리기)</button>
+        <button class="mb-item" id="btn-restore">꺼진 센서 모두 켜기</button>
         <button class="mb-item" id="btn-arrange">자동 정렬</button>
       </div>
     </div>
@@ -352,11 +356,15 @@ let selectedWireId = null;
 function loadWires(){ try{ return JSON.parse(localStorage.getItem(LS_WIRES)||"[]"); }catch(e){ return []; } }
 function saveWires(){ try{ localStorage.setItem(LS_WIRES, JSON.stringify(userWires)); }catch(e){} }
 
-// 끊어놓은 자동 배선(센서→CCM 등)을 기억한다. key = fromId|toId
-const LS_CUT = "jcc-cut-wires-v1";
-let cutWires = new Set(loadCut());
-function loadCut(){ try{ return JSON.parse(localStorage.getItem(LS_CUT)||"[]"); }catch(e){ return []; } }
-function saveCut(){ try{ localStorage.setItem(LS_CUT, JSON.stringify([...cutWires])); }catch(e){} }
+// 센서 채널 활성/비활성 = CCM에 보내는 실제 명령(SW·HW 일치).
+function setChannel(dev, key, enabled){
+  return fetch("/api/channel", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({device_id:dev, sensor_key:key, enabled})})
+    .then(r=>r.json());
+}
+function enableAllChannels(){
+  return fetch("/api/channels/enable-all", {method:"POST"}).then(r=>r.json());
+}
 
 // ── 데이터 → 그래프 ───────────────────────────────────
 function topoSignature(panels){
@@ -434,9 +442,12 @@ function buildGraph(panels){
         const sId = "sensor:"+c.device_id+":"+r.sensor_key;
         sensorMeta[c.device_id+":"+r.sensor_key] = {source:r.source||"", confidence:r.confidence||""};
         const guess = r.confidence === "추정";
+        const disabled = r.enabled === false;   // CCM에서 채널이 꺼진 센서
         const sEl = mkNode(sId, "sensor", r.name||r.sensor_key, "SENSOR");
         if(guess) sEl.classList.add("guess-node");
+        if(disabled) sEl.classList.add("disabled-node");
         if(guess) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="guess">추정</span>`);
+        if(disabled) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="offbadge">꺼짐</span>`);
         sEl.querySelector(".nbody").innerHTML =
           `<div class="prow"><span class="pname">실시간</span>`+
             `<span class="vpill stale" data-role="sv" title="클릭하면 이력"><b class="v">—</b><span class="u">${escapeHtml(r.unit||"")}</span></span>`+
@@ -445,8 +456,9 @@ function buildGraph(panels){
         sEl.querySelector(".vpill").onclick = (e)=>{ e.stopPropagation();
           openChart(c.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||""); };
         graph.appendChild(sEl); nodes.set(sId,{el:sEl,kind:"sensor"});
-        wires.push({fromId:"out:sensor:"+c.device_id+":"+r.sensor_key,
-                    toId:"in:ccm:"+c.device_id+":"+r.sensor_key, label:"RS485"});
+        if(!disabled)   // 비활성 채널은 배선을 만들지 않는다(하드웨어에서도 끊긴 상태)
+          wires.push({fromId:"out:sensor:"+c.device_id+":"+r.sensor_key,
+                      toId:"in:ccm:"+c.device_id+":"+r.sensor_key, label:"RS485"});
       }
     }
   }
@@ -556,7 +568,7 @@ function setPill(el, online){ if(!el) return;
 // 포트 색: 연결 안 됨(노랑) · 연결·정상(초록) · 연결·접속안됨(빨강)
 function colorPorts(){
   const connected = new Set();
-  for(const w of wires){ if(cutWires.has(w.fromId+"|"+w.toId)) continue; connected.add(w.fromId); connected.add(w.toId); }
+  for(const w of wires){ connected.add(w.fromId); connected.add(w.toId); }
   for(const w of userWires){ connected.add(w.from); connected.add(w.to); }
   document.querySelectorAll(".graph .port, .graph .headport").forEach(el=>{
     const pid = el.getAttribute("data-port");
@@ -592,7 +604,6 @@ function drawWires(){
   // 자동 배선(현장 토폴로지). 클릭하면 선택·끊기 가능. 끊긴 것은 건너뛴다.
   for(const w of wires){
     const key = w.fromId+"|"+w.toId;
-    if(cutWires.has(key)) continue;
     const a = portCenter(w.fromId), b = portCenter(w.toId);
     if(!a || !b) continue;
     const dx = Math.max(36, (b.x - a.x)/2);
@@ -732,7 +743,15 @@ window.addEventListener("mouseup", e=>{
     if(toNode === wiring.fromNode){ setStatus("같은 노드끼리는 연결할 수 없습니다"); }
     else if(toId !== wiring.fromId){
       const v = validateConnection(wiring.fromId, toId);
+      const A = parsePort(wiring.fromId), B = parsePort(toId);
+      const isSensorCcm = (A.kind==="sensor"&&B.kind==="ccm")||(A.kind==="ccm"&&B.kind==="sensor");
       if(!v.ok){ setStatus("⛔ " + v.reason); }
+      else if(isSensorCcm){                        // 센서↔자기 CCM = 채널 켜기(재연결)
+        const s = A.kind==="sensor" ? A : B;
+        setStatus("센서 채널 켜는 중… CCM에 명령 전송");
+        setChannel(s.dev, s.key, true).then(()=>{ topoSig=""; refresh();
+          setStatus("센서 채널 활성화됨 — 재연결"); }).catch(()=> setStatus("명령 실패"));
+      }
       else if(!userWires.some(w=>(w.from===wiring.fromId&&w.to===toId)||(w.from===toId&&w.to===wiring.fromId))){
         userWires.push({id:"w"+(++wireCounter), from:wiring.fromId, to:toId});
         saveWires(); setStatus("연결됨");
@@ -856,10 +875,23 @@ function renderUserNodes(){
 function deleteSelected(){
   // 연결이 선택돼 있으면 연결부터 끊는다
   if(selectedWireId){
-    if(selectedWireId.startsWith("auto:")){        // 자동 배선 → 끊긴 것으로 기억
-      cutWires.add(selectedWireId.slice(5)); saveCut();
+    if(selectedWireId.startsWith("auto:")){        // 실제 배선
+      const [fromId, toId] = selectedWireId.slice(5).split("|");
+      const A = parsePort(fromId), B = parsePort(toId);
+      const pair = [A.kind, B.kind].sort().join("-");
+      if(pair === "ccm-sensor"){                   // 센서 채널 → CCM에 "끄기" 명령
+        const s = A.kind==="sensor" ? A : B;
+        selectedWireId = null;
+        setStatus("센서 채널 끄는 중… CCM에 명령 전송");
+        setChannel(s.dev, s.key, false).then(()=>{ topoSig=""; refresh();
+          setStatus("센서 채널 비활성화됨 — CCM이 이 센서를 멈춥니다"); })
+          .catch(()=> setStatus("명령 실패"));
+        return;
+      }
+      // CCM↔판넬·판넬↔클라우드는 구조 연결이라 임의로 못 끊는다
       selectedWireId = null; requestAnimationFrame(drawWires);
-      setStatus("연결 끊음 · 편집▸연결 복원으로 되돌리기"); return;
+      setStatus("⛔ 구조 연결(CCM↔판넬·판넬↔클라우드)은 끊을 수 없습니다 — 센서 채널만 끌 수 있습니다");
+      return;
     }
     userWires = userWires.filter(w=>w.id!==selectedWireId);   // 직접 그린 연결 → 삭제
     selectedWireId = null; saveWires();
@@ -915,8 +947,10 @@ $("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setSta
 $("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
   if(name!==null){ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨: "+name); } };
 $("#btn-delete").onclick = deleteSelected;
-$("#btn-restore").onclick = ()=>{ const n=cutWires.size; cutWires.clear(); saveCut();
-  requestAnimationFrame(drawWires); setStatus(n?`연결 ${n}개 복원됨`:"복원할 연결이 없습니다"); };
+$("#btn-restore").onclick = ()=>{ setStatus("꺼진 센서 채널 모두 켜는 중…");
+  enableAllChannels().then(d=>{ topoSig=""; refresh();
+    setStatus(d.enabled?`센서 채널 ${d.enabled}개 다시 켬`:"꺼진 센서가 없습니다"); })
+    .catch(()=> setStatus("명령 실패")); };
 $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 노드 배치는 보존
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };

@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS discovered (
     confidence    TEXT,
     address       INTEGER,
     discovered_at REAL,
+    enabled       INTEGER NOT NULL DEFAULT 1,
     PRIMARY KEY (device_id, sensor_key)
 );
 """
@@ -104,10 +105,17 @@ class Storage:
                      panel_name=excluded.panel_name, last_seen=excluded.last_seen""",
                 (device_id, site, panel, panel_name, now, now),
             )
+            disabled = {
+                r["sensor_key"] for r in self._conn.execute(
+                    "SELECT sensor_key FROM discovered WHERE device_id=? AND enabled=0",
+                    (device_id,)).fetchall()
+            }
             rows = []
             for r in readings:
                 if not isinstance(r, dict):
                     continue  # 형식이 깨진 reading은 건너뛰되 나머지는 살린다
+                if str(r.get("key", "")) in disabled:
+                    continue  # 비활성 채널: CCM이 멈춘 것으로 취급, 텔레메트리 버림
                 rows.append((
                     device_id,
                     str(r.get("key", "")),
@@ -165,13 +173,37 @@ class Storage:
         """{device_id: [발견 센서 dict...]}"""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT device_id, sensor_key, name, unit, kind, source, confidence, address "
+                "SELECT device_id, sensor_key, name, unit, kind, source, confidence, address, enabled "
                 "FROM discovered ORDER BY device_id, rowid"
             ).fetchall()
         out: dict[str, list[dict]] = {}
         for r in rows:
             out.setdefault(r["device_id"], []).append(dict(r))
         return out
+
+    def set_channel(self, device_id: str, sensor_key: str, enabled: bool) -> bool:
+        """센서 채널을 활성/비활성한다. = CCM에 그 채널을 켜고/끄라는 명령.
+        비활성이면 이후 그 채널의 텔레메트리는 ingest에서 버려진다(하드웨어가 멈춘 것과 동일)."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE discovered SET enabled=? WHERE device_id=? AND sensor_key=?",
+                (1 if enabled else 0, device_id, sensor_key),
+            )
+            self._conn.commit()
+            return cur.rowcount > 0
+
+    def enable_all_channels(self) -> int:
+        with self._lock:
+            cur = self._conn.execute("UPDATE discovered SET enabled=1 WHERE enabled=0")
+            self._conn.commit()
+            return cur.rowcount
+
+    def _disabled_set(self) -> set:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT device_id, sensor_key FROM discovered WHERE enabled=0"
+            ).fetchall()
+        return {(r["device_id"], r["sensor_key"]) for r in rows}
 
     # ── 읽기 ────────────────────────────────────────────────
     def list_devices(self) -> list[dict]:
@@ -211,6 +243,7 @@ class Storage:
                     sensors.append({
                         "sensor_key": s["sensor_key"], "name": s["name"], "unit": s["unit"],
                         "kind": s["kind"], "source": s["source"], "confidence": s["confidence"],
+                        "enabled": bool(s.get("enabled", 1)),
                         "value": lv["value"] if lv else None,
                         "ok": lv["ok"] if lv else 0,
                         "ts": lv["ts"] if lv else None,

@@ -103,6 +103,11 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/discover":
             return self._discover()
+        if parsed.path == "/api/channel":
+            return self._channel()
+        if parsed.path == "/api/channels/enable-all":
+            n = self.storage.enable_all_channels()
+            return self._json({"ok": True, "enabled": n})
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 
@@ -155,6 +160,28 @@ class Handler(BaseHTTPRequestHandler):
             "identified": len(sensors) - inferred,
             "inferred": inferred,
         })
+
+    # ── 센서 채널 활성/비활성 (CCM에 보내는 명령) ────────────
+    def _channel(self) -> None:
+        """{device_id, sensor_key, enabled} — 센서 채널을 켜고/끈다.
+
+        실기에서는 CCM에 명령이 전달돼 그 채널의 폴링을 멈춘다. 시뮬레이션에서는
+        서버가 상태를 기록하고 그 채널의 텔레메트리를 버려, SW와 HW를 일치시킨다.
+        """
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        dev = str(body.get("device_id", ""))
+        key = str(body.get("sensor_key", ""))
+        enabled = bool(body.get("enabled", True))
+        if not dev or not key:
+            return self._json({"error": "device_id와 sensor_key가 필요합니다"}, 400)
+        ok = self.storage.set_channel(dev, key, enabled)
+        return self._json({"ok": ok, "device_id": dev, "sensor_key": key, "enabled": enabled})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:
