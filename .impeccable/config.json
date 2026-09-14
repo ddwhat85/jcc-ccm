@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "server/static/index.html"
+        ],
+        "createdAt": "2026-09-14T08:15:15.505Z",
+        "reason": "SmartRay-style node editor canvas; grid is a functional canvas surface (rule's named exception), user-confirmed"
+      }
+    ]
+  }
+}
