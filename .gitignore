@@ -4,3 +4,6 @@ config/config.dev.toml
 config/config.toml
 .venv/
 *.log
+*.db
+*.db-wal
+*.db-shm

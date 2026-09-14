@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JCC-CCM 판넬 모니터링</title>
+<style>
+  /* RAL 팬덱 기반 팔레트: 7035 함체그레이 · 5010 젠티안블루 · 신호색 */
+  :root{
+    --ground:#e9ebe6; --surface:#f7f8f5; --surface-2:#dfe2da;
+    --ink:#1a1d19; --ink-2:#4a4f48; --ink-3:#6d7368;
+    --rule:#c7cabf; --accent:#00437a; --accent-soft:#d6e0ec;
+    --ok:#3f7d2b; --ok-soft:#deebd6; --warn:#9a7800; --warn-soft:#f5e9c4;
+    --crit:#a81917; --crit-soft:#f3dad9;
+    --sans:"Segoe UI Variable","Segoe UI",-apple-system,"Malgun Gothic",sans-serif;
+    --mono:"Cascadia Mono","Consolas",ui-monospace,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --ground:#151714; --surface:#1d201b; --surface-2:#272b24;
+    --ink:#e9ebe6; --ink-2:#b4b9af; --ink-3:#888e83; --rule:#343930;
+    --accent:#79aede; --accent-soft:#1a2c3c;
+    --ok:#84c462; --ok-soft:#1f2f18; --warn:#dcb63c; --warn-soft:#372e12;
+    --crit:#e4716e; --crit-soft:#3a1e1d;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  header{display:flex;align-items:center;gap:16px;padding:14px 24px;background:var(--surface);border-bottom:3px solid var(--accent)}
+  .brand{font-weight:700;font-size:19px;letter-spacing:-.01em}
+  .brand span{color:var(--accent)}
+  .sub{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+  header .right{margin-left:auto;display:flex;align-items:center;gap:16px}
+  .clock{font-family:var(--mono);font-size:13px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .conn{display:flex;align-items:center;gap:7px;font-size:13px;font-family:var(--mono)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3)}
+  .conn.live .dot{background:var(--ok);box-shadow:0 0 0 3px var(--ok-soft)}
+  .conn.dead .dot{background:var(--crit);box-shadow:0 0 0 3px var(--crit-soft)}
+
+  main{max-width:1200px;margin:0 auto;padding:24px}
+  .empty{text-align:center;padding:80px 20px;color:var(--ink-3)}
+  .empty h2{color:var(--ink-2);font-weight:600}
+
+  .devices{display:flex;flex-direction:column;gap:20px}
+  .device{background:var(--surface);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .device-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--rule)}
+  .device-id{font-family:var(--mono);font-weight:600;font-size:16px}
+  .device-site{color:var(--ink-3);font-size:13px}
+  .pill{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;
+        padding:3px 10px;border-radius:2px;border:1px solid currentColor;text-transform:uppercase}
+  .pill.on{background:var(--ok-soft);color:var(--ok)}
+  .pill.off{background:var(--crit-soft);color:var(--crit)}
+  .seen{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:10px}
+
+  .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--rule)}
+  .tile{background:var(--surface);padding:14px 16px;cursor:pointer;transition:background .12s;border:none;text-align:left;font:inherit;color:inherit}
+  .tile:hover{background:var(--surface-2)}
+  .tile:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .tile .t-name{font-size:12.5px;color:var(--ink-3);margin-bottom:6px}
+  .tile .t-val{font-family:var(--mono);font-size:26px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .tile .t-unit{font-size:13px;color:var(--ink-3);font-weight:400;margin-left:3px}
+  .tile.stale .t-val{color:var(--crit)}
+  .tile .t-hint{font-size:11px;color:var(--ink-3);margin-top:4px;opacity:0;transition:opacity .12s}
+  .tile:hover .t-hint{opacity:1}
+
+  /* 차트 패널 */
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:10}
+  .overlay.open{display:flex}
+  .panel{background:var(--surface);border:1px solid var(--rule);border-radius:4px;width:min(760px,100%);max-height:90vh;overflow:auto}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:14px 20px;border-bottom:1px solid var(--rule)}
+  .panel-head h3{margin:0;font-size:16px}
+  .panel-head .x{margin-left:auto;background:none;border:none;font-size:22px;color:var(--ink-3);cursor:pointer;line-height:1;padding:0 4px}
+  .panel-body{padding:20px}
+  canvas{width:100%;height:280px;display:block}
+  .stat-row{display:flex;gap:24px;margin-top:14px;font-family:var(--mono);font-size:13px;color:var(--ink-2)}
+  .stat-row b{color:var(--ink);font-weight:600}
+  footer{max-width:1200px;margin:0 auto;padding:16px 24px 40px;color:var(--ink-3);font-size:12px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="brand"><span>JCC</span>-CCM</div>
+    <div class="sub">판넬 모니터링</div>
+  </div>
+  <div class="right">
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="conn" id="conn"><span class="dot"></span><span id="conn-txt">연결 중…</span></div>
+  </div>
+</header>
+
+<main>
+  <div id="root"><div class="empty"><h2>데이터를 기다리는 중…</h2>
+    <p>CCM 펌웨어가 <code>POST /v1/telemetry</code> 로 데이터를 보내면 여기에 나타납니다.</p></div></div>
+</main>
+
+<footer>JCC SOLUTION · 자체 판넬 모니터링 플랫폼 · <span id="ver">v0.1</span></footer>
+
+<div class="overlay" id="overlay">
+  <div class="panel">
+    <div class="panel-head">
+      <h3 id="chart-title">센서 이력</h3>
+      <button class="x" id="close-chart" aria-label="닫기">×</button>
+    </div>
+    <div class="panel-body">
+      <canvas id="chart" width="720" height="280"></canvas>
+      <div class="stat-row" id="chart-stats"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const REFRESH_MS = 5000;
+
+// ── 유틸 ────────────────────────────────────────────────
+function fmtValue(v){ if(v===null||v===undefined) return "--"; return (Math.round(v*100)/100).toLocaleString(); }
+function ago(sec){ if(!sec) return "-"; const d=Date.now()/1000-sec;
+  if(d<60) return Math.floor(d)+"초 전"; if(d<3600) return Math.floor(d/60)+"분 전"; return Math.floor(d/3600)+"시간 전"; }
+function tickClock(){ $("#clock").textContent = new Date().toLocaleTimeString("ko-KR",{hour12:false}); }
+setInterval(tickClock, 1000); tickClock();
+
+// 센서 성격별 임계 판정 (경보 색). 현장 튜닝은 추후 서버 설정으로.
+function severity(key, v){
+  if(v===null||v===undefined) return "";
+  if(key.includes("h2"))   return v>=2 ? "crit" : (v>=1 ? "warn" : "");
+  if(key.includes("temp")) return v>=45 ? "crit" : (v>=38 ? "warn" : "");
+  return "";
+}
+
+// ── 데이터 렌더 ─────────────────────────────────────────
+let lastOk = false;
+async function refresh(){
+  try{
+    const res = await fetch("/api/devices",{cache:"no-store"});
+    if(!res.ok) throw new Error(res.status);
+    const data = await res.json();
+    setConn(true);
+    render(data.devices||[]);
+  }catch(e){ setConn(false); }
+}
+function setConn(ok){
+  lastOk = ok;
+  const c = $("#conn");
+  c.className = "conn " + (ok ? "live" : "dead");
+  $("#conn-txt").textContent = ok ? "실시간" : "서버 응답 없음";
+}
+
+// 화면 구조를 매번 새로 짓지 않고, 구성(장비·센서 목록)이 바뀔 때만 다시 짓는다.
+// 평소 갱신은 값·상태만 제자리에서 바꿔 깜빡임과 클릭 방해를 없앤다.
+let _layoutKey = "";
+function layoutSignature(devices){
+  return devices.map(d => d.device_id + ":" + (d.latest||[]).map(r=>r.sensor_key).join(",")).join("|");
+}
+
+function render(devices){
+  const root = $("#root");
+  if(!devices.length){ return; } // keep empty state
+
+  const sig = layoutSignature(devices);
+  if(sig !== _layoutKey){ buildLayout(root, devices); _layoutKey = sig; }
+  updateValues(devices);
+}
+
+function buildLayout(root, devices){
+  root.innerHTML = "";
+  const wrap = document.createElement("div"); wrap.className="devices";
+  for(const d of devices){
+    const dev = document.createElement("section"); dev.className="device";
+    dev.dataset.dev = d.device_id;
+    const head = document.createElement("div"); head.className="device-head";
+    head.innerHTML = `<span class="device-id">${escapeHtml(d.device_id)}</span>`+
+      (d.site?`<span class="device-site">${escapeHtml(d.site)}</span>`:"")+
+      `<span class="pill" data-role="pill"></span>`+
+      `<span class="seen" data-role="seen"></span>`;
+    dev.appendChild(head);
+
+    const tiles = document.createElement("div"); tiles.className="tiles";
+    for(const r of (d.latest||[])){
+      const t = document.createElement("button");
+      t.className = "tile"; t.dataset.sensor = r.sensor_key;
+      t.innerHTML = `<div class="t-name">${escapeHtml(r.name||r.sensor_key)}</div>`+
+        `<div class="t-val" data-role="val"></div>`+
+        `<div class="t-hint">이력 보기 →</div>`;
+      t.onclick = () => openChart(d.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||"");
+      tiles.appendChild(t);
+    }
+    dev.appendChild(tiles);
+    wrap.appendChild(dev);
+  }
+  root.appendChild(wrap);
+}
+
+function updateValues(devices){
+  for(const d of devices){
+    const dev = document.querySelector(`.device[data-dev="${cssEsc(d.device_id)}"]`);
+    if(!dev) continue;
+    const pill = dev.querySelector('[data-role="pill"]');
+    pill.className = "pill " + (d.online?"on":"off");
+    pill.textContent = d.online?"온라인":"오프라인";
+    dev.querySelector('[data-role="seen"]').textContent = ago(d.last_seen);
+    for(const r of (d.latest||[])){
+      const tile = dev.querySelector(`.tile[data-sensor="${cssEsc(r.sensor_key)}"]`);
+      if(!tile) continue;
+      const sev = severity(r.sensor_key, r.value);
+      tile.className = "tile" + (r.ok?"":" stale") + (sev?(" "+sev):"");
+      tile.querySelector('[data-role="val"]').innerHTML =
+        `${fmtValue(r.value)}<span class="t-unit">${escapeHtml(r.unit||"")}</span>`;
+    }
+  }
+}
+function cssEsc(s){ return String(s).replace(/["\\]/g,"\\$&"); }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+// ── 차트 (직접 그림, 외부 라이브러리 없음) ──────────────
+async function openChart(deviceId, sensor, name, unit){
+  $("#chart-title").textContent = `${name} — ${deviceId}`;
+  $("#overlay").classList.add("open");
+  try{
+    const res = await fetch(`/api/devices/${encodeURIComponent(deviceId)}/history?sensor=${encodeURIComponent(sensor)}&limit=200`,{cache:"no-store"});
+    const data = await res.json();
+    drawChart(data.points||[], unit);
+  }catch(e){ drawChart([], unit); }
+}
+$("#close-chart").onclick = ()=>$("#overlay").classList.remove("open");
+$("#overlay").onclick = (e)=>{ if(e.target===$("#overlay")) $("#overlay").classList.remove("open"); };
+
+function cssVar(n){ return getComputedStyle(document.body).getPropertyValue(n).trim(); }
+function drawChart(points, unit){
+  const cv = $("#chart"), ctx = cv.getContext("2d");
+  const W = cv.width, H = cv.height, pad = {l:52,r:16,t:16,b:28};
+  ctx.clearRect(0,0,W,H);
+  const ink3=cssVar("--ink-3"), rule=cssVar("--rule"), accent=cssVar("--accent"), ink=cssVar("--ink");
+  const vals = points.filter(p=>p.ok && p.value!==null).map(p=>p.value);
+  const stats = $("#chart-stats");
+  if(vals.length<1){ ctx.fillStyle=ink3; ctx.font="14px sans-serif"; ctx.fillText("이력 데이터가 없습니다.",pad.l,H/2); stats.innerHTML=""; return; }
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(min===max){ min-=1; max+=1; }
+  const pth=(max-min)*0.12; min-=pth; max+=pth;
+  const x=(i)=>pad.l+(W-pad.l-pad.r)*(points.length<=1?0:i/(points.length-1));
+  const y=(v)=>pad.t+(H-pad.t-pad.b)*(1-(v-min)/(max-min));
+
+  // 격자 + y축 라벨
+  ctx.strokeStyle=rule; ctx.fillStyle=ink3; ctx.font="11px monospace"; ctx.lineWidth=1;
+  for(let g=0;g<=4;g++){ const val=min+(max-min)*g/4, yy=y(val);
+    ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke();
+    ctx.fillText((Math.round(val*100)/100).toString(), 6, yy+4); }
+
+  // 면적 + 선
+  ctx.beginPath();
+  points.forEach((p,i)=>{ const v=(p.ok&&p.value!==null)?p.value:null; if(v===null) return;
+    const xx=x(i),yy=y(v); i===0?ctx.moveTo(xx,yy):ctx.lineTo(xx,yy); });
+  ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.stroke();
+  // 끝점 강조
+  const lastIdx=points.length-1, lv=points[lastIdx].value;
+  if(lv!==null){ ctx.beginPath(); ctx.arc(x(lastIdx),y(lv),3.5,0,7); ctx.fillStyle=accent; ctx.fill(); }
+
+  const cur=vals[vals.length-1];
+  stats.innerHTML = `<span>현재 <b>${fmtValue(cur)} ${escapeHtml(unit)}</b></span>`+
+    `<span>최소 <b>${fmtValue(Math.min(...vals))}</b></span>`+
+    `<span>최대 <b>${fmtValue(Math.max(...vals))}</b></span>`+
+    `<span>표본 <b>${vals.length}</b></span>`;
+}
+
+refresh(); setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>
