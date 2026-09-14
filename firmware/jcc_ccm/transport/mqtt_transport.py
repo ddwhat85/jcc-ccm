@@ -43,7 +43,9 @@ class MqttTransport:
         self._client.loop_start()  # 백그라운드 스레드가 재연결·핑 처리
 
     def send(self, payload: dict) -> bool:
-        if self._client is None:
+        # 아직 브로커에 붙지 못했으면 10초씩 기다리지 말고 바로 실패 반환한다.
+        # (agent가 큐에 쌓아두고 다음 주기에 재시도한다.)
+        if self._client is None or not self._connected:
             return False
         try:
             info = self._client.publish(

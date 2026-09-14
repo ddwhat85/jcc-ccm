@@ -60,8 +60,12 @@ class Agent:
     def _sleep(self, seconds: float) -> None:
         # 종료 신호에 빠르게 반응하도록 잘게 나눠 잔다.
         deadline = time.monotonic() + seconds
-        while not self._stop and time.monotonic() < deadline:
-            time.sleep(min(0.5, deadline - time.monotonic()))
+        while not self._stop:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            # remaining이 while 검사 후 0 이하로 떨어져도 time.sleep(음수)가 나지 않게 방어.
+            time.sleep(min(0.5, remaining))
 
     # ── 한 주기 ──────────────────────────────────────────────
     def _tick(self) -> None:

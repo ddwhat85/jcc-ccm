@@ -71,9 +71,12 @@ class Handler(BaseHTTPRequestHandler):
             device_id = m.group(1)
             q = parse_qs(parsed.query)
             sensor = (q.get("sensor") or [""])[0]
-            limit = int((q.get("limit") or ["200"])[0])
             if not sensor:
                 return self._json({"error": "sensor 파라미터가 필요합니다"}, 400)
+            try:
+                limit = int((q.get("limit") or ["200"])[0])
+            except ValueError:
+                return self._json({"error": "limit은 정수여야 합니다"}, 400)
             return self._json({
                 "device_id": device_id,
                 "sensor": sensor,

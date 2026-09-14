@@ -30,7 +30,9 @@ class ModbusBus:
         from pymodbus.client import ModbusSerialClient
 
         cfg = self._cfg
-        self._client = ModbusSerialClient(
+        # 연결 성공 시에만 self._client에 저장한다. 실패하면 None으로 남겨
+        # 다음 호출에서 재연결을 시도하게 한다(부팅 시 포트가 늦게 뜨는 경우 대비).
+        client = ModbusSerialClient(
             port=cfg.port,
             baudrate=cfg.baudrate,
             parity=cfg.parity,
@@ -38,20 +40,36 @@ class ModbusBus:
             bytesize=cfg.bytesize,
             timeout=cfg.timeout_seconds,
         )
-        self._client.connect()
+        if not client.connect():
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
+            raise IOError(f"RS485 포트 연결 실패: {cfg.port}")
+        self._client = client
         return self._client
 
     def read_registers(self, slave: int, address: int, count: int, kind: str) -> list[int]:
         """input/holding 레지스터를 읽어 워드 리스트로 돌려준다. 실패 시 예외."""
         with self._lock:
-            client = self._ensure_client()
-            if kind == "input":
-                rr = client.read_input_registers(address=address, count=count, slave=slave)
-            else:
-                rr = client.read_holding_registers(address=address, count=count, slave=slave)
-            if rr.isError():
-                raise IOError(f"Modbus 오류 slave={slave} addr={address}: {rr}")
-            return list(rr.registers)
+            try:
+                client = self._ensure_client()
+                if kind == "input":
+                    rr = client.read_input_registers(address=address, count=count, slave=slave)
+                else:
+                    rr = client.read_holding_registers(address=address, count=count, slave=slave)
+                if rr.isError():
+                    raise IOError(f"Modbus 오류 slave={slave} addr={address}: {rr}")
+                return list(rr.registers)
+            except Exception:
+                # 통신이 끊긴 클라이언트는 버리고 다음 호출에서 재연결하게 한다.
+                if self._client is not None:
+                    try:
+                        self._client.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    self._client = None
+                raise
 
     def close(self) -> None:
         with self._lock:

@@ -40,6 +40,24 @@ CREATE INDEX IF NOT EXISTS idx_readings_ts ON readings (ts);
 """
 
 
+def _as_float(v, default: float) -> float:
+    """숫자로 바꿀 수 있으면 float, 아니면 default. 잘못된 값이 배치를 깨지 않게."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
+def _as_float_or_none(v):
+    """센서 값: 숫자면 float, None이나 비숫자면 None(=결측)."""
+    if v is None:
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
 @dataclass
 class Storage:
     path: str
@@ -76,14 +94,16 @@ class Storage:
             )
             rows = []
             for r in readings:
+                if not isinstance(r, dict):
+                    continue  # 형식이 깨진 reading은 건너뛰되 나머지는 살린다
                 rows.append((
                     device_id,
                     str(r.get("key", "")),
                     r.get("name", ""),
                     r.get("unit", ""),
-                    r.get("value"),
+                    _as_float_or_none(r.get("value")),
                     1 if r.get("ok") else 0,
-                    float(r.get("ts", now)),
+                    _as_float(r.get("ts"), now),
                 ))
             cur.executemany(
                 """INSERT INTO readings
@@ -96,15 +116,30 @@ class Storage:
 
     # ── 읽기 ────────────────────────────────────────────────
     def list_devices(self) -> list[dict]:
+        # 장비 목록과 전 장비의 센서 최신값을 각각 한 번의 쿼리로 가져온다(N+1 제거).
         with self._lock:
             devs = self._conn.execute(
                 "SELECT device_id, site, panel, panel_name, first_seen, last_seen "
                 "FROM devices ORDER BY device_id"
             ).fetchall()
-        out = []
+            # 장비×센서별 최신 행 하나씩. MAX(ts)와 함께 오는 bare 컬럼은
+            # SQLite가 그 최대 행의 값으로 채운다(3.7.11+ 보장).
+            latest_rows = self._conn.execute(
+                """SELECT device_id, sensor_key, name, unit, value, ok, MAX(ts) AS ts
+                   FROM readings GROUP BY device_id, sensor_key
+                   ORDER BY device_id, sensor_key"""
+            ).fetchall()
+
+        by_device: dict[str, list[dict]] = {}
+        for r in latest_rows:
+            by_device.setdefault(r["device_id"], []).append({
+                "sensor_key": r["sensor_key"], "name": r["name"], "unit": r["unit"],
+                "value": r["value"], "ok": r["ok"], "ts": r["ts"],
+            })
+
         now = time.time()
+        out = []
         for d in devs:
-            latest = self.latest_readings(d["device_id"])
             out.append({
                 "device_id": d["device_id"],
                 "site": d["site"],
@@ -114,7 +149,7 @@ class Storage:
                 "last_seen": d["last_seen"],
                 # 마지막 접속이 3주기(넉넉히 60s) 넘으면 오프라인으로 본다
                 "online": (now - (d["last_seen"] or 0)) < 60,
-                "latest": latest,
+                "latest": by_device.get(d["device_id"], []),
             })
         return out
 
@@ -142,17 +177,6 @@ class Storage:
             p["ccm_count"] = len(p["ccms"])
             result.append(p)
         return result
-
-    def latest_readings(self, device_id: str) -> list[dict]:
-        """장비의 센서별 최신값 1개씩."""
-        with self._lock:
-            rows = self._conn.execute(
-                """SELECT sensor_key, name, unit, value, ok, MAX(ts) AS ts
-                   FROM readings WHERE device_id = ?
-                   GROUP BY sensor_key ORDER BY sensor_key""",
-                (device_id,),
-            ).fetchall()
-        return [dict(r) for r in rows]
 
     def history(self, device_id: str, sensor_key: str, limit: int = 200) -> list[dict]:
         """한 센서의 최근 이력(오래된→최신 순으로 반환)."""
