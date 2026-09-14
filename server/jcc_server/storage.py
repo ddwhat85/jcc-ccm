@@ -48,9 +48,35 @@ CREATE TABLE IF NOT EXISTS discovered (
     address       INTEGER,
     discovered_at REAL,
     enabled       INTEGER NOT NULL DEFAULT 1,
+    brand         TEXT,
+    product       TEXT,
+    part_no       TEXT,
+    manual        TEXT,
+    alarm_min     REAL,
+    alarm_max     REAL,
+    PRIMARY KEY (device_id, sensor_key)
+);
+-- 사용자 설정(셋팅값·알람 기준값 재정의). 재탐색해도 살아남게 별도 테이블에 둔다.
+CREATE TABLE IF NOT EXISTS settings (
+    device_id   TEXT NOT NULL,
+    sensor_key  TEXT NOT NULL,
+    setpoint    REAL,
+    alarm_min   REAL,
+    alarm_max   REAL,
+    updated_at  REAL,
     PRIMARY KEY (device_id, sensor_key)
 );
 """
+
+# 구버전 DB에 없던 컬럼을 채운다(있으면 조용히 무시).
+_MIGRATIONS = [
+    "ALTER TABLE discovered ADD COLUMN brand TEXT",
+    "ALTER TABLE discovered ADD COLUMN product TEXT",
+    "ALTER TABLE discovered ADD COLUMN part_no TEXT",
+    "ALTER TABLE discovered ADD COLUMN manual TEXT",
+    "ALTER TABLE discovered ADD COLUMN alarm_min REAL",
+    "ALTER TABLE discovered ADD COLUMN alarm_max REAL",
+]
 
 
 def _as_float(v, default: float) -> float:
@@ -83,6 +109,11 @@ class Storage:
         self._lock = threading.Lock()
         with self._lock:
             self._conn.executescript(_SCHEMA)
+            for stmt in _MIGRATIONS:
+                try:
+                    self._conn.execute(stmt)
+                except sqlite3.OperationalError:
+                    pass  # 이미 있는 컬럼
             self._conn.commit()
 
     # ── 쓰기 ────────────────────────────────────────────────
@@ -159,11 +190,15 @@ class Storage:
                 for s in ccm.get("sensors") or []:
                     cur.execute(
                         """INSERT INTO discovered
-                           (device_id, sensor_key, name, unit, kind, source, confidence, address, discovered_at)
-                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                           (device_id, sensor_key, name, unit, kind, source, confidence, address,
+                            discovered_at, brand, product, part_no, manual, alarm_min, alarm_max)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                         (dev, str(s.get("key", "")), s.get("name", ""), s.get("unit", ""),
                          s.get("kind", ""), s.get("source", ""), s.get("confidence", ""),
-                         s.get("address"), now),
+                         s.get("address"), now,
+                         s.get("brand", ""), s.get("product", ""), s.get("part_no", ""),
+                         s.get("manual", ""),
+                         _as_float_or_none(s.get("alarm_min")), _as_float_or_none(s.get("alarm_max"))),
                     )
                     n += 1
             self._conn.commit()
@@ -173,13 +208,55 @@ class Storage:
         """{device_id: [발견 센서 dict...]}"""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT device_id, sensor_key, name, unit, kind, source, confidence, address, enabled "
+                "SELECT device_id, sensor_key, name, unit, kind, source, confidence, address, enabled, "
+                "brand, product, part_no, manual, alarm_min, alarm_max "
                 "FROM discovered ORDER BY device_id, rowid"
             ).fetchall()
         out: dict[str, list[dict]] = {}
         for r in rows:
             out.setdefault(r["device_id"], []).append(dict(r))
         return out
+
+    def _settings_map(self) -> dict:
+        """{(device_id, sensor_key): {setpoint, alarm_min, alarm_max}} 사용자 재정의."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT device_id, sensor_key, setpoint, alarm_min, alarm_max FROM settings"
+            ).fetchall()
+        return {(r["device_id"], r["sensor_key"]): dict(r) for r in rows}
+
+    def set_setting(self, device_id: str, sensor_key: str,
+                    setpoint=None, alarm_min=None, alarm_max=None) -> dict:
+        """센서의 사용자 설정(셋팅값·알람 상/하한)을 upsert. 넘어온 필드만 갱신한다.
+        None은 '변경 없음', 빈 문자열은 '해제(기본값으로 복귀)'로 다룬다."""
+        def norm(v):
+            if v is None:
+                return "keep"        # 이번엔 안 건드림
+            if v == "" or v == "null":
+                return None          # 해제 → NULL
+            return _as_float_or_none(v)
+        sp, amin, amax = norm(setpoint), norm(alarm_min), norm(alarm_max)
+        now = time.time()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT setpoint, alarm_min, alarm_max FROM settings WHERE device_id=? AND sensor_key=?",
+                (device_id, sensor_key)).fetchone()
+            old = dict(cur) if cur else {"setpoint": None, "alarm_min": None, "alarm_max": None}
+            new = {
+                "setpoint":  old["setpoint"]  if sp == "keep"   else sp,
+                "alarm_min": old["alarm_min"] if amin == "keep" else amin,
+                "alarm_max": old["alarm_max"] if amax == "keep" else amax,
+            }
+            self._conn.execute(
+                """INSERT INTO settings (device_id, sensor_key, setpoint, alarm_min, alarm_max, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)
+                   ON CONFLICT(device_id, sensor_key) DO UPDATE SET
+                     setpoint=excluded.setpoint, alarm_min=excluded.alarm_min,
+                     alarm_max=excluded.alarm_max, updated_at=excluded.updated_at""",
+                (device_id, sensor_key, new["setpoint"], new["alarm_min"], new["alarm_max"], now),
+            )
+            self._conn.commit()
+        return new
 
     def set_channel(self, device_id: str, sensor_key: str, enabled: bool) -> bool:
         """센서 채널을 활성/비활성한다. = CCM에 그 채널을 켜고/끄라는 명령.
@@ -229,6 +306,7 @@ class Storage:
             }
 
         disc_map = self._discovered_map()
+        set_map = self._settings_map()
         now = time.time()
         out = []
         for d in devs:
@@ -240,13 +318,24 @@ class Storage:
                 sensors = []
                 for s in discovered:
                     lv = latest.get(s["sensor_key"])
+                    us = set_map.get((dev, s["sensor_key"]), {})
+                    # 알람 기준값: 사용자 설정이 있으면 우선, 없으면 프로파일 기본값.
+                    eff_min = us["alarm_min"] if us.get("alarm_min") is not None else s.get("alarm_min")
+                    eff_max = us["alarm_max"] if us.get("alarm_max") is not None else s.get("alarm_max")
                     sensors.append({
                         "sensor_key": s["sensor_key"], "name": s["name"], "unit": s["unit"],
                         "kind": s["kind"], "source": s["source"], "confidence": s["confidence"],
+                        "address": s.get("address"),
                         "enabled": bool(s.get("enabled", 1)),
                         "value": lv["value"] if lv else None,
                         "ok": lv["ok"] if lv else 0,
                         "ts": lv["ts"] if lv else None,
+                        # 제품정보(AI 자동 식별) + 설정/알람
+                        "brand": s.get("brand") or "", "product": s.get("product") or "",
+                        "part_no": s.get("part_no") or "", "manual": s.get("manual") or "",
+                        "alarm_min": eff_min, "alarm_max": eff_max,
+                        "alarm_min_default": s.get("alarm_min"), "alarm_max_default": s.get("alarm_max"),
+                        "setpoint": us.get("setpoint"),
                     })
             else:
                 # 탐색 전 장비: 예전처럼 텔레메트리 최신값만

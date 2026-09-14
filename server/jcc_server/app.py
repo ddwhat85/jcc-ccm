@@ -105,6 +105,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._discover()
         if parsed.path == "/api/channel":
             return self._channel()
+        if parsed.path == "/api/setting":
+            return self._setting()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -182,6 +184,31 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "device_id와 sensor_key가 필요합니다"}, 400)
         ok = self.storage.set_channel(dev, key, enabled)
         return self._json({"ok": ok, "device_id": dev, "sensor_key": key, "enabled": enabled})
+
+    # ── 센서 설정 (셋팅값·알람 상/하한) ──────────────────────
+    def _setting(self) -> None:
+        """{device_id, sensor_key, setpoint?, alarm_min?, alarm_max?} — 사용자 설정 저장.
+
+        넘어온 필드만 갱신한다(누락=변경없음, ""=기본값으로 해제). 재탐색해도 유지된다.
+        """
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        dev = str(body.get("device_id", ""))
+        key = str(body.get("sensor_key", ""))
+        if not dev or not key:
+            return self._json({"error": "device_id와 sensor_key가 필요합니다"}, 400)
+        new = self.storage.set_setting(
+            dev, key,
+            setpoint=body.get("setpoint"),
+            alarm_min=body.get("alarm_min"),
+            alarm_max=body.get("alarm_max"),
+        )
+        return self._json({"ok": True, "device_id": dev, "sensor_key": key, **new})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:
