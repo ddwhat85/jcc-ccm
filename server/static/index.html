@@ -168,17 +168,19 @@
   .vpill.crit{background:var(--crit-soft);border-color:var(--crit)} .vpill.crit .v{color:var(--crit)}
   .vpill.stale .v{color:var(--ink-3)}
   /* 포트 점: 카드 가장자리에 물림 */
-  .port{width:9px;height:9px;border-radius:50%;border:2px solid var(--node-body);
-        position:absolute;top:50%;transform:translateY(-50%);z-index:2}
-  .port.in{left:-5px} .port.out{right:-5px}
+  .port{width:11px;height:11px;border-radius:50%;border:2px solid var(--node-body);
+        position:absolute;top:50%;transform:translateY(-50%);z-index:3}
+  .port.in{left:-6px} .port.out{right:-6px}
+  /* 잡기 쉽도록 투명한 넓은 히트영역(보이는 점은 그대로) */
+  .port::before,.headport::before{content:"";position:absolute;inset:-9px;border-radius:50%}
   .port.sensor{background:var(--port-sensor)} .port.data{background:var(--port-data)}
   .port.agg{background:var(--port-agg)}
   /* 연결 상태 색: 빈 점(노랑) · 연결·정상(초록) · 연결·접속안됨(빨강) */
   .port.p-empty,.headport.p-empty{background:#e6b422}
   .port.p-live,.headport.p-live{background:#30d158}
   .port.p-dead,.headport.p-dead{background:#ff453a}
-  .headport{position:absolute;top:50%;right:-5px;transform:translateY(-50%);
-            width:9px;height:9px;border-radius:50%;border:2px solid var(--node-head-1)}
+  .headport{position:absolute;top:50%;right:-6px;transform:translateY(-50%);
+            width:11px;height:11px;border-radius:50%;border:2px solid var(--node-head-1);z-index:3}
   .npill{font:600 8px var(--mono);letter-spacing:.04em;text-transform:uppercase;
          padding:1px 5px;border-radius:3px;border:1px solid currentColor}
   .npill.on{background:var(--ok-soft);color:var(--ok)}
