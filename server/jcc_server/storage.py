@@ -19,6 +19,8 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS devices (
     device_id   TEXT PRIMARY KEY,
     site        TEXT,
+    panel       TEXT,
+    panel_name  TEXT,
     first_seen  REAL,
     last_seen   REAL
 );
@@ -57,17 +59,20 @@ class Storage:
         """펌웨어가 보낸 텔레메트리 한 묶음을 저장. 저장한 reading 수를 돌려준다."""
         device_id = str(payload.get("device_id") or "unknown")
         site = str(payload.get("site") or "")
+        panel = str(payload.get("panel") or "")
+        panel_name = str(payload.get("panel_name") or "")
         readings = payload.get("readings") or []
         now = time.time()
 
         with self._lock:
             cur = self._conn.cursor()
             cur.execute(
-                """INSERT INTO devices (device_id, site, first_seen, last_seen)
-                   VALUES (?, ?, ?, ?)
+                """INSERT INTO devices (device_id, site, panel, panel_name, first_seen, last_seen)
+                   VALUES (?, ?, ?, ?, ?, ?)
                    ON CONFLICT(device_id) DO UPDATE SET
-                     site=excluded.site, last_seen=excluded.last_seen""",
-                (device_id, site, now, now),
+                     site=excluded.site, panel=excluded.panel,
+                     panel_name=excluded.panel_name, last_seen=excluded.last_seen""",
+                (device_id, site, panel, panel_name, now, now),
             )
             rows = []
             for r in readings:
@@ -93,7 +98,7 @@ class Storage:
     def list_devices(self) -> list[dict]:
         with self._lock:
             devs = self._conn.execute(
-                "SELECT device_id, site, first_seen, last_seen "
+                "SELECT device_id, site, panel, panel_name, first_seen, last_seen "
                 "FROM devices ORDER BY device_id"
             ).fetchall()
         out = []
@@ -103,6 +108,8 @@ class Storage:
             out.append({
                 "device_id": d["device_id"],
                 "site": d["site"],
+                "panel": d["panel"] or "",
+                "panel_name": d["panel_name"] or "",
                 "first_seen": d["first_seen"],
                 "last_seen": d["last_seen"],
                 # 마지막 접속이 3주기(넉넉히 60s) 넘으면 오프라인으로 본다
@@ -110,6 +117,31 @@ class Storage:
                 "latest": latest,
             })
         return out
+
+    def list_panels(self) -> list[dict]:
+        """장비를 판넬 단위로 묶어 돌려준다. panel이 빈 CCM은 자기 자신을 판넬로 취급."""
+        devices = self.list_devices()
+        panels: dict[str, dict] = {}
+        order: list[str] = []
+        for d in devices:
+            pid = d["panel"] or f"__solo__{d['device_id']}"
+            if pid not in panels:
+                panels[pid] = {
+                    "panel": d["panel"] or d["device_id"],
+                    "panel_name": d["panel_name"] or d["device_id"],
+                    "site": d["site"],
+                    "ccms": [],
+                }
+                order.append(pid)
+            panels[pid]["ccms"].append(d)
+        # 판넬 온라인 = 소속 CCM 중 하나라도 온라인
+        result = []
+        for pid in order:
+            p = panels[pid]
+            p["online"] = any(c["online"] for c in p["ccms"])
+            p["ccm_count"] = len(p["ccms"])
+            result.append(p)
+        return result
 
     def latest_readings(self, device_id: str) -> list[dict]:
         """장비의 센서별 최신값 1개씩."""

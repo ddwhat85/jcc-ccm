@@ -94,6 +94,8 @@ class ModbusBusConfig:
 class Config:
     device_id: str
     site: str
+    panel: str             # 이 CCM이 속한 판넬 ID (여러 CCM이 한 판넬을 나눠 감시)
+    panel_name: str        # 판넬 표시 이름 (사람이 읽는 용도)
     interval_seconds: int
     publish_batch: bool
     transport_kind: str            # "mqtt" | "http"
@@ -168,6 +170,8 @@ def load(path: str) -> Config:
     cfg = Config(
         device_id=_resolve_device_id(device.get("id", "")),
         site=device.get("site", ""),
+        panel=device.get("panel", ""),
+        panel_name=device.get("panel_name", ""),
         interval_seconds=int(collection.get("interval_seconds", 10)),
         publish_batch=bool(collection.get("publish_batch", True)),
         transport_kind=transport.get("kind", "mqtt"),

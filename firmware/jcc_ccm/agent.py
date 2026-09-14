@@ -80,6 +80,8 @@ class Agent:
         return {
             "device_id": self._cfg.device_id,
             "site": self._cfg.site,
+            "panel": self._cfg.panel,
+            "panel_name": self._cfg.panel_name,
             "ts": round(time.time(), 3),
             "readings": [r.as_dict() for r in readings],
         }

@@ -5,7 +5,8 @@
 
 엔드포인트
   POST /v1/telemetry             펌웨어가 보내는 수집 데이터 (http_transport와 짝)
-  GET  /api/devices              장비 목록 + 각 센서 최신값
+  GET  /api/devices              CCM 목록 + 각 센서 최신값
+  GET  /api/panels               판넬 단위로 묶은 목록 (판넬 1개 = CCM 여러 대)
   GET  /api/devices/{id}/history?sensor=KEY&limit=N   센서 이력
   GET  /health                   상태 확인
   GET  /                         대시보드 (static/index.html)
@@ -62,6 +63,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "ts": time.time()})
         if path == "/api/devices":
             return self._json({"devices": self.storage.list_devices()})
+        if path == "/api/panels":
+            return self._json({"panels": self.storage.list_panels()})
 
         m = re.fullmatch(r"/api/devices/([^/]+)/history", path)
         if m:

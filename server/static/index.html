@@ -39,16 +39,27 @@
   .empty{text-align:center;padding:80px 20px;color:var(--ink-3)}
   .empty h2{color:var(--ink-2);font-weight:600}
 
-  .devices{display:flex;flex-direction:column;gap:20px}
-  .device{background:var(--surface);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
-  .device-head{display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid var(--rule)}
-  .device-id{font-family:var(--mono);font-weight:600;font-size:16px}
-  .device-site{color:var(--ink-3);font-size:13px}
-  .pill{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;
+  /* 판넬 (최상위: 한 판넬 = CCM 여러 대) */
+  .panels{display:flex;flex-direction:column;gap:22px}
+  .panel-card{background:var(--surface);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+  .panel-head{display:flex;align-items:center;gap:12px;padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--rule)}
+  .panel-name{font-weight:700;font-size:17px;letter-spacing:-.01em}
+  .panel-site{color:var(--ink-3);font-size:13px}
+  .ccm-count{font-family:var(--mono);font-size:12px;color:var(--ink-3);background:var(--ground);padding:2px 8px;border-radius:2px}
+
+  .pill{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;
         padding:3px 10px;border-radius:2px;border:1px solid currentColor;text-transform:uppercase}
+  .panel-head .pill{margin-left:auto}
+  .pill.sm{font-size:10px;padding:2px 7px}
   .pill.on{background:var(--ok-soft);color:var(--ok)}
   .pill.off{background:var(--crit-soft);color:var(--crit)}
   .seen{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:10px}
+
+  /* CCM (판넬 하위) */
+  .ccms{display:flex;flex-direction:column}
+  .ccm + .ccm{border-top:1px solid var(--rule)}
+  .ccm-head{display:flex;align-items:center;gap:10px;padding:9px 18px;background:var(--surface)}
+  .ccm-id{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--ink-2)}
 
   .tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:1px;background:var(--rule)}
   .tile{background:var(--surface);padding:14px 16px;cursor:pointer;transition:background .12s;border:none;text-align:left;font:inherit;color:inherit}
@@ -131,11 +142,11 @@ function severity(key, v){
 let lastOk = false;
 async function refresh(){
   try{
-    const res = await fetch("/api/devices",{cache:"no-store"});
+    const res = await fetch("/api/panels",{cache:"no-store"});
     if(!res.ok) throw new Error(res.status);
     const data = await res.json();
     setConn(true);
-    render(data.devices||[]);
+    render(data.panels||[]);
   }catch(e){ setConn(false); }
 }
 function setConn(ok){
@@ -145,66 +156,87 @@ function setConn(ok){
   $("#conn-txt").textContent = ok ? "실시간" : "서버 응답 없음";
 }
 
-// 화면 구조를 매번 새로 짓지 않고, 구성(장비·센서 목록)이 바뀔 때만 다시 짓는다.
-// 평소 갱신은 값·상태만 제자리에서 바꿔 깜빡임과 클릭 방해를 없앤다.
+// 3계층: 판넬 → CCM → 센서. 한 판넬을 CCM 여러 대가 나눠 감시한다.
+// 구성이 바뀔 때만 DOM을 다시 짓고, 평소엔 값·상태만 제자리 갱신(무깜빡임).
 let _layoutKey = "";
-function layoutSignature(devices){
-  return devices.map(d => d.device_id + ":" + (d.latest||[]).map(r=>r.sensor_key).join(",")).join("|");
+function layoutSignature(panels){
+  return panels.map(p => p.panel + "{" +
+    (p.ccms||[]).map(c => c.device_id + ":" + (c.latest||[]).map(r=>r.sensor_key).join(",")).join(";")
+  + "}").join("|");
 }
 
-function render(devices){
+function render(panels){
   const root = $("#root");
-  if(!devices.length){ return; } // keep empty state
-
-  const sig = layoutSignature(devices);
-  if(sig !== _layoutKey){ buildLayout(root, devices); _layoutKey = sig; }
-  updateValues(devices);
+  if(!panels.length){ return; } // keep empty state
+  const sig = layoutSignature(panels);
+  if(sig !== _layoutKey){ buildLayout(root, panels); _layoutKey = sig; }
+  updateValues(panels);
 }
 
-function buildLayout(root, devices){
+function buildLayout(root, panels){
   root.innerHTML = "";
-  const wrap = document.createElement("div"); wrap.className="devices";
-  for(const d of devices){
-    const dev = document.createElement("section"); dev.className="device";
-    dev.dataset.dev = d.device_id;
-    const head = document.createElement("div"); head.className="device-head";
-    head.innerHTML = `<span class="device-id">${escapeHtml(d.device_id)}</span>`+
-      (d.site?`<span class="device-site">${escapeHtml(d.site)}</span>`:"")+
-      `<span class="pill" data-role="pill"></span>`+
-      `<span class="seen" data-role="seen"></span>`;
-    dev.appendChild(head);
+  const wrap = document.createElement("div"); wrap.className="panels";
+  for(const p of panels){
+    const panel = document.createElement("section"); panel.className="panel-card";
+    panel.dataset.panel = p.panel;
 
-    const tiles = document.createElement("div"); tiles.className="tiles";
-    for(const r of (d.latest||[])){
-      const t = document.createElement("button");
-      t.className = "tile"; t.dataset.sensor = r.sensor_key;
-      t.innerHTML = `<div class="t-name">${escapeHtml(r.name||r.sensor_key)}</div>`+
-        `<div class="t-val" data-role="val"></div>`+
-        `<div class="t-hint">이력 보기 →</div>`;
-      t.onclick = () => openChart(d.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||"");
-      tiles.appendChild(t);
+    const head = document.createElement("div"); head.className="panel-head";
+    head.innerHTML = `<span class="panel-name">${escapeHtml(p.panel_name||p.panel)}</span>`+
+      (p.site?`<span class="panel-site">${escapeHtml(p.site)}</span>`:"")+
+      `<span class="ccm-count">CCM ${p.ccm_count}대</span>`+
+      `<span class="pill" data-role="ppill"></span>`;
+    panel.appendChild(head);
+
+    const ccmWrap = document.createElement("div"); ccmWrap.className="ccms";
+    for(const c of (p.ccms||[])){
+      const dev = document.createElement("div"); dev.className="ccm"; dev.dataset.dev=c.device_id;
+      const ch = document.createElement("div"); ch.className="ccm-head";
+      ch.innerHTML = `<span class="ccm-id">${escapeHtml(c.device_id)}</span>`+
+        `<span class="pill sm" data-role="cpill"></span>`+
+        `<span class="seen" data-role="seen"></span>`;
+      dev.appendChild(ch);
+
+      const tiles = document.createElement("div"); tiles.className="tiles";
+      for(const r of (c.latest||[])){
+        const t = document.createElement("button");
+        t.className="tile"; t.dataset.sensor=r.sensor_key;
+        t.innerHTML = `<div class="t-name">${escapeHtml(r.name||r.sensor_key)}</div>`+
+          `<div class="t-val" data-role="val"></div>`+
+          `<div class="t-hint">이력 보기 →</div>`;
+        t.onclick = () => openChart(c.device_id, r.sensor_key, r.name||r.sensor_key, r.unit||"");
+        tiles.appendChild(t);
+      }
+      dev.appendChild(tiles);
+      ccmWrap.appendChild(dev);
     }
-    dev.appendChild(tiles);
-    wrap.appendChild(dev);
+    panel.appendChild(ccmWrap);
+    wrap.appendChild(panel);
   }
   root.appendChild(wrap);
 }
 
-function updateValues(devices){
-  for(const d of devices){
-    const dev = document.querySelector(`.device[data-dev="${cssEsc(d.device_id)}"]`);
-    if(!dev) continue;
-    const pill = dev.querySelector('[data-role="pill"]');
-    pill.className = "pill " + (d.online?"on":"off");
-    pill.textContent = d.online?"온라인":"오프라인";
-    dev.querySelector('[data-role="seen"]').textContent = ago(d.last_seen);
-    for(const r of (d.latest||[])){
-      const tile = dev.querySelector(`.tile[data-sensor="${cssEsc(r.sensor_key)}"]`);
-      if(!tile) continue;
-      const sev = severity(r.sensor_key, r.value);
-      tile.className = "tile" + (r.ok?"":" stale") + (sev?(" "+sev):"");
-      tile.querySelector('[data-role="val"]').innerHTML =
-        `${fmtValue(r.value)}<span class="t-unit">${escapeHtml(r.unit||"")}</span>`;
+function updateValues(panels){
+  for(const p of panels){
+    const panel = document.querySelector(`.panel-card[data-panel="${cssEsc(p.panel)}"]`);
+    if(!panel) continue;
+    const pp = panel.querySelector('[data-role="ppill"]');
+    pp.className = "pill " + (p.online?"on":"off");
+    pp.textContent = p.online?"온라인":"오프라인";
+    for(const c of (p.ccms||[])){
+      const dev = panel.querySelector(`.ccm[data-dev="${cssEsc(c.device_id)}"]`);
+      if(!dev) continue;
+      const cp = dev.querySelector('[data-role="cpill"]');
+      cp.className = "pill sm " + (c.online?"on":"off");
+      cp.textContent = c.online?"온라인":"오프라인";
+      dev.querySelector('[data-role="seen"]').textContent = ago(c.last_seen);
+      for(const r of (c.latest||[])){
+        const tile = dev.querySelector(`.tile[data-sensor="${cssEsc(r.sensor_key)}"]`);
+        if(!tile) continue;
+        const sev = severity(r.sensor_key, r.value);
+        tile.className = "tile" + (r.ok?"":" stale") + (sev?(" "+sev):"");
+        tile.querySelector('[data-role="val"]').innerHTML =
+          `${fmtValue(r.value)}<span class="t-unit">${escapeHtml(r.unit||"")}</span>`;
+      }
     }
   }
 }
