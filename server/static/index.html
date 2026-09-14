@@ -128,7 +128,10 @@
   .wire-del circle:not(.hit){fill:var(--crit);stroke:var(--surface);stroke-width:1.5}
   .wire-del path{stroke:#fff;stroke-width:2;stroke-linecap:round;pointer-events:none}
   .wire-del:hover circle:not(.hit){fill:#c81f1c}
-  .port,.headport{cursor:crosshair}
+  .port,.headport{cursor:crosshair;transition:box-shadow .08s,transform .08s}
+  /* 자석: 드래그 중 붙는 대상 포트 강조 */
+  .port.snap{transform:translateY(-50%) scale(1.6);box-shadow:0 0 0 4px rgba(58,143,176,.5),0 0 8px rgba(58,143,176,.6)}
+  .headport.snap{transform:translateY(-50%) scale(1.6);box-shadow:0 0 0 4px rgba(58,143,176,.5),0 0 8px rgba(58,143,176,.6)}
   @keyframes flow{to{stroke-dashoffset:-11}}
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
              paint-order:stroke;stroke:var(--canvas);stroke-width:3px}
@@ -341,6 +344,8 @@ let userWires = loadWires();   // [{id,from,to}]  포트를 끌어 만든 연결
 let wireCounter = userWires.reduce((m,w)=>Math.max(m, +((w.id||"w0").slice(1))||0),0);
 let wiring = null;             // 드래그 중 {fromId, fromNode}
 let tempPt = null;             // 드래그 중 커서 위치(그래프 좌표)
+let snapPort = null;           // 자석: 가까이 붙은 대상 포트 {el,id,node,x,y}
+const SNAP_RADIUS = 38;        // 이 거리 안이면 포트에 착 붙는다
 let selectedWireId = null;
 function loadWires(){ try{ return JSON.parse(localStorage.getItem(LS_WIRES)||"[]"); }catch(e){ return []; } }
 function saveWires(){ try{ localStorage.setItem(LS_WIRES, JSON.stringify(userWires)); }catch(e){} }
@@ -652,27 +657,50 @@ $("#graph").addEventListener("mousedown", e=>{
   wiring = { fromId: portEl.getAttribute("data-port"), fromNode: portEl.closest(".node")?.dataset.id };
   document.body.style.cursor = "crosshair";
 }, true);
+// 커서에서 가장 가까운 포트를 찾는다(같은 노드 제외). 자석 스냅용.
+function findSnapPort(gx, gy, gr){
+  let best = null, bestD = SNAP_RADIUS*SNAP_RADIUS;
+  document.querySelectorAll(".graph [data-port]").forEach(el=>{
+    const node = el.closest(".node")?.dataset.id;
+    if(node === wiring.fromNode) return;               // 같은 노드끼리는 연결 불가
+    const r = el.getBoundingClientRect();
+    const cx = r.left - gr.left + r.width/2, cy = r.top - gr.top + r.height/2;
+    const dx = cx-gx, dy = cy-gy, d = dx*dx + dy*dy;
+    if(d < bestD){ bestD = d; best = {el, id:el.getAttribute("data-port"), node, x:cx, y:cy}; }
+  });
+  return best;
+}
+function clearSnap(){ document.querySelectorAll(".graph .snap").forEach(el=>el.classList.remove("snap")); }
+
 window.addEventListener("mousemove", e=>{
   if(!wiring) return;
   const gr = $("#graph").getBoundingClientRect();
-  tempPt = { x: e.clientX - gr.left, y: e.clientY - gr.top };
+  const gx = e.clientX - gr.left, gy = e.clientY - gr.top;
+  clearSnap();
+  snapPort = findSnapPort(gx, gy, gr);
+  if(snapPort){ snapPort.el.classList.add("snap"); tempPt = {x:snapPort.x, y:snapPort.y}; }  // 착 붙는다
+  else tempPt = {x:gx, y:gy};
   drawWires();
 });
 window.addEventListener("mouseup", e=>{
   if(!wiring) return;
-  const el = document.elementFromPoint(e.clientX, e.clientY);
-  const portEl = el && el.closest ? el.closest("[data-port]") : null;
-  if(portEl){
-    const toId = portEl.getAttribute("data-port");
-    const toNode = portEl.closest(".node")?.dataset.id;
+  let toId = null, toNode = null;
+  if(snapPort){ toId = snapPort.id; toNode = snapPort.node; }   // 자석으로 붙은 포트 우선
+  else {
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const portEl = el && el.closest ? el.closest("[data-port]") : null;
+    if(portEl){ toId = portEl.getAttribute("data-port"); toNode = portEl.closest(".node")?.dataset.id; }
+  }
+  if(toId){
     if(toNode === wiring.fromNode){ setStatus("같은 노드끼리는 연결할 수 없습니다"); }
-    else if(toId && toId !== wiring.fromId &&
+    else if(toId !== wiring.fromId &&
        !userWires.some(w=>(w.from===wiring.fromId&&w.to===toId)||(w.from===toId&&w.to===wiring.fromId))){
       userWires.push({id:"w"+(++wireCounter), from:wiring.fromId, to:toId});
-      saveWires(); setStatus("연결 추가됨");
+      saveWires(); setStatus("연결됨");
     }
   }
-  wiring = null; tempPt = null; document.body.style.cursor = "";
+  clearSnap();
+  wiring = null; tempPt = null; snapPort = null; document.body.style.cursor = "";
   requestAnimationFrame(drawWires);
 });
 // 연결선 클릭 → 선택 (svg는 pointer-events:none이지만 user 배선 path는 stroke로 클릭 가능)
