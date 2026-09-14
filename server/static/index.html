@@ -118,9 +118,14 @@
   .wirepath{fill:none;stroke:var(--wire);stroke-width:2}
   .wirepath.flow{stroke-dasharray:5 6;animation:flow 1s linear infinite}
   .wirepath.off{stroke:var(--rule);stroke-dasharray:3 5}
-  .wirepath.user{stroke:var(--sel);stroke-width:2.5;pointer-events:stroke;cursor:pointer}
+  .wirepath.user{stroke:var(--sel);stroke-width:2.5;pointer-events:none}
   .wirepath.user.sel{stroke-width:4;filter:drop-shadow(0 0 3px var(--sel))}
   .wirepath.temp{stroke:var(--sel);stroke-width:2;stroke-dasharray:4 4;opacity:.85}
+  .wirehit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
+  .wire-del{cursor:pointer;pointer-events:all}
+  .wire-del circle{fill:var(--crit);stroke:var(--surface);stroke-width:1.5}
+  .wire-del path{stroke:#fff;stroke-width:2;stroke-linecap:round}
+  .wire-del:hover circle{fill:#c81f1c}
   .port,.headport{cursor:crosshair}
   @keyframes flow{to{stroke-dashoffset:-11}}
   .wirelabel{fill:var(--wire-label);font:600 10px var(--mono);
@@ -546,13 +551,22 @@ function drawWires(){
     labels += `<text class="wirelabel" x="${mx}" y="${my}" text-anchor="middle">${escapeHtml(w.label)}</text>`;
   }
   // 사용자 배선 (포트를 끌어 만든 연결). 끝점이 아직 없으면 건너뛴다(파괴적 정리 금지).
+  let delBtns = "";
   for(const w of userWires){
     const a = portCenter(w.from), b = portCenter(w.to);
     if(!a || !b) continue;
     const dx = Math.max(36, Math.abs(b.x - a.x)/2);
     const d = `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
-    paths += `<path class="wirepath user${w.id===selectedWireId?" sel":""}" data-wire="${w.id}" d="${d}"></path>`;
+    const sel = w.id===selectedWireId;
+    paths += `<path class="wirehit" data-wire="${w.id}" d="${d}"></path>`;   // 넓은 클릭영역
+    paths += `<path class="wirepath user${sel?" sel":""}" data-wire="${w.id}" d="${d}"></path>`;
+    if(sel){   // 선택된 연결 중앙에 끊기(✕) 버튼
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      delBtns += `<g class="wire-del" data-wire-del="${w.id}" transform="translate(${mx},${my})">`+
+        `<circle r="9"></circle><path d="M-3.4,-3.4 L3.4,3.4 M3.4,-3.4 L-3.4,3.4"></path></g>`;
+    }
   }
+  labels += delBtns;
   // 드래그 중 임시선
   if(wiring && tempPt){
     const a = portCenter(wiring.fromId);
@@ -619,6 +633,8 @@ window.addEventListener("mouseup", e=>{
 });
 // 연결선 클릭 → 선택 (svg는 pointer-events:none이지만 user 배선 path는 stroke로 클릭 가능)
 $("#wires").addEventListener("click", e=>{
+  const del = e.target.closest("[data-wire-del]");
+  if(del){ e.stopPropagation(); selectedWireId = del.getAttribute("data-wire-del"); deleteSelected(); return; }
   const p = e.target.closest("[data-wire]"); if(!p) return;
   selectWire(p.getAttribute("data-wire"));
 });
