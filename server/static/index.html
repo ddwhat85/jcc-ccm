@@ -118,9 +118,9 @@
   .wirepath{fill:none;stroke:var(--wire);stroke-width:2}
   .wirepath.flow{stroke-dasharray:5 6;animation:flow 1s linear infinite}
   .wirepath.off{stroke:var(--rule);stroke-dasharray:3 5}
-  .wirepath.sel{stroke:var(--sel);stroke-width:3.5;filter:drop-shadow(0 0 3px var(--sel))}
-  .wirepath.user{stroke:var(--sel);stroke-width:2.5;pointer-events:none}
-  .wirepath.user.sel{stroke-width:4;filter:drop-shadow(0 0 3px var(--sel))}
+  .wirepath.sel{stroke:var(--sel)!important;stroke-width:3.5;stroke-dasharray:none;filter:drop-shadow(0 0 3px var(--sel));animation:none}
+  /* 직접 그린 연결도 자동 배선과 같은 점선·흐름으로 통일 */
+  .wirepath.user{stroke:var(--wire);stroke-width:2;stroke-dasharray:5 6;animation:flow 1s linear infinite;pointer-events:none}
   .wirepath.temp{stroke:var(--sel);stroke-width:2;stroke-dasharray:4 4;opacity:.85}
   .wirehit{fill:none;stroke:transparent;stroke-width:16;pointer-events:stroke;cursor:pointer}
   .wire-del{cursor:pointer;pointer-events:all}
@@ -170,6 +170,10 @@
   .port.in{left:-5px} .port.out{right:-5px}
   .port.sensor{background:var(--port-sensor)} .port.data{background:var(--port-data)}
   .port.agg{background:var(--port-agg)}
+  /* 연결 상태 색: 빈 점(노랑) · 연결·정상(초록) · 연결·접속안됨(빨강) */
+  .port.p-empty,.headport.p-empty{background:#e6b422}
+  .port.p-live,.headport.p-live{background:#30d158}
+  .port.p-dead,.headport.p-dead{background:#ff453a}
   .headport{position:absolute;top:50%;right:-5px;transform:translateY(-50%);
             width:9px;height:9px;border-radius:50%;border:2px solid var(--node-head-1)}
   .npill{font:600 8px var(--mono);letter-spacing:.04em;text-transform:uppercase;
@@ -327,6 +331,7 @@ let wires = [];                // {fromId, toId, label, live}
 let topoSig = "";
 let selectedId = null;
 let sensorMeta = {};           // "device:key" -> {source, confidence}  탐지 메타
+let nodeOnline = {};           // nodeId -> bool  노드 온라인 상태(포트 색 판정용)
 let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노드
 let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
@@ -503,17 +508,21 @@ function applyPositions(){
 // ── 값·상태 갱신 (제자리) ─────────────────────────────
 function updateValues(panels){
   let onlinePanels = 0, lastSeen = 0;
+  nodeOnline = {};
   for(const p of panels){
     if(p.online) onlinePanels++;
+    nodeOnline["panel:"+p.panel] = p.online;
     const pEl = nodes.get("panel:"+p.panel)?.el; if(!pEl) continue;
     setPill(pEl.querySelector('[data-role="pill"]'), p.online);
     for(const c of (p.ccms||[])){
       lastSeen = Math.max(lastSeen, c.last_seen||0);
+      nodeOnline["ccm:"+c.device_id] = c.online;
       const cpill = pEl.querySelector(`[data-role="cpill:${cssAttr(c.device_id)}"]`);
       setPill(cpill, c.online);
       const cEl = nodes.get("ccm:"+c.device_id)?.el; if(!cEl) continue;
       setPill(cEl.querySelector('[data-role="pill"]'), c.online);
       for(const r of (c.latest||[])){
+        nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = c.online;
         const sev = severity(r.sensor_key, r.value) || (r.ok?"ok":"stale");
         // CCM 안 입력행 값
         const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
@@ -527,13 +536,31 @@ function updateValues(panels){
     }
   }
   // 서버 노드 요약
+  nodeOnline["server:jcc"] = onlinePanels > 0;
   const sSub = nodes.get("server:jcc")?.el.querySelector('[data-role="server-sub"]');
   if(sSub) sSub.textContent = `판넬 ${onlinePanels}/${panels.length} · ${ago(lastSeen)||"–"}`;
   // 배선 흐름 애니메이션 상태
   for(const w of wires){ w.live = true; }
+  colorPorts();
 }
 function setPill(el, online){ if(!el) return;
   el.className = "npill " + (online?"on":"off"); el.textContent = online?"ON":"OFF"; }
+
+// 포트 색: 연결 안 됨(노랑) · 연결·정상(초록) · 연결·접속안됨(빨강)
+function colorPorts(){
+  const connected = new Set();
+  for(const w of wires){ if(cutWires.has(w.fromId+"|"+w.toId)) continue; connected.add(w.fromId); connected.add(w.toId); }
+  for(const w of userWires){ connected.add(w.from); connected.add(w.to); }
+  document.querySelectorAll(".graph .port, .graph .headport").forEach(el=>{
+    const pid = el.getAttribute("data-port");
+    const node = el.closest(".node");
+    const online = node ? nodeOnline[node.dataset.id] : undefined;
+    el.classList.remove("p-empty","p-live","p-dead");
+    if(!connected.has(pid)) el.classList.add("p-empty");
+    else if(online === false) el.classList.add("p-dead");
+    else el.classList.add("p-live");
+  });
+}
 
 // ── 배선 그리기 (포트 중심 실측) ───────────────────────
 function portCenter(portId){
@@ -590,6 +617,7 @@ function drawWires(){
       paths += `<path class="wirepath temp" d="M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${tempPt.x-dx} ${tempPt.y}, ${tempPt.x} ${tempPt.y}"></path>`; }
   }
   svg.innerHTML = paths + labels;
+  colorPorts();
 }
 
 // ── 드래그 ────────────────────────────────────────────
@@ -661,9 +689,10 @@ function selectWire(id){
   setStatus("연결 선택됨 · Delete 또는 [노드 삭제]로 제거");
   requestAnimationFrame(drawWires);
 }
-// 빈 캔버스 클릭 → 선택 해제
+// 빈 캔버스 클릭 → 선택 해제 (연결선·✕·포트·노드 위 클릭은 제외)
 $("#canvas").addEventListener("mousedown", e=>{
-  if(e.target.closest("[data-port]") || e.target.closest(".node") || e.target.closest("[data-wire]")) return;
+  if(e.target.closest("[data-port]") || e.target.closest(".node") ||
+     e.target.closest("[data-wire]") || e.target.closest("[data-wire-del]")) return;
   if(selectedWireId){ selectedWireId = null; requestAnimationFrame(drawWires); }
 });
 
