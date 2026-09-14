@@ -64,6 +64,8 @@
   .tb-btn:hover{background:#2a323c}
   .tb-btn.run{background:var(--run);color:#1a1e07;border-color:var(--run);font-weight:600}
   .tb-btn.run:hover{filter:brightness(1.06)}
+  .tb-sep{width:1px;height:22px;background:#2c333c;margin:0 2px}
+  .tb-status{font-family:var(--mono);font-size:12px;color:#8a929c}
   .toolbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
   .clock{font-family:var(--mono);font-size:12px;color:#9aa2ac;font-variant-numeric:tabular-nums}
   .conn{display:flex;align-items:center;gap:7px;font-size:12px;font-family:var(--mono)}
@@ -79,9 +81,14 @@
   .palette h3{margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.04em;
               text-transform:uppercase;color:var(--ink-3)}
   .palette .hint{font-size:11px;color:var(--ink-3);margin:0 0 12px;line-height:1.4}
-  .pal-item{display:flex;align-items:center;gap:9px;padding:8px 10px;margin-bottom:6px;
+  .pal-item{display:flex;align-items:center;gap:9px;width:100%;padding:8px 10px;margin-bottom:5px;
             border:1px solid var(--rule);border-radius:5px;background:var(--canvas);
-            font-size:12.5px;color:var(--ink-2)}
+            font:inherit;font-size:12.5px;color:var(--ink-2);text-align:left;cursor:pointer}
+  .pal-item:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+  .pal-item:active{transform:translateY(1px)}
+  .pal-item .k{margin-left:auto;font:600 9px var(--mono);color:var(--ink-3);letter-spacing:.05em}
+  .pal-group{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;
+             color:var(--ink-3);margin:13px 0 6px}
   .pal-swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
   .pal-legend{margin-top:16px;border-top:1px solid var(--rule);padding-top:12px}
   .pal-legend .row{display:flex;align-items:center;gap:8px;font-size:11.5px;
@@ -173,10 +180,17 @@
 <body>
   <div class="toolbar">
     <span class="brand">JCC<b>·</b>CCM</span>
-    <span class="tag">노드 모니터</span>
+    <span class="tag">노드 에디터</span>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" id="btn-new">새로</button>
+    <button class="tb-btn" id="btn-open">열기</button>
+    <button class="tb-btn" id="btn-save">저장</button>
+    <button class="tb-btn" id="btn-saveas">다른 이름</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn" id="btn-delete">노드 삭제</button>
     <button class="tb-btn" id="btn-arrange">자동 정렬</button>
-    <button class="tb-btn" id="btn-save">배치 저장</button>
-    <button class="tb-btn run" id="btn-refresh">새로고침</button>
+    <button class="tb-btn run" id="btn-run">실행</button>
+    <span class="tb-status" id="status">준비</span>
     <div class="right">
       <span class="clock" id="clock">--:--:--</span>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
@@ -186,11 +200,22 @@
   <div class="body">
     <aside class="palette">
       <h3>노드</h3>
-      <p class="hint">현장 배선을 노드로 표시합니다. 헤더를 끌어 배치하고 <b>배치 저장</b>으로 기억시킵니다.</p>
-      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서</div>
-      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이</div>
-      <div class="pal-item"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬</div>
-      <div class="pal-item"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드</div>
+      <p class="hint">항목을 클릭하면 캔버스에 노드가 놓입니다. 헤더를 끌어 배치하고 <b>저장</b>으로 기억시킵니다.</p>
+
+      <div class="pal-group">소스</div>
+      <button class="pal-item" data-add="sensor"><span class="pal-swatch" style="background:var(--port-sensor)"></span>센서<span class="k">+</span></button>
+      <button class="pal-item" data-add="ccm"><span class="pal-swatch" style="background:var(--port-data)"></span>CCM 게이트웨이<span class="k">+</span></button>
+
+      <div class="pal-group">구성 · 로직</div>
+      <button class="pal-item" data-add="panel"><span class="pal-swatch" style="background:var(--port-agg)"></span>판넬 그룹<span class="k">+</span></button>
+      <button class="pal-item" data-add="threshold"><span class="pal-swatch" style="background:var(--warn)"></span>임계값 경보<span class="k">+</span></button>
+      <button class="pal-item" data-add="aggregate"><span class="pal-swatch" style="background:var(--port-agg)"></span>상태 집계<span class="k">+</span></button>
+
+      <div class="pal-group">출력</div>
+      <button class="pal-item" data-add="server"><span class="pal-swatch" style="background:var(--accent)"></span>JCC 클라우드<span class="k">+</span></button>
+      <button class="pal-item" data-add="notify"><span class="pal-swatch" style="background:var(--crit)"></span>알림 (메일·SMS)<span class="k">+</span></button>
+      <button class="pal-item" data-add="store"><span class="pal-swatch" style="background:var(--ink-3)"></span>데이터 저장<span class="k">+</span></button>
+
       <div class="pal-legend">
         <div class="row"><span class="wireswatch"></span>연결(배선)</div>
         <div class="row">센서 →<b style="color:var(--ink-2)">&nbsp;RS485&nbsp;</b>→ CCM</div>
@@ -224,6 +249,15 @@
 const $ = s => document.querySelector(s);
 const REFRESH_MS = 3000;
 const LS_POS = "jcc-node-pos-v1";
+const LS_USER = "jcc-user-nodes-v1";
+
+// 팔레트로 추가할 수 있는 노드 종류
+const KIND_KO  = {sensor:"센서",ccm:"CCM 게이트웨이",panel:"판넬",threshold:"임계값 경보",
+                  aggregate:"상태 집계",server:"JCC 클라우드",notify:"알림",store:"데이터 저장"};
+const KIND_TAG = {sensor:"SENSOR",ccm:"CCM",panel:"PANEL",threshold:"ALERT",
+                  aggregate:"AGG",server:"CLOUD",notify:"NOTIFY",store:"STORE"};
+const KIND_PORT= {sensor:"sensor",ccm:"data",panel:"agg",threshold:"data",
+                  aggregate:"agg",server:"data",notify:"data",store:"data"};
 
 // ── 유틸 ──────────────────────────────────────────────
 function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -245,6 +279,10 @@ let nodes = new Map();         // nodeId -> {el, kind}
 let wires = [];                // {fromId, toId, label, live}
 let topoSig = "";
 let selectedId = null;
+let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노드
+let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
+function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
+function saveUser(){ try{ localStorage.setItem(LS_USER, JSON.stringify(userNodes)); }catch(e){} }
 
 // ── 데이터 → 그래프 ───────────────────────────────────
 function topoSignature(panels){
@@ -335,6 +373,7 @@ function buildGraph(panels){
   }
   autoLayout(panels);        // 저장된 배치 없으면 자동 정렬
   applyPositions();
+  renderUserNodes();         // 팔레트로 추가한 노드는 토폴로지 재생성 후에도 유지
 }
 
 function mkNode(id, kind, title, kindLabel){
@@ -488,10 +527,14 @@ function select(id){
 }
 function renderInspector(id, n){
   const insp = $("#inspector"), box = $("#insp-in");
-  const kindKo = {sensor:"센서",ccm:"CCM 게이트웨이",panel:"판넬",server:"JCC 클라우드"}[n.kind];
+  const kindKo = KIND_KO[n.kind] || n.kind;
   const title = n.el.querySelector(".ntitle").textContent;
   let rows = "";
-  if(n.kind==="sensor"){
+  if(n.user){
+    rows = `<div class="insp-row"><span class="k">유형</span><span class="v">${escapeHtml(kindKo)}</span></div>`+
+           `<div class="insp-row"><span class="k">출처</span><span class="v">사용자 추가</span></div>`+
+           `<div class="insp-row"><span class="k">삭제</span><span class="v">Delete 키 · [노드 삭제]</span></div>`;
+  } else if(n.kind==="sensor"){
     const bv = n.el.querySelector(".v")?.textContent||"—";
     const parts = id.split(":");
     rows = `<div class="insp-row"><span class="k">현재값</span><span class="v">${escapeHtml(bv)}</span></div>`+
@@ -522,11 +565,79 @@ function renderInspector(id, n){
   insp.classList.add("open");
 }
 
+// ── 사용자 노드 (팔레트에서 추가) ─────────────────────
+function addUserNode(kind){
+  userCounter++;
+  const id = "user:"+kind+":"+userCounter;
+  userNodes.push({id, kind, name: KIND_KO[kind]+" "+userCounter});
+  nodePos[id] = {x: 360 + (userCounter%5)*26, y: 40 + (userCounter%7)*30};
+  saveUser(); savePos(nodePos);
+  renderUserNodes(); select(id);
+  requestAnimationFrame(drawWires);
+  setStatus(KIND_KO[kind]+" 노드 추가됨");
+}
+function mkUserNode(rec){
+  const el = document.createElement("div");
+  el.className = "node usernode "+rec.kind; el.dataset.id = rec.id;
+  const port = KIND_PORT[rec.kind]||"data";
+  el.innerHTML =
+    `<div class="nhead"><span class="ntitle">${escapeHtml(rec.name)}</span><span class="nkind">${KIND_TAG[rec.kind]||""}</span></div>`+
+    `<div class="nbody"><div class="prow">`+
+      `<span class="port in ${port}" data-port="uin:${cssAttr(rec.id)}"></span>`+
+      `<span class="pname">입력 / 출력</span>`+
+      `<span class="port out ${port}" data-port="uout:${cssAttr(rec.id)}"></span>`+
+    `</div><div class="nsub">사용자 노드 · ${KIND_KO[rec.kind]}</div></div>`;
+  makeDraggable(el);
+  el.addEventListener("mousedown", ()=>select(rec.id), true);
+  return el;
+}
+function renderUserNodes(){
+  const graph = $("#graph");
+  graph.querySelectorAll(".node.usernode").forEach(n=>{ nodes.delete(n.dataset.id); n.remove(); });
+  for(const rec of userNodes){
+    const el = mkUserNode(rec); graph.appendChild(el);
+    nodes.set(rec.id, {el, kind:rec.kind, user:true});
+  }
+  applyPositions();
+}
+function deleteSelected(){
+  if(!selectedId || !selectedId.startsWith("user:")){ setStatus("삭제할 사용자 노드를 먼저 선택하세요"); return; }
+  userNodes = userNodes.filter(n=>n.id!==selectedId);
+  delete nodePos[selectedId];
+  nodes.get(selectedId)?.el.remove(); nodes.delete(selectedId);
+  saveUser(); savePos(nodePos);
+  $("#inspector").classList.remove("open"); selectedId = null;
+  requestAnimationFrame(drawWires); setStatus("노드 삭제됨");
+}
+
+// ── 상태표시 ──────────────────────────────────────────
+let statusTimer;
+function setStatus(t){ const s=$("#status"); if(!s) return; s.textContent=t;
+  clearTimeout(statusTimer); statusTimer=setTimeout(()=>s.textContent="준비",1800); }
+
 // ── 툴바 ──────────────────────────────────────────────
-$("#btn-arrange").onclick = ()=>{ nodePos = {}; savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); };
-$("#btn-save").onclick = ()=>{ savePos(nodePos);
-  const b=$("#btn-save"); const t=b.textContent; b.textContent="저장됨 ✓"; setTimeout(()=>b.textContent=t,1200); };
-$("#btn-refresh").onclick = refresh;
+document.querySelectorAll(".pal-item[data-add]").forEach(b=>{ b.onclick = ()=>addUserNode(b.dataset.add); });
+$("#btn-new").onclick = ()=>{
+  if(userNodes.length && !confirm("추가한 노드를 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
+  userNodes.forEach(n=>{ nodes.get(n.id)?.el.remove(); nodes.delete(n.id); delete nodePos[n.id]; });
+  userNodes = []; saveUser(); savePos(nodePos);
+  $("#inspector").classList.remove("open"); selectedId=null;
+  requestAnimationFrame(drawWires); setStatus("새 구성");
+};
+$("#btn-open").onclick = ()=>{ userNodes=loadUser(); nodePos=loadPos(); renderUserNodes();
+  requestAnimationFrame(drawWires); setStatus("불러옴"); };
+$("#btn-save").onclick = ()=>{ saveUser(); savePos(nodePos); setStatus("저장됨 ✓"); };
+$("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
+  if(name!==null){ saveUser(); savePos(nodePos); setStatus("저장됨: "+name); } };
+$("#btn-delete").onclick = deleteSelected;
+$("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 노드 배치는 보존
+  for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
+  savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
+$("#btn-run").onclick = ()=>{ setStatus("실행 — 데이터 갱신 중"); refresh(); };
+window.addEventListener("keydown", e=>{
+  if((e.key==="Delete"||e.key==="Backspace") && selectedId && selectedId.startsWith("user:")
+     && !/^(input|textarea)$/i.test(e.target.tagName)){ e.preventDefault(); deleteSelected(); }
+});
 window.addEventListener("resize", ()=>requestAnimationFrame(drawWires));
 
 // ── 시계 ──────────────────────────────────────────────
@@ -572,6 +683,7 @@ function drawChart(points, unit){
     `<span>표본 <b>${vals.length}</b></span>`;
 }
 
+renderUserNodes();   // 데이터 도착 전에도 저장된 사용자 노드를 먼저 표시
 refresh(); setInterval(refresh, REFRESH_MS);
 </script>
 </body>
