@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs
@@ -23,6 +24,18 @@ from urllib.parse import urlparse, parse_qs
 from .storage import Storage
 
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
+
+# 자동 탐색은 펌웨어(jcc_ccm.discovery)의 실제 코드를 재사용한다. 같은 저장소의
+# firmware 패키지를 경로에 얹어, 실기 CCM이 돌릴 코드와 동일한 것을 시뮬레이션한다.
+_FIRMWARE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "firmware")
+
+
+def _run_discovery() -> dict:
+    if _FIRMWARE_DIR not in sys.path:
+        sys.path.insert(0, _FIRMWARE_DIR)
+    from jcc_ccm.discovery import discover_sim
+    return discover_sim()
 
 # 선택적 인증: 환경변수 JCC_API_KEY가 설정되면 POST에 Bearer 토큰을 요구한다.
 _API_KEY = os.environ.get("JCC_API_KEY", "")
@@ -88,6 +101,8 @@ class Handler(BaseHTTPRequestHandler):
     # ── POST ───────────────────────────────────────────────
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        if parsed.path == "/api/discover":
+            return self._discover()
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 
@@ -112,6 +127,34 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"저장 실패: {exc}"}, 500)
         return self._json({"ok": True, "stored": n})
+
+    # ── 자동 탐색 (AI 자동연결) ──────────────────────────────
+    def _discover(self) -> None:
+        """펌웨어의 탐색 로직을 실행해 토폴로지를 자동 구성한다.
+
+        실기에서는 각 CCM이 자기 버스를 스캔해 결과를 올린다. 여기(시뮬레이션)에서는
+        서버가 같은 펌웨어 코드(jcc_ccm.discovery)를 VirtualBus로 실행한다.
+        """
+        try:
+            result = _run_discovery()
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"탐색 실패: {exc}"}, 500)
+        try:
+            self.storage.set_discovery(result)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"저장 실패: {exc}"}, 500)
+
+        ccms = result.get("ccms") or []
+        sensors = [s for c in ccms for s in (c.get("sensors") or [])]
+        inferred = sum(1 for s in sensors if s.get("confidence") == "추정")
+        return self._json({
+            "ok": True,
+            "panel_name": result.get("panel_name", ""),
+            "ccms": len(ccms),
+            "sensors": len(sensors),
+            "identified": len(sensors) - inferred,
+            "inferred": inferred,
+        })
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:

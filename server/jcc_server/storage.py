@@ -37,6 +37,18 @@ CREATE TABLE IF NOT EXISTS readings (
 CREATE INDEX IF NOT EXISTS idx_readings_dev_sensor_ts
     ON readings (device_id, sensor_key, ts);
 CREATE INDEX IF NOT EXISTS idx_readings_ts ON readings (ts);
+CREATE TABLE IF NOT EXISTS discovered (
+    device_id     TEXT NOT NULL,
+    sensor_key    TEXT NOT NULL,
+    name          TEXT,
+    unit          TEXT,
+    kind          TEXT,
+    source        TEXT,
+    confidence    TEXT,
+    address       INTEGER,
+    discovered_at REAL,
+    PRIMARY KEY (device_id, sensor_key)
+);
 """
 
 
@@ -114,6 +126,53 @@ class Storage:
             self._conn.commit()
             return len(rows)
 
+    # ── 자동 탐색 결과 ──────────────────────────────────────
+    def set_discovery(self, result: dict) -> int:
+        """자동 탐색 인벤토리를 저장한다. 장비를 upsert하고 발견 센서를 교체한다."""
+        now = time.time()
+        panel = str(result.get("panel") or "")
+        panel_name = str(result.get("panel_name") or "")
+        site = str(result.get("site") or "")
+        n = 0
+        with self._lock:
+            cur = self._conn.cursor()
+            for ccm in result.get("ccms") or []:
+                dev = str(ccm.get("device_id") or "")
+                if not dev:
+                    continue
+                cur.execute(
+                    """INSERT INTO devices (device_id, site, panel, panel_name, first_seen, last_seen)
+                       VALUES (?, ?, ?, ?, ?, ?)
+                       ON CONFLICT(device_id) DO UPDATE SET
+                         site=excluded.site, panel=excluded.panel, panel_name=excluded.panel_name""",
+                    (dev, site, panel, panel_name, now, 0),
+                )
+                cur.execute("DELETE FROM discovered WHERE device_id = ?", (dev,))
+                for s in ccm.get("sensors") or []:
+                    cur.execute(
+                        """INSERT INTO discovered
+                           (device_id, sensor_key, name, unit, kind, source, confidence, address, discovered_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (dev, str(s.get("key", "")), s.get("name", ""), s.get("unit", ""),
+                         s.get("kind", ""), s.get("source", ""), s.get("confidence", ""),
+                         s.get("address"), now),
+                    )
+                    n += 1
+            self._conn.commit()
+        return n
+
+    def _discovered_map(self) -> dict:
+        """{device_id: [발견 센서 dict...]}"""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT device_id, sensor_key, name, unit, kind, source, confidence, address "
+                "FROM discovered ORDER BY device_id, rowid"
+            ).fetchall()
+        out: dict[str, list[dict]] = {}
+        for r in rows:
+            out.setdefault(r["device_id"], []).append(dict(r))
+        return out
+
     # ── 읽기 ────────────────────────────────────────────────
     def list_devices(self) -> list[dict]:
         # 장비 목록과 전 장비의 센서 최신값을 각각 한 번의 쿼리로 가져온다(N+1 제거).
@@ -130,26 +189,45 @@ class Storage:
                    ORDER BY device_id, sensor_key"""
             ).fetchall()
 
-        by_device: dict[str, list[dict]] = {}
+        latest_map: dict[str, dict[str, dict]] = {}   # device -> sensor_key -> latest row
         for r in latest_rows:
-            by_device.setdefault(r["device_id"], []).append({
+            latest_map.setdefault(r["device_id"], {})[r["sensor_key"]] = {
                 "sensor_key": r["sensor_key"], "name": r["name"], "unit": r["unit"],
                 "value": r["value"], "ok": r["ok"], "ts": r["ts"],
-            })
+            }
 
+        disc_map = self._discovered_map()
         now = time.time()
         out = []
         for d in devs:
+            dev = d["device_id"]
+            latest = latest_map.get(dev, {})
+            discovered = disc_map.get(dev)
+            if discovered:
+                # 탐색된 장비: 발견 센서가 센서 집합의 기준. 텔레메트리 값이 있으면 채운다.
+                sensors = []
+                for s in discovered:
+                    lv = latest.get(s["sensor_key"])
+                    sensors.append({
+                        "sensor_key": s["sensor_key"], "name": s["name"], "unit": s["unit"],
+                        "kind": s["kind"], "source": s["source"], "confidence": s["confidence"],
+                        "value": lv["value"] if lv else None,
+                        "ok": lv["ok"] if lv else 0,
+                        "ts": lv["ts"] if lv else None,
+                    })
+            else:
+                # 탐색 전 장비: 예전처럼 텔레메트리 최신값만
+                sensors = list(latest.values())
             out.append({
-                "device_id": d["device_id"],
+                "device_id": dev,
                 "site": d["site"],
                 "panel": d["panel"] or "",
                 "panel_name": d["panel_name"] or "",
                 "first_seen": d["first_seen"],
                 "last_seen": d["last_seen"],
-                # 마지막 접속이 3주기(넉넉히 60s) 넘으면 오프라인으로 본다
                 "online": (now - (d["last_seen"] or 0)) < 60,
-                "latest": by_device.get(d["device_id"], []),
+                "discovered": bool(discovered),
+                "latest": sensors,
             })
         return out
 

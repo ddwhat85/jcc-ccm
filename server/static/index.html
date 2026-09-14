@@ -64,6 +64,12 @@
   .tb-btn:hover{background:#2a323c}
   .tb-btn.run{background:var(--run);color:#1a1e07;border-color:var(--run);font-weight:600}
   .tb-btn.run:hover{filter:brightness(1.06)}
+  .tb-btn.ai{background:#2b3f78;color:#e8eefb;border-color:#3a5296;font-weight:600}
+  .tb-btn.ai:hover{background:#33488a}
+  .tb-btn.ai.busy{opacity:.7;pointer-events:none}
+  .tb-btn.ai.busy::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
+    border:2px solid #9fb4e6;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-1px}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .tb-sep{width:1px;height:22px;background:#2c333c;margin:0 2px}
   .tb-status{font-family:var(--mono);font-size:12px;color:#8a929c}
   .toolbar .right{margin-left:auto;display:flex;align-items:center;gap:14px}
@@ -150,6 +156,12 @@
   .npill.on{background:var(--ok-soft);color:var(--ok)}
   .npill.off{background:var(--crit-soft);color:var(--crit)}
   .nsub{padding:4px 11px 8px;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .guess{display:inline-block;font:600 9px var(--mono);letter-spacing:.04em;
+         color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn);
+         border-radius:3px;padding:1px 5px;margin-left:6px;vertical-align:1px}
+  .node.guess-node{border-style:dashed}
+  .nsource{padding:0 11px 8px;font-size:10.5px;color:var(--ink-3);font-family:var(--mono);
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .nhistory{margin:2px 11px 9px;font:inherit;font-size:11px;color:var(--accent);
             background:none;border:none;padding:0;cursor:pointer;text-decoration:underline;
             text-underline-offset:2px}
@@ -193,6 +205,8 @@
     <span class="tb-sep"></span>
     <button class="tb-btn" id="btn-delete">노드 삭제</button>
     <button class="tb-btn" id="btn-arrange">자동 정렬</button>
+    <span class="tb-sep"></span>
+    <button class="tb-btn ai" id="btn-discover">✨ AI 자동연결</button>
     <button class="tb-btn run" id="btn-run">실행</button>
     <span class="tb-status" id="status">준비</span>
     <div class="right">
@@ -284,6 +298,7 @@ let nodes = new Map();         // nodeId -> {el, kind}
 let wires = [];                // {fromId, toId, label, live}
 let topoSig = "";
 let selectedId = null;
+let sensorMeta = {};           // "device:key" -> {source, confidence}  탐지 메타
 let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노드
 let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
@@ -327,7 +342,7 @@ function buildGraph(panels){
   const graph = $("#graph");
   // 기존 노드 제거 (wires svg, empty는 보존)
   graph.querySelectorAll(".node").forEach(n=>n.remove());
-  nodes.clear(); wires = [];
+  nodes.clear(); wires = []; sensorMeta = {};
 
   const SERVER_ID = "server:jcc";
   // 서버 노드 1개
@@ -371,9 +386,14 @@ function buildGraph(panels){
 
       for(const r of (c.latest||[])){
         const sId = "sensor:"+c.device_id+":"+r.sensor_key;
+        sensorMeta[c.device_id+":"+r.sensor_key] = {source:r.source||"", confidence:r.confidence||""};
+        const guess = r.confidence === "추정";
         const sEl = mkNode(sId, "sensor", r.name||r.sensor_key, "SENSOR");
+        if(guess) sEl.classList.add("guess-node");
+        if(guess) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="guess">추정</span>`);
         sEl.querySelector(".nbody").innerHTML =
           `<div class="bigval stale" data-role="sv"><span class="v">—</span><span class="u">${escapeHtml(r.unit||"")}</span></div>`+
+          (r.source?`<div class="nsource">${escapeHtml(r.source)}</div>`:"")+
           `<button class="nhistory">이력 보기 →</button>`+
           `<span class="port out sensor" data-port="out:sensor:${cssAttr(c.device_id)}:${cssAttr(r.sensor_key)}" style="top:38px"></span>`;
         sEl.querySelector(".nhistory").onclick = (e)=>{ e.stopPropagation();
@@ -615,9 +635,11 @@ function renderInspector(id, n){
   } else if(n.kind==="sensor"){
     const bv = n.el.querySelector(".v")?.textContent||"—";
     const parts = id.split(":");
+    const meta = sensorMeta[parts[1]+":"+parts[2]] || {};
     rows = `<div class="insp-row"><span class="k">현재값</span><span class="v">${escapeHtml(bv)}</span></div>`+
            `<div class="insp-row"><span class="k">소속 CCM</span><span class="v">${escapeHtml(parts[1])}</span></div>`+
-           `<div class="insp-row"><span class="k">센서 키</span><span class="v">${escapeHtml(parts[2])}</span></div>`+
+           (meta.source?`<div class="insp-row"><span class="k">탐지 출처</span><span class="v">${escapeHtml(meta.source)}</span></div>`:"")+
+           (meta.confidence?`<div class="insp-row"><span class="k">식별</span><span class="v">${escapeHtml(meta.confidence)}</span></div>`:"")+
            `<div class="insp-row"><span class="k">연결</span><span class="v">RS485 → CCM</span></div>`;
   } else if(n.kind==="ccm"){
     const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
@@ -722,6 +744,16 @@ $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 �
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
 $("#btn-run").onclick = ()=>{ setStatus("실행 — 데이터 갱신 중"); refresh(); };
+$("#btn-discover").onclick = ()=>{
+  const b = $("#btn-discover"); if(b.classList.contains("busy")) return;
+  b.classList.add("busy"); setStatus("센서 버스 탐색 중… 물려 있는 장비를 식별합니다");
+  fetch("/api/discover",{method:"POST"}).then(r=>r.json()).then(d=>{
+    if(d.error) throw new Error(d.error);
+    setStatus(`탐색 완료 · CCM ${d.ccms}대 · 센서 ${d.sensors} (식별 ${d.identified} · 추정 ${d.inferred})`);
+    topoSig = ""; refresh();   // 토폴로지를 새 발견 결과로 다시 그린다
+  }).catch(e=> setStatus("탐색 실패: "+e.message))
+    .finally(()=> b.classList.remove("busy"));
+};
 window.addEventListener("keydown", e=>{
   const editable = /^(input|textarea)$/i.test(e.target.tagName);
   const canDelete = selectedWireId || (selectedId && selectedId.startsWith("user:"));
