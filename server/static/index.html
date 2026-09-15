@@ -290,6 +290,26 @@
          font-size:12px;color:var(--ink-3);font-family:var(--mono)}
   .chart-stats b{color:var(--ink)}
   @media (prefers-reduced-motion:reduce){.wirepath.flow{animation:none}}
+
+  /* 테마 전환 버튼 */
+  .mb-theme{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
+            padding:3px 6px;border-radius:6px;opacity:.85}
+  .mb-theme:hover{background:var(--menu-hover);opacity:1}
+
+  /* 하단 실시간 로그 스트립 — 배경 투명, 최근 3줄 */
+  .ticker{position:fixed;left:16px;bottom:12px;z-index:20;pointer-events:none;
+          display:flex;flex-direction:column;gap:3px;max-width:min(560px,58vw)}
+  .ticker .tk{display:flex;gap:8px;align-items:baseline;font:600 11.5px var(--mono);
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+              text-shadow:0 1px 2px var(--ground),0 0 3px var(--ground),0 0 3px var(--ground)}
+  .ticker .tk .tt{color:var(--ink-3);flex:none;font-weight:500}
+  .ticker .tk .ic{flex:none}
+  .ticker .tk .tm{overflow:hidden;text-overflow:ellipsis}
+  .ticker .tk.alarm .tm{color:var(--crit)} .ticker .tk.clear .tm{color:var(--ok)}
+  .ticker .tk.warn .tm{color:var(--warn)} .ticker .tk.info .tm{color:var(--ink-2)}
+  .ticker .tk.newest{animation:tkin .35s ease}
+  @keyframes tkin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.ticker .tk.newest{animation:none}}
 </style>
 </head>
 <body>
@@ -344,6 +364,7 @@
     <div class="mb-right">
       <span class="mb-status" id="status"></span>
       <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
+      <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
       <span class="clock" id="clock">--:--:--</span>
     </div>
@@ -363,6 +384,9 @@
 
     <aside class="inspector" id="inspector"><div class="insp-in" id="insp-in"></div></aside>
   </div>
+
+  <!-- 하단 실시간 로그 스트립 (알람·특이사항 최근 3줄, 배경 투명) -->
+  <div class="ticker" id="ticker"></div>
 
   <div class="overlay" id="overlay">
     <div class="modal">
@@ -904,12 +928,14 @@ function setSetting(dev, key, patch){
 }
 // 활동 기록(로그) — 이벤트 종류별 라벨·색
 const EVENT_META = {
-  restart:     {label:"재시작 명령",  dot:"info"},
-  shutdown:    {label:"전원 끄기",    dot:"crit"},
-  channel_off: {label:"센서 끄기",    dot:"warn"},
-  channel_on:  {label:"센서 켜기",    dot:"ok"},
-  setting:     {label:"설정 변경",    dot:"info"},
-  diagnose:    {label:"자가진단",      dot:"info"},
+  restart:     {label:"재시작 명령",  dot:"info", ic:"↻"},
+  shutdown:    {label:"전원 끄기",    dot:"crit", ic:"⏻"},
+  channel_off: {label:"센서 끄기",    dot:"warn", ic:"⏸"},
+  channel_on:  {label:"센서 켜기",    dot:"ok",   ic:"▶"},
+  setting:     {label:"설정 변경",    dot:"info", ic:"⚙"},
+  diagnose:    {label:"자가진단",      dot:"info", ic:"🩺"},
+  alarm:       {label:"경보",         dot:"crit", ic:"⚠"},
+  alarm_clear: {label:"정상 복귀",    dot:"ok",   ic:"✓"},
 };
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
@@ -920,7 +946,8 @@ function loadEvents(dev, key){
     el.innerHTML = evs.map(e=>{
       const m = EVENT_META[e.etype] || {label:e.etype, dot:"info"};
       const txt = e.etype==="setting" ? (m.label+" · "+(e.detail||"")) :
-                  e.etype==="diagnose" ? (e.detail||m.label) : m.label;
+                  (e.etype==="diagnose"||e.etype==="alarm"||e.etype==="alarm_clear") ? (e.detail||m.label) :
+                  m.label;
       return `<div class="evt"><span class="ed ${m.dot}"></span>`+
              `<span class="et">${ago(e.ts)||"방금"}</span>`+
              `<span class="el">${escapeHtml(txt)}</span></div>`;
@@ -1266,6 +1293,47 @@ window.addEventListener("keydown", e=>{
 });
 window.addEventListener("resize", ()=>requestAnimationFrame(drawWires));
 
+// ── 테마 (라이트/다크) ────────────────────────────────
+const LS_THEME = "jcc-theme";
+function currentTheme(){
+  const set = document.documentElement.getAttribute("data-theme");
+  if(set) return set;   // 명시 선택
+  return matchMedia("(prefers-color-scheme:dark)").matches ? "dark" : "light";
+}
+function applyTheme(t){
+  document.documentElement.setAttribute("data-theme", t);
+  const b = $("#btn-theme"); if(b) b.textContent = t==="dark" ? "☀️" : "🌙";
+  try{ localStorage.setItem(LS_THEME, t); }catch(e){}
+  requestAnimationFrame(drawWires);   // 색 바뀌면 배선 다시(색 캐시 방지)
+}
+(function initTheme(){
+  let t; try{ t = localStorage.getItem(LS_THEME); }catch(e){}
+  applyTheme(t || currentTheme());
+})();
+$("#btn-theme").onclick = ()=> applyTheme(currentTheme()==="dark" ? "light" : "dark");
+
+// ── 하단 실시간 로그 스트립 (알람·특이사항 3줄) ─────────
+function loadTicker(){
+  const el = $("#ticker"); if(!el) return;
+  fetch("/api/events?limit=6",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const evs = (d.events||[]).slice(0,3);
+    const prevTop = el.firstChild ? el.firstChild.dataset.k : "";
+    el.innerHTML = evs.map((e,i)=>{
+      const m = EVENT_META[e.etype] || {label:e.etype, dot:"info", ic:"•"};
+      const cls = e.etype==="alarm" ? "alarm" : e.etype==="alarm_clear" ? "clear" :
+                  (m.dot==="crit"||m.dot==="warn") ? "warn" : "info";
+      const dev = e.device_id ? e.device_id+" · " : "";
+      const txt = e.detail || m.label;
+      const k = e.ts+"|"+e.etype+"|"+(e.sensor_key||"");
+      const isNew = i===0 && k!==prevTop;
+      return `<div class="tk ${cls} ${isNew?"newest":""}" data-k="${k}">`+
+             `<span class="tt">${ago(e.ts)||"방금"}</span>`+
+             `<span class="ic">${m.ic||"•"}</span>`+
+             `<span class="tm">${escapeHtml(dev+txt)}</span></div>`;
+    }).join("");
+  }).catch(()=>{});
+}
+
 // ── 시계 ──────────────────────────────────────────────
 function tick(){ const d=new Date();
   $("#clock").textContent = d.toLocaleTimeString("ko-KR",{hour12:false}); }
@@ -1311,6 +1379,7 @@ function drawChart(points, unit){
 
 renderUserNodes();   // 데이터 도착 전에도 저장된 사용자 노드를 먼저 표시
 refresh(); setInterval(refresh, REFRESH_MS);
+loadTicker(); setInterval(loadTicker, 3000);   // 하단 실시간 로그
 </script>
 </body>
 </html>

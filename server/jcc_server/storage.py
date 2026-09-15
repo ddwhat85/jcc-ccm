@@ -118,6 +118,7 @@ class Storage:
         self._conn.row_factory = sqlite3.Row
         self._conn.execute("PRAGMA journal_mode=WAL;")   # 동시 읽기/쓰기 견고
         self._lock = threading.Lock()
+        self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -173,6 +174,44 @@ class Storage:
                    VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 rows,
             )
+            # 경보 전이 감지: 값이 알람 범위를 벗어나거나 정상 복귀할 때만 이벤트로 남긴다
+            # (같은 락 안에서 직접 INSERT — log_event를 부르면 락 재진입 데드락).
+            thr = {}
+            for row in self._conn.execute(
+                    "SELECT sensor_key, alarm_min, alarm_max FROM discovered WHERE device_id=?",
+                    (device_id,)):
+                thr[row["sensor_key"]] = (row["alarm_min"], row["alarm_max"])
+            for row in self._conn.execute(
+                    "SELECT sensor_key, alarm_min, alarm_max FROM settings WHERE device_id=?",
+                    (device_id,)):
+                base = thr.get(row["sensor_key"], (None, None))
+                thr[row["sensor_key"]] = (
+                    row["alarm_min"] if row["alarm_min"] is not None else base[0],
+                    row["alarm_max"] if row["alarm_max"] is not None else base[1])
+            for r in readings:
+                if not isinstance(r, dict):
+                    continue
+                key = str(r.get("key", ""))
+                v = _as_float_or_none(r.get("value"))
+                if v is None or key in disabled or key not in thr:
+                    continue
+                amin, amax = thr[key]
+                out = (amin is not None and v < amin) or (amax is not None and v > amax)
+                state = "alarm" if out else "ok"
+                prev = self._alarm_state.get((device_id, key), "ok")
+                if state != prev:
+                    self._alarm_state[(device_id, key)] = state
+                    nm = r.get("name", key); un = r.get("unit", "")
+                    if state == "alarm":
+                        lim = f"{amax} 초과" if (amax is not None and v > amax) else f"{amin} 미만"
+                        detail = f"{nm} {v}{un} — 알람({lim})"
+                        etype = "alarm"
+                    else:
+                        detail = f"{nm} {v}{un} — 정상 복귀"
+                        etype = "alarm_clear"
+                    cur.execute(
+                        "INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) "
+                        "VALUES (?, ?, ?, ?, ?, ?)", (now, device_id, key, etype, detail, "system"))
             self._conn.commit()
             return len(rows)
 
