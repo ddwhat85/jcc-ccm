@@ -114,7 +114,7 @@ class VirtualBus:
         return list(self._raw)
 
 
-# 시뮬레이션 시나리오: ESS 1호 판넬 하나를 CCM 4대가 나눠 감시.
+# 시뮬레이션 시나리오: 스마트 판넬 하나를 CCM 4대가 나눠 감시.
 #
 # 한 판넬에 CCM이 여러 대 붙는 이유: CCM 1대는 윗면에 RS485/CAN 버스 1개 + 이더넷
 # 1개만 있어 센서를 소수만 수용한다. 그래서 센서가 늘면 CCM을 추가하고, 같은 판넬에
@@ -122,7 +122,7 @@ class VirtualBus:
 # CCM을 더 붙이면 여기에 한 줄 추가하면 되고, 화면·집계는 자동으로 따라간다.
 _SIM_PANEL = {
     "panel": "panel-01",
-    "panel_name": "ESS 1호 판넬",
+    "panel_name": "스마트 판넬",
     "site": "인터배터리 데모",
     "ccms": [
         # 가스·전류 계통

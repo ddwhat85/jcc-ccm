@@ -16,7 +16,7 @@ import urllib.request
 
 # 실제 배선 반영: 한 판넬을 CCM 여러 대가 나눠 감시한다.
 # CCM 1대 = 센서 소수(윗면 RS485/CAN 1버스)만 담당 → 센서 늘면 CCM 추가.
-# 아래는 사진의 ESS 1호 판넬 구성(CCM 2대)을 흉내 낸 것.
+# 아래는 사진의 스마트 판넬 구성(CCM 2대)을 흉내 낸 것.
 CCMS = [
     {
         "device_id": "ccm-2663",  "name": "CCM-A (환경/진동)",
@@ -35,7 +35,7 @@ CCMS = [
         ],
     },
 ]
-PANEL = ("panel-01", "ESS 1호 판넬")
+PANEL = ("panel-01", "스마트 판넬")
 SITE = "인터배터리 데모"
 
 

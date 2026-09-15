@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS events (
     source      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_dev_ts ON events (device_id, ts);
+-- 사용자가 지정한 판넬 이름. 장비가 보고하는 이름보다 항상 우선한다
+-- (현장에서 CCM이 재보고해도 사장님이 붙인 이름이 덮이지 않게).
+CREATE TABLE IF NOT EXISTS panel_names (
+    panel      TEXT PRIMARY KEY,
+    name       TEXT,
+    updated_at REAL
+);
 -- 활성 경보(생명주기): 발생→확인(ack)→해제. 에스컬레이션·알림의 기준.
 CREATE TABLE IF NOT EXISTS alarms (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -308,6 +315,27 @@ class Storage:
             out.setdefault(r["device_id"], []).append(dict(r))
         return out
 
+    # ── 판넬 이름 (사용자 지정이 장비 보고보다 우선) ──────────
+    def set_panel_name(self, panel: str, name: str) -> bool:
+        """판넬에 사람이 붙인 이름을 저장한다. 빈 이름이면 지정 해제(장비 보고 이름으로 복귀)."""
+        name = (name or "").strip()
+        with self._lock:
+            if not name:
+                self._conn.execute("DELETE FROM panel_names WHERE panel=?", (panel,))
+            else:
+                self._conn.execute(
+                    """INSERT INTO panel_names (panel, name, updated_at) VALUES (?, ?, ?)
+                       ON CONFLICT(panel) DO UPDATE SET name=excluded.name,
+                         updated_at=excluded.updated_at""",
+                    (panel, name, time.time()))
+            self._conn.commit()
+        return True
+
+    def _panel_name_map(self) -> dict:
+        with self._lock:
+            rows = self._conn.execute("SELECT panel, name FROM panel_names").fetchall()
+        return {r["panel"]: r["name"] for r in rows if r["name"]}
+
     def _settings_map(self) -> dict:
         """{(device_id, sensor_key): {setpoint, alarm_min, alarm_max}} 사용자 재정의."""
         with self._lock:
@@ -422,6 +450,7 @@ class Storage:
 
         disc_map = self._discovered_map()
         set_map = self._settings_map()
+        pname_map = self._panel_name_map()
         now = time.time()
         out = []
         for d in devs:
@@ -459,7 +488,8 @@ class Storage:
                 "device_id": dev,
                 "site": d["site"],
                 "panel": d["panel"] or "",
-                "panel_name": d["panel_name"] or "",
+                # 사용자가 붙인 이름이 있으면 그것을 쓴다(장비 보고 이름보다 우선)
+                "panel_name": pname_map.get(d["panel"] or "", d["panel_name"] or ""),
                 "first_seen": d["first_seen"],
                 "last_seen": d["last_seen"],
                 "online": (now - (d["last_seen"] or 0)) < 60,

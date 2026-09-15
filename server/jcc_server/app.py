@@ -131,6 +131,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._notify_test()
         if parsed.path == "/api/discover/report":
             return self._discover_report()
+        if parsed.path == "/api/panel/name":
+            return self._panel_name()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -187,6 +189,25 @@ class Handler(BaseHTTPRequestHandler):
             "inferred": inferred,
         })
 
+    # ── 판넬 이름 변경 ───────────────────────────────────────
+    def _panel_name(self) -> None:
+        """{panel, name} — 판넬에 사람이 붙인 이름을 저장. 빈 이름이면 지정 해제."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        panel = str(body.get("panel", "")).strip()
+        name = str(body.get("name", "")).strip()[:60]
+        if not panel:
+            return self._json({"error": "panel이 필요합니다"}, 400)
+        self.storage.set_panel_name(panel, name)
+        self.storage.log_event("", "", "rename",
+                               f"판넬 이름 변경: {panel} → {name or '(기본값으로 복귀)'}")
+        return self._json({"ok": True, "panel": panel, "name": name})
+
     # ── 실기 자동 탐색 보고 (CCM 한 대가 자기 인벤토리를 올림) ──
     def _discover_report(self) -> None:
         """실기 경로: 각 CCM이 자기 버스를 스캔해 그 결과를 여기로 보고한다.
@@ -195,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
         한 대가 보고해도 다른 CCM의 인벤토리는 건드리지 않는다(장비 단위로만 갱신).
 
         받는 형태 (둘 다 허용)
-          {"panel":"panel-01","panel_name":"ESS 1호 판넬","site":"...",
+          {"panel":"panel-01","panel_name":"스마트 판넬","site":"...",
            "device_id":"ccm-2665","sensors":[{key,name,unit,kind,...}, ...]}
           {"panel":..., "ccms":[{"device_id":..., "sensors":[...]}, ...]}
         """

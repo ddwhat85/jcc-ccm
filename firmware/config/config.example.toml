@@ -13,7 +13,7 @@ site = "인터배터리 데모"          # 설치 현장 이름 (사람이 읽�
 # 나눠 감시한다. 같은 판넬의 CCM들은 아래 panel 값을 동일하게 맞춘다.
 # 그러면 대시보드가 이들을 "판넬 1개"로 묶어 보여준다.
 panel = "panel-01"
-panel_name = "ESS 1호 판넬"
+panel_name = "스마트 판넬"
 
 [collection]
 interval_seconds = 10             # 센서를 몇 초마다 읽어 보낼지

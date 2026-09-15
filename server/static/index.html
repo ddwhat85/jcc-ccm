@@ -240,6 +240,7 @@
   .insp-set input{width:78px;font:600 12.5px var(--mono);text-align:right;padding:5px 7px;
                   background:var(--canvas);border:1px solid var(--rule);border-radius:6px;color:var(--ink)}
   .insp-set input:focus{outline:none;border-color:var(--accent)}
+  .insp-set input.wide{width:100%;text-align:left;font-family:var(--sans);font-size:13px;font-weight:600}
   .insp-set .un{width:26px;font-size:11px;color:var(--ink-3)}
   .insp-btn{width:100%;margin-top:8px;padding:8px;border:1px solid var(--accent);border-radius:7px;
             background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
@@ -326,11 +327,13 @@
   .ap-ack.done{background:transparent;color:var(--ok,#2f9e54);border-color:var(--rule);cursor:default}
 
   /* 하단 실시간 로그 스트립 — 배경 투명, 최근 3줄 */
-  .ticker{position:fixed;left:16px;bottom:12px;z-index:20;pointer-events:none;
-          display:flex;flex-direction:column;gap:3px;max-width:min(560px,58vw)}
+  /* 레이아웃에서 자기 자리를 차지한다(캔버스 위에 떠 있지 않음 → 노드와 안 겹침).
+     배경은 투명하게 두어 페이지 바탕이 그대로 보인다. */
+  .ticker{flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;
+          min-height:76px;padding:8px 16px 10px;box-sizing:border-box;
+          background:transparent;pointer-events:none;overflow:hidden}
   .ticker .tk{display:flex;gap:8px;align-items:baseline;font:600 11.5px var(--mono);
-              white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-              text-shadow:0 1px 2px var(--ground),0 0 3px var(--ground),0 0 3px var(--ground)}
+              white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ticker .tk .tt{color:var(--ink-3);flex:none;font-weight:500}
   .ticker .tk .ic{flex:none}
   .ticker .tk .tm{overflow:hidden;text-overflow:ellipsis}
@@ -985,10 +988,11 @@ const EVENT_META = {
   escalate:    {label:"경보 상향",    dot:"crit", ic:"⬆"},
   notify_test: {label:"알림 테스트",  dot:"info", ic:"📨"},
   discover:    {label:"자동 탐색",    dot:"info", ic:"✨"},
+  rename:      {label:"이름 변경",    dot:"info", ic:"✏"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift",
-  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test"]);
+  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -1116,7 +1120,14 @@ function renderInspector(id, n){
       `<div class="insp-title">${escapeHtml(title)}</div>`+
       `<div class="insp-row"><span class="k">상태</span><span class="v">${on?"온라인":"오프라인"}</span></div>`+
       `<div class="insp-row"><span class="k">CCM 수</span><span class="v">${ccms}대</span></div>`+
-      `<div class="insp-row"><span class="k">상행 연결</span><span class="v">MQTT → 클라우드</span></div>`;
+      `<div class="insp-row"><span class="k">상행 연결</span><span class="v">MQTT → 클라우드</span></div>`+
+      // 판넬 이름은 현장에서 사장님이 직접 붙인다(장비가 보고하는 이름보다 우선)
+      `<div class="insp-sec">판넬 이름</div>`+
+      `<div class="insp-set"><input class="wide" id="panel-name" type="text" maxlength="60" `+
+        `value="${escapeHtml(title)}" placeholder="스마트 판넬"></div>`+
+      `<button class="insp-btn" id="panel-name-save">이름 저장</button>`+
+      `<div class="insp-manual">현장에 맞는 이름을 적으세요(예: 1공장 배전반, ESS 2호). `+
+        `비우고 저장하면 기본 이름으로 돌아갑니다.</div>`;
   } else if(n.user){
     html += `<div class="insp-kind">${kindKo}</div><div class="insp-title">${escapeHtml(title)}</div>`+
       `<div class="insp-row"><span class="k">출처</span><span class="v">사용자 추가</span></div>`+
@@ -1191,6 +1202,26 @@ function renderInspector(id, n){
       setChannel(dev,key,false).then(()=> setChannel(dev,key,true)).then(()=>{ topoSig="";
         setStatus("센서 재시작 — 채널을 껐다 켜 폴링을 재초기화합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
+  }
+
+  // 판넬 이름 변경 저장
+  const pnSave = $("#panel-name-save");
+  if(pnSave){
+    const panelId = id.slice("panel:".length);
+    const doSave = ()=>{
+      const v = ($("#panel-name").value || "").trim();
+      pnSave.disabled = true; pnSave.textContent = "저장 중…";
+      fetch("/api/panel/name",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({panel:panelId, name:v})}).then(r=>r.json()).then(()=>{
+          topoSig = ""; refresh();           // 노드 제목을 새 이름으로 다시 그린다
+          setStatus("판넬 이름 변경됨 — " + (v || "기본 이름으로 복귀"));
+          pnSave.textContent = "저장됨 ✓"; pnSave.classList.add("saved");
+          setTimeout(()=>{ pnSave.textContent="이름 저장"; pnSave.classList.remove("saved");
+                           pnSave.disabled=false; }, 1300);
+        }).catch(()=>{ pnSave.textContent="저장 실패"; pnSave.disabled=false; });
+    };
+    pnSave.onclick = doSave;
+    $("#panel-name").onkeydown = (e)=>{ if(e.key==="Enter"){ e.preventDefault(); doSave(); } };
   }
 
   // 자가진단 + 활동 기록 (센서·CCM 공통)
