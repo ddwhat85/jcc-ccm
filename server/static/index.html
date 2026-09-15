@@ -941,9 +941,11 @@ const EVENT_META = {
   stuck:       {label:"센서 고착",    dot:"warn", ic:"🧊"},
   drift:       {label:"드리프트",      dot:"warn", ic:"📈"},
   stuck_clear: {label:"변동 정상화",  dot:"ok",   ic:"✓"},
+  anomaly:     {label:"이상 조기감지", dot:"warn", ic:"🧠"},
+  anomaly_clear:{label:"평소 회복",    dot:"ok",   ic:"✓"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
-const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift","stuck_clear"]);
+const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift","stuck_clear","anomaly","anomaly_clear"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -1327,7 +1329,7 @@ function loadTicker(){
     el.innerHTML = evs.map((e,i)=>{
       const m = EVENT_META[e.etype] || {label:e.etype, dot:"info", ic:"•"};
       const cls = (e.etype==="alarm"||e.etype==="silent") ? "alarm" :
-                  (e.etype==="alarm_clear"||e.etype==="recovered"||e.etype==="stuck_clear") ? "clear" :
+                  (e.etype==="alarm_clear"||e.etype==="recovered"||e.etype==="stuck_clear"||e.etype==="anomaly_clear") ? "clear" :
                   (m.dot==="crit"||m.dot==="warn") ? "warn" : "info";
       const dev = e.device_id ? e.device_id+" · " : "";
       const txt = e.detail || m.label;

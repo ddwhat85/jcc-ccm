@@ -60,6 +60,10 @@ def _loop(storage, interval: float) -> None:
     drop_until: dict = {}   # (dev,key) -> 이 시각까지 이 센서는 전송 안 함(침묵 시연)
     stuck_until: dict = {}  # (dev,key) -> 이 시각까지 같은 값 반복(고착 시연)
     stuck_val: dict = {}
+    anom_until: dict = {}   # (dev,key) -> 이 시각까지 '평소보다 높지만 임계 아래'(조기감지 시연)
+    anom_base: dict = {}
+    # 임계값 아래에서 평소보다 높은 이상 수준(각 센서 알람 기준 아래로 잡음)
+    ANOM = {"h2": 1.4, "current": 26, "vibration": 3.1, "temp": 41, "humidity": 74}
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
     while True:
@@ -79,9 +83,17 @@ def _loop(storage, interval: float) -> None:
                     drop_until[sk] = wall + 70   # 약 70초 침묵 시작
                     continue
                 val = _value(key, s.get("kind", ""), t, rng)
-                # 가끔 센서가 '고착'(같은 값만 반복) — 살아는 있어도 못 믿는 상태 시연.
+                kind = s.get("kind", "")
+                # 고착: 같은 값만 반복(살아는 있어도 못 믿는 상태)
                 if wall < stuck_until.get(sk, 0):
                     val = stuck_val[sk]
+                # 이상 구간: 평소보다 높지만 임계 아래(작은 잡음 유지 → 고착 아닌 이상으로 감지)
+                elif wall < anom_until.get(sk, 0):
+                    val = round(anom_base[sk] * (1 + rng.uniform(-0.03, 0.03)), 2)
+                elif rng.random() < 0.008:
+                    base = next((av for k, av in ANOM.items() if k in key or kind == k), None)
+                    if base is not None:
+                        anom_until[sk] = wall + 40; anom_base[sk] = base; val = base
                 elif rng.random() < 0.01:
                     stuck_until[sk] = wall + 50; stuck_val[sk] = val
                 readings.append({

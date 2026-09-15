@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import sqlite3
+import statistics
 import threading
 import time
 from dataclasses import dataclass
@@ -539,6 +540,13 @@ class Storage:
                 add("추세", "warn", f"값 지속 이동({st['drift_pct']:+}%) — 드리프트/보정 필요")
             elif st["n"] >= 6:
                 add("변동성", "pass", "정상 변동")
+            # 5-2) 베이스라인 이상탐지 (학습된 평소 대비)
+            bl = self.baseline_stats(device_id, sensor_key)
+            if bl["anomaly"]:
+                add("이상탐지", "warn",
+                    f"평소(μ={bl['mu']}) 대비 {bl['direction']} — z={bl['z']} (임계 전 조기감지)")
+            elif bl["mu"] is not None:
+                add("이상탐지", "pass", f"학습 평소값 근처 (μ={bl['mu']}, z={bl['z']})")
             # 6) 식별 신뢰도
             if s.get("confidence") == "추정":
                 add("장치 식별", "warn", "추정 장치 — 실기 모델 확인 권장")
@@ -607,26 +615,68 @@ class Storage:
                 res["drift_pct"] = round(pct * 100, 1)
         return res
 
+    def baseline_stats(self, device_id: str, sensor_key: str, n: int = 120) -> dict:
+        """센서의 '평소'를 학습해(로버스트 중앙값·MAD) 현재값이 얼마나 벗어났는지 본다.
+        고정 임계값을 넘기 '전에' 평소와 다른 낌새를 잡는 게 목적 — 이것이 우리 AI의 핵심."""
+        pts = self.history(device_id, sensor_key, n)
+        vals = [p["value"] for p in pts if p.get("ok") and p.get("value") is not None]
+        res = {"n": len(vals), "mu": None, "sigma": None, "z": 0.0, "anomaly": False, "direction": ""}
+        if len(vals) < 24:
+            return res                                 # 학습 표본 부족
+        base = vals[:-3]                               # 최근 3개는 '지금', 나머지로 평소 학습
+        mu = statistics.median(base)
+        mad = statistics.median([abs(x - mu) for x in base])
+        sigma = 1.4826 * mad if mad > 0 else (statistics.pstdev(base) or 0.0)
+        cur = sum(vals[-3:]) / 3
+        res["mu"], res["sigma"] = round(mu, 3), round(sigma, 3)
+        if sigma > 1e-9:
+            z = (cur - mu) / sigma
+            res["z"] = round(z, 2)
+            if abs(z) > 3.5:
+                res["anomaly"] = True
+                res["direction"] = "급등" if z > 0 else "급락"
+        return res
+
     def health_scan(self, sensor_timeout: float = 45) -> int:
-        """살아있는(최근 수신) 센서의 고착·드리프트를 주기적으로 감지해 전이만 기록한다."""
+        """살아있는 센서의 고착·드리프트·베이스라인 이상을 주기 감지해 전이만 기록한다.
+        상태 우선순위: 고착 > 드리프트 > (임계값 내) 베이스라인 이상 > 정상."""
         now = time.time()
         with self._lock:
-            latest = {(r["device_id"], r["sensor_key"]): r["ts"] for r in self._conn.execute(
-                "SELECT device_id, sensor_key, MAX(ts) AS ts FROM readings "
-                "GROUP BY device_id, sensor_key").fetchall()}
-            rows = self._conn.execute(
-                "SELECT device_id, sensor_key, name, enabled FROM discovered").fetchall()
-            sensors = [dict(r) for r in rows]
+            latest = {(r["device_id"], r["sensor_key"]): (r["ts"], r["value"]) for r in
+                      self._conn.execute(
+                          "SELECT device_id, sensor_key, value, MAX(ts) AS ts FROM readings "
+                          "GROUP BY device_id, sensor_key").fetchall()}
+            sensors = [dict(r) for r in self._conn.execute(
+                "SELECT device_id, sensor_key, name, enabled, alarm_min, alarm_max "
+                "FROM discovered").fetchall()]
+            setmap = {(r["device_id"], r["sensor_key"]): (r["alarm_min"], r["alarm_max"])
+                      for r in self._conn.execute(
+                          "SELECT device_id, sensor_key, alarm_min, alarm_max FROM settings").fetchall()}
         to_log: list[tuple] = []
         for s in sensors:
             if not s.get("enabled", 1):
                 continue
             dev, key, nm = s["device_id"], s["sensor_key"], (s.get("name") or s["sensor_key"])
-            lt = latest.get((dev, key))
-            if lt is None or (now - lt) >= sensor_timeout:
+            lv = latest.get((dev, key))
+            if lv is None or (now - lv[0]) >= sensor_timeout:
                 continue                               # 침묵 센서는 침묵 감시가 담당
+            cur_val = lv[1]
             st = self.history_stats(dev, key)
-            state = "stuck" if st["stuck"] else ("drift" if st["drift"] else "ok")
+            state, anom = "ok", None
+            if st["stuck"]:
+                state = "stuck"
+            elif st["drift"]:
+                state = "drift"
+            else:
+                us = setmap.get((dev, key), (None, None))
+                amin = us[0] if us[0] is not None else s.get("alarm_min")
+                amax = us[1] if us[1] is not None else s.get("alarm_max")
+                within = cur_val is not None and (amin is None or cur_val >= amin) \
+                    and (amax is None or cur_val <= amax)
+                if within:                             # 임계 넘으면 alarm이 담당 → 그 전만 이상탐지
+                    bl = self.baseline_stats(dev, key)
+                    if bl["anomaly"]:
+                        state, anom = "anomaly", bl
             hkey = ("health", dev, key)
             prev = self._live_state.get(hkey, "ok")
             if state != prev:
@@ -634,6 +684,11 @@ class Storage:
                     to_log.append((dev, key, "stuck", f"{nm} 값이 고정됨 — 센서 고착 의심"))
                 elif state == "drift":
                     to_log.append((dev, key, "drift", f"{nm} 값 지속 이동({st['drift_pct']:+}%) — 드리프트 의심"))
+                elif state == "anomaly":
+                    to_log.append((dev, key, "anomaly",
+                                   f"{nm} 평소 대비 {anom['direction']}(z={anom['z']}) — 임계 전 조기감지"))
+                elif prev == "anomaly":
+                    to_log.append((dev, key, "anomaly_clear", f"{nm} 평소 수준 회복"))
                 elif prev in ("stuck", "drift"):
                     to_log.append((dev, key, "stuck_clear", f"{nm} 변동 정상화"))
                 self._live_state[hkey] = state
