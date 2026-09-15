@@ -17,6 +17,8 @@ def start(storage, interval: float = 10) -> None:
     interval = float(os.environ.get("JCC_MONITOR_INTERVAL") or interval)
     dev_to = float(os.environ.get("JCC_DEVICE_TIMEOUT") or 60)
     sen_to = float(os.environ.get("JCC_SENSOR_TIMEOUT") or 45)
+    escalate_after = float(os.environ.get("JCC_ESCALATE_AFTER") or 120)
+    from .notify import dispatch
 
     def loop() -> None:
         # 시작 직후에는 아직 데이터가 안 쌓였을 수 있어 한 박자 쉬고 시작한다.
@@ -24,7 +26,9 @@ def start(storage, interval: float = 10) -> None:
         while True:
             try:
                 storage.liveness_scan(device_timeout=dev_to, sensor_timeout=sen_to)
-                storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트 감지
+                storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트·이상 감지
+                for a in storage.escalate_due(after_seconds=escalate_after):  # 미확인 경보 상향→알림
+                    dispatch(a)
             except Exception:  # noqa: BLE001 - 감시는 죽지 않아야 한다
                 pass
             time.sleep(interval)

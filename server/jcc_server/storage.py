@@ -78,6 +78,21 @@ CREATE TABLE IF NOT EXISTS events (
     source      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_events_dev_ts ON events (device_id, ts);
+-- 활성 경보(생명주기): 발생→확인(ack)→해제. 에스컬레이션·알림의 기준.
+CREATE TABLE IF NOT EXISTS alarms (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    device_id    TEXT,
+    sensor_key   TEXT,
+    kind         TEXT NOT NULL,
+    detail       TEXT,
+    severity     TEXT,
+    raised_at    REAL,
+    acked_at     REAL,
+    acked_by     TEXT,
+    escalated_at REAL,
+    cleared_at   REAL
+);
+CREATE INDEX IF NOT EXISTS idx_alarms_open ON alarms (cleared_at, raised_at);
 """
 
 # 구버전 DB에 없던 컬럼을 채운다(있으면 조용히 무시).
@@ -214,6 +229,10 @@ class Storage:
                     cur.execute(
                         "INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) "
                         "VALUES (?, ?, ?, ?, ?, ?)", (now, device_id, key, etype, detail, "system"))
+                    if state == "alarm":
+                        self._open_alarm(cur, device_id, key, "alarm", detail, now)
+                    else:
+                        self._close_alarm(cur, device_id, key, "alarm", now)
             self._conn.commit()
             return len(rows)
 
@@ -484,6 +503,88 @@ class Storage:
             rows = self._conn.execute(q, args).fetchall()
         return [dict(r) for r in rows]
 
+    # ── 활성 경보 생명주기 (발생·확인·해제·상향) ────────────
+    _SEVERITY = {"alarm": "crit", "silent": "crit", "anomaly": "warn",
+                 "stuck": "warn", "drift": "warn"}
+
+    def _open_alarm(self, cur, dev, key, kind, detail, now) -> None:
+        """열린(미해제) 경보가 없으면 새로 연다. (락을 쥔 호출자의 cursor를 받는다)"""
+        r = cur.execute(
+            "SELECT id FROM alarms WHERE device_id=? AND sensor_key=? AND kind=? AND cleared_at IS NULL",
+            (dev, key, kind)).fetchone()
+        if not r:
+            cur.execute(
+                "INSERT INTO alarms (device_id, sensor_key, kind, detail, severity, raised_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (dev, key, kind, detail, self._SEVERITY.get(kind, "warn"), now))
+
+    def _close_alarm(self, cur, dev, key, kind, now) -> None:
+        cur.execute(
+            "UPDATE alarms SET cleared_at=? WHERE device_id=? AND sensor_key=? AND kind=? AND cleared_at IS NULL",
+            (now, dev, key, kind))
+
+    def raise_alarm(self, dev, key, kind, detail) -> None:
+        """경보를 연다(중복이면 무시) + 이벤트 로그. 스캔에서 전이 때 호출."""
+        with self._lock:
+            self._open_alarm(self._conn.cursor(), dev, key, kind, detail, time.time())
+            self._conn.commit()
+        self.log_event(dev, key, kind, detail, source="system")
+
+    def clear_alarm(self, dev, key, kind, clear_etype, detail) -> None:
+        """열린 경보를 해제 + 복구 이벤트 로그."""
+        with self._lock:
+            self._close_alarm(self._conn.cursor(), dev, key, kind, time.time())
+            self._conn.commit()
+        self.log_event(dev, key, clear_etype, detail, source="system")
+
+    def _close_health(self, dev, key) -> None:
+        """이 센서의 건강 경보(고착·드리프트·이상)를 모두 조용히 닫는다(상태 전환 시)."""
+        now = time.time()
+        with self._lock:
+            cur = self._conn.cursor()
+            for k in ("stuck", "drift", "anomaly"):
+                self._close_alarm(cur, dev, key, k, now)
+            self._conn.commit()
+
+    def list_active_alarms(self) -> list[dict]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, "
+                "acked_at, acked_by, escalated_at FROM alarms "
+                "WHERE cleared_at IS NULL ORDER BY raised_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    def ack_alarm(self, alarm_id: int, by: str = "operator") -> bool:
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE alarms SET acked_at=?, acked_by=? WHERE id=? AND cleared_at IS NULL AND acked_at IS NULL",
+                (time.time(), by, alarm_id))
+            row = self._conn.execute(
+                "SELECT device_id, sensor_key, detail FROM alarms WHERE id=?", (alarm_id,)).fetchone()
+            self._conn.commit()
+            ok = cur.rowcount > 0
+        if ok and row:
+            self.log_event(row["device_id"], row["sensor_key"], "ack",
+                           f"경보 확인({by}): {row['detail']}", source="user")
+        return ok
+
+    def escalate_due(self, after_seconds: float = 120) -> list[dict]:
+        """확인(ack) 안 된 채 오래된 경보를 상향 처리하고, 상향된 목록을 돌려준다(알림용)."""
+        now = time.time()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, device_id, sensor_key, kind, detail, severity, raised_at FROM alarms "
+                "WHERE cleared_at IS NULL AND acked_at IS NULL AND escalated_at IS NULL "
+                "AND raised_at < ?", (now - after_seconds,)).fetchall()
+            due = [dict(r) for r in rows]
+            for r in due:
+                self._conn.execute("UPDATE alarms SET escalated_at=? WHERE id=?", (now, r["id"]))
+            self._conn.commit()
+        for r in due:
+            self.log_event(r["device_id"], r["sensor_key"], "escalate",
+                           f"미확인 경보 상향: {r['detail']}", source="system")
+        return due
+
     # ── 자가진단 ────────────────────────────────────────────
     def diagnose(self, device_id: str, sensor_key: str = "") -> dict:
         """센서/CCM 자가진단. 지금 가진 데이터로 통신·값·범위·식별을 점검한다.
@@ -681,19 +782,23 @@ class Storage:
             prev = self._live_state.get(hkey, "ok")
             if state != prev:
                 if state == "stuck":
-                    to_log.append((dev, key, "stuck", f"{nm} 값이 고정됨 — 센서 고착 의심"))
+                    to_log.append((dev, key, "stuck", f"{nm} 값이 고정됨 — 센서 고착 의심", None))
                 elif state == "drift":
-                    to_log.append((dev, key, "drift", f"{nm} 값 지속 이동({st['drift_pct']:+}%) — 드리프트 의심"))
+                    to_log.append((dev, key, "drift", f"{nm} 값 지속 이동({st['drift_pct']:+}%) — 드리프트 의심", None))
                 elif state == "anomaly":
                     to_log.append((dev, key, "anomaly",
-                                   f"{nm} 평소 대비 {anom['direction']}(z={anom['z']}) — 임계 전 조기감지"))
+                                   f"{nm} 평소 대비 {anom['direction']}(z={anom['z']}) — 임계 전 조기감지", None))
                 elif prev == "anomaly":
-                    to_log.append((dev, key, "anomaly_clear", f"{nm} 평소 수준 회복"))
-                elif prev in ("stuck", "drift"):
-                    to_log.append((dev, key, "stuck_clear", f"{nm} 변동 정상화"))
+                    to_log.append((dev, key, "ok", f"{nm} 평소 수준 회복", "anomaly_clear"))
+                else:  # prev in (stuck, drift)
+                    to_log.append((dev, key, "ok", f"{nm} 변동 정상화", "stuck_clear"))
                 self._live_state[hkey] = state
-        for dev, key, et, detail in to_log:
-            self.log_event(dev, key, et, detail, source="system")
+        for dev, key, state, detail, clear_et in to_log:
+            self._close_health(dev, key)               # 이전 건강 경보 닫기
+            if state in ("stuck", "drift", "anomaly"):
+                self.raise_alarm(dev, key, state, detail)
+            else:
+                self.log_event(dev, key, clear_et, detail, source="system")
         return len(to_log)
 
     # ── 침묵 감지 (하트비트 watchdog) ────────────────────────
@@ -755,8 +860,11 @@ class Storage:
                     elif sprev is None:
                         self._live_state[skey] = "down"
 
-        for dev, key, et, detail in to_log:            # 락 밖에서 로깅(재진입 회피)
-            self.log_event(dev, key, et, detail, source="system")
+        for dev, key, et, detail in to_log:            # 락 밖에서 처리(재진입 회피)
+            if et == "silent":
+                self.raise_alarm(dev, key, "silent", detail)
+            elif et == "recovered":
+                self.clear_alarm(dev, key, "silent", "recovered", detail)
         return len(to_log)
 
     def close(self) -> None:

@@ -295,6 +295,35 @@
   .mb-theme{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
             padding:3px 6px;border-radius:6px;opacity:.85}
   .mb-theme:hover{background:var(--menu-hover);opacity:1}
+  /* 경보 벨 + 배지 */
+  .mb-bell{position:relative;background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
+           padding:3px 6px;border-radius:6px;opacity:.75}
+  .mb-bell:hover,.mb-bell.has-alarms{opacity:1}
+  .mb-bell.has-alarms{animation:bellpulse 1.6s ease-in-out infinite}
+  @keyframes bellpulse{0%,100%{transform:none}15%{transform:rotate(-12deg)}30%{transform:rotate(10deg)}45%{transform:rotate(-6deg)}}
+  @media (prefers-reduced-motion:reduce){.mb-bell.has-alarms{animation:none}}
+  .bell-badge{position:absolute;top:-2px;right:-2px;min-width:15px;height:15px;padding:0 3px;box-sizing:border-box;
+              border-radius:8px;background:var(--crit);color:#fff;font:700 9px var(--mono);
+              display:flex;align-items:center;justify-content:center}
+  /* 활성 경보 패널 */
+  .alarm-panel{position:fixed;top:44px;right:12px;z-index:60;width:min(370px,92vw);max-height:72vh;overflow-y:auto;
+               background:var(--menu-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+               border:1px solid var(--menu-border);border-radius:11px;box-shadow:0 16px 46px rgba(0,0,0,.36);padding:6px}
+  .ap-head{font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);padding:7px 9px}
+  .ap-empty{color:var(--ink-3);font-size:12px;padding:16px 9px;text-align:center}
+  #ap-list{display:flex;flex-direction:column}
+  .ap-item{display:flex;gap:9px;align-items:flex-start;width:100%;box-sizing:border-box;
+           padding:9px;border-top:1px solid var(--rule)}
+  .ap-item .apd{width:8px;height:8px;border-radius:50%;margin-top:4px;flex:none;background:var(--warn,#c67a12)}
+  .ap-item .apd.crit{background:var(--crit)}
+  .ap-item .apbody{flex:1 1 auto;min-width:0;overflow:hidden}
+  .ap-item .aptext{font-size:12.5px;color:var(--ink);line-height:1.35;word-break:break-word}
+  .ap-item .apmeta{font-size:10px;color:var(--ink-3);font-family:var(--mono);margin-top:3px}
+  .ap-item .apesc{color:var(--crit);font-weight:700}
+  .ap-ack{flex:none;align-self:center;font:600 11px var(--sans);padding:5px 10px;border-radius:6px;cursor:pointer;
+          border:1px solid var(--accent);background:var(--accent);color:#fff}
+  .ap-ack:hover{filter:brightness(1.06)}
+  .ap-ack.done{background:transparent;color:var(--ok,#2f9e54);border-color:var(--rule);cursor:default}
 
   /* 하단 실시간 로그 스트립 — 배경 투명, 최근 3줄 */
   .ticker{position:fixed;left:16px;bottom:12px;z-index:20;pointer-events:none;
@@ -364,6 +393,7 @@
     <div class="mb-right">
       <span class="mb-status" id="status"></span>
       <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
+      <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
       <span class="clock" id="clock">--:--:--</span>
@@ -387,6 +417,12 @@
 
   <!-- 하단 실시간 로그 스트립 (알람·특이사항 최근 3줄, 배경 투명) -->
   <div class="ticker" id="ticker"></div>
+
+  <!-- 활성 경보 패널 (🔔) -->
+  <div class="alarm-panel" id="alarm-panel" hidden>
+    <div class="ap-head">활성 경보 <span id="ap-count">0</span></div>
+    <div id="ap-list"></div>
+  </div>
 
   <div class="overlay" id="overlay">
     <div class="modal">
@@ -1343,6 +1379,42 @@ function loadTicker(){
   }).catch(()=>{});
 }
 
+// ── 활성 경보 패널 (🔔) ───────────────────────────────
+let alarmPanelOpen = false;
+function loadAlarms(){
+  fetch("/api/alarms",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const al = d.alarms||[];
+    const badge = $("#bell-badge"), bell = $("#btn-bell");
+    if(al.length){ badge.textContent = al.length; badge.hidden = false; bell.classList.add("has-alarms"); }
+    else { badge.hidden = true; bell.classList.remove("has-alarms"); }
+    const cnt = $("#ap-count"); if(cnt) cnt.textContent = al.length;
+    if(!alarmPanelOpen) return;                 // 열려있을 때만 목록 렌더
+    const list = $("#ap-list");
+    if(!al.length){ list.innerHTML = `<div class="ap-empty">활성 경보 없음 — 정상 ✓</div>`; return; }
+    list.innerHTML = al.map(a=>{
+      const m = EVENT_META[a.kind] || {ic:"⚠"};
+      const crit = a.severity==="crit";
+      const acked = !!a.acked_at;
+      return `<div class="ap-item"><span class="apd ${crit?'crit':''}"></span>`+
+        `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
+        `<div class="apmeta">${escapeHtml(a.device_id||"")}${a.sensor_key?" · "+escapeHtml(a.sensor_key):""} · ${ago(a.raised_at)||"방금"}`+
+        `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div></div>`+
+        (acked ? `<button class="ap-ack done">확인됨</button>` : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
+        `</div>`;
+    }).join("");
+    list.querySelectorAll("[data-ack]").forEach(b=> b.onclick = ()=> ackAlarm(+b.dataset.ack));
+  }).catch(()=>{});
+}
+function ackAlarm(id){
+  fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({alarm_id:id, by:"operator"})}).then(()=>{ setStatus("경보 확인됨"); loadAlarms(); });
+}
+$("#btn-bell").onclick = (e)=>{ e.stopPropagation();
+  alarmPanelOpen = !alarmPanelOpen; $("#alarm-panel").hidden = !alarmPanelOpen; loadAlarms(); };
+document.addEventListener("click", (e)=>{
+  if(alarmPanelOpen && !e.target.closest("#alarm-panel") && !e.target.closest("#btn-bell")){
+    alarmPanelOpen = false; $("#alarm-panel").hidden = true; } });
+
 // ── 시계 ──────────────────────────────────────────────
 function tick(){ const d=new Date();
   $("#clock").textContent = d.toLocaleTimeString("ko-KR",{hour12:false}); }
@@ -1389,6 +1461,7 @@ function drawChart(points, unit){
 renderUserNodes();   // 데이터 도착 전에도 저장된 사용자 노드를 먼저 표시
 refresh(); setInterval(refresh, REFRESH_MS);
 loadTicker(); setInterval(loadTicker, 3000);   // 하단 실시간 로그
+loadAlarms(); setInterval(loadAlarms, 3000);   // 활성 경보 벨/패널
 </script>
 </body>
 </html>

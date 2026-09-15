@@ -78,6 +78,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"devices": self.storage.list_devices()})
         if path == "/api/panels":
             return self._json({"panels": self.storage.list_panels()})
+        if path == "/api/alarms":
+            return self._json({"alarms": self.storage.list_active_alarms()})
         if path == "/api/events":
             q = parse_qs(parsed.query)
             dev = (q.get("device_id") or [""])[0]
@@ -120,6 +122,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._device_command()
         if parsed.path == "/api/diagnose":
             return self._diagnose()
+        if parsed.path == "/api/alarm/ack":
+            return self._ack()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -266,6 +270,23 @@ class Handler(BaseHTTPRequestHandler):
         if report.get("ok"):
             self.storage.log_event(dev, key, "diagnose", "자가진단: " + report.get("summary", ""))
         return self._json(report)
+
+    # ── 경보 확인(ack) ───────────────────────────────────────
+    def _ack(self) -> None:
+        """{alarm_id, by?} — 활성 경보를 확인 처리(에스컬레이션 중단)."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        try:
+            alarm_id = int(body.get("alarm_id"))
+        except (TypeError, ValueError):
+            return self._json({"error": "alarm_id가 필요합니다"}, 400)
+        ok = self.storage.ack_alarm(alarm_id, str(body.get("by") or "operator"))
+        return self._json({"ok": ok, "alarm_id": alarm_id})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:
