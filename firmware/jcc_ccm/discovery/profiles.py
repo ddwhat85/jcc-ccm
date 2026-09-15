@@ -18,40 +18,53 @@ PROFILES = [
         "part_no": "100022405", "manual": "CCM 내장 센서. 별도 배선 없이 함내 온습도를 측정. 보정 불필요.",
         "emits": [
             {"key": "cabinet_temp",     "name": "함내 온도", "unit": "C",   "kind": "temp",
-             "alarm_min": 5,  "alarm_max": 45},
+             "alarm_min": 5,  "alarm_warn": 38, "alarm_max": 45},
             {"key": "cabinet_humidity", "name": "함내 습도", "unit": "%RH", "kind": "humidity",
-             "alarm_min": 20, "alarm_max": 80},
+             "alarm_min": 20, "alarm_warn": 70, "alarm_max": 80},
         ],
     },
     {
         "ident": "TURCK-CCM-DOOR", "brand": "Turck", "product": "IM18-CCM50 내장 거리센서",
         "part_no": "100022405", "manual": "CCM 내장 ToF 거리센서. 도어 개폐를 거리(mm)로 감지. 닫힘 기준거리 캘리브레이션.",
         "emits": [{"key": "door_distance", "name": "도어 개폐", "unit": "mm", "kind": "door",
-                   "alarm_min": 0, "alarm_max": 300}],
+                   "alarm_min": 0, "alarm_warn": 200, "alarm_max": 300}],
     },
     {
         "ident": "BANNER-QM30VT", "brand": "Banner Engineering", "product": "QM30VT2 진동·온도 센서",
         "part_no": "806276", "manual": "2m 케이블. RMS 속도(mm/s)와 온도 출력. 설치축·감도 파라미터로 설정. 베어링·모터 이상진동 감시용.",
         "emits": [{"key": "vibration", "name": "진동", "unit": "mm/s", "kind": "vibration",
-                   "alarm_min": 0, "alarm_max": 4.0}],
+                   "alarm_min": 0, "alarm_warn": 2.5, "alarm_max": 4.0}],
     },
     {
         "ident": "BANNER-CT20A", "brand": "Banner Engineering", "product": "S15C-CT20A-MQ 전류센서",
         "part_no": "814928", "manual": "20A CT 관통형. 메인차단기 전류를 비접촉 측정. 정격 20A, 관통 전선 1가닥.",
         "emits": [{"key": "main_current", "name": "메인차단기 전류", "unit": "A", "kind": "current",
-                   "alarm_min": 0, "alarm_max": 30}],
+                   "alarm_min": 0, "alarm_warn": 25, "alarm_max": 30}],
     },
     {
         "ident": "BANNER-S15S-T", "brand": "Banner Engineering", "product": "S15S-T-MQ 비접촉 온도센서",
         "part_no": "813163", "manual": "적외선 비접촉 온도. 대상 방사율 설정 필요. 접점·단자 발열 감시용.",
         "emits": [{"key": "ncontact_temp", "name": "비접촉 온도", "unit": "C", "kind": "temp",
-                   "alarm_min": 5, "alarm_max": 60}],
+                   "alarm_min": 5, "alarm_warn": 50, "alarm_max": 60}],
     },
     {
         "ident": "INFRASENSING-H2", "brand": "InfraSensing", "product": "Hydrogen (H2) Sensor",
-        "part_no": "H2-LEL", "manual": "0–100% LEL 수소 감지(보정 불요형). ESS 화재 전조. 4~20mA. 정기 기능시험 권장.",
+        "part_no": "H2-LEL", "photo": "img/infrasensing-h2.jpg",
+        "manual": "0–100% LEL 수소 감지(보정 불요형). ESS 화재 전조. 4~20mA. 정기 기능시험 권장. "
+                  "릴레이 3개(A·B 가스경보 / C 센서고장). C는 Fail-safe라 정전 시에도 고장으로 감지된다.",
+        # 실제 제품의 릴레이 구성. 경보 설정값과 접점 기본모드(NO/NC)를 함께 들고 다닌다.
+        # A·B는 가스 경보(2단계), C는 센서 고장 감지(Fail-safe: 정상일 때 코일 ON).
+        "relays": [
+            {"id": "A", "role": "가스 경보(위험)", "trigger": "gas",
+             "setpoint": 25, "unit": "%LEL", "mode": "NO", "failsafe": False},
+            {"id": "B", "role": "가스 경보(경고)", "trigger": "gas",
+             "setpoint": 10, "unit": "%LEL", "mode": "NO", "failsafe": False},
+            {"id": "C", "role": "센서 고장 감지", "trigger": "fault",
+             "setpoint": None, "unit": "", "mode": "NO", "failsafe": True},
+        ],
         "emits": [{"key": "h2_lel", "name": "수소 농도", "unit": "%LEL", "kind": "h2",
-                   "alarm_min": 0, "alarm_max": 2.0}],
+                   # 릴레이 B(10% LEL)=경고, 릴레이 A(25% LEL)=위험
+                   "alarm_min": 0, "alarm_warn": 10, "alarm_max": 25}],
     },
     {
         "ident": "ONOFF-HSD200", "brand": "온오프시스템", "product": "HSD200 열·연기 감지기",

@@ -93,6 +93,9 @@ class Handler(BaseHTTPRequestHandler):
                 limit = 50
             return self._json({"events": self.storage.list_events(dev, key, limit)})
 
+        if path.startswith("/img/"):
+            return self._serve_image(path[len("/img/"):])
+
         m = re.fullmatch(r"/api/devices/([^/]+)/history", path)
         if m:
             device_id = m.group(1)
@@ -297,13 +300,17 @@ class Handler(BaseHTTPRequestHandler):
         key = str(body.get("sensor_key", ""))
         if not dev or not key:
             return self._json({"error": "device_id와 sensor_key가 필요합니다"}, 400)
+        rm = body.get("relay_modes")
         new = self.storage.set_setting(
             dev, key,
             setpoint=body.get("setpoint"),
             alarm_min=body.get("alarm_min"),
             alarm_max=body.get("alarm_max"),
+            alarm_warn=body.get("alarm_warn"),
+            relay_modes=rm if isinstance(rm, dict) else None,
         )
-        detail = f"셋팅={new.get('setpoint')} 알람={new.get('alarm_min')}~{new.get('alarm_max')}"
+        detail = (f"셋팅={new.get('setpoint')} 경고={new.get('alarm_warn')} "
+                  f"위험={new.get('alarm_min')}~{new.get('alarm_max')}")
         self.storage.log_event(dev, key, "setting", detail)
         return self._json({"ok": True, "device_id": dev, "sensor_key": key, **new})
 
@@ -378,6 +385,35 @@ class Handler(BaseHTTPRequestHandler):
         }, "테스트")
         self.storage.log_event("", "", "notify_test", f"알림 테스트 발송: {', '.join(ch)}")
         return self._json({"ok": True, "channels": ch, "result": result})
+
+    # ── 이미지 (제품 사진·로고) ──────────────────────────────
+    _IMG_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+                  ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml"}
+
+    def _serve_image(self, name: str) -> None:
+        """static/img/ 안의 이미지를 내보낸다(제품 사진, 회사 로고).
+
+        파일이 없으면 404 — 화면은 도식/글자 로고로 자동 대체된다.
+        경로 탈출(..)은 파일명만 취해 차단한다.
+        """
+        safe = os.path.basename(urlparse(name).path)          # 디렉터리 성분 제거
+        ext = os.path.splitext(safe)[1].lower()
+        if not safe or ext not in self._IMG_TYPES:
+            return self._json({"error": "not found"}, 404)
+        full = os.path.join(_STATIC_DIR, "img", safe)
+        if not os.path.isfile(full):
+            return self._json({"error": "not found"}, 404)
+        try:
+            with open(full, "rb") as fh:
+                blob = fh.read()
+        except OSError:
+            return self._json({"error": "읽기 실패"}, 500)
+        self.send_response(200)
+        self.send_header("Content-Type", self._IMG_TYPES[ext])
+        self.send_header("Content-Length", str(len(blob)))
+        self.send_header("Cache-Control", "public, max-age=3600")
+        self.end_headers()
+        self.wfile.write(blob)
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:

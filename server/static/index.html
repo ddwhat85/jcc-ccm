@@ -68,7 +68,8 @@
            -webkit-backdrop-filter:blur(22px) saturate(1.6);backdrop-filter:blur(22px) saturate(1.6);
            border-bottom:1px solid var(--menubar-border);position:relative;z-index:50}
   .mb-app{font-weight:700;font-size:14px;letter-spacing:-.01em;color:var(--ink);
-          padding:0 14px 0 4px}
+          padding:0 14px 0 4px;display:flex;align-items:center}
+  .mb-app img{height:22px;width:auto;display:block}
   .mb-app b{color:var(--accent)}
   .mb-menu{position:relative}
   .mb-title{font:inherit;font-size:13px;color:var(--ink);background:none;border:none;
@@ -239,6 +240,18 @@
   .insp-photo{display:flex;align-items:center;justify-content:center;height:96px;margin:2px 0 10px;
               background:var(--canvas);border:1px solid var(--rule);border-radius:8px;color:var(--accent)}
   .insp-photo svg{width:66px;height:66px}
+  /* 실제 제품 사진이 있으면 도식 대신 사진을 쓴다 */
+  .insp-photo img.pphoto{max-height:92px;max-width:100%;object-fit:contain;border-radius:6px}
+  /* 릴레이 접점 */
+  .relay{display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--rule)}
+  .relay .rid{flex:none;width:20px;height:20px;border-radius:5px;display:flex;align-items:center;
+              justify-content:center;font:700 10px var(--mono);background:var(--surface-2);color:var(--ink-2)}
+  .relay .rbody{flex:1 1 auto;min-width:0}
+  .relay .rrole{font-size:11.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .relay .rstate{font:600 10px var(--mono);margin-top:2px;color:var(--ok,#2f9e54)}
+  .relay .rstate.bad{color:var(--crit)}
+  .relay select{flex:none;font:600 10px var(--mono);padding:3px 4px;border-radius:5px;
+                background:var(--canvas);border:1px solid var(--rule);color:var(--ink)}
   .insp-brand{font-size:11px;color:var(--ink-3);font-family:var(--mono);margin:-6px 0 2px}
   /* 현재 측정값 하이라이트 */
   .insp-live{display:flex;align-items:baseline;gap:6px;margin:10px 0 4px;padding:10px 12px;
@@ -359,7 +372,12 @@
 </head>
 <body>
   <div class="menubar">
-    <div class="mb-app">JCC<b>·</b>CCM</div>
+    <!-- 로고 파일(static/img/jcc-logo.png)이 있으면 그것을, 없으면 글자 로고를 쓴다 -->
+    <div class="mb-app">
+      <img id="brand-logo" src="img/jcc-logo.png" alt="JCC Solution"
+           onload="document.getElementById('brand-text').hidden=true" onerror="this.remove()">
+      <span id="brand-text">JCC<b>·</b>CCM</span>
+    </div>
 
     <div class="mb-menu" data-menu="file">
       <button class="mb-title">파일</button>
@@ -470,7 +488,14 @@ function escapeHtml(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<"
 function fmtValue(v){ return v===null||v===undefined ? "—" : (Math.round(v*100)/100).toString(); }
 function ago(ts){ if(!ts) return ""; const s=Math.max(0,Math.floor(Date.now()/1000-ts));
   if(s<60) return s+"초 전"; if(s<3600) return Math.floor(s/60)+"분 전"; return Math.floor(s/3600)+"시간 전"; }
-function severity(key,v){ if(v===null||v===undefined) return "";
+function severity(key,v,rec){ if(v===null||v===undefined) return "";
+  // 프로파일에 기준값이 있으면 그것을 쓴다(2단계: 위험 > 경고 > 정상)
+  if(rec && (rec.alarm_max!==null&&rec.alarm_max!==undefined || rec.alarm_warn!==null&&rec.alarm_warn!==undefined)){
+    if((rec.alarm_max!==null&&rec.alarm_max!==undefined && v>rec.alarm_max) ||
+       (rec.alarm_min!==null&&rec.alarm_min!==undefined && v<rec.alarm_min)) return "crit";
+    if(rec.alarm_warn!==null&&rec.alarm_warn!==undefined && v>rec.alarm_warn) return "warn";
+    return "";
+  }
   key=key.toLowerCase();
   if(key.includes("h2"))   return v>=2 ? "crit" : (v>=1 ? "warn" : "");
   if(key.includes("temp")) return v>=45 ? "crit" : (v>=38 ? "warn" : "");
@@ -781,7 +806,7 @@ function updateValues(panels){
       cEl.classList.toggle("node-off", forcedOff);   // 전원 꺼짐 워터마크
       for(const r of (c.latest||[])){
         nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = cOnline;
-        const sev = severity(r.sensor_key, r.value) || (r.ok?"ok":"stale");
+        const sev = severity(r.sensor_key, r.value, r) || (r.ok?"ok":"stale");
         // CCM 안 입력행 값
         const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
         if(cv){ cv.className = "pval "+sev; cv.innerHTML = fmtValue(r.value)+`<span class="punit">${escapeHtml(r.unit||"")}</span>`; }
@@ -1053,7 +1078,12 @@ function productArt(kind){
     humidity:`<path ${s} d="M32 8C22 22 20 30 20 37a12 12 0 0 0 24 0c0-7-2-15-12-29z"/><path ${s} d="M28 40a4 4 0 0 0 4 4"/>`,
     vibration:`<path ${s} d="M8 32h6l4-14 8 28 8-38 6 24h8"/>`,
     current:`<path ${s} d="M34 6 16 36h14l-4 22 20-32H30z" fill="currentColor" stroke="none"/>`,
-    h2:`<circle cx="32" cy="32" r="22" ${s}/><text x="32" y="38" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">H₂</text>`,
+    // 실물(원통형 금속 하우징 + 메시 그릴 + 단자대)에 가깝게
+    h2:`<rect x="14" y="12" width="40" height="40" rx="6" ${s}/>`+
+       `<circle cx="34" cy="32" r="13" ${s}/><circle cx="34" cy="32" r="8" ${s} stroke-dasharray="2 3"/>`+
+       `<circle cx="34" cy="32" r="3.2" fill="currentColor" stroke="none"/>`+
+       `<path ${s} d="M8 18h6M8 26h6M8 34h6"/>`+
+       `<text x="34" y="60" text-anchor="middle" font-size="9" font-weight="700" fill="currentColor">H₂ LEL</text>`,
     smoke:`<path ${s} d="M32 8c4 6-3 9 0 15 3 5 7 5 7 12a13 13 0 0 1-26 0c0-6 4-8 6-12"/><path ${s} d="M24 46h16M22 52h20"/>`,
     door:`<rect x="18" y="8" width="28" height="48" rx="2" ${s}/><circle cx="40" cy="32" r="2" fill="currentColor" stroke="none"/>`,
     gateway:`<rect x="12" y="20" width="40" height="28" rx="3" ${s}/><path ${s} d="M20 20v-6M44 20v-6M32 20v-6M22 30h8M22 38h20"/><circle cx="42" cy="30" r="2" fill="currentColor" stroke="none"/>`,
@@ -1062,6 +1092,31 @@ function productArt(kind){
   return `<svg viewBox="0 0 64 64" aria-hidden="true">${A[kind]||`<circle cx="32" cy="32" r="20" stroke-dasharray="4 4" ${s}/><text x="32" y="39" text-anchor="middle" font-size="22" fill="currentColor">?</text>`}</svg>`;
 }
 function sevLabel(sev){ return {crit:"경보",warn:"주의",ok:"정상",stale:"대기"}[sev]||"—"; }
+
+// ── 릴레이 접점 계산 (실제 가스감지기 동작 그대로) ───────────
+// 코일 ON/OFF → 접점 상태. NO는 코일 ON에서 닫히고, NC는 코일 ON에서 열린다.
+// 고장감지 릴레이(Fail-safe)는 '정상일 때 코일 ON'이라 정전되면 자동으로 고장으로 잡힌다.
+// 규칙(제품 요약표 기준)
+//   · COM-NO 접점은 '코일이 켜지면 닫힌다' — 항상.
+//   · 설정값(NO/NC)은 접점 배선이 아니라 **코일을 어느 쪽으로 구동할지**를 정한다.
+//       가스(A/B) 00(NO): 정상 코일 OFF → 경보 시 ON   / 01(NC): 정상 코일 ON → 경보 시 OFF
+//       고장(C)  00(NO): 정상 코일 ON  → 고장 시 OFF   / 01(NC): 그 반대
+//     C의 00(NO)이 Fail-safe인 이유: 정전되면 코일이 꺼져 자동으로 '고장'으로 잡힌다.
+function relayState(relay, rec){
+  const v = rec.value;
+  const dead = rec.enabled === false || !rec.ok || v === null || v === undefined;
+  let event;                       // 이 릴레이가 감시하는 사건이 일어났는가
+  if(relay.trigger === "fault"){
+    event = dead;                  // 센서 고장·무응답
+  }else{
+    const sp = relay.setpoint;
+    event = (sp !== null && sp !== undefined && v !== null && v !== undefined) ? (v >= sp) : false;
+  }
+  const nc = (relay.mode === "NC");
+  const energized = (relay.trigger === "fault") ? (nc ? event : !event)
+                                                : (nc ? !event : event);
+  return {energized, closed: energized, bad: event};
+}
 
 // CCM 전원 명령(재시작/전원끄기) = 실기에서는 SSH reboot/poweroff
 function deviceCommand(dev, action){
@@ -1081,7 +1136,8 @@ const EVENT_META = {
   channel_on:  {label:"센서 켜기",    dot:"ok",   ic:"▶"},
   setting:     {label:"설정 변경",    dot:"info", ic:"⚙"},
   diagnose:    {label:"자가진단",      dot:"info", ic:"🩺"},
-  alarm:       {label:"경보",         dot:"crit", ic:"⚠"},
+  alarm:       {label:"위험 경보",    dot:"crit", ic:"⚠"},
+  alarm_warn:  {label:"경고",         dot:"warn", ic:"⚠"},
   alarm_clear: {label:"정상 복귀",    dot:"ok",   ic:"✓"},
   silent:      {label:"응답 없음",    dot:"crit", ic:"🔇"},
   recovered:   {label:"통신 복구",    dot:"ok",   ic:"✓"},
@@ -1097,7 +1153,7 @@ const EVENT_META = {
   rename:      {label:"이름 변경",    dot:"info", ic:"✏"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
-const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift",
+const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
@@ -1155,10 +1211,15 @@ function renderInspector(id, n){
     const prodName = r.product || "미확인 장비";
     const brand = r.brand || (r.confidence==="추정"?"미상":"—");
     const unit = r.unit || "";
-    const sev = severity(key, r.value) || (r.ok?"ok":"stale");
+    const sev = severity(key, r.value, r) || (r.ok?"ok":"stale");
     const addr = (r.address!==undefined && r.address!==null) ? ("Modbus #"+r.address) : "내장";
+    // 제품 사진이 있으면 사진을, 파일이 없으면 도식을 보여준다(실패 시 자동 대체)
+    const photoHtml = (r.photo
+      ? `<img class="pphoto" src="${escapeHtml(r.photo)}" alt="${escapeHtml(r.product||"")}" `+
+        `onerror="this.remove()" onload="const g=this.parentNode.querySelector('svg'); if(g) g.style.display='none';">`
+      : "") + productArt(artKind);
     html += `<div class="insp-kind">${kindKo}${r.confidence==="추정"?" · 추정":""}</div>`+
-      `<div class="insp-photo">${productArt(artKind)}</div>`+
+      `<div class="insp-photo">${photoHtml}</div>`+
       `<div class="insp-brand">${escapeHtml(brand)}</div>`+
       `<div class="insp-title">${escapeHtml(prodName)}</div>`+
       // 현재 측정값
@@ -1174,11 +1235,33 @@ function renderInspector(id, n){
       `<div class="insp-sec">설정 · 알람 기준</div>`+
       `<div class="insp-set"><label>셋팅값</label>`+
         `<input id="set-sp" type="number" step="any" value="${num(r.setpoint)}" placeholder="미설정"><span class="un">${escapeHtml(unit)}</span></div>`+
+      `<div class="insp-set"><label>경고 기준</label>`+
+        `<input id="set-awarn" type="number" step="any" value="${num(r.alarm_warn)}" placeholder="${num(r.alarm_warn_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<div class="insp-set"><label>알람 최대치</label>`+
         `<input id="set-amax" type="number" step="any" value="${num(r.alarm_max)}" placeholder="${num(r.alarm_max_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<div class="insp-set"><label>알람 최저치</label>`+
         `<input id="set-amin" type="number" step="any" value="${num(r.alarm_min)}" placeholder="${num(r.alarm_min_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<button class="insp-btn" id="set-save">설정 저장 (CCM 적용)</button>`+
+      // 제품에 릴레이가 있으면 접점 상태를 실제 동작대로 보여준다(배선 확인용)
+      ((r.relays && r.relays.length) ? (
+        `<div class="insp-sec">릴레이 접점</div>` +
+        r.relays.map(rl=>{
+          const st = relayState(rl, r);
+          const sp = (rl.setpoint!==null && rl.setpoint!==undefined)
+            ? ` · ${rl.setpoint}${escapeHtml(rl.unit||"")}` : "";
+          return `<div class="relay"><span class="rid">${escapeHtml(rl.id)}</span>`+
+            `<div class="rbody"><div class="rrole">${escapeHtml(rl.role||"")}${sp}`+
+              `${rl.failsafe?" · Fail-safe":""}</div>`+
+            `<div class="rstate ${st.bad?"bad":""}">코일 ${st.energized?"ON":"OFF"} · `+
+              `COM-NO ${st.closed?"닫힘":"열림"}</div></div>`+
+            `<select class="rmode" data-relay="${escapeHtml(rl.id)}">`+
+              `<option value="NO"${rl.mode!=="NC"?" selected":""}>NO</option>`+
+              `<option value="NC"${rl.mode==="NC"?" selected":""}>NC</option>`+
+            `</select></div>`;
+        }).join("") +
+        `<div class="insp-manual">NO/NC는 접점의 <b>기본(평소) 상태</b>입니다. `+
+          `현장에서 설정한 값으로 바꾸면 위 접점 표시가 그에 맞게 바뀝니다.</div>`
+      ) : "")+
       // 센서 전원 제어
       `<div class="insp-sec">센서 제어</div>`+
       `<div class="insp-btnrow">`+
@@ -1253,13 +1336,33 @@ function renderInspector(id, n){
   const saveBtn = $("#set-save");
   if(saveBtn){
     const parts = id.split(":"); const dev=parts[1], key=parts[2];
+    const relayModes = ()=>{            // 화면의 NO/NC 선택을 모아 함께 저장
+      const m = {};
+      document.querySelectorAll("#insp-in .rmode").forEach(s=> m[s.dataset.relay] = s.value);
+      return m;
+    };
+    document.querySelectorAll("#insp-in .rmode").forEach(sel=>{
+      sel.onchange = ()=>{
+        const modes = relayModes();
+        // 로컬 레코드를 먼저 반영해야 다시 그릴 때 새 설정으로 접점이 계산된다
+        const rec2 = sensorRec[dev+":"+key];
+        if(rec2 && rec2.relays) rec2.relays.forEach(rl=>{ if(modes[rl.id]) rl.mode = modes[rl.id]; });
+        setSetting(dev, key, {relay_modes: modes}).then(()=>{
+          setStatus("릴레이 설정 저장됨 — 접점 표시 갱신");
+          const n2 = nodes.get(id); if(n2) renderInspector(id, n2);   // 접점 상태 다시 계산
+        });
+      };
+    });
     saveBtn.onclick = ()=>{
-      const patch = {setpoint: $("#set-sp").value, alarm_max: $("#set-amax").value, alarm_min: $("#set-amin").value};
+      const patch = {setpoint: $("#set-sp").value, alarm_max: $("#set-amax").value,
+                     alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value,
+                     relay_modes: relayModes()};
       saveBtn.textContent = "저장 중…"; saveBtn.disabled = true;
       setSetting(dev, key, patch).then(res=>{
         // 로컬 레코드 즉시 반영(다음 새로고침 전까지)
         const rec = sensorRec[dev+":"+key];
-        if(rec){ rec.setpoint=res.setpoint; rec.alarm_min=res.alarm_min; rec.alarm_max=res.alarm_max; }
+        if(rec){ rec.setpoint=res.setpoint; rec.alarm_min=res.alarm_min;
+                 rec.alarm_max=res.alarm_max; rec.alarm_warn=res.alarm_warn; }
         saveBtn.textContent = "저장됨 ✓"; saveBtn.classList.add("saved");
         setStatus("센서 설정 저장 — CCM 알람 기준·셋팅값 적용");
         setTimeout(()=>{ saveBtn.textContent="설정 저장 (CCM 적용)"; saveBtn.classList.remove("saved"); saveBtn.disabled=false; }, 1400);
@@ -1520,6 +1623,7 @@ function loadTicker(){
     el.innerHTML = evs.map((e,i)=>{
       const m = EVENT_META[e.etype] || {label:e.etype, dot:"info", ic:"•"};
       const cls = (e.etype==="alarm"||e.etype==="silent") ? "alarm" :
+                  (e.etype==="alarm_warn") ? "warn" :
                   (e.etype==="alarm_clear"||e.etype==="recovered"||e.etype==="stuck_clear"||e.etype==="anomaly_clear") ? "clear" :
                   (m.dot==="crit"||m.dot==="warn") ? "warn" : "info";
       const dev = e.device_id ? e.device_id+" · " : "";

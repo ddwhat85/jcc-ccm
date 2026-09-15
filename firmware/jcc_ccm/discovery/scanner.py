@@ -46,9 +46,10 @@ def identify_inventory(raw_devices: list[dict]) -> list[dict]:
         prof = profiles.identify(raw.get("ident", ""))
         src = _source_label(raw)
         if prof:
-            # 프로파일 레벨 제품정보(브랜드·제품명·품번·매뉴얼)를 각 채널에 붙인다.
+            # 프로파일 레벨 제품정보(브랜드·제품명·품번·매뉴얼·사진·릴레이)를 각 채널에 붙인다.
             meta = {"brand": prof["brand"], "product": prof["product"],
-                    "part_no": prof["part_no"], "manual": prof["manual"]}
+                    "part_no": prof["part_no"], "manual": prof["manual"],
+                    "photo": prof.get("photo", ""), "relays": prof.get("relays") or []}
             for emit in prof["emits"]:
                 sensors.append({**emit, **meta, "source": src, "confidence": "확정",
                                 "address": raw.get("address")})

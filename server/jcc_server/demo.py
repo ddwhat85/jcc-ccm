@@ -34,7 +34,7 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
         v = max(0.0, rng.gauss(40, 3))
     # 가끔(약 6%) 임계값을 넘겨 경보 로그가 뜨게 한다(검토용 데모 생동감).
     if rng.random() < 0.06:
-        spike = {"h2": 2.6, "current": 33, "vibration": 5.2, "temp": 47, "humidity": 88}
+        spike = {"h2": 28, "current": 33, "vibration": 5.2, "temp": 47, "humidity": 88}
         for k, sv in spike.items():
             if k in key or kind == k:
                 return sv
@@ -72,7 +72,8 @@ def _loop(storage, interval: float) -> None:
     anom_until: dict = {}   # (dev,key) -> 이 시각까지 '평소보다 높지만 임계 아래'(조기감지 시연)
     anom_base: dict = {}
     # 임계값 아래에서 평소보다 높은 이상 수준(각 센서 알람 기준 아래로 잡음)
-    ANOM = {"h2": 1.4, "current": 26, "vibration": 3.1, "temp": 41, "humidity": 74}
+    # 경고 기준보다는 낮지만 평소보다 확실히 높은 값 → 베이스라인 이상탐지가 잡는 구간
+    ANOM = {"h2": 6, "current": 22, "vibration": 2.2, "temp": 36, "humidity": 66}
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
     #    구성을 매번 다시 읽어, 나중에 CCM이 추가·삭제돼도 자동으로 따라간다.
