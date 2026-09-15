@@ -24,6 +24,7 @@ def start(storage, interval: float = 10) -> None:
         while True:
             try:
                 storage.liveness_scan(device_timeout=dev_to, sensor_timeout=sen_to)
+                storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트 감지
             except Exception:  # noqa: BLE001 - 감시는 죽지 않아야 한다
                 pass
             time.sleep(interval)

@@ -531,7 +531,15 @@ class Storage:
                     add("측정 범위", "fail", f"알람 범위({amin}~{amax}) 벗어남: {v}")
                 else:
                     add("측정 범위", "pass", f"정상 범위({amin}~{amax}) 내")
-            # 5) 식별 신뢰도
+            # 5) 변동성(고착·드리프트) — 살아있어도 못 믿는 센서 색출
+            st = self.history_stats(device_id, sensor_key)
+            if st["stuck"]:
+                add("변동성", "fail", "값이 고정됨 — 센서 고착/동결 의심")
+            elif st["drift"]:
+                add("추세", "warn", f"값 지속 이동({st['drift_pct']:+}%) — 드리프트/보정 필요")
+            elif st["n"] >= 6:
+                add("변동성", "pass", "정상 변동")
+            # 6) 식별 신뢰도
             if s.get("confidence") == "추정":
                 add("장치 식별", "warn", "추정 장치 — 실기 모델 확인 권장")
             else:
@@ -570,6 +578,68 @@ class Storage:
         summary = {"pass": "정상", "warn": "주의 필요", "fail": "이상 감지"}[worst]
         return {"ok": True, "device_id": device_id, "sensor_key": sensor_key,
                 "target": target, "status": worst, "summary": summary, "checks": checks}
+
+    # ── 센서 건강도 분석 (고착·드리프트) ────────────────────
+    def history_stats(self, device_id: str, sensor_key: str, n: int = 30) -> dict:
+        """최근 이력으로 센서의 '믿을 수 있는지'를 본다.
+        - 고착(stuck): 최근 값이 전혀 안 변함 → 센서 동결/케이블 단선 후 마지막값 유지.
+        - 드리프트(drift): 값이 한 방향으로 꾸준히 이동 → 보정 필요/열화 전조.
+        살아는 있어도 못 믿는 센서를 잡는 게 자가진단의 핵심."""
+        pts = self.history(device_id, sensor_key, n)   # 오래된→최신
+        vals = [p["value"] for p in pts if p.get("ok") and p.get("value") is not None]
+        res = {"n": len(vals), "stuck": False, "drift": False, "drift_pct": 0.0}
+        if len(vals) < 6:
+            return res
+        recent = vals[-8:]
+        if max(recent) - min(recent) == 0:            # 최근 값이 전부 동일
+            res["stuck"] = True
+            return res
+        if len(vals) >= 15:                            # 3등분 단조 이동이면 드리프트
+            k = len(vals) // 3
+            a = sum(vals[:k]) / k
+            b = sum(vals[k:2 * k]) / k
+            c = sum(vals[2 * k:]) / (len(vals) - 2 * k)
+            scale = max(abs((a + c) / 2), 1e-6)
+            pct = (c - a) / scale
+            monotonic = (a <= b <= c) or (a >= b >= c)
+            if monotonic and abs(pct) > 0.25:
+                res["drift"] = True
+                res["drift_pct"] = round(pct * 100, 1)
+        return res
+
+    def health_scan(self, sensor_timeout: float = 45) -> int:
+        """살아있는(최근 수신) 센서의 고착·드리프트를 주기적으로 감지해 전이만 기록한다."""
+        now = time.time()
+        with self._lock:
+            latest = {(r["device_id"], r["sensor_key"]): r["ts"] for r in self._conn.execute(
+                "SELECT device_id, sensor_key, MAX(ts) AS ts FROM readings "
+                "GROUP BY device_id, sensor_key").fetchall()}
+            rows = self._conn.execute(
+                "SELECT device_id, sensor_key, name, enabled FROM discovered").fetchall()
+            sensors = [dict(r) for r in rows]
+        to_log: list[tuple] = []
+        for s in sensors:
+            if not s.get("enabled", 1):
+                continue
+            dev, key, nm = s["device_id"], s["sensor_key"], (s.get("name") or s["sensor_key"])
+            lt = latest.get((dev, key))
+            if lt is None or (now - lt) >= sensor_timeout:
+                continue                               # 침묵 센서는 침묵 감시가 담당
+            st = self.history_stats(dev, key)
+            state = "stuck" if st["stuck"] else ("drift" if st["drift"] else "ok")
+            hkey = ("health", dev, key)
+            prev = self._live_state.get(hkey, "ok")
+            if state != prev:
+                if state == "stuck":
+                    to_log.append((dev, key, "stuck", f"{nm} 값이 고정됨 — 센서 고착 의심"))
+                elif state == "drift":
+                    to_log.append((dev, key, "drift", f"{nm} 값 지속 이동({st['drift_pct']:+}%) — 드리프트 의심"))
+                elif prev in ("stuck", "drift"):
+                    to_log.append((dev, key, "stuck_clear", f"{nm} 변동 정상화"))
+                self._live_state[hkey] = state
+        for dev, key, et, detail in to_log:
+            self.log_event(dev, key, et, detail, source="system")
+        return len(to_log)
 
     # ── 침묵 감지 (하트비트 watchdog) ────────────────────────
     def liveness_scan(self, device_timeout: float = 60, sensor_timeout: float = 45) -> int:

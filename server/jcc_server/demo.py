@@ -58,6 +58,8 @@ def _loop(storage, interval: float) -> None:
     rngs = {c["device_id"]: random.Random(i) for i, c in enumerate(ccms)}
     t0 = time.time()
     drop_until: dict = {}   # (dev,key) -> 이 시각까지 이 센서는 전송 안 함(침묵 시연)
+    stuck_until: dict = {}  # (dev,key) -> 이 시각까지 같은 값 반복(고착 시연)
+    stuck_val: dict = {}
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
     while True:
@@ -77,6 +79,11 @@ def _loop(storage, interval: float) -> None:
                     drop_until[sk] = wall + 70   # 약 70초 침묵 시작
                     continue
                 val = _value(key, s.get("kind", ""), t, rng)
+                # 가끔 센서가 '고착'(같은 값만 반복) — 살아는 있어도 못 믿는 상태 시연.
+                if wall < stuck_until.get(sk, 0):
+                    val = stuck_val[sk]
+                elif rng.random() < 0.01:
+                    stuck_until[sk] = wall + 50; stuck_val[sk] = val
                 readings.append({
                     "key": key, "name": s.get("name", ""),
                     "unit": s.get("unit", ""), "value": val, "ok": val is not None,
