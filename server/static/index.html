@@ -569,7 +569,9 @@ function refresh(){
     const panels = data.panels||[];
     $("#empty").style.display = panels.length ? "none" : "flex";
     const sig = topoSignature(panels);
-    if(sig !== topoSig){
+    // 연출 중 노드를 새로 만들면 연출이 잡고 있던 노드가 사라져 뒤엉킨다.
+    // topoSig를 그대로 두므로 연출이 끝난 직후 정상적으로 재구성된다.
+    if(sig !== topoSig && !revealing){
       buildGraph(panels); topoSig = sig;
       if(pendingReveal && panels.length){    // [AI 자동연결] 직후 한 번만 연출
         pendingReveal = false;
@@ -726,6 +728,7 @@ function applyPositions(){
 // 클라우드·판넬 → CCM → 센서 순서로 하나씩 나타나며 선이 이어진다.
 // 자동 탐색이 '무엇을 어떤 순서로 찾아냈는지'를 눈으로 보여주는 연출.
 async function runReveal(panels){
+  if(revealing) return;          // 연출 중 또 누르면 두 연출이 겹쳐 뒤엉킨다
   const wait = (ms)=> new Promise(r=>setTimeout(r, ms));
   const redraw = ()=>{ colorPorts(); drawWires(); };
   const show = (id)=>{

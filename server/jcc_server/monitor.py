@@ -18,6 +18,8 @@ def start(storage, interval: float = 10) -> None:
     dev_to = float(os.environ.get("JCC_DEVICE_TIMEOUT") or 60)
     sen_to = float(os.environ.get("JCC_SENSOR_TIMEOUT") or 45)
     escalate_after = float(os.environ.get("JCC_ESCALATE_AFTER") or 120)
+    # 어느 등급까지 상향·알림할지. 기본 crit(위험)만 — 주의까지 문자로 보내면 알림 피로.
+    escalate_sev = os.environ.get("JCC_ESCALATE_SEVERITY") or "crit"
     from .notify import dispatch
 
     keep_readings = float(os.environ.get("JCC_KEEP_READING_DAYS") or 14)
@@ -45,7 +47,8 @@ def start(storage, interval: float = 10) -> None:
                         dispatch(a, "발생")
                 first_pass = False
 
-                for a in storage.escalate_due(after_seconds=escalate_after):  # 미확인 경보 상향→알림
+                for a in storage.escalate_due(after_seconds=escalate_after,
+                                              severity=escalate_sev):        # 미확인 경보 상향→알림
                     dispatch(a, "상향")
                 now = time.time()
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리

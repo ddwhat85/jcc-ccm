@@ -19,7 +19,7 @@ import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse, parse_qs
+from urllib.parse import urlparse, parse_qs, unquote
 
 from .storage import Storage
 
@@ -396,7 +396,8 @@ class Handler(BaseHTTPRequestHandler):
         파일이 없으면 404 — 화면은 도식/글자 로고로 자동 대체된다.
         경로 탈출(..)은 파일명만 취해 차단한다.
         """
-        safe = os.path.basename(urlparse(name).path)          # 디렉터리 성분 제거
+        # 한글 등 비ASCII 파일명은 URL 인코딩돼 오므로 먼저 푼다(안 풀면 있는 파일도 404).
+        safe = os.path.basename(unquote(urlparse(name).path))  # 디렉터리 성분 제거
         ext = os.path.splitext(safe)[1].lower()
         if not safe or ext not in self._IMG_TYPES:
             return self._json({"error": "not found"}, 404)

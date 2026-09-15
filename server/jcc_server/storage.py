@@ -678,14 +678,23 @@ class Storage:
                            f"경보 확인({by}): {row['detail']}", source="user")
         return ok
 
-    def escalate_due(self, after_seconds: float = 120) -> list[dict]:
-        """확인(ack) 안 된 채 오래된 경보를 상향 처리하고, 상향된 목록을 돌려준다(알림용)."""
+    def escalate_due(self, after_seconds: float = 120, severity: str = "crit") -> list[dict]:
+        """확인(ack) 안 된 채 오래된 경보를 상향 처리하고, 상향된 목록을 돌려준다(알림용).
+
+        기본은 위험(crit)만 상향한다. 주의(warn: 경고·고착·드리프트·이상)까지 문자를
+        보내면 알림 피로가 생겨 정작 위험 경보를 무시하게 된다 — 주의는 화면·로그로만.
+        severity="all"을 주면 전부 상향한다.
+        """
         now = time.time()
         with self._lock:
-            rows = self._conn.execute(
-                "SELECT id, device_id, sensor_key, kind, detail, severity, raised_at FROM alarms "
-                "WHERE cleared_at IS NULL AND acked_at IS NULL AND escalated_at IS NULL "
-                "AND raised_at < ?", (now - after_seconds,)).fetchall()
+            q = ("SELECT id, device_id, sensor_key, kind, detail, severity, raised_at FROM alarms "
+                 "WHERE cleared_at IS NULL AND acked_at IS NULL AND escalated_at IS NULL "
+                 "AND raised_at < ?")
+            args = [now - after_seconds]
+            if severity != "all":
+                q += " AND severity = ?"
+                args.append(severity)
+            rows = self._conn.execute(q, args).fetchall()
             due = [dict(r) for r in rows]
             for r in due:
                 self._conn.execute("UPDATE alarms SET escalated_at=? WHERE id=?", (now, r["id"]))
