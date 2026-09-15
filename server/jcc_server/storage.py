@@ -269,6 +269,18 @@ class Storage:
             self._conn.commit()
             return cur.rowcount > 0
 
+    def device_command(self, device_id: str, action: str) -> bool:
+        """CCM에 전원 명령을 보낸다(재시작/전원끄기). = 실기에서는 SSH로 reboot/poweroff.
+
+        시뮬레이션에서는 그 즉시 장비를 오프라인 처리(last_seen=0)해, 명령이 하드웨어에
+        실제로 먹혔음을 화면에 반영한다. 재시작한 CCM은 다시 접속해 텔레메트리를 올리면
+        자동으로 온라인으로 돌아온다."""
+        with self._lock:
+            cur = self._conn.execute(
+                "UPDATE devices SET last_seen=0 WHERE device_id=?", (device_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
+
     def enable_all_channels(self) -> int:
         with self._lock:
             cur = self._conn.execute("UPDATE discovered SET enabled=1 WHERE enabled=0")

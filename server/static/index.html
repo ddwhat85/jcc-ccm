@@ -230,6 +230,13 @@
   .insp-btn{width:100%;margin-top:8px;padding:8px;border:1px solid var(--accent);border-radius:7px;
             background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
   .insp-btn:hover{filter:brightness(1.06)} .insp-btn.saved{background:var(--canvas);color:var(--accent)}
+  .insp-btnrow{display:flex;gap:8px;margin-top:8px}
+  .insp-btnrow .insp-btn{margin-top:0}
+  .insp-btn.ghost{background:var(--canvas);color:var(--ink);border-color:var(--rule)}
+  .insp-btn.warn{background:var(--canvas);color:var(--warn,#c67a12);border-color:var(--warn,#c67a12)}
+  .insp-btn.danger{background:var(--canvas);color:var(--crit);border-color:var(--crit)}
+  .insp-btn.danger:hover,.insp-btn.warn:hover{filter:none;color:#fff}
+  .insp-btn.danger:hover{background:var(--crit)} .insp-btn.warn:hover{background:var(--warn,#c67a12)}
   .insp-manual{margin-top:10px;padding:9px 11px;background:var(--canvas);border:1px solid var(--rule);
                border-radius:8px;font-size:11.5px;line-height:1.5;color:var(--ink-2)}
   .insp-manual .mh{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
@@ -845,6 +852,11 @@ function productArt(kind){
 }
 function sevLabel(sev){ return {crit:"경보",warn:"주의",ok:"정상",stale:"대기"}[sev]||"—"; }
 
+// CCM 전원 명령(재시작/전원끄기) = 실기에서는 SSH reboot/poweroff
+function deviceCommand(dev, action){
+  return fetch("/api/device/command",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({device_id:dev, action})}).then(r=>r.json());
+}
 // 사용자 설정 저장 = 서버에 셋팅값·알람 상/하한 기록(재탐색해도 유지)
 function setSetting(dev, key, patch){
   return fetch("/api/setting",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -895,9 +907,17 @@ function renderInspector(id, n){
       `<div class="insp-set"><label>알람 최저치</label>`+
         `<input id="set-amin" type="number" step="any" value="${num(r.alarm_min)}" placeholder="${num(r.alarm_min_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<button class="insp-btn" id="set-save">설정 저장 (CCM 적용)</button>`+
+      // 센서 전원 제어
+      `<div class="insp-sec">센서 제어</div>`+
+      `<div class="insp-btnrow">`+
+        `<button class="insp-btn ghost" id="sen-restart">↻ 재시작</button>`+
+        (r.enabled===false
+          ? `<button class="insp-btn" id="sen-toggle">전원 켜기</button>`
+          : `<button class="insp-btn danger" id="sen-toggle">전원 끄기</button>`)+
+      `</div>`+
       // 설정 매뉴얼
       (r.manual?`<div class="insp-manual"><span class="mh">제품 설정 안내</span>${escapeHtml(r.manual)}</div>`:"")+
-      `<div class="insp-row" style="margin-top:8px"><span class="k">연결</span><span class="v">RS485 → CCM</span></div>`;
+      `<div class="insp-row" style="margin-top:8px"><span class="k">연결</span><span class="v">${r.enabled===false?"⛔ 끊김 (채널 꺼짐)":"RS485 → CCM"}</span></div>`;
   } else if(n.kind==="ccm"){
     const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
     const ports = n.el.querySelectorAll(".prow").length;
@@ -911,6 +931,11 @@ function renderInspector(id, n){
       `<div class="insp-row"><span class="k">제품 품번</span><span class="v">${escapeHtml(p.part_no)}</span></div>`+
       `<div class="insp-row"><span class="k">연결 센서</span><span class="v">${ports}개</span></div>`+
       `<div class="insp-row"><span class="k">상행 연결</span><span class="v">이더넷 → 판넬</span></div>`+
+      `<div class="insp-sec">전원 제어</div>`+
+      `<div class="insp-btnrow">`+
+        `<button class="insp-btn ghost" id="ccm-restart">↻ 재시작</button>`+
+        `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`+
+      `</div>`+
       `<div class="insp-manual"><span class="mh">제품 설정 안내</span>${escapeHtml(p.manual)}</div>`;
   } else if(n.kind==="panel"){
     const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
@@ -952,6 +977,38 @@ function renderInspector(id, n){
         setTimeout(()=>{ saveBtn.textContent="설정 저장 (CCM 적용)"; saveBtn.classList.remove("saved"); saveBtn.disabled=false; }, 1400);
       }).catch(()=>{ saveBtn.textContent="저장 실패"; saveBtn.disabled=false; });
     };
+  }
+
+  // CCM 전원 제어
+  if(n.kind==="ccm"){
+    const dev = id.split(":")[1];
+    const restart = $("#ccm-restart"), shutdown = $("#ccm-shutdown");
+    if(restart) restart.onclick = ()=>{
+      restart.disabled=true; restart.textContent="명령 전송…";
+      deviceCommand(dev,"restart").then(()=>{ topoSig=""; setStatus(dev+" 재시작 명령 전송 — CCM이 재부팅 후 다시 접속합니다"); refresh(); })
+        .catch(()=> setStatus("명령 실패")); };
+    if(shutdown) shutdown.onclick = ()=>{
+      if(!confirm(dev+" 전원을 끕니다. 원격으로 다시 켤 수 없습니다. 계속할까요?")) return;
+      shutdown.disabled=true; shutdown.textContent="명령 전송…";
+      deviceCommand(dev,"shutdown").then(()=>{ topoSig=""; setStatus(dev+" 전원 끄기 명령 전송 — CCM이 종료됩니다(현장 전원 필요)"); refresh(); })
+        .catch(()=> setStatus("명령 실패")); };
+  }
+  // 센서 전원 제어(= 채널 켜기/끄기, CCM에 실제 명령)
+  const senRestart = $("#sen-restart"), senToggle = $("#sen-toggle");
+  if(senToggle){
+    const parts = id.split(":"); const dev=parts[1], key=parts[2];
+    const rec = sensorRec[dev+":"+key] || {};
+    const isOn = rec.enabled !== false;
+    senToggle.onclick = ()=>{
+      senToggle.disabled=true; senToggle.textContent="명령 전송…";
+      setChannel(dev, key, !isOn).then(()=>{ topoSig="";
+        setStatus(isOn ? "센서 채널 끄는 중 — CCM이 이 센서를 멈춥니다" : "센서 채널 켜는 중 — CCM이 폴링을 재개합니다");
+        refresh(); }).catch(()=> setStatus("명령 실패")); };
+    if(senRestart) senRestart.onclick = ()=>{   // 재시작 = 껐다가 다시 켬(폴링 재초기화)
+      senRestart.disabled=true; senRestart.textContent="재시작…";
+      setChannel(dev,key,false).then(()=> setChannel(dev,key,true)).then(()=>{ topoSig="";
+        setStatus("센서 재시작 — 채널을 껐다 켜 폴링을 재초기화합니다"); refresh(); })
+        .catch(()=> setStatus("명령 실패")); };
   }
   insp.classList.add("open");
 }

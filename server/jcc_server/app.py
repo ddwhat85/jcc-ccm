@@ -107,6 +107,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._channel()
         if parsed.path == "/api/setting":
             return self._setting()
+        if parsed.path == "/api/device/command":
+            return self._device_command()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -209,6 +211,23 @@ class Handler(BaseHTTPRequestHandler):
             alarm_max=body.get("alarm_max"),
         )
         return self._json({"ok": True, "device_id": dev, "sensor_key": key, **new})
+
+    # ── CCM 전원 명령 (재시작/전원끄기) ──────────────────────
+    def _device_command(self) -> None:
+        """{device_id, action} — CCM에 재시작/전원끄기 명령. 실기=SSH reboot/poweroff."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        dev = str(body.get("device_id", ""))
+        action = str(body.get("action", ""))
+        if not dev or action not in ("restart", "shutdown"):
+            return self._json({"error": "device_id와 action(restart|shutdown)이 필요합니다"}, 400)
+        ok = self.storage.device_command(dev, action)
+        return self._json({"ok": ok, "device_id": dev, "action": action})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:
