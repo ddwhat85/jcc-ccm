@@ -49,13 +49,37 @@ def test_infer_temperature_range():
 
 
 def test_discover_sim_shape():
+    """한 판넬 아래 CCM 여러 대가 묶이는 구조를 검사한다(대수는 고정하지 않는다).
+
+    CCM은 현장에서 늘어나므로 '2대·6개' 같은 숫자를 박으면 구성만 바꿔도 깨진다.
+    대신 변하면 안 되는 성질만 본다.
+    """
     r = discover_sim()
     assert r["panel"] == "panel-01"
-    assert len(r["ccms"]) == 2
-    total = sum(len(c["sensors"]) for c in r["ccms"])
-    assert total == 6
-    inferred = sum(1 for c in r["ccms"] for s in c["sensors"] if s["confidence"] == "추정")
-    assert inferred == 1
+    assert r["panel_name"]
+    ccms = r["ccms"]
+    assert len(ccms) >= 2                      # 판넬 하나에 CCM 여러 대
+    ids = [c["device_id"] for c in ccms]
+    assert len(ids) == len(set(ids))           # 장비 ID 중복 없음
+    for c in ccms:
+        assert c["sensors"], f"{c['device_id']}에 센서가 없다"
+        for s in c["sensors"]:
+            assert s["key"] and s["name"]
+            assert s["confidence"] in ("확정", "추정")
+        keys = [s["key"] for s in c["sensors"]]
+        assert len(keys) == len(set(keys))      # 같은 CCM 안에서 센서키 중복 없음
+    # 미확인 장비는 추정으로 분류돼야 한다(라이브러리에 없는 장비 대응)
+    assert any(s["confidence"] == "추정" for c in ccms for s in c["sensors"])
+
+
+def test_single_ccm_report_merges_into_panel():
+    """CCM 한 대가 따로 보고해도 같은 판넬로 합쳐지는지(실기 경로 형태)."""
+    r = discover_sim()
+    one = {"panel": r["panel"], "panel_name": r["panel_name"],
+           "ccms": [r["ccms"][0]]}
+    assert one["panel"] == r["panel"]
+    assert len(one["ccms"]) == 1
+    assert one["ccms"][0]["device_id"] in [c["device_id"] for c in r["ccms"]]
 
 
 if __name__ == "__main__":

@@ -129,6 +129,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._ack()
         if parsed.path == "/api/notify/test":
             return self._notify_test()
+        if parsed.path == "/api/discover/report":
+            return self._discover_report()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -184,6 +186,53 @@ class Handler(BaseHTTPRequestHandler):
             "identified": len(sensors) - inferred,
             "inferred": inferred,
         })
+
+    # ── 실기 자동 탐색 보고 (CCM 한 대가 자기 인벤토리를 올림) ──
+    def _discover_report(self) -> None:
+        """실기 경로: 각 CCM이 자기 버스를 스캔해 그 결과를 여기로 보고한다.
+
+        같은 판넬(panel)을 공유하는 CCM들이 각자 보고하면 서버가 판넬 아래로 모은다.
+        한 대가 보고해도 다른 CCM의 인벤토리는 건드리지 않는다(장비 단위로만 갱신).
+
+        받는 형태 (둘 다 허용)
+          {"panel":"panel-01","panel_name":"ESS 1호 판넬","site":"...",
+           "device_id":"ccm-2665","sensors":[{key,name,unit,kind,...}, ...]}
+          {"panel":..., "ccms":[{"device_id":..., "sensors":[...]}, ...]}
+        """
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 5_000_000:
+            return self._json({"error": "빈 요청이거나 너무 큼"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(body, dict):
+            return self._json({"error": "객체가 필요합니다"}, 400)
+
+        ccms = body.get("ccms")
+        if not ccms:                                   # 단일 CCM 보고 형태를 정규화
+            dev = str(body.get("device_id") or "")
+            if not dev:
+                return self._json({"error": "device_id 또는 ccms가 필요합니다"}, 400)
+            ccms = [{"device_id": dev, "sensors": body.get("sensors") or []}]
+        if not isinstance(ccms, list):
+            return self._json({"error": "ccms는 배열이어야 합니다"}, 400)
+
+        result = {
+            "panel": body.get("panel", ""),
+            "panel_name": body.get("panel_name", ""),
+            "site": body.get("site", ""),
+            "ccms": ccms,
+        }
+        try:
+            n = self.storage.set_discovery(result)
+        except Exception as exc:  # noqa: BLE001
+            return self._json({"error": f"저장 실패: {exc}"}, 500)
+        devs = [str(c.get("device_id", "")) for c in ccms if isinstance(c, dict)]
+        self.storage.log_event(devs[0] if len(devs) == 1 else "", "", "discover",
+                               f"자동 탐색 보고: {', '.join(devs)} · 센서 {n}개")
+        return self._json({"ok": True, "devices": devs, "sensors": n,
+                           "panel": result["panel"]})
 
     # ── 센서 채널 활성/비활성 (CCM에 보내는 명령) ────────────
     def _channel(self) -> None:
