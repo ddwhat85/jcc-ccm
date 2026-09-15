@@ -119,6 +119,7 @@ class Storage:
         self._conn.execute("PRAGMA journal_mode=WAL;")   # 동시 읽기/쓰기 견고
         self._lock = threading.Lock()
         self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
+        self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -569,6 +570,69 @@ class Storage:
         summary = {"pass": "정상", "warn": "주의 필요", "fail": "이상 감지"}[worst]
         return {"ok": True, "device_id": device_id, "sensor_key": sensor_key,
                 "target": target, "status": worst, "summary": summary, "checks": checks}
+
+    # ── 침묵 감지 (하트비트 watchdog) ────────────────────────
+    def liveness_scan(self, device_timeout: float = 60, sensor_timeout: float = 45) -> int:
+        """CCM/센서가 조용해졌는지 검사한다. '값 정상'이 아니라 '데이터가 안 옴'을 잡는다.
+
+        온라인→침묵, 침묵→복구 '전이'가 있을 때만 이벤트로 남긴다(도배 방지).
+        - CCM 침묵: last_seen이 device_timeout 넘게 갱신 안 됨 → 최우선 경보.
+        - 센서 침묵: CCM은 살아있는데 그 센서만 sensor_timeout 넘게 조용 → 죽은 센서 하나 색출.
+        한 번도 보고 안 한 센서/장비는 '침묵'이 아니라 '데이터 대기'로 보고 경보하지 않는다.
+        """
+        now = time.time()
+        with self._lock:
+            devs = {r["device_id"]: (r["last_seen"] or 0) for r in
+                    self._conn.execute("SELECT device_id, last_seen FROM devices").fetchall()}
+            latest = {(r["device_id"], r["sensor_key"]): r["ts"] for r in self._conn.execute(
+                "SELECT device_id, sensor_key, MAX(ts) AS ts FROM readings "
+                "GROUP BY device_id, sensor_key").fetchall()}
+            disc: dict[str, list[dict]] = {}
+            for r in self._conn.execute(
+                    "SELECT device_id, sensor_key, name, enabled FROM discovered").fetchall():
+                disc.setdefault(r["device_id"], []).append(dict(r))
+
+        to_log: list[tuple] = []
+        for dev, sensors in disc.items():
+            ls = devs.get(dev, 0)
+            dev_up = bool(ls) and (now - ls) < device_timeout
+            dkey = ("dev", dev)
+            prev = self._live_state.get(dkey)
+            if dev_up:
+                if prev == "down":
+                    to_log.append((dev, "", "recovered", f"CCM {dev} 통신 복구"))
+                self._live_state[dkey] = "up"
+            else:
+                if prev == "up":
+                    to_log.append((dev, "", "silent", f"CCM {dev} 응답 없음 — {int(now - ls)}초 침묵"))
+                    self._live_state[dkey] = "down"
+                elif prev is None:
+                    self._live_state[dkey] = "down"   # 시작이 침묵이면 조용히 기록(오탐 방지)
+
+            for s in sensors:                          # CCM이 살아있을 때만 센서 침묵을 따진다
+                if not s.get("enabled", 1):
+                    continue                           # 사용자가 끈 센서는 침묵 아님
+                key = s["sensor_key"]
+                lt = latest.get((dev, key))
+                if lt is None:
+                    continue                           # 한 번도 보고 안 함 → 데이터 대기
+                skey = ("sen", dev, key)
+                sprev = self._live_state.get(skey)
+                nm = s.get("name") or key
+                if dev_up and (now - lt) < sensor_timeout:
+                    if sprev == "down":
+                        to_log.append((dev, key, "recovered", f"{nm} 데이터 복구"))
+                    self._live_state[skey] = "up"
+                elif dev_up:                           # CCM은 사는데 이 센서만 조용
+                    if sprev == "up":
+                        to_log.append((dev, key, "silent", f"{nm} {int(now - lt)}초째 데이터 없음"))
+                        self._live_state[skey] = "down"
+                    elif sprev is None:
+                        self._live_state[skey] = "down"
+
+        for dev, key, et, detail in to_log:            # 락 밖에서 로깅(재진입 회피)
+            self.log_event(dev, key, et, detail, source="system")
+        return len(to_log)
 
     def close(self) -> None:
         with self._lock:

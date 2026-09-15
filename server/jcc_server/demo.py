@@ -57,18 +57,28 @@ def _loop(storage, interval: float) -> None:
     site = result.get("site", "")
     rngs = {c["device_id"]: random.Random(i) for i, c in enumerate(ccms)}
     t0 = time.time()
+    drop_until: dict = {}   # (dev,key) -> 이 시각까지 이 센서는 전송 안 함(침묵 시연)
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
     while True:
         t = time.time() - t0
+        wall = time.time()
         for c in ccms:
             dev = c["device_id"]
             rng = rngs[dev]
             readings = []
             for s in c.get("sensors") or []:
-                val = _value(s.get("key", ""), s.get("kind", ""), t, rng)
+                key = s.get("key", "")
+                sk = (dev, key)
+                # 가끔 한 센서가 한동안 침묵(케이블 탈락·센서 사망 시연) → watchdog가 잡는다.
+                if wall < drop_until.get(sk, 0):
+                    continue
+                if rng.random() < 0.012:
+                    drop_until[sk] = wall + 70   # 약 70초 침묵 시작
+                    continue
+                val = _value(key, s.get("kind", ""), t, rng)
                 readings.append({
-                    "key": s.get("key", ""), "name": s.get("name", ""),
+                    "key": key, "name": s.get("name", ""),
                     "unit": s.get("unit", ""), "value": val, "ok": val is not None,
                     "ts": round(time.time(), 3),
                 })

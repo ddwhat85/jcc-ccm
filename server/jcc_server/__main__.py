@@ -30,6 +30,10 @@ def main(argv: list[str] | None = None) -> int:
 
     storage = Storage(args.db)
 
+    # 하트비트 감시(watchdog) — 항상 켠다. CCM/센서 침묵을 경보로 올리는 핵심 안전 기능.
+    from .monitor import start as start_monitor
+    start_monitor(storage)
+
     # 데모 모드(JCC_DEMO): 배포 서버가 스스로 센서값을 생성해 공유 링크가 살아있게 한다.
     if os.environ.get("JCC_DEMO"):
         from .demo import start as start_demo
