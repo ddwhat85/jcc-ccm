@@ -144,6 +144,26 @@ class Storage:
                 except sqlite3.OperationalError:
                     pass  # 이미 있는 컬럼
             self._conn.commit()
+        self._rehydrate_state()
+
+    def _rehydrate_state(self) -> None:
+        """재시작 후 '열려 있는 경보'를 메모리 상태에 복원한다.
+
+        감지는 전이(정상→이상, 이상→정상)로만 기록하므로, 재시작으로 메모리가 비면
+        이미 열린 경보는 '정상 복귀' 전이를 영영 못 만나 유령 경보로 남는다.
+        (Render 등 클라우드는 재시작·슬립이 잦아 반드시 필요하다.)
+        """
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT device_id, sensor_key, kind FROM alarms WHERE cleared_at IS NULL").fetchall()
+        for r in rows:
+            dev, key, kind = r["device_id"] or "", r["sensor_key"] or "", r["kind"]
+            if kind == "alarm":
+                self._alarm_state[(dev, key)] = "alarm"
+            elif kind == "silent":
+                self._live_state[("sen", dev, key) if key else ("dev", dev)] = "down"
+            elif kind in ("stuck", "drift", "anomaly"):
+                self._live_state[("health", dev, key)] = kind
 
     # ── 쓰기 ────────────────────────────────────────────────
     def ingest(self, payload: dict) -> int:
@@ -332,13 +352,25 @@ class Storage:
     def set_channel(self, device_id: str, sensor_key: str, enabled: bool) -> bool:
         """센서 채널을 활성/비활성한다. = CCM에 그 채널을 켜고/끄라는 명령.
         비활성이면 이후 그 채널의 텔레메트리는 ingest에서 버려진다(하드웨어가 멈춘 것과 동일)."""
+        now = time.time()
         with self._lock:
             cur = self._conn.execute(
                 "UPDATE discovered SET enabled=? WHERE device_id=? AND sensor_key=?",
                 (1 if enabled else 0, device_id, sensor_key),
             )
+            if not enabled:
+                # 끈 센서는 이후 감시 대상에서 빠지므로, 열려 있던 경보를 여기서 닫아준다.
+                # (안 닫으면 영원히 활성 경보 목록에 남는다.)
+                self._conn.execute(
+                    "UPDATE alarms SET cleared_at=? WHERE device_id=? AND sensor_key=? AND cleared_at IS NULL",
+                    (now, device_id, sensor_key))
             self._conn.commit()
-            return cur.rowcount > 0
+            ok = cur.rowcount > 0
+        if not enabled:   # 메모리 상태도 초기화 → 다시 켤 때 깨끗하게 시작
+            self._alarm_state.pop((device_id, sensor_key), None)
+            self._live_state.pop(("sen", device_id, sensor_key), None)
+            self._live_state.pop(("health", device_id, sensor_key), None)
+        return ok
 
     def device_command(self, device_id: str, action: str) -> bool:
         """CCM에 전원 명령을 보낸다(재시작/전원끄기). = 실기에서는 SSH로 reboot/poweroff.
@@ -551,7 +583,7 @@ class Storage:
             rows = self._conn.execute(
                 "SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, "
                 "acked_at, acked_by, escalated_at FROM alarms "
-                "WHERE cleared_at IS NULL ORDER BY raised_at DESC").fetchall()
+                "WHERE cleared_at IS NULL ORDER BY raised_at DESC LIMIT 200").fetchall()
         return [dict(r) for r in rows]
 
     def ack_alarm(self, alarm_id: int, by: str = "operator") -> bool:
@@ -774,10 +806,13 @@ class Storage:
                 amax = us[1] if us[1] is not None else s.get("alarm_max")
                 within = cur_val is not None and (amin is None or cur_val >= amin) \
                     and (amax is None or cur_val <= amax)
-                if within:                             # 임계 넘으면 alarm이 담당 → 그 전만 이상탐지
-                    bl = self.baseline_stats(dev, key)
-                    if bl["anomaly"]:
-                        state, anom = "anomaly", bl
+                if not within:
+                    # 임계 초과 = 실제 경보(alarm)가 담당. 여기서 'ok'로 떨어뜨리면
+                    # 더 나빠진 상황에 '평소 수준 회복'이라는 거짓 메시지가 나간다.
+                    continue
+                bl = self.baseline_stats(dev, key)
+                if bl["anomaly"]:
+                    state, anom = "anomaly", bl
             hkey = ("health", dev, key)
             prev = self._live_state.get(hkey, "ok")
             if state != prev:
@@ -866,6 +901,23 @@ class Storage:
             elif et == "recovered":
                 self.clear_alarm(dev, key, "silent", "recovered", detail)
         return len(to_log)
+
+    # ── 보존 정리 (상시 운영용) ─────────────────────────────
+    def prune(self, readings_days: float = 14, events_days: float = 90) -> dict:
+        """오래된 이력을 지운다. 상시 운영에서 DB가 무한정 커지는 것을 막는다.
+        해제된 경보도 함께 정리하되, 열린 경보는 절대 건드리지 않는다."""
+        now = time.time()
+        with self._lock:
+            cur = self._conn.cursor()
+            n1 = cur.execute("DELETE FROM readings WHERE ts < ?",
+                             (now - readings_days * 86400,)).rowcount
+            n2 = cur.execute("DELETE FROM events WHERE ts < ?",
+                             (now - events_days * 86400,)).rowcount
+            n3 = cur.execute(
+                "DELETE FROM alarms WHERE cleared_at IS NOT NULL AND cleared_at < ?",
+                (now - events_days * 86400,)).rowcount
+            self._conn.commit()
+        return {"readings": n1, "events": n2, "alarms": n3}
 
     def close(self) -> None:
         with self._lock:
