@@ -191,6 +191,20 @@
          border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
   .node.guess-node{border-style:dashed}
   .node.disabled-node{opacity:.5;border-style:dashed}
+  /* 전원 꺼짐: 회색조 + "전원 꺼짐" 워터마크 */
+  .node.node-off{opacity:.6;filter:grayscale(.65)}
+  .node.node-off::after{content:"⏻ 전원 꺼짐";position:absolute;inset:0;display:flex;
+    align-items:center;justify-content:center;font:700 10px var(--mono);letter-spacing:.04em;
+    color:#ff453a;background:rgba(10,12,16,.34);border-radius:5px;z-index:6;pointer-events:none}
+  /* 재시작 모션: 중앙 스피너 + '재시작 중' */
+  @keyframes jcc-spin{to{transform:rotate(360deg)}}
+  .node.restarting::before{content:"";position:absolute;top:50%;left:50%;width:24px;height:24px;
+    margin:-16px 0 0 -12px;border:2.5px solid #e6b422;border-top-color:transparent;border-radius:50%;
+    z-index:7;pointer-events:none;animation:jcc-spin .7s linear infinite}
+  .node.restarting::after{content:"재시작 중…";position:absolute;left:0;right:0;bottom:7px;text-align:center;
+    font:700 9px var(--mono);letter-spacing:.03em;color:#e6b422;z-index:7;pointer-events:none}
+  .node.restarting{box-shadow:0 0 0 2px #e6b422,0 2px 7px rgba(20,24,32,.22)}
+  @media (prefers-reduced-motion:reduce){.node.restarting::before{animation:none}}
   .offbadge{display:inline-block;font:600 7.5px var(--mono);letter-spacing:.03em;
             color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule);
             border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
@@ -396,6 +410,7 @@ let selectedId = null;
 let sensorMeta = {};           // "device:key" -> {source, confidence}  탐지 메타
 let sensorRec = {};            // "device:key" -> 전체 센서 레코드(제품정보·알람·설정)
 let nodeOnline = {};           // nodeId -> bool  노드 온라인 상태(포트 색 판정용)
+let clientOff = new Set();     // 사용자가 전원 끈 노드(ccm:...) — 화면에 '전원 꺼짐' 유지
 let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노드
 let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
@@ -501,7 +516,7 @@ function buildGraph(panels){
         const disabled = r.enabled === false;   // CCM에서 채널이 꺼진 센서
         const sEl = mkNode(sId, "sensor", r.name||r.sensor_key, "SENSOR");
         if(guess) sEl.classList.add("guess-node");
-        if(disabled) sEl.classList.add("disabled-node");
+        if(disabled){ sEl.classList.add("disabled-node"); sEl.classList.add("node-off"); }
         if(guess) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="guess">추정</span>`);
         if(disabled) sEl.querySelector(".nhead").insertAdjacentHTML("beforeend", `<span class="offbadge">꺼짐</span>`);
         sEl.querySelector(".nbody").innerHTML =
@@ -591,13 +606,17 @@ function updateValues(panels){
     setPill(pEl.querySelector('[data-role="pill"]'), p.online);
     for(const c of (p.ccms||[])){
       lastSeen = Math.max(lastSeen, c.last_seen||0);
-      nodeOnline["ccm:"+c.device_id] = c.online;
+      const ccmId = "ccm:"+c.device_id;
+      const forcedOff = clientOff.has(ccmId);        // 사용자가 전원 끈 CCM
+      const cOnline = c.online && !forcedOff;
+      nodeOnline[ccmId] = cOnline;
       const cpill = pEl.querySelector(`[data-role="cpill:${cssAttr(c.device_id)}"]`);
-      setPill(cpill, c.online);
-      const cEl = nodes.get("ccm:"+c.device_id)?.el; if(!cEl) continue;
-      setPill(cEl.querySelector('[data-role="pill"]'), c.online);
+      setPill(cpill, cOnline);
+      const cEl = nodes.get(ccmId)?.el; if(!cEl) continue;
+      setPill(cEl.querySelector('[data-role="pill"]'), cOnline);
+      cEl.classList.toggle("node-off", forcedOff);   // 전원 꺼짐 워터마크
       for(const r of (c.latest||[])){
-        nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = c.online;
+        nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = cOnline;
         const sev = severity(r.sensor_key, r.value) || (r.ok?"ok":"stale");
         // CCM 안 입력행 값
         const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
@@ -1003,7 +1022,9 @@ function renderInspector(id, n){
       `<div class="insp-sec">전원 제어</div>`+
       `<div class="insp-btnrow">`+
         `<button class="insp-btn ghost" id="ccm-restart">↻ 재시작</button>`+
-        `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`+
+        (clientOff.has(id)
+          ? `<button class="insp-btn" id="ccm-poweron">⏻ 전원 켜기</button>`
+          : `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`)+
       `</div>`+
       `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">🩺 자가진단</button>`+
       `<div id="diag-out"></div>`+
@@ -1054,16 +1075,25 @@ function renderInspector(id, n){
   // CCM 전원 제어
   if(n.kind==="ccm"){
     const dev = id.split(":")[1];
-    const restart = $("#ccm-restart"), shutdown = $("#ccm-shutdown");
+    const nodeEl = nodes.get(id)?.el;
+    const spin = ()=>{ if(nodeEl){ nodeEl.classList.add("restarting");
+      setTimeout(()=>nodeEl.classList.remove("restarting"), 3500); } };
+    const restart = $("#ccm-restart"), shutdown = $("#ccm-shutdown"), poweron = $("#ccm-poweron");
     if(restart) restart.onclick = ()=>{
-      restart.disabled=true; restart.textContent="명령 전송…";
-      deviceCommand(dev,"restart").then(()=>{ topoSig=""; setStatus(dev+" 재시작 명령 전송 — CCM이 재부팅 후 다시 접속합니다"); refresh(); })
+      restart.disabled=true; restart.textContent="재시작 중…"; spin();
+      clientOff.delete(id); nodeEl && nodeEl.classList.remove("node-off");
+      deviceCommand(dev,"restart").then(()=>{ topoSig=""; setStatus(dev+" 재시작 — 재부팅 후 다시 접속합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
     if(shutdown) shutdown.onclick = ()=>{
-      if(!confirm(dev+" 전원을 끕니다. 원격으로 다시 켤 수 없습니다. 계속할까요?")) return;
-      shutdown.disabled=true; shutdown.textContent="명령 전송…";
-      deviceCommand(dev,"shutdown").then(()=>{ topoSig=""; setStatus(dev+" 전원 끄기 명령 전송 — CCM이 종료됩니다(현장 전원 필요)"); refresh(); })
-        .catch(()=> setStatus("명령 실패")); };
+      if(!confirm(dev+" 전원을 끕니다. 계속할까요?")) return;
+      clientOff.add(id); nodeEl && nodeEl.classList.add("node-off");  // 즉시 '전원 꺼짐' 표시
+      deviceCommand(dev,"shutdown").then(()=>{ setStatus(dev+" 전원 꺼짐 — CCM 종료됨"); })
+        .catch(()=> setStatus("명령 실패"));
+      renderInspector(id, n);   // 버튼을 '전원 켜기'로 갱신
+    };
+    if(poweron) poweron.onclick = ()=>{   // 데모: 다시 켜기(실기에선 현장 전원 필요)
+      clientOff.delete(id); nodeEl && nodeEl.classList.remove("node-off"); spin();
+      setStatus(dev+" 재기동 중…"); deviceCommand(dev,"restart").finally(()=>{ topoSig=""; refresh(); renderInspector(id, n); }); };
   }
   // 센서 전원 제어(= 채널 켜기/끄기, CCM에 실제 명령)
   const senRestart = $("#sen-restart"), senToggle = $("#sen-toggle");
@@ -1077,7 +1107,9 @@ function renderInspector(id, n){
         setStatus(isOn ? "센서 채널 끄는 중 — CCM이 이 센서를 멈춥니다" : "센서 채널 켜는 중 — CCM이 폴링을 재개합니다");
         refresh(); }).catch(()=> setStatus("명령 실패")); };
     if(senRestart) senRestart.onclick = ()=>{   // 재시작 = 껐다가 다시 켬(폴링 재초기화)
-      senRestart.disabled=true; senRestart.textContent="재시작…";
+      senRestart.disabled=true; senRestart.textContent="재시작 중…";
+      const sEl = nodes.get(id)?.el;
+      if(sEl){ sEl.classList.add("restarting"); setTimeout(()=>sEl.classList.remove("restarting"),3500); }
       setChannel(dev,key,false).then(()=> setChannel(dev,key,true)).then(()=>{ topoSig="";
         setStatus("센서 재시작 — 채널을 껐다 켜 폴링을 재초기화합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
