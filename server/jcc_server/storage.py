@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at  REAL,
     PRIMARY KEY (device_id, sensor_key)
 );
+-- 활동 기록(감사 로그): 재시작·전원끄기·채널 켜기끄기·설정변경·자가진단 등.
+CREATE TABLE IF NOT EXISTS events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts          REAL NOT NULL,
+    device_id   TEXT,
+    sensor_key  TEXT,
+    etype       TEXT NOT NULL,
+    detail      TEXT,
+    source      TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_events_dev_ts ON events (device_id, ts);
 """
 
 # 구버전 DB에 없던 컬럼을 채운다(있으면 조용히 무시).
@@ -401,6 +412,124 @@ class Storage:
                 (device_id, sensor_key, limit),
             ).fetchall()
         return [dict(r) for r in reversed(rows)]
+
+    # ── 활동 기록 (감사 로그) ────────────────────────────────
+    def log_event(self, device_id: str, sensor_key: str, etype: str,
+                  detail: str = "", source: str = "user") -> None:
+        """조작/사건을 한 줄 기록한다. 락을 쥔 다른 메서드 안에서 부르지 말 것
+        (재진입 데드락) — 반드시 락 밖(핸들러 계층)에서 호출한다."""
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (time.time(), device_id, sensor_key or "", etype, detail, source))
+            self._conn.commit()
+
+    def list_events(self, device_id: str = "", sensor_key: str = "",
+                    limit: int = 50) -> list[dict]:
+        """최근 이벤트(최신순). device_id/sensor_key로 좁힐 수 있다.
+        sensor_key를 주면 그 센서의 이벤트 + 소속 CCM 단위 이벤트도 함께 본다."""
+        limit = max(1, min(limit, 500))
+        q = "SELECT ts, device_id, sensor_key, etype, detail, source FROM events"
+        cond, args = [], []
+        if device_id:
+            cond.append("device_id = ?"); args.append(device_id)
+        if sensor_key:
+            cond.append("sensor_key = ?"); args.append(sensor_key)
+        if cond:
+            q += " WHERE " + " AND ".join(cond)
+        q += " ORDER BY ts DESC LIMIT ?"; args.append(limit)
+        with self._lock:
+            rows = self._conn.execute(q, args).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── 자가진단 ────────────────────────────────────────────
+    def diagnose(self, device_id: str, sensor_key: str = "") -> dict:
+        """센서/CCM 자가진단. 지금 가진 데이터로 통신·값·범위·식별을 점검한다.
+
+        실기에서는 여기에 장치 자체 점검(CCM system_check.sh, 센서 Modbus 진단
+        레지스터)을 더 붙인다. 시뮬에서는 수집 상태로 건강도를 평가한다."""
+        now = time.time()
+        dev = next((d for d in self.list_devices() if d["device_id"] == device_id), None)
+        if not dev:
+            return {"ok": False, "summary": "장치를 찾을 수 없음", "checks": []}
+
+        checks: list[dict] = []
+
+        def add(name, status, detail):  # status: pass|warn|fail
+            checks.append({"name": name, "status": status, "detail": detail})
+
+        if sensor_key:
+            s = next((x for x in dev["latest"] if x.get("sensor_key") == sensor_key), None)
+            if not s:
+                return {"ok": False, "summary": "센서를 찾을 수 없음", "checks": []}
+            # 1) 채널 활성
+            if s.get("enabled") is False:
+                add("채널 상태", "warn", "채널이 꺼져 있음(수집 중지)")
+            else:
+                add("채널 상태", "pass", "활성")
+            # 2) 수신 신선도
+            ts = s.get("ts")
+            if ts and (now - ts) < 30:
+                add("데이터 수신", "pass", f"{int(now - ts)}초 전 수신")
+            elif ts:
+                add("데이터 수신", "warn", f"{int(now - ts)}초간 갱신 없음")
+            else:
+                add("데이터 수신", "fail" if s.get("enabled") is not False else "warn", "수신 이력 없음")
+            # 3) 값 유효성
+            v = s.get("value")
+            if v is not None and s.get("ok"):
+                add("값 유효성", "pass", "정상 측정")
+            elif s.get("enabled") is False:
+                add("값 유효성", "warn", "채널 꺼짐으로 값 없음")
+            else:
+                add("값 유효성", "fail", "값 없음/읽기 오류")
+            # 4) 알람 범위
+            amin, amax = s.get("alarm_min"), s.get("alarm_max")
+            if v is not None and amin is not None and amax is not None:
+                if v < amin or v > amax:
+                    add("측정 범위", "fail", f"알람 범위({amin}~{amax}) 벗어남: {v}")
+                else:
+                    add("측정 범위", "pass", f"정상 범위({amin}~{amax}) 내")
+            # 5) 식별 신뢰도
+            if s.get("confidence") == "추정":
+                add("장치 식별", "warn", "추정 장치 — 실기 모델 확인 권장")
+            else:
+                add("장치 식별", "pass", "프로파일 확정")
+            target = s.get("name") or sensor_key
+        else:
+            # CCM 진단
+            if dev.get("online"):
+                add("연결 상태", "pass", "온라인")
+            else:
+                add("연결 상태", "fail", "오프라인 — 접속 없음")
+            sensors = dev.get("latest") or []
+            total = len(sensors)
+            live = sum(1 for x in sensors if x.get("ts") and (now - x["ts"]) < 30)
+            off = sum(1 for x in sensors if x.get("enabled") is False)
+            if total == 0:
+                add("센서 응답", "warn", "연결된 센서 없음")
+            elif live == total - off:
+                add("센서 응답", "pass", f"{live}/{total} 정상 수신")
+            elif live > 0:
+                add("센서 응답", "warn", f"{live}/{total}만 수신 중")
+            else:
+                add("센서 응답", "fail", f"{total}개 중 수신 0")
+            if off:
+                add("채널 상태", "warn", f"꺼진 채널 {off}개")
+            else:
+                add("채널 상태", "pass", "모든 채널 활성")
+            ls = dev.get("last_seen")
+            if ls:
+                add("마지막 접속", "pass" if (now - ls) < 60 else "warn",
+                    f"{int(now - ls)}초 전")
+            target = device_id
+
+        worst = "fail" if any(c["status"] == "fail" for c in checks) else \
+                ("warn" if any(c["status"] == "warn" for c in checks) else "pass")
+        summary = {"pass": "정상", "warn": "주의 필요", "fail": "이상 감지"}[worst]
+        return {"ok": True, "device_id": device_id, "sensor_key": sensor_key,
+                "target": target, "status": worst, "summary": summary, "checks": checks}
 
     def close(self) -> None:
         with self._lock:

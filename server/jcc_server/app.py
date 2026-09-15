@@ -78,6 +78,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"devices": self.storage.list_devices()})
         if path == "/api/panels":
             return self._json({"panels": self.storage.list_panels()})
+        if path == "/api/events":
+            q = parse_qs(parsed.query)
+            dev = (q.get("device_id") or [""])[0]
+            key = (q.get("sensor_key") or [""])[0]
+            try:
+                limit = int((q.get("limit") or ["50"])[0])
+            except ValueError:
+                limit = 50
+            return self._json({"events": self.storage.list_events(dev, key, limit)})
 
         m = re.fullmatch(r"/api/devices/([^/]+)/history", path)
         if m:
@@ -109,6 +118,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._setting()
         if parsed.path == "/api/device/command":
             return self._device_command()
+        if parsed.path == "/api/diagnose":
+            return self._diagnose()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -185,6 +196,9 @@ class Handler(BaseHTTPRequestHandler):
         if not dev or not key:
             return self._json({"error": "device_id와 sensor_key가 필요합니다"}, 400)
         ok = self.storage.set_channel(dev, key, enabled)
+        if ok:
+            self.storage.log_event(dev, key, "channel_on" if enabled else "channel_off",
+                                   "센서 켜기" if enabled else "센서 끄기")
         return self._json({"ok": ok, "device_id": dev, "sensor_key": key, "enabled": enabled})
 
     # ── 센서 설정 (셋팅값·알람 상/하한) ──────────────────────
@@ -210,6 +224,8 @@ class Handler(BaseHTTPRequestHandler):
             alarm_min=body.get("alarm_min"),
             alarm_max=body.get("alarm_max"),
         )
+        detail = f"셋팅={new.get('setpoint')} 알람={new.get('alarm_min')}~{new.get('alarm_max')}"
+        self.storage.log_event(dev, key, "setting", detail)
         return self._json({"ok": True, "device_id": dev, "sensor_key": key, **new})
 
     # ── CCM 전원 명령 (재시작/전원끄기) ──────────────────────
@@ -227,7 +243,29 @@ class Handler(BaseHTTPRequestHandler):
         if not dev or action not in ("restart", "shutdown"):
             return self._json({"error": "device_id와 action(restart|shutdown)이 필요합니다"}, 400)
         ok = self.storage.device_command(dev, action)
+        if ok:
+            self.storage.log_event(dev, "", action,
+                                   "재시작 명령" if action == "restart" else "전원 끄기 명령")
         return self._json({"ok": ok, "device_id": dev, "action": action})
+
+    # ── 자가진단 ────────────────────────────────────────────
+    def _diagnose(self) -> None:
+        """{device_id, sensor_key?} — 센서/CCM 자가진단 실행 후 리포트 반환."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 100_000:
+            return self._json({"error": "빈 요청"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        dev = str(body.get("device_id", ""))
+        key = str(body.get("sensor_key", ""))
+        if not dev:
+            return self._json({"error": "device_id가 필요합니다"}, 400)
+        report = self.storage.diagnose(dev, key)
+        if report.get("ok"):
+            self.storage.log_event(dev, key, "diagnose", "자가진단: " + report.get("summary", ""))
+        return self._json(report)
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:

@@ -201,7 +201,7 @@
   .inspector{flex:0 0 0;width:0;background:var(--surface);border-left:1px solid var(--rule);
              overflow:hidden;transition:flex-basis .16s ease}
   .inspector.open{flex-basis:308px;width:308px}
-  .insp-in{width:308px;padding:16px 18px}
+  .insp-in{width:308px;padding:16px 18px;box-sizing:border-box;height:100%;overflow-y:auto;overscroll-behavior:contain}
   .insp-kind{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .insp-title{font-weight:700;font-size:17px;margin:2px 0 12px;letter-spacing:-.01em}
   .insp-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
@@ -241,6 +241,27 @@
                border-radius:8px;font-size:11.5px;line-height:1.5;color:var(--ink-2)}
   .insp-manual .mh{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
                    display:block;margin-bottom:4px}
+  /* 활동 기록(로그) */
+  .evt-list{margin-top:2px;font-size:11.5px}
+  .evt{display:flex;gap:8px;align-items:baseline;padding:5px 0;border-bottom:1px solid var(--rule)}
+  .evt .et{color:var(--ink-3);font-family:var(--mono);font-size:10px;white-space:nowrap;flex:none;min-width:52px}
+  .evt .el{color:var(--ink-2);flex:1}
+  .evt .ed{width:6px;height:6px;border-radius:50%;flex:none;align-self:center;background:var(--ink-3)}
+  .evt .ed.warn{background:var(--warn,#c67a12)} .evt .ed.crit{background:var(--crit)}
+  .evt .ed.ok{background:var(--ok,#2f9e54)} .evt .ed.info{background:var(--accent)}
+  .evt-empty{color:var(--ink-3);font-size:11.5px;padding:6px 0}
+  /* 자가진단 리포트 */
+  .diag{margin-top:8px;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .diag-head{display:flex;align-items:center;gap:8px;padding:8px 11px;font-weight:700;font-size:12.5px}
+  .diag-head.pass{background:var(--accent-soft);color:var(--accent)}
+  .diag-head.warn{background:rgba(198,122,18,.14);color:var(--warn,#c67a12)}
+  .diag-head.fail{background:rgba(200,60,60,.14);color:var(--crit)}
+  .diag-head .dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+  .diag-row{display:flex;gap:8px;padding:6px 11px;font-size:11.5px;border-top:1px solid var(--rule)}
+  .diag-row .dn{color:var(--ink-2);flex:none;min-width:64px}
+  .diag-row .dd{color:var(--ink-3);flex:1;text-align:right}
+  .diag-row .ds{flex:none;font-weight:700}
+  .diag-row .ds.pass{color:var(--ok,#2f9e54)} .diag-row .ds.warn{color:var(--warn,#c67a12)} .diag-row .ds.fail{color:var(--crit)}
 
   /* ── 이력 차트 오버레이 ── */
   .overlay{position:fixed;inset:0;background:rgba(10,12,16,.55);display:none;
@@ -862,6 +883,50 @@ function setSetting(dev, key, patch){
   return fetch("/api/setting",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({device_id:dev, sensor_key:key, ...patch})}).then(r=>r.json());
 }
+// 활동 기록(로그) — 이벤트 종류별 라벨·색
+const EVENT_META = {
+  restart:     {label:"재시작 명령",  dot:"info"},
+  shutdown:    {label:"전원 끄기",    dot:"crit"},
+  channel_off: {label:"센서 끄기",    dot:"warn"},
+  channel_on:  {label:"센서 켜기",    dot:"ok"},
+  setting:     {label:"설정 변경",    dot:"info"},
+  diagnose:    {label:"자가진단",      dot:"info"},
+};
+function loadEvents(dev, key){
+  const el = $("#evt-list"); if(!el) return;
+  const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
+  fetch("/api/events?"+qs,{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const evs = d.events||[];
+    if(!evs.length){ el.innerHTML = `<div class="evt-empty">아직 기록 없음 — 조작하면 여기 남습니다</div>`; return; }
+    el.innerHTML = evs.map(e=>{
+      const m = EVENT_META[e.etype] || {label:e.etype, dot:"info"};
+      const txt = e.etype==="setting" ? (m.label+" · "+(e.detail||"")) :
+                  e.etype==="diagnose" ? (e.detail||m.label) : m.label;
+      return `<div class="evt"><span class="ed ${m.dot}"></span>`+
+             `<span class="et">${ago(e.ts)||"방금"}</span>`+
+             `<span class="el">${escapeHtml(txt)}</span></div>`;
+    }).join("");
+  }).catch(()=>{ el.innerHTML = `<div class="evt-empty">기록을 불러오지 못했습니다</div>`; });
+}
+// 자가진단 실행 → 리포트 렌더
+function runDiagnose(dev, key, btn){
+  const out = $("#diag-out"); if(!out) return;
+  if(btn){ btn.disabled=true; btn.textContent="진단 중…"; }
+  out.innerHTML = `<div class="evt-empty">진단 실행 중…</div>`;
+  fetch("/api/diagnose",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({device_id:dev, sensor_key:key||""})}).then(r=>r.json()).then(rep=>{
+    if(btn){ btn.disabled=false; btn.textContent="🩺 자가진단"; }
+    if(!rep.ok){ out.innerHTML = `<div class="evt-empty">${escapeHtml(rep.summary||"진단 실패")}</div>`; return; }
+    const rows = (rep.checks||[]).map(c=>
+      `<div class="diag-row"><span class="dn">${escapeHtml(c.name)}</span>`+
+      `<span class="dd">${escapeHtml(c.detail)}</span>`+
+      `<span class="ds ${c.status}">${({pass:"정상",warn:"주의",fail:"이상"})[c.status]||c.status}</span></div>`).join("");
+    out.innerHTML = `<div class="diag"><div class="diag-head ${rep.status}">`+
+      `<span class="dot"></span>자가진단 결과 — ${escapeHtml(rep.summary)}</div>${rows}</div>`;
+    loadEvents(dev, key);   // 진단도 기록되므로 로그 새로고침
+  }).catch(()=>{ if(btn){btn.disabled=false;btn.textContent="🩺 자가진단";}
+    out.innerHTML = `<div class="evt-empty">진단 실패</div>`; });
+}
 // 인스펙터가 열려있을 때 현재 측정값·상태만 제자리 갱신
 function updateInspLive(value, unit, sev){
   const v=$("#insp-live-v"); if(v) v.textContent = fmtValue(value);
@@ -915,6 +980,10 @@ function renderInspector(id, n){
           ? `<button class="insp-btn" id="sen-toggle">전원 켜기</button>`
           : `<button class="insp-btn danger" id="sen-toggle">전원 끄기</button>`)+
       `</div>`+
+      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">🩺 자가진단</button>`+
+      `<div id="diag-out"></div>`+
+      // 활동 기록(로그)
+      `<div class="insp-sec">활동 기록</div><div class="evt-list" id="evt-list">불러오는 중…</div>`+
       // 설정 매뉴얼
       (r.manual?`<div class="insp-manual"><span class="mh">제품 설정 안내</span>${escapeHtml(r.manual)}</div>`:"")+
       `<div class="insp-row" style="margin-top:8px"><span class="k">연결</span><span class="v">${r.enabled===false?"⛔ 끊김 (채널 꺼짐)":"RS485 → CCM"}</span></div>`;
@@ -936,6 +1005,9 @@ function renderInspector(id, n){
         `<button class="insp-btn ghost" id="ccm-restart">↻ 재시작</button>`+
         `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`+
       `</div>`+
+      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">🩺 자가진단</button>`+
+      `<div id="diag-out"></div>`+
+      `<div class="insp-sec">활동 기록</div><div class="evt-list" id="evt-list">불러오는 중…</div>`+
       `<div class="insp-manual"><span class="mh">제품 설정 안내</span>${escapeHtml(p.manual)}</div>`;
   } else if(n.kind==="panel"){
     const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
@@ -1009,6 +1081,16 @@ function renderInspector(id, n){
       setChannel(dev,key,false).then(()=> setChannel(dev,key,true)).then(()=>{ topoSig="";
         setStatus("센서 재시작 — 채널을 껐다 켜 폴링을 재초기화합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
+  }
+
+  // 자가진단 + 활동 기록 (센서·CCM 공통)
+  if(n.kind==="sensor" || n.kind==="ccm"){
+    const parts = id.split(":");
+    const dev = parts[1];
+    const key = n.kind==="sensor" ? parts[2] : "";
+    loadEvents(dev, key);
+    const diagBtn = $("#node-diag");
+    if(diagBtn) diagBtn.onclick = ()=> runDiagnose(dev, key, diagBtn);
   }
   insp.classList.add("open");
 }
