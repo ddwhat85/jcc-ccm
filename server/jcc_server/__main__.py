@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 from . import __version__
@@ -15,10 +16,15 @@ from .storage import Storage
 
 
 def main(argv: list[str] | None = None) -> int:
+    # 클라우드 호스팅(Render/Railway 등)은 리스닝 포트를 환경변수 PORT로 준다.
+    # 환경변수가 있으면 그것을 기본값으로 쓰고, 명령행 인자가 있으면 그게 우선한다.
+    env_port = int(os.environ.get("PORT") or os.environ.get("JCC_PORT") or 8000)
+    env_host = os.environ.get("HOST") or "0.0.0.0"
+    env_db = os.environ.get("JCC_DB") or "jcc.db"
     parser = argparse.ArgumentParser(prog="jcc_server", description="JCC-CCM 수신 서버")
-    parser.add_argument("--host", default="0.0.0.0", help="바인드 주소 (기본 0.0.0.0)")
-    parser.add_argument("--port", "-p", type=int, default=8000, help="포트 (기본 8000)")
-    parser.add_argument("--db", default="jcc.db", help="SQLite 파일 경로 (기본 jcc.db)")
+    parser.add_argument("--host", default=env_host, help="바인드 주소 (기본 0.0.0.0, 환경변수 HOST)")
+    parser.add_argument("--port", "-p", type=int, default=env_port, help="포트 (기본 8000, 환경변수 PORT)")
+    parser.add_argument("--db", default=env_db, help="SQLite 파일 경로 (기본 jcc.db, 환경변수 JCC_DB)")
     parser.add_argument("--version", action="version", version=f"jcc-server {__version__}")
     args = parser.parse_args(argv)
 
