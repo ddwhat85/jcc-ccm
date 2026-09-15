@@ -1,9 +1,15 @@
-# Render 배포 청사진(Blueprint). Render 대시보드에서 이 저장소를 연결하면
-# 이 파일을 읽어 서버를 자동으로 띄운다. (New + → Blueprint → 이 repo 선택)
+# Render 배포 청사진(Blueprint).
+# Render 대시보드에서 이 저장소를 연결하면 이 파일을 읽어 서버를 자동으로 띄운다.
+#   New +  →  Blueprint  →  이 저장소 선택  →  Apply
 #
 # 우리 서버는 파이썬 표준 라이브러리만 쓰므로 설치할 의존성이 없다.
-# 무료 플랜은 일정 시간 미사용 시 잠들고, 디스크가 재배포 때 초기화된다
-# (검토용으로는 충분 — [AI 자동연결] 누르면 토폴로지가 다시 생성된다).
+#
+# ⚠ 무료 플랜 특성
+#   - 약 15분 미사용 시 잠들고, 다음 접속 때 30~50초 걸려 깨어난다.
+#   - 디스크가 재배포·재시작 때 초기화된다(SQLite DB가 비워짐).
+#     → 데모 모드가 켜져 있어 기동하면 자동 탐색으로 화면이 다시 채워진다.
+#     → 실제 현장 데이터를 영구 보관하려면 유료 플랜(퍼시스턴트 디스크)이나
+#        PostgreSQL로 옮겨야 한다.
 services:
   - type: web
     name: jcc-ccm
@@ -12,6 +18,7 @@ services:
     rootDir: server
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python -m jcc_server"
+    healthCheckPath: /health          # Render가 이 경로로 생존 확인
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
@@ -21,3 +28,35 @@ services:
       # 실제 CCM으로 운영할 땐 이 값을 지운다(진짜 텔레메트리만 받게).
       - key: JCC_DEMO
         value: "1"
+      # 감시 주기·타임아웃(초). 실기 운영 시 현장 전송주기에 맞춰 조정.
+      - key: JCC_MONITOR_INTERVAL
+        value: "10"
+      - key: JCC_DEVICE_TIMEOUT
+        value: "60"
+      - key: JCC_SENSOR_TIMEOUT
+        value: "45"
+      # 미확인 경보를 몇 초 후 상향(에스컬레이션)할지
+      - key: JCC_ESCALATE_AFTER
+        value: "120"
+      # 이력 보존 기간(일). 무한 증가 방지.
+      - key: JCC_KEEP_READING_DAYS
+        value: "14"
+      - key: JCC_KEEP_EVENT_DAYS
+        value: "90"
+      # ── 알림 채널(선택) ─────────────────────────────────
+      # 값을 넣으면 그 채널로 경보가 발송된다. 비워두면 발송 안 함.
+      # Render 대시보드 → Environment 에서 직접 넣는 것을 권장(키는 코드에 넣지 말 것).
+      - key: JCC_WEBHOOK
+        sync: false                   # 대시보드에서 입력(저장소에 남기지 않음)
+      - key: JCC_ALIGO_KEY
+        sync: false
+      - key: JCC_ALIGO_USER
+        sync: false
+      - key: JCC_ALIGO_SENDER
+        sync: false
+      - key: JCC_ALIGO_RECEIVERS
+        sync: false
+      - key: JCC_ALIGO_SENDERKEY
+        sync: false
+      - key: JCC_ALIGO_TPL
+        sync: false

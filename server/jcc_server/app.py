@@ -80,6 +80,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"panels": self.storage.list_panels()})
         if path == "/api/alarms":
             return self._json({"alarms": self.storage.list_active_alarms()})
+        if path == "/api/notify/status":
+            from .notify import configured_channels
+            return self._json({"channels": configured_channels()})
         if path == "/api/events":
             q = parse_qs(parsed.query)
             dev = (q.get("device_id") or [""])[0]
@@ -124,6 +127,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._diagnose()
         if parsed.path == "/api/alarm/ack":
             return self._ack()
+        if parsed.path == "/api/notify/test":
+            return self._notify_test()
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
@@ -287,6 +292,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "alarm_id가 필요합니다"}, 400)
         ok = self.storage.ack_alarm(alarm_id, str(body.get("by") or "operator"))
         return self._json({"ok": ok, "alarm_id": alarm_id})
+
+    # ── 알림 테스트 발송 ─────────────────────────────────────
+    def _notify_test(self) -> None:
+        """설정된 알림 채널로 테스트 메시지를 1건 보낸다(운영자가 직접 누를 때만)."""
+        from .notify import configured_channels, dispatch
+        ch = configured_channels()
+        if not ch:
+            return self._json({"ok": False, "channels": [],
+                               "error": "설정된 알림 채널이 없습니다. 환경변수(JCC_ALIGO_* / JCC_WEBHOOK)를 확인하세요."}, 400)
+        result = dispatch({
+            "device_id": "TEST", "kind": "test", "severity": "warn",
+            "detail": "테스트 발송입니다. 이 메시지가 보이면 알림 연결이 정상입니다.",
+            "raised_at": time.time(),
+        }, "테스트")
+        self.storage.log_event("", "", "notify_test", f"알림 테스트 발송: {', '.join(ch)}")
+        return self._json({"ok": True, "channels": ch, "result": result})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:

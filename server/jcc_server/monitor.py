@@ -27,12 +27,26 @@ def start(storage, interval: float = 10) -> None:
         # 시작 직후에는 아직 데이터가 안 쌓였을 수 있어 한 박자 쉬고 시작한다.
         time.sleep(interval)
         last_prune = 0.0
+        notified: set = set()
+        first_pass = True          # 재시작 직후 기존 경보를 다시 발송하지 않기 위함
         while True:
             try:
                 storage.liveness_scan(device_timeout=dev_to, sensor_timeout=sen_to)
                 storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트·이상 감지
+
+                # 새로 뜬 위험(crit) 경보는 즉시 알림 발송
+                active = storage.list_active_alarms()
+                notified.intersection_update({a["id"] for a in active})   # 해제된 건 잊는다
+                for a in active:
+                    if a["id"] in notified:
+                        continue
+                    notified.add(a["id"])
+                    if not first_pass and a.get("severity") == "crit":
+                        dispatch(a, "발생")
+                first_pass = False
+
                 for a in storage.escalate_due(after_seconds=escalate_after):  # 미확인 경보 상향→알림
-                    dispatch(a)
+                    dispatch(a, "상향")
                 now = time.time()
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리
                     last_prune = now

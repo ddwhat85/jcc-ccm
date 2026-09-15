@@ -387,6 +387,8 @@
       <button class="mb-title">도구</button>
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
+        <div class="mb-div"></div>
+        <button class="mb-item" id="btn-notify-test">알림 테스트 발송</button>
       </div>
     </div>
 
@@ -979,9 +981,13 @@ const EVENT_META = {
   stuck_clear: {label:"변동 정상화",  dot:"ok",   ic:"✓"},
   anomaly:     {label:"이상 조기감지", dot:"warn", ic:"🧠"},
   anomaly_clear:{label:"평소 회복",    dot:"ok",   ic:"✓"},
+  ack:         {label:"경보 확인",    dot:"ok",   ic:"☑"},
+  escalate:    {label:"경보 상향",    dot:"crit", ic:"⬆"},
+  notify_test: {label:"알림 테스트",  dot:"info", ic:"📨"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
-const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift","stuck_clear","anomaly","anomaly_clear"]);
+const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_clear","silent","recovered","stuck","drift",
+  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -1320,6 +1326,16 @@ $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 �
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
 $("#btn-run").onclick = ()=>{ setStatus("실행 — 데이터 갱신 중"); refresh(); };
+// 알림(카카오 알림톡·문자) 연결 확인 — 운영자가 직접 누를 때만 실제 발송된다
+$("#btn-notify-test").onclick = ()=>{
+  setStatus("알림 테스트 발송 중…");
+  fetch("/api/notify/test",{method:"POST"}).then(r=>r.json()).then(d=>{
+    if(!d.ok){ setStatus("⛔ "+(d.error||"발송 실패")); return; }
+    const okCh = (d.result||[]).filter(r=>r.ok).map(r=>r.channel);
+    setStatus(okCh.length ? "알림 발송 성공 — "+okCh.join(", ")
+                          : "발송 시도됨(응답 확인 필요) — "+(d.channels||[]).join(", "));
+  }).catch(()=> setStatus("발송 실패"));
+};
 $("#btn-discover").onclick = ()=>{
   const b = $("#btn-discover"); if(b.classList.contains("busy")) return;
   b.classList.add("busy"); setStatus("센서 버스 탐색 중… 물려 있는 장비를 식별합니다");
