@@ -191,8 +191,9 @@
          border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
   /* ── AI 자동연결 등장 연출 ── */
   .node.reveal-hide{opacity:0;transform:scale(.88);pointer-events:none}
-  .node.reveal-in{animation:nodepop .42s cubic-bezier(.2,.9,.3,1.25)}
-  @keyframes nodepop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+  /* 부드러운 감속(ease-out-quint). 산업용 화면이라 튕기는 연출은 쓰지 않는다. */
+  .node.reveal-in{animation:nodepop .42s cubic-bezier(.22,1,.36,1)}
+  @keyframes nodepop{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
   /* 배선이 그려지는 연출(양 끝이 나타난 순간 1회) */
   @keyframes wiredraw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
   .wirepath.draw{stroke-dasharray:100!important;stroke-dashoffset:100;
