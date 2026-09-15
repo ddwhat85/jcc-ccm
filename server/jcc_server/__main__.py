@@ -29,6 +29,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     storage = Storage(args.db)
+
+    # 데모 모드(JCC_DEMO): 배포 서버가 스스로 센서값을 생성해 공유 링크가 살아있게 한다.
+    if os.environ.get("JCC_DEMO"):
+        from .demo import start as start_demo
+        start_demo(storage)
+        print("데모 모드 ON — 서버가 시뮬레이션 텔레메트리를 자동 생성합니다")
+
     httpd = make_server(args.host, args.port, storage)
     print(f"JCC-CCM 서버 시작 → http://{args.host}:{args.port}  (DB: {args.db})")
     print("  수집:      POST /v1/telemetry")

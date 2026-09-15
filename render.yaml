@@ -17,3 +17,7 @@ services:
         value: "1"
       - key: PYTHONUTF8
         value: "1"
+      # 데모 모드: 클라우드엔 실제 CCM이 없으므로 서버가 시뮬레이션 값을 자동 생성.
+      # 실제 CCM으로 운영할 땐 이 값을 지운다(진짜 텔레메트리만 받게).
+      - key: JCC_DEMO
+        value: "1"
