@@ -49,7 +49,7 @@ PROFILES = [
     },
     {
         "ident": "INFRASENSING-H2", "brand": "InfraSensing", "product": "Hydrogen (H2) Sensor",
-        "part_no": "H2-LEL", "photo": "img/infrasensing-h2.jpg",
+        "part_no": "H2-LEL", "photo": "img/infrasensing-h2.png",
         "manual": "0–100% LEL 수소 감지(보정 불요형). ESS 화재 전조. 4~20mA. 정기 기능시험 권장. "
                   "릴레이 3개(A·B 가스경보 / C 센서고장). C는 Fail-safe라 정전 시에도 고장으로 감지된다.",
         # 실제 제품의 릴레이 구성. 경보 설정값과 접점 기본모드(NO/NC)를 함께 들고 다닌다.
@@ -79,6 +79,7 @@ PROFILE_BY_IDENT = {p["ident"]: p for p in PROFILES}
 # CCM 게이트웨이 자체 제품 정보 (노드 인스펙터용)
 CCM_PRODUCT = {
     "brand": "Turck", "product": "IM18-CCM50-MTI/24VDC", "part_no": "100022405",
+    "photo": "img/turck-ccm50.png",
     "manual": "Debian 리눅스 컨디션 모니터링 게이트웨이. RS485/CAN·아날로그·디지털 I/O. "
               "SSH 포트 1522. 자체 커넥터로 클라우드 전송. 24VDC 공급.",
 }

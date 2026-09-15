@@ -1071,6 +1071,7 @@ function select(id){
 }
 // CCM 게이트웨이 제품정보(정적) — profiles.CCM_PRODUCT와 동일
 const CCM_PRODUCT = {brand:"Turck", product:"IM18-CCM50-MTI/24VDC", part_no:"100022405",
+  photo:"img/turck-ccm50.png",
   manual:"Debian 리눅스 컨디션 모니터링 게이트웨이. RS485/CAN·아날로그·디지털 I/O. SSH 포트 1522. 자체 커넥터로 클라우드 전송. 24VDC 공급."};
 
 // 제품 사진(사진 파일이 없을 때 종류별 도식). currentColor=강조색.
@@ -1284,8 +1285,12 @@ function renderInspector(id, n){
     const on = n.el.querySelector('[data-role="pill"]')?.textContent==="ON";
     const ports = n.el.querySelectorAll(".prow").length;
     const p = CCM_PRODUCT;
+    const ccmPhoto = (p.photo
+      ? `<img class="pphoto" src="${escapeHtml(p.photo)}" alt="${escapeHtml(p.product)}" `+
+        `onerror="this.remove()" onload="const g=this.parentNode.querySelector('svg'); if(g) g.style.display='none';">`
+      : "") + productArt("gateway");
     html += `<div class="insp-kind">${kindKo}</div>`+
-      `<div class="insp-photo">${productArt("gateway")}</div>`+
+      `<div class="insp-photo">${ccmPhoto}</div>`+
       `<div class="insp-brand">${escapeHtml(p.brand)}</div>`+
       `<div class="insp-title">${escapeHtml(p.product)}</div>`+
       `<div class="insp-row"><span class="k">상태</span><span class="v">${on?"온라인":"오프라인"}</span></div>`+
