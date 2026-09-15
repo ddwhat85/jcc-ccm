@@ -13,8 +13,6 @@ import random
 import threading
 import time
 
-from .app import _run_discovery
-
 
 def _value(key: str, kind: str, t: float, rng: random.Random):
     """센서 종류에 맞는 그럴듯한 값. demo_feed.py와 같은 패턴."""
@@ -43,19 +41,30 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
     return round(v, 2)
 
 
-def _loop(storage, interval: float) -> None:
-    # 1) 자동 탐색을 한 번 돌려 토폴로지를 만든다(실기의 [AI 자동연결]과 동일).
-    try:
-        result = _run_discovery()
-        storage.set_discovery(result)
-    except Exception:  # noqa: BLE001 - 데모는 실패해도 서버를 죽이지 않는다
-        return
+def _inventory(storage) -> list[dict]:
+    """탐색된 장비 구성을 저장소에서 읽어온다(탐색 전이면 빈 목록)."""
+    out = []
+    for d in storage.list_devices():
+        if not d.get("discovered"):
+            continue
+        out.append({
+            "device_id": d["device_id"], "panel": d.get("panel", ""),
+            "panel_name": d.get("panel_name", ""), "site": d.get("site", ""),
+            "sensors": [{"key": s["sensor_key"], "name": s.get("name", ""),
+                         "unit": s.get("unit", ""), "kind": s.get("kind", "")}
+                        for s in (d.get("latest") or []) if s.get("enabled", True)],
+        })
+    return out
 
-    ccms = result.get("ccms") or []
-    panel = result.get("panel", "")
-    panel_name = result.get("panel_name", "")
-    site = result.get("site", "")
-    rngs = {c["device_id"]: random.Random(i) for i, c in enumerate(ccms)}
+
+def _loop(storage, interval: float) -> None:
+    # 1) 자동 탐색이 일어날 때까지 기다린다.
+    #    처음 화면은 반드시 비어 있어야 하고, [AI 자동연결]을 눌러야 장비가 나타난다.
+    #    (데모가 미리 탐색해버리면 그 '발견되는 과정'을 보여줄 수 없다.)
+    while not _inventory(storage):
+        time.sleep(2)
+
+    rngs: dict = {}
     t0 = time.time()
     drop_until: dict = {}   # (dev,key) -> 이 시각까지 이 센서는 전송 안 함(침묵 시연)
     stuck_until: dict = {}  # (dev,key) -> 이 시각까지 같은 값 반복(고착 시연)
@@ -66,12 +75,15 @@ def _loop(storage, interval: float) -> None:
     ANOM = {"h2": 1.4, "current": 26, "vibration": 3.1, "temp": 41, "humidity": 74}
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
+    #    구성을 매번 다시 읽어, 나중에 CCM이 추가·삭제돼도 자동으로 따라간다.
     while True:
         t = time.time() - t0
         wall = time.time()
+        ccms = _inventory(storage)
         for c in ccms:
             dev = c["device_id"]
-            rng = rngs[dev]
+            rng = rngs.setdefault(dev, random.Random(hash(dev) & 0xffff))
+            panel, panel_name, site = c["panel"], c["panel_name"], c["site"]
             readings = []
             for s in c.get("sensors") or []:
                 key = s.get("key", "")

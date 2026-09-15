@@ -189,6 +189,18 @@
   .guess{display:inline-block;font:600 7.5px var(--mono);letter-spacing:.03em;
          color:var(--warn);background:var(--warn-soft);border:1px solid var(--warn);
          border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
+  /* ── AI 자동연결 등장 연출 ── */
+  .node.reveal-hide{opacity:0;transform:scale(.88);pointer-events:none}
+  .node.reveal-in{animation:nodepop .42s cubic-bezier(.2,.9,.3,1.25)}
+  @keyframes nodepop{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:none}}
+  /* 배선이 그려지는 연출(양 끝이 나타난 순간 1회) */
+  @keyframes wiredraw{from{stroke-dashoffset:100}to{stroke-dashoffset:0}}
+  .wirepath.draw{stroke-dasharray:100!important;stroke-dashoffset:100;
+                 animation:wiredraw .5s ease forwards!important}
+  @media (prefers-reduced-motion:reduce){
+    .node.reveal-in{animation:none}
+    .wirepath.draw{animation:none!important;stroke-dashoffset:0}
+  }
   .node.guess-node{border-style:dashed}
   .node.disabled-node{opacity:.5;border-style:dashed}
   /* 전원 꺼짐: 회색조 + "전원 꺼짐" 워터마크 */
@@ -476,6 +488,23 @@ let sensorMeta = {};           // "device:key" -> {source, confidence}  탐지 �
 let sensorRec = {};            // "device:key" -> 전체 센서 레코드(제품정보·알람·설정)
 let nodeOnline = {};           // nodeId -> bool  노드 온라인 상태(포트 색 판정용)
 let clientOff = new Set();     // 사용자가 전원 끈 노드(ccm:...) — 화면에 '전원 꺼짐' 유지
+// AI 자동연결 등장 연출: revealSet이 있으면 그 안의 노드만 보이고, 양 끝이 다 보이는
+// 배선만 그린다(=아직 안 나온 장비의 선은 숨김). null이면 평소처럼 전부 표시.
+let revealSet = null;
+let revealing = false;
+let pendingReveal = false;     // [AI 자동연결] 직후 한 번만 연출
+let drawnWires = new Set();    // 그리기 애니메이션을 이미 보여준 배선
+
+// 포트가 속한 노드 id (연출 중 배선 표시 판정용)
+function portNodeId(portId){
+  const el = $(`.graph [data-port="${cssAttr2(portId)}"]`);
+  return el ? (el.closest(".node")?.dataset.id || null) : null;
+}
+function wireShown(fromId, toId){
+  if(!revealSet) return true;
+  const a = portNodeId(fromId), b = portNodeId(toId);
+  return !!(a && b && revealSet.has(a) && revealSet.has(b));
+}
 let userNodes = loadUser();    // [{id,kind,name}]  팔레트로 추가한 노드
 let userCounter = userNodes.reduce((m,n)=>Math.max(m, +((n.id.split(":")[2])||0)),0);
 function loadUser(){ try{ return JSON.parse(localStorage.getItem(LS_USER)||"[]"); }catch(e){ return []; } }
@@ -514,9 +543,16 @@ function refresh(){
     const panels = data.panels||[];
     $("#empty").style.display = panels.length ? "none" : "flex";
     const sig = topoSignature(panels);
-    if(sig !== topoSig){ buildGraph(panels); topoSig = sig; }
+    if(sig !== topoSig){
+      buildGraph(panels); topoSig = sig;
+      if(pendingReveal && panels.length){    // [AI 자동연결] 직후 한 번만 연출
+        pendingReveal = false;
+        runReveal(panels);
+        return;                              // 연출이 화면을 직접 그린다
+      }
+    }
     updateValues(panels);
-    requestAnimationFrame(drawWires);
+    if(!revealing) requestAnimationFrame(drawWires);   // 연출 중에는 끼어들지 않는다
   }).catch(()=> setConn(false));
 }
 
@@ -660,6 +696,68 @@ function applyPositions(){
   g.style.width = (maxR+60)+"px"; g.style.height = (maxB+60)+"px";
 }
 
+// ── AI 자동연결 등장 연출 ─────────────────────────────
+// 클라우드·판넬 → CCM → 센서 순서로 하나씩 나타나며 선이 이어진다.
+// 자동 탐색이 '무엇을 어떤 순서로 찾아냈는지'를 눈으로 보여주는 연출.
+async function runReveal(panels){
+  const wait = (ms)=> new Promise(r=>setTimeout(r, ms));
+  const redraw = ()=>{ colorPorts(); drawWires(); };
+  const show = (id)=>{
+    const n = nodes.get(id); if(!n) return;
+    revealSet.add(id);
+    n.el.classList.remove("reveal-hide");
+    n.el.classList.add("reveal-in");
+    setTimeout(()=> n.el.classList.remove("reveal-in"), 460);
+  };
+
+  revealing = true;
+  revealSet = new Set();
+  drawnWires = new Set();
+  for(const [, n] of nodes){ if(!n.user) n.el.classList.add("reveal-hide"); }
+  redraw();
+  await wait(260);
+
+  // 1) 클라우드 + 판넬부터
+  show("server:jcc");
+  for(const p of panels) show("panel:"+p.panel);
+  redraw();
+  setStatus("클라우드·판넬 인식됨");
+  await wait(620);
+  redraw();                       // 판넬 ↔ 클라우드 선이 이어지는 순간
+  await wait(560);
+
+  // 2) CCM을 한 대씩
+  for(const p of panels){
+    const ccms = p.ccms || [];
+    for(let i=0; i<ccms.length; i++){
+      show("ccm:"+ccms[i].device_id);
+      redraw();
+      setStatus(`CCM 발견 ${i+1}/${ccms.length} — ${ccms[i].device_id}`);
+      await wait(430);
+    }
+  }
+  await wait(260);
+
+  // 3) 센서를 하나씩
+  let sn = 0;
+  for(const p of panels){
+    for(const c of (p.ccms||[])){
+      for(const r of (c.latest||[])){
+        show("sensor:"+c.device_id+":"+r.sensor_key);
+        redraw();
+        sn++;
+        setStatus(`센서 연결 ${sn} — ${r.name || r.sensor_key}`);
+        await wait(170);
+      }
+    }
+  }
+
+  revealSet = null;               // 연출 끝 → 평소 표시로
+  revealing = false;
+  redraw();
+  setStatus(`자동 연결 완료 — CCM ${panels.reduce((a,p)=>a+(p.ccms||[]).length,0)}대 · 센서 ${sn}개`);
+}
+
 // ── 값·상태 갱신 (제자리) ─────────────────────────────
 function updateValues(panels){
   let onlinePanels = 0, lastSeen = 0;
@@ -712,7 +810,10 @@ function setPill(el, online){ if(!el) return;
 // 포트 색: 연결 안 됨(노랑) · 연결·정상(초록) · 연결·접속안됨(빨강)
 function colorPorts(){
   const connected = new Set();
-  for(const w of wires){ connected.add(w.fromId); connected.add(w.toId); }
+  // 연출 중에는 '아직 안 이어진' 선은 연결로 치지 않는다 → 노랑(빈 점)에서 시작해
+  // 선이 이어지는 순간 초록으로 바뀌는 게 눈에 보인다.
+  for(const w of wires){ if(!wireShown(w.fromId, w.toId)) continue;
+    connected.add(w.fromId); connected.add(w.toId); }
   for(const w of userWires){ connected.add(w.from); connected.add(w.to); }
   document.querySelectorAll(".graph .port, .graph .headport").forEach(el=>{
     const pid = el.getAttribute("data-port");
@@ -748,14 +849,18 @@ function drawWires(){
   // 자동 배선(현장 토폴로지). 클릭하면 선택·끊기 가능. 끊긴 것은 건너뛴다.
   for(const w of wires){
     const key = w.fromId+"|"+w.toId;
+    if(!wireShown(w.fromId, w.toId)) continue;   // 연출 중: 아직 안 나온 장비의 선은 숨김
     const a = portCenter(w.fromId), b = portCenter(w.toId);
     if(!a || !b) continue;
     const dx = Math.max(36, (b.x - a.x)/2);
     const d = `M ${a.x} ${a.y} C ${a.x+dx} ${a.y}, ${b.x-dx} ${b.y}, ${b.x} ${b.y}`;
     const wid = "auto:"+key, sel = wid===selectedWireId;
-    const cls = "wirepath" + (w.live ? " flow" : " off") + (sel ? " sel" : "");
+    // 이번에 처음 이어지는 선은 '그려지는' 애니메이션을 1회만 보여준다
+    const fresh = revealSet && !drawnWires.has(key);
+    if(fresh) drawnWires.add(key);
+    const cls = "wirepath" + (w.live ? " flow" : " off") + (sel ? " sel" : "") + (fresh ? " draw" : "");
     paths += `<path class="wirehit" data-wire="${wid}" d="${d}"></path>`;
-    paths += `<path class="${cls}" data-wire="${wid}" d="${d}"></path>`;
+    paths += `<path class="${cls}"${fresh ? ' pathLength="100"' : ""} data-wire="${wid}" d="${d}"></path>`;
     const mx = (a.x+b.x)/2, my = (a.y+b.y)/2 - 5;
     labels += `<text class="wirelabel" x="${mx}" y="${my}" text-anchor="middle">${escapeHtml(w.label)}</text>`;
     if(sel) delBtns += delMark((a.x+b.x)/2, (a.y+b.y)/2, wid);
@@ -1374,6 +1479,7 @@ $("#btn-discover").onclick = ()=>{
   fetch("/api/discover",{method:"POST"}).then(r=>r.json()).then(d=>{
     if(d.error) throw new Error(d.error);
     setStatus(`탐색 완료 · CCM ${d.ccms}대 · 센서 ${d.sensors} (식별 ${d.identified} · 추정 ${d.inferred})`);
+    pendingReveal = true;      // 클라우드→판넬→CCM→센서 순으로 등장 연출
     topoSig = ""; refresh();   // 토폴로지를 새 발견 결과로 다시 그린다
   }).catch(e=> setStatus("탐색 실패: "+e.message))
     .finally(()=> b.classList.remove("busy"));
