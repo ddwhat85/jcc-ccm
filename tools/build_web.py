@@ -55,6 +55,17 @@ def main() -> int:
             if name.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")):
                 shutil.copy2(os.path.join(SRC_IMG, name), os.path.join(dst_img, name))
 
+    # 호스팅 페이지(Artifact 등)는 자체 <html>/<head>/<body> 뼈대를 씌우므로,
+    # 그 태그를 뺀 본문 전용판도 만든다(title·style은 맨 앞에 유지).
+    import re
+    body_only = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.I)
+    body_only = re.sub(r"</?html[^>]*>", "", body_only, flags=re.I)
+    body_only = re.sub(r"</?head[^>]*>", "", body_only, flags=re.I)
+    body_only = re.sub(r"</?body[^>]*>", "", body_only, flags=re.I)
+    body_only = re.sub(r"<meta[^>]*>", "", body_only, flags=re.I)
+    with open(os.path.join(OUT, "artifact.html"), "w", encoding="utf-8") as fh:
+        fh.write(body_only.replace(BANNER, "", 1).lstrip())
+
     imgs = len(os.listdir(dst_img)) if os.path.isdir(dst_img) else 0
     print(f"빌드 완료 → {OUT}")
     print(f"  index.html  (demo-api.js 주입됨)")
