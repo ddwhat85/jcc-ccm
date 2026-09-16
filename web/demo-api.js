@@ -94,6 +94,7 @@
     alarms: [],       // {id, device_id, sensor_key, kind, detail, severity, raised_at, acked_at, acked_by, escalated_at, cleared_at}
     settings: {},     // "dev:key" -> {setpoint, alarm_min, alarm_max, alarm_warn, relay_modes}
     panelNames: {},
+    poweredOff: {},   // dev -> true  (전원 끄기 명령을 받은 CCM은 값을 안 올린다)
     alarmState: {},   // "dev:key" -> ok|warn|alarm
     liveState: {},    // 키 -> up|down|stuck|drift|anomaly
     seq: 1, t0: Date.now() / 1000, started: false,
@@ -202,6 +203,7 @@
     if (!S.started) return;
     const t = now() - S.t0, wall = now();
     for (const dev in S.discovered) {
+      if (S.poweredOff[dev]) continue;      // 전원 꺼진 CCM은 아무 값도 안 올린다
       let sent = 0;
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;
@@ -288,6 +290,7 @@
     if (!S.started) return;
     const t = now();
     for (const dev in S.discovered) {
+      if (S.poweredOff[dev]) continue;      // 일부러 끈 CCM은 침묵 경보로 나무라지 않는다
       const ls = S.lastSeen[dev] || 0, up = ls > 0 && (t - ls) < DEV_TO;
       const dk = "dev:" + dev, dprev = S.liveState[dk];
       if (up) { if (dprev === "down") clear(dev, "", "silent", "recovered", `CCM ${dev} 통신 복구`); S.liveState[dk] = "up"; }
@@ -502,6 +505,8 @@
           if (!dev || (act !== "restart" && act !== "shutdown"))
             return Promise.resolve(J({ error: "device_id와 action(restart|shutdown)이 필요합니다" }, 400));
           S.lastSeen[dev] = 0;
+          if (act === "shutdown") S.poweredOff[dev] = true;   // 값 공급 중단 → 실제로 꺼짐
+          else delete S.poweredOff[dev];                       // 재시작 → 다시 살아남
           logEvent(dev, "", act, act === "restart" ? "재시작 명령" : "전원 끄기 명령", "user");
           return Promise.resolve(J({ ok: true, device_id: dev, action: act }));
         }

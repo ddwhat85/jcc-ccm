@@ -83,6 +83,8 @@ def _loop(storage, interval: float) -> None:
         ccms = _inventory(storage)
         for c in ccms:
             dev = c["device_id"]
+            if dev in storage._powered_off:     # 전원 끈 CCM은 값을 올리지 않는다
+                continue
             rng = rngs.setdefault(dev, random.Random(hash(dev) & 0xffff))
             panel, panel_name, site = c["panel"], c["panel_name"], c["site"]
             readings = []

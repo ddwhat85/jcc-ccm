@@ -809,15 +809,18 @@ function updateValues(panels){
       cEl.classList.toggle("node-off", forcedOff);   // 전원 꺼짐 워터마크
       for(const r of (c.latest||[])){
         nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = cOnline;
-        const sev = severity(r.sensor_key, r.value, r) || (r.ok?"ok":"stale");
+        // CCM이 꺼져 있으면 그 아래 센서도 전원이 끊긴 것 → 값은 마지막 값으로 얼리고 흐리게.
+        const sev = forcedOff ? "stale" : (severity(r.sensor_key, r.value, r) || (r.ok?"ok":"stale"));
         // CCM 안 입력행 값
         const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
-        if(cv){ cv.className = "pval "+sev; cv.innerHTML = fmtValue(r.value)+`<span class="punit">${escapeHtml(r.unit||"")}</span>`; }
+        if(cv){ cv.className = "pval "+sev;
+          if(!forcedOff) cv.innerHTML = fmtValue(r.value)+`<span class="punit">${escapeHtml(r.unit||"")}</span>`; }
         // 센서 노드 큰 값
         const sEl = nodes.get("sensor:"+c.device_id+":"+r.sensor_key)?.el;
-        if(sEl){ const bv=sEl.querySelector('[data-role="sv"]');
+        if(sEl){ sEl.classList.toggle("node-off", forcedOff);   // 꺼진 CCM의 센서도 '전원 꺼짐'
+          const bv=sEl.querySelector('[data-role="sv"]');
           bv.className = "vpill "+sev;
-          bv.querySelector(".v").textContent = fmtValue(r.value); }
+          if(!forcedOff) bv.querySelector(".v").textContent = fmtValue(r.value); }
         // 인스펙터 열려있으면 현재값·상태 실시간 갱신
         const rec = sensorRec[c.device_id+":"+r.sensor_key];
         if(rec){ rec.value = r.value; rec.ok = r.ok; }

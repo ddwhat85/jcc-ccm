@@ -149,6 +149,7 @@ class Storage:
         self._lock = threading.Lock()
         self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
         self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
+        self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -444,7 +445,13 @@ class Storage:
             cur = self._conn.execute(
                 "UPDATE devices SET last_seen=0 WHERE device_id=?", (device_id,))
             self._conn.commit()
-            return cur.rowcount > 0
+            ok = cur.rowcount > 0
+        # 전원 끄기는 데모 피더가 이 CCM에 값을 더 넣지 않게 표시한다(재시작은 해제).
+        if action == "shutdown":
+            self._powered_off.add(device_id)
+        else:
+            self._powered_off.discard(device_id)
+        return ok
 
     def enable_all_channels(self) -> int:
         with self._lock:
@@ -946,6 +953,8 @@ class Storage:
 
         to_log: list[tuple] = []
         for dev, sensors in disc.items():
+            if dev in self._powered_off:        # 일부러 끈 CCM은 침묵 경보 대상 아님
+                continue
             ls = devs.get(dev, 0)
             dev_up = bool(ls) and (now - ls) < device_timeout
             dkey = ("dev", dev)

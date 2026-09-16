@@ -11,7 +11,9 @@ Vercel에서 이 저장소를 가져와 Root Directory를 web 으로 지정하�
 """
 from __future__ import annotations
 
+import hashlib
 import os
+import re
 import shutil
 import sys
 
@@ -33,6 +35,13 @@ def main() -> int:
     with open(SRC_HTML, "r", encoding="utf-8") as fh:
         html = fh.read()
 
+    # demo-api.js 내용 해시로 캐시버스팅(재배포·수정 때 브라우저가 옛 버전을 물지 않게).
+    api_path = os.path.join(OUT, "demo-api.js")
+    ver = ""
+    if os.path.isfile(api_path):
+        with open(api_path, "rb") as fh:
+            ver = "?v=" + hashlib.sha1(fh.read()).hexdigest()[:8]
+
     # 화면 스크립트보다 먼저 로드돼야 fetch 가로채기가 걸린다.
     marker = "<script>"
     idx = html.find(marker)
@@ -40,7 +49,7 @@ def main() -> int:
         print("index.html 에서 <script> 를 찾지 못했습니다.")
         return 1
     html = (BANNER + html[:idx]
-            + '<script src="demo-api.js"></script>\n'
+            + f'<script src="demo-api.js{ver}"></script>\n'
             + html[idx:])
 
     os.makedirs(OUT, exist_ok=True)
@@ -57,7 +66,6 @@ def main() -> int:
 
     # 호스팅 페이지(Artifact 등)는 자체 <html>/<head>/<body> 뼈대를 씌우므로,
     # 그 태그를 뺀 본문 전용판도 만든다(title·style은 맨 앞에 유지).
-    import re
     body_only = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.I)
     body_only = re.sub(r"</?html[^>]*>", "", body_only, flags=re.I)
     body_only = re.sub(r"</?head[^>]*>", "", body_only, flags=re.I)
