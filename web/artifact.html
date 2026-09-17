@@ -313,6 +313,36 @@
   .chart-stats b{color:var(--ink)}
   @media (prefers-reduced-motion:reduce){.wirepath.flow{animation:none}}
 
+  /* 전체 점검 버튼 (AI 자동연결 옆, 아웃라인) */
+  .mb-check{font:inherit;font-size:12.5px;font-weight:600;color:var(--accent);
+            background:var(--accent-soft);border:1px solid var(--accent);border-radius:7px;
+            padding:6px 12px;cursor:pointer;white-space:nowrap}
+  .mb-check:hover{filter:brightness(1.03)} .mb-check:active{transform:translateY(1px)}
+  .mb-check.busy{opacity:.7;pointer-events:none}
+  .mb-check.busy::after{content:"";display:inline-block;width:9px;height:9px;margin-left:6px;
+    border:2px solid var(--accent);border-top-color:transparent;border-radius:50%;
+    animation:spin .7s linear infinite;vertical-align:-1px}
+  /* 전체 점검 리포트 */
+  .hc-modal{width:min(560px,94vw)}
+  .hc-banner{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:10px;
+             margin-bottom:14px;font-weight:700;font-size:14px}
+  .hc-banner.pass{background:var(--ok-soft);color:var(--ok)}
+  .hc-banner.warn{background:var(--warn-soft);color:var(--warn)}
+  .hc-banner.fail{background:var(--crit-soft);color:var(--crit)}
+  .hc-banner .hc-big{font-size:20px}
+  .hc-counts{margin-left:auto;display:flex;gap:12px;font:600 12px var(--mono)}
+  .hc-sec{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:4px 0 2px}
+  .hc-list{display:flex;flex-direction:column;max-height:52vh;overflow-y:auto}
+  .hc-item{display:flex;gap:11px;align-items:center;padding:11px 8px;border-top:1px solid var(--rule);cursor:pointer}
+  .hc-item:hover{background:var(--canvas)}
+  .hc-dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .hc-dot.fail{background:var(--crit)} .hc-dot.warn{background:var(--warn)}
+  .hc-item .hcmain{flex:1 1 auto;min-width:0}
+  .hc-item .hct{font-weight:600;font-size:13px}
+  .hc-item .hcd{font-size:11.5px;color:var(--ink-3);margin-top:2px;word-break:break-word}
+  .hc-item .hcloc{flex:none;font:600 10px var(--mono);color:var(--ink-3);
+                  background:var(--surface-2);border-radius:4px;padding:2px 6px}
+  .hc-allok{text-align:center;padding:26px 8px;color:var(--ok);font-weight:600;font-size:14px}
   /* 테마 전환 버튼 */
   .mb-theme{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
             padding:3px 6px;border-radius:6px;opacity:.85}
@@ -424,6 +454,7 @@
     <div class="mb-right">
       <span class="mb-status" id="status"></span>
       <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
+      <button class="mb-check" id="btn-health">🩺 전체 점검</button>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
@@ -460,6 +491,14 @@
       <div class="modal-head"><h3 id="chart-title">이력</h3><button id="close-chart">×</button></div>
       <canvas id="chart" width="640" height="280"></canvas>
       <div class="chart-stats" id="chart-stats"></div>
+    </div>
+  </div>
+
+  <!-- 전체 점검 리포트 -->
+  <div class="overlay" id="health-overlay">
+    <div class="modal hc-modal">
+      <div class="modal-head"><h3>전체 시스템 점검</h3><button id="hc-close">×</button></div>
+      <div id="hc-body"></div>
     </div>
   </div>
 
@@ -651,6 +690,7 @@
     else if (key.includes("door") || kind === "door") v = rnd() > 0.1 ? 12 : 340;
     else if (key.includes("h2") || kind === "h2") v = Math.max(0, gauss(0.4, 0.2));
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
+    else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
     else v = Math.max(0, gauss(40, 3));
     if (rnd() < 0.06) {
       for (const k in SPIKE) if (key.includes(k) || kind === k) return SPIKE[k];
@@ -843,7 +883,7 @@
     return [{ panel: SIM.panel, panel_name: S.panelNames[SIM.panel] || SIM.panel_name,
       site: SIM.site, ccms: devs, online: devs.some(d => d.online), ccm_count: devs.length }];
   }
-  function diagnose(dev, key) {
+  function diagnose(dev, key, quiet) {
     const t = now(), d = deviceList().find(x => x.device_id === dev);
     if (!d) return { ok: false, summary: "장치를 찾을 수 없음", checks: [] };
     const checks = [], add = (name, status, detail) => checks.push({ name, status, detail });
@@ -886,8 +926,37 @@
     }
     const worst = checks.some(c => c.status === "fail") ? "fail" : (checks.some(c => c.status === "warn") ? "warn" : "pass");
     const summary = { pass: "정상", warn: "주의 필요", fail: "이상 감지" }[worst];
-    logEvent(dev, key || "", "diagnose", "자가진단: " + summary);
+    if (!quiet) logEvent(dev, key || "", "diagnose", "자가진단: " + summary);
     return { ok: true, device_id: dev, sensor_key: key || "", target, status: worst, summary, checks };
+  }
+
+  function diagnoseAll() {
+    const counts = { pass: 0, warn: 0, fail: 0 };
+    const problems = [];
+    let checked = 0;
+    const worstDetail = (rep) => {
+      const bad = (rep.checks || []).find(c => c.status === "fail")
+        || (rep.checks || []).find(c => c.status === "warn");
+      return bad ? bad.detail : (rep.summary || "");
+    };
+    for (const d of deviceList()) {
+      let rep = diagnose(d.device_id, "", true);
+      counts[rep.status] = (counts[rep.status] || 0) + 1; checked++;
+      if (rep.status !== "pass") problems.push({ device_id: d.device_id, sensor_key: "",
+        kind: "ccm", target: rep.target, status: rep.status, issue: worstDetail(rep) });
+      for (const s of d.latest || []) {
+        rep = diagnose(d.device_id, s.sensor_key, true);
+        counts[rep.status] = (counts[rep.status] || 0) + 1; checked++;
+        if (rep.status !== "pass") problems.push({ device_id: d.device_id, sensor_key: s.sensor_key,
+          kind: "sensor", target: rep.target, status: rep.status, issue: worstDetail(rep) });
+      }
+    }
+    const order = { fail: 0, warn: 1 };
+    problems.sort((a, b) => (order[a.status] ?? 2) - (order[b.status] ?? 2));
+    const overall = counts.fail ? "fail" : (counts.warn ? "warn" : "pass");
+    const summary = { pass: "모든 장비 정상", warn: "주의 필요 항목 있음", fail: "이상 장비 있음" }[overall];
+    logEvent("", "", "healthcheck", `전체 점검: ${summary} (정상 ${counts.pass}·주의 ${counts.warn}·이상 ${counts.fail})`);
+    return { ok: true, checked, counts, overall, summary, problems };
   }
 
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
@@ -916,6 +985,7 @@
       if (p === "/api/alarms")
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
+      if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/events") {
         const dev = qs.get("device_id") || "", key = qs.get("sensor_key") || "";
         const lim = Math.min(parseInt(qs.get("limit") || "50", 10) || 50, 500);
@@ -1691,10 +1761,11 @@ const EVENT_META = {
   notify_test: {label:"알림 테스트",  dot:"info", ic:"📨"},
   discover:    {label:"자동 탐색",    dot:"info", ic:"✨"},
   rename:      {label:"이름 변경",    dot:"info", ic:"✏"},
+  healthcheck: {label:"전체 점검",    dot:"info", ic:"🩺"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
-  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover"]);
+  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -2181,6 +2252,50 @@ function loadTicker(){
     }).join("");
   }).catch(()=>{});
 }
+
+// ── 전체 시스템 점검 ──────────────────────────────────
+function runHealthCheck(){
+  const btn = $("#btn-health"); if(btn.classList.contains("busy")) return;
+  btn.classList.add("busy"); setStatus("전체 점검 중… 모든 장비를 진단합니다");
+  fetch("/api/healthcheck",{cache:"no-store"}).then(r=>r.json()).then(rep=>{
+    btn.classList.remove("busy");
+    renderHealth(rep);
+    $("#health-overlay").classList.add("open");
+    const c = rep.counts||{};
+    setStatus(`전체 점검 완료 — ${rep.summary} (정상 ${c.pass||0}·주의 ${c.warn||0}·이상 ${c.fail||0})`);
+  }).catch(()=>{ btn.classList.remove("busy"); setStatus("전체 점검 실패"); });
+}
+function renderHealth(rep){
+  const c = rep.counts||{}, st = rep.overall;
+  const icon = st==="pass"?"✓":(st==="warn"?"⚠":"⛔");
+  let html = `<div class="hc-banner ${st}"><span class="hc-big">${icon}</span>`+
+    `<span>${escapeHtml(rep.summary||"")}</span>`+
+    `<span class="hc-counts"><span>정상 ${c.pass||0}</span><span>주의 ${c.warn||0}</span><span>이상 ${c.fail||0}</span></span></div>`;
+  const probs = rep.problems||[];
+  if(!probs.length){
+    html += `<div class="hc-allok">점검한 ${rep.checked||0}개 항목 모두 정상입니다 ✓</div>`;
+  } else {
+    html += `<div class="hc-sec">주의·이상 항목 (${probs.length}) — 심각한 순</div><div class="hc-list">`;
+    for(const p of probs){
+      const nid = p.sensor_key ? ("sensor:"+p.device_id+":"+p.sensor_key) : ("ccm:"+p.device_id);
+      const loc = p.sensor_key ? p.device_id : "CCM";
+      html += `<div class="hc-item" data-id="${escapeHtml(nid)}"><span class="hc-dot ${p.status}"></span>`+
+        `<div class="hcmain"><div class="hct">${escapeHtml(p.target||"")}</div>`+
+        `<div class="hcd">${escapeHtml(p.issue||"")}</div></div>`+
+        `<span class="hcloc">${escapeHtml(loc)}</span></div>`;
+    }
+    html += `</div>`;
+  }
+  const body = $("#hc-body"); body.innerHTML = html;
+  body.querySelectorAll(".hc-item").forEach(it=> it.onclick = ()=>{
+    $("#health-overlay").classList.remove("open");
+    const n = nodes.get(it.dataset.id);
+    if(n){ select(it.dataset.id); n.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); }
+  });
+}
+$("#btn-health").onclick = runHealthCheck;
+$("#hc-close").onclick = ()=> $("#health-overlay").classList.remove("open");
+$("#health-overlay").onclick = e=>{ if(e.target===$("#health-overlay")) $("#health-overlay").classList.remove("open"); };
 
 // ── 활성 경보 패널 (🔔) ───────────────────────────────
 let alarmPanelOpen = false;

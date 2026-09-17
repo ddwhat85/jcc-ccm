@@ -712,13 +712,14 @@ class Storage:
         return due
 
     # ── 자가진단 ────────────────────────────────────────────
-    def diagnose(self, device_id: str, sensor_key: str = "") -> dict:
+    def diagnose(self, device_id: str, sensor_key: str = "", _dev: dict = None) -> dict:
         """센서/CCM 자가진단. 지금 가진 데이터로 통신·값·범위·식별을 점검한다.
 
         실기에서는 여기에 장치 자체 점검(CCM system_check.sh, 센서 Modbus 진단
-        레지스터)을 더 붙인다. 시뮬에서는 수집 상태로 건강도를 평가한다."""
+        레지스터)을 더 붙인다. 시뮬에서는 수집 상태로 건강도를 평가한다.
+        _dev를 주면 장비 목록을 다시 안 읽는다(전체 점검에서 재사용)."""
         now = time.time()
-        dev = next((d for d in self.list_devices() if d["device_id"] == device_id), None)
+        dev = _dev or next((d for d in self.list_devices() if d["device_id"] == device_id), None)
         if not dev:
             return {"ok": False, "summary": "장치를 찾을 수 없음", "checks": []}
 
@@ -813,6 +814,46 @@ class Storage:
         summary = {"pass": "정상", "warn": "주의 필요", "fail": "이상 감지"}[worst]
         return {"ok": True, "device_id": device_id, "sensor_key": sensor_key,
                 "target": target, "status": worst, "summary": summary, "checks": checks}
+
+    def diagnose_all(self) -> dict:
+        """전체 시스템 점검 — 모든 CCM과 센서를 한 번에 진단해 문제 장비를 골라낸다.
+        '어느 하드웨어가 문제인지/문제가 생길지'를 한눈에 보여주는 것이 목적."""
+        devs = self.list_devices()
+        counts = {"pass": 0, "warn": 0, "fail": 0}
+        problems: list[dict] = []
+        checked = 0
+
+        def worst_detail(rep):
+            bad = next((c for c in rep["checks"] if c["status"] == "fail"), None) \
+                or next((c for c in rep["checks"] if c["status"] == "warn"), None)
+            return bad["detail"] if bad else rep.get("summary", "")
+
+        for d in devs:
+            if not d.get("discovered"):
+                continue
+            rep = self.diagnose(d["device_id"], "", _dev=d)     # CCM
+            counts[rep["status"]] = counts.get(rep["status"], 0) + 1
+            checked += 1
+            if rep["status"] != "pass":
+                problems.append({"device_id": d["device_id"], "sensor_key": "", "kind": "ccm",
+                                 "target": rep["target"], "status": rep["status"],
+                                 "issue": worst_detail(rep)})
+            for s in d.get("latest") or []:
+                rep = self.diagnose(d["device_id"], s["sensor_key"], _dev=d)
+                counts[rep["status"]] = counts.get(rep["status"], 0) + 1
+                checked += 1
+                if rep["status"] != "pass":
+                    problems.append({"device_id": d["device_id"], "sensor_key": s["sensor_key"],
+                                     "kind": "sensor", "target": rep["target"],
+                                     "status": rep["status"], "issue": worst_detail(rep)})
+
+        order = {"fail": 0, "warn": 1}
+        problems.sort(key=lambda p: order.get(p["status"], 2))
+        overall = "fail" if counts.get("fail") else ("warn" if counts.get("warn") else "pass")
+        summary = {"pass": "모든 장비 정상", "warn": "주의 필요 항목 있음",
+                   "fail": "이상 장비 있음"}[overall]
+        return {"ok": True, "checked": checked, "counts": counts,
+                "overall": overall, "summary": summary, "problems": problems}
 
     # ── 센서 건강도 분석 (고착·드리프트) ────────────────────
     def history_stats(self, device_id: str, sensor_key: str, n: int = 30) -> dict:

@@ -80,6 +80,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"panels": self.storage.list_panels()})
         if path == "/api/alarms":
             return self._json({"alarms": self.storage.list_active_alarms()})
+        if path == "/api/healthcheck":
+            rep = self.storage.diagnose_all()
+            c = rep.get("counts", {})
+            self.storage.log_event("", "", "healthcheck",
+                                   f"전체 점검: {rep.get('summary','')} "
+                                   f"(정상 {c.get('pass',0)}·주의 {c.get('warn',0)}·이상 {c.get('fail',0)})")
+            return self._json(rep)
         if path == "/api/notify/status":
             from .notify import configured_channels
             return self._json({"channels": configured_channels()})

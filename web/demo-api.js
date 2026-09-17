@@ -185,6 +185,7 @@
     else if (key.includes("door") || kind === "door") v = rnd() > 0.1 ? 12 : 340;
     else if (key.includes("h2") || kind === "h2") v = Math.max(0, gauss(0.4, 0.2));
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
+    else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
     else v = Math.max(0, gauss(40, 3));
     if (rnd() < 0.06) {
       for (const k in SPIKE) if (key.includes(k) || kind === k) return SPIKE[k];
@@ -377,7 +378,7 @@
     return [{ panel: SIM.panel, panel_name: S.panelNames[SIM.panel] || SIM.panel_name,
       site: SIM.site, ccms: devs, online: devs.some(d => d.online), ccm_count: devs.length }];
   }
-  function diagnose(dev, key) {
+  function diagnose(dev, key, quiet) {
     const t = now(), d = deviceList().find(x => x.device_id === dev);
     if (!d) return { ok: false, summary: "장치를 찾을 수 없음", checks: [] };
     const checks = [], add = (name, status, detail) => checks.push({ name, status, detail });
@@ -420,8 +421,37 @@
     }
     const worst = checks.some(c => c.status === "fail") ? "fail" : (checks.some(c => c.status === "warn") ? "warn" : "pass");
     const summary = { pass: "정상", warn: "주의 필요", fail: "이상 감지" }[worst];
-    logEvent(dev, key || "", "diagnose", "자가진단: " + summary);
+    if (!quiet) logEvent(dev, key || "", "diagnose", "자가진단: " + summary);
     return { ok: true, device_id: dev, sensor_key: key || "", target, status: worst, summary, checks };
+  }
+
+  function diagnoseAll() {
+    const counts = { pass: 0, warn: 0, fail: 0 };
+    const problems = [];
+    let checked = 0;
+    const worstDetail = (rep) => {
+      const bad = (rep.checks || []).find(c => c.status === "fail")
+        || (rep.checks || []).find(c => c.status === "warn");
+      return bad ? bad.detail : (rep.summary || "");
+    };
+    for (const d of deviceList()) {
+      let rep = diagnose(d.device_id, "", true);
+      counts[rep.status] = (counts[rep.status] || 0) + 1; checked++;
+      if (rep.status !== "pass") problems.push({ device_id: d.device_id, sensor_key: "",
+        kind: "ccm", target: rep.target, status: rep.status, issue: worstDetail(rep) });
+      for (const s of d.latest || []) {
+        rep = diagnose(d.device_id, s.sensor_key, true);
+        counts[rep.status] = (counts[rep.status] || 0) + 1; checked++;
+        if (rep.status !== "pass") problems.push({ device_id: d.device_id, sensor_key: s.sensor_key,
+          kind: "sensor", target: rep.target, status: rep.status, issue: worstDetail(rep) });
+      }
+    }
+    const order = { fail: 0, warn: 1 };
+    problems.sort((a, b) => (order[a.status] ?? 2) - (order[b.status] ?? 2));
+    const overall = counts.fail ? "fail" : (counts.warn ? "warn" : "pass");
+    const summary = { pass: "모든 장비 정상", warn: "주의 필요 항목 있음", fail: "이상 장비 있음" }[overall];
+    logEvent("", "", "healthcheck", `전체 점검: ${summary} (정상 ${counts.pass}·주의 ${counts.warn}·이상 ${counts.fail})`);
+    return { ok: true, checked, counts, overall, summary, problems };
   }
 
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
@@ -450,6 +480,7 @@
       if (p === "/api/alarms")
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
+      if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/events") {
         const dev = qs.get("device_id") || "", key = qs.get("sensor_key") || "";
         const lim = Math.min(parseInt(qs.get("limit") || "50", 10) || 50, 500);

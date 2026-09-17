@@ -30,6 +30,8 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
         v = max(0.0, rng.gauss(0.4, 0.2))
     elif "current" in key or kind == "current":
         v = 18 + 4 * math.sin(t / 20) + rng.uniform(-0.5, 0.5)
+    elif "smoke" in key or kind == "smoke":
+        v = 0 if rng.random() > 0.02 else 1     # 평소 0(정상), 드물게 감지
     else:  # 미확인/추정 장비 등
         v = max(0.0, rng.gauss(40, 3))
     # 가끔(약 6%) 임계값을 넘겨 경보 로그가 뜨게 한다(검토용 데모 생동감).
