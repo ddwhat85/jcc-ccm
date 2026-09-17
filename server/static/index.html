@@ -209,9 +209,10 @@
   .node.sev-crit{border-color:var(--crit)}
   .node.sev-crit .nhead{background:linear-gradient(180deg,#e5565a,#c23539);color:#fff}
   .node.sev-crit{animation:nodealarm 1.5s ease-in-out infinite}
+  /* 번짐 글로우 대신 솔리드 링이 커졌다 작아지는 펄스로 주의를 끈다(halo 아님) */
   @keyframes nodealarm{
     0%,100%{box-shadow:0 0 0 1px var(--crit),0 1px 3px rgba(20,24,32,.14)}
-    50%{box-shadow:0 0 0 1px var(--crit),0 0 16px rgba(229,72,77,.55)}}
+    50%{box-shadow:0 0 0 3px var(--crit-soft),0 0 0 1px var(--crit)}}
   @media (prefers-reduced-motion:reduce){.node.sev-crit{animation:none;box-shadow:0 0 0 1px var(--crit)}}
   .node.guess-node{border-style:dashed}
   .node.disabled-node{opacity:.5;border-style:dashed}
