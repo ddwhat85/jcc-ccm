@@ -1433,13 +1433,24 @@ function renderInspector(id, n){
       clientOff.delete(id); nodeEl && nodeEl.classList.remove("node-off");
       deviceCommand(dev,"restart").then(()=>{ topoSig=""; setStatus(dev+" 재시작 — 재부팅 후 다시 접속합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
-    if(shutdown) shutdown.onclick = ()=>{
-      if(!confirm(dev+" 전원을 끕니다. 계속할까요?")) return;
-      clientOff.add(id); nodeEl && nodeEl.classList.add("node-off");  // 즉시 '전원 꺼짐' 표시
-      deviceCommand(dev,"shutdown").then(()=>{ setStatus(dev+" 전원 꺼짐 — CCM 종료됨"); })
-        .catch(()=> setStatus("명령 실패"));
-      renderInspector(id, n);   // 버튼을 '전원 켜기'로 갱신
-    };
+    if(shutdown){
+      // confirm()은 샌드박스 iframe(아티팩트)에서 막히므로 쓰지 않는다.
+      // 대신 버튼을 두 번 눌러 확인: 1번째=경고, 3초 내 2번째=실행.
+      let armed = false, armT;
+      shutdown.onclick = ()=>{
+        if(!armed){
+          armed = true;
+          shutdown.textContent = "정말 끄기? (다시 클릭)";
+          armT = setTimeout(()=>{ armed=false; shutdown.textContent="⏻ 전원 끄기"; }, 3000);
+          return;
+        }
+        clearTimeout(armT);
+        clientOff.add(id); nodeEl && nodeEl.classList.add("node-off");  // 즉시 '전원 꺼짐' 표시
+        deviceCommand(dev,"shutdown").then(()=>{ setStatus(dev+" 전원 꺼짐 — CCM 종료됨(연결 센서도 정지)"); })
+          .catch(()=> setStatus("명령 실패"));
+        renderInspector(id, n);   // 버튼을 '전원 켜기'로 갱신
+      };
+    }
     if(poweron) poweron.onclick = ()=>{   // 데모: 다시 켜기(실기에선 현장 전원 필요)
       clientOff.delete(id); nodeEl && nodeEl.classList.remove("node-off"); spin();
       setStatus(dev+" 재기동 중…"); deviceCommand(dev,"restart").finally(()=>{ topoSig=""; refresh(); renderInspector(id, n); }); };
