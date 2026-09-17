@@ -261,9 +261,13 @@
   .hero-cur .hc-top{display:flex;align-items:baseline;gap:7px}
   .hero-cur .hc-dot{width:9px;height:9px;border-radius:50%;flex:none;align-self:center}
   .hero-cur .hc-dot.crit{background:var(--crit)} .hero-cur .hc-dot.warn{background:var(--warn)}
-  .hero-cur .hc-name{font-weight:700;font-size:13px}
-  .hero-cur .hc-loc{margin-left:auto;font:600 10px var(--mono);color:var(--ink-3)}
-  .hero-cur .hc-detail{font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+  .hero-cur .hc-name{font-weight:700;font-size:13.5px}
+  .hero-cur .hc-badge{margin-left:auto;font:700 9.5px var(--mono);padding:2px 6px;border-radius:4px;
+                      border:1px solid currentColor;white-space:nowrap}
+  .hero-cur .hc-badge.crit{color:var(--crit)} .hero-cur .hc-badge.warn{color:var(--warn)}
+  .hero-cur .hc-id{font:600 10.5px var(--mono);color:var(--ink-3);margin-top:3px}
+  .hero-cur .hc-detail{font-size:12px;color:var(--ink-2);margin-top:6px;line-height:1.45}
+  .hero-cur{cursor:pointer} .hero-cur:hover{border-color:var(--accent)}
   .hero-act{display:flex;gap:8px;align-items:flex-start;margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule);
             font-size:11.5px;line-height:1.5}
   .hero-act .ak{flex:none;font-weight:700;color:var(--ink-3);width:58px}
@@ -1515,6 +1519,22 @@ function alarmDone(a){
   if(a.escalated_at) return {txt:"미확인 → 담당자에게 상향(알림 발송)", cls:"need"};
   return {txt:"아직 조치 없음 — 확인 필요", cls:"need"};
 }
+// 경보의 device_id+sensor_key로 센서 상세(이름·품번·주소)를 찾는다
+function findSensor(dev, key){
+  for(const p of (lastPanels||[])) for(const c of (p.ccms||[]))
+    if(c.device_id===dev) for(const s of (c.latest||[]))
+      if(s.sensor_key===key) return s;
+  return null;
+}
+function sensorIdLine(dev, key){
+  const s = findSensor(dev, key);
+  const parts = [];
+  if(s && s.part_no) parts.push(s.part_no);                 // 품번
+  if(s && s.address!=null) parts.push("Modbus #"+s.address); // 주소
+  else if(key) parts.push("내장");
+  parts.push(dev);                                          // CCM 시리얼
+  return parts.join(" · ");
+}
 function heroHtml(){
   const al = lastAlarms.slice().sort((a,b)=>
     (a.severity==="crit"?0:1)-(b.severity==="crit"?0:1) || (a.raised_at-b.raised_at));
@@ -1532,7 +1552,10 @@ function heroHtml(){
   const m = EVENT_META[top.kind] || {ic:"⚠", label:"경보"};
   const need = ACTION_NEED[top.kind] || "현장 확인 필요";
   const done = alarmDone(top);
-  const loc = top.sensor_key ? top.device_id : "CCM " + top.device_id;
+  const s = findSensor(top.device_id, top.sensor_key);
+  // 무엇이 경보인지: 센서 이름(없으면 CCM) + 경보 종류 배지
+  const who = s ? s.name : (top.sensor_key || ("CCM " + top.device_id));
+  const idline = sensorIdLine(top.device_id, top.sensor_key);
   const hl = st==="fail" ? "위험 경보 발생" : "주의 필요";
   return `<div class="hero ${st}">`+
     `<div class="hero-top"><span class="hero-ic">${st==="fail"?"⛔":"⚠"}</span>`+
@@ -1545,13 +1568,14 @@ function heroHtml(){
     `</div>`+
     `<div class="hero-cur" data-id="${top.sensor_key?("sensor:"+top.device_id+":"+top.sensor_key):("ccm:"+top.device_id)}">`+
       `<div class="hc-top"><span class="hc-dot ${top.severity}"></span>`+
-        `<span class="hc-name">${m.ic} ${escapeHtml(m.label)}</span>`+
-        `<span class="hc-loc">${escapeHtml(loc)}</span></div>`+
+        `<span class="hc-name">${escapeHtml(who)}</span>`+
+        `<span class="hc-badge ${top.severity}">${m.ic} ${escapeHtml(m.label)}</span></div>`+
+      `<div class="hc-id">${escapeHtml(idline)}</div>`+
       `<div class="hc-detail">${escapeHtml(top.detail||"")}</div>`+
       `<div class="hero-act need"><span class="ak">필요 조치</span><span class="av">${escapeHtml(need)}</span></div>`+
       `<div class="hero-act ${done.cls}"><span class="ak">진행 상황</span><span class="av">${escapeHtml(done.txt)}</span></div>`+
     `</div>`+
-    (al.length>1 ? `<button class="hero-more" id="hero-more">전체 경보 ${al.length}건 보기 →</button>` : "")+
+    `<button class="hero-more" id="hero-more">전체 경보 ${al.length}건 보기 →</button>`+
     `</div>`;
 }
 function renderOverview(panels){
@@ -1584,10 +1608,11 @@ function renderOverview(panels){
     `<div class="ov-hint">노드를 클릭하면 상세 정보가 여기 표시됩니다</div>`;
   // 히어로 현재경보 클릭 → 해당 노드로 이동, '전체 보기' → 경보 패널
   const cur = box.querySelector(".hero-cur");
-  if(cur) cur.onclick = ()=>{ const n = nodes.get(cur.dataset.id);
+  if(cur) cur.onclick = (e)=>{ e.stopPropagation(); const n = nodes.get(cur.dataset.id);
     if(n){ select(cur.dataset.id); n.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); } };
   const more = box.querySelector("#hero-more");
-  if(more) more.onclick = ()=>{ alarmPanelOpen = true; $("#alarm-panel").hidden = false; loadAlarms(); };
+  // stopPropagation 없으면 이 클릭이 문서로 전파돼 '패널 밖 클릭=닫기'가 즉시 다시 닫는다
+  if(more) more.onclick = (e)=>{ e.stopPropagation(); alarmPanelOpen = true; $("#alarm-panel").hidden = false; loadAlarms(); };
 }
 function showOverview(){
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); selectedId = null; }
@@ -2480,9 +2505,10 @@ function loadAlarms(){
       const m = EVENT_META[a.kind] || {ic:"⚠"};
       const crit = a.severity==="crit";
       const acked = !!a.acked_at;
+      const idline = sensorIdLine(a.device_id, a.sensor_key);   // 품번·주소·CCM
       return `<div class="ap-item"><span class="apd ${crit?'crit':''}"></span>`+
         `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
-        `<div class="apmeta">${escapeHtml(a.device_id||"")}${a.sensor_key?" · "+escapeHtml(a.sensor_key):""} · ${ago(a.raised_at)||"방금"}`+
+        `<div class="apmeta">${escapeHtml(idline)} · ${ago(a.raised_at)||"방금"}`+
         `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div></div>`+
         (acked ? `<button class="ap-ack done">확인됨</button>` : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
         `</div>`;
