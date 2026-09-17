@@ -71,8 +71,18 @@ def main() -> int:
     body_only = re.sub(r"</?head[^>]*>", "", body_only, flags=re.I)
     body_only = re.sub(r"</?body[^>]*>", "", body_only, flags=re.I)
     body_only = re.sub(r"<meta[^>]*>", "", body_only, flags=re.I)
+    body_only = body_only.replace(BANNER, "", 1).lstrip()
+    # 아티팩트/호스팅 불확실성 제거: demo-api.js를 외부 참조 대신 통째로 인라인한다
+    # (별도 파일·쿼리스트링 처리에 의존하지 않는 자기완결형 페이지).
+    if os.path.isfile(api_path):
+        with open(api_path, "r", encoding="utf-8") as fh:
+            api_src = fh.read()
+        body_only = re.sub(
+            r'<script src="demo-api\.js[^"]*"></script>',
+            "<script>\n" + api_src + "\n</script>",
+            body_only, count=1)
     with open(os.path.join(OUT, "artifact.html"), "w", encoding="utf-8") as fh:
-        fh.write(body_only.replace(BANNER, "", 1).lstrip())
+        fh.write(body_only)
 
     imgs = len(os.listdir(dst_img)) if os.path.isdir(dst_img) else 0
     print(f"빌드 완료 → {OUT}")
