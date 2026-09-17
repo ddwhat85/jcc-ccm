@@ -247,6 +247,36 @@
   .ov-kind .kn{color:var(--ink-2)} .ov-kind .kv{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
   .ov-hint{margin-top:14px;font-size:11.5px;color:var(--ink-3);text-align:center;line-height:1.6;
            padding:12px;background:var(--canvas);border:1px solid var(--rule);border-radius:8px}
+  /* ── 히어로 경보 박스 (개요 상단) ── */
+  .hero{border-radius:12px;padding:15px 16px;margin-bottom:14px;border:1px solid var(--rule)}
+  .hero.pass{background:linear-gradient(160deg,var(--ok-soft),var(--surface));border-color:var(--ok)}
+  .hero.warn{background:linear-gradient(160deg,var(--warn-soft),var(--surface));border-color:var(--warn)}
+  .hero.fail{background:linear-gradient(160deg,var(--crit-soft),var(--surface));border-color:var(--crit)}
+  .hero-top{display:flex;align-items:center;gap:10px}
+  .hero-ic{font-size:26px;line-height:1}
+  .hero-hl{font:800 17px var(--sans);letter-spacing:-.01em}
+  .hero.pass .hero-hl{color:var(--ok)} .hero.warn .hero-hl{color:var(--warn)} .hero.fail .hero-hl{color:var(--crit)}
+  .hero-sub{font-size:11.5px;color:var(--ink-2);margin-top:1px}
+  .hero-nums{display:flex;gap:8px;margin:13px 0 4px}
+  .hero-num{flex:1;text-align:center;background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:8px 4px}
+  .hero-num .hn{font:800 22px var(--mono);font-variant-numeric:tabular-nums;line-height:1}
+  .hero-num.crit .hn{color:var(--crit)} .hero-num.warn .hn{color:var(--warn)} .hero-num.ok .hn{color:var(--ok)}
+  .hero-num .hl{font-size:10px;color:var(--ink-3);margin-top:4px}
+  .hero-cur{margin-top:12px;background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:11px 12px}
+  .hero-cur .hc-top{display:flex;align-items:baseline;gap:7px}
+  .hero-cur .hc-dot{width:9px;height:9px;border-radius:50%;flex:none;align-self:center}
+  .hero-cur .hc-dot.crit{background:var(--crit)} .hero-cur .hc-dot.warn{background:var(--warn)}
+  .hero-cur .hc-name{font-weight:700;font-size:13px}
+  .hero-cur .hc-loc{margin-left:auto;font:600 10px var(--mono);color:var(--ink-3)}
+  .hero-cur .hc-detail{font-size:12px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+  .hero-act{display:flex;gap:8px;align-items:flex-start;margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule);
+            font-size:11.5px;line-height:1.5}
+  .hero-act .ak{flex:none;font-weight:700;color:var(--ink-3);width:58px}
+  .hero-act.need .av{color:var(--ink)} .hero-act.done .av{color:var(--ok)}
+  .hero-more{margin-top:9px;width:100%;padding:7px;border:1px solid var(--rule);border-radius:7px;
+             background:var(--surface);color:var(--accent);font-weight:600;font-size:12px;cursor:pointer}
+  .hero-more:hover{background:var(--canvas)}
+  .hero-ok{margin-top:11px;font-size:12px;color:var(--ink-2)}
   .insp-kind{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .insp-title{font-weight:700;font-size:17px;margin:2px 0 12px;letter-spacing:-.01em}
   .insp-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
@@ -906,6 +936,60 @@ function ovTile(n, label, sub){
   return `<div class="ov-tile"><div class="n">${n}${sub?`<small>${escapeHtml(sub)}</small>`:""}</div>`+
          `<div class="l">${escapeHtml(label)}</div></div>`;
 }
+// 경보 종류별 필요 조치(사람이 할 일)
+const ACTION_NEED = {
+  alarm:      "즉시 현장 확인 — 환기·차단 검토, 원인 제거",
+  alarm_warn: "추이 관찰 · 현장 점검 준비 (위험 도달 전 대응)",
+  silent:     "CCM·센서 통신/전원/케이블 점검",
+  stuck:      "센서 재시작 후 점검 · 필요 시 교체",
+  drift:      "센서 보정(캘리브레이션) 점검",
+  anomaly:    "평소와 다른 원인 확인 — 임계 도달 전 선제 조치",
+};
+// 이미 이뤄진 조치
+function alarmDone(a){
+  if(a.acked_at) return {txt:`확인 완료${a.acked_by?" · "+a.acked_by:""}`, cls:"done"};
+  if(a.escalated_at) return {txt:"미확인 → 담당자에게 상향(알림 발송)", cls:"need"};
+  return {txt:"아직 조치 없음 — 확인 필요", cls:"need"};
+}
+function heroHtml(){
+  const al = lastAlarms.slice().sort((a,b)=>
+    (a.severity==="crit"?0:1)-(b.severity==="crit"?0:1) || (a.raised_at-b.raised_at));
+  const crit = al.filter(a=>a.severity==="crit").length;
+  const warn = al.filter(a=>a.severity==="warn").length;
+  const acked = al.filter(a=>a.acked_at).length;
+  const st = crit ? "fail" : (warn ? "warn" : "pass");
+  if(!al.length){
+    return `<div class="hero pass"><div class="hero-top"><span class="hero-ic">✓</span>`+
+      `<div><div class="hero-hl">정상 가동 중</div>`+
+      `<div class="hero-sub">활성 경보 없음 · 모든 장비 정상</div></div></div>`+
+      `<div class="hero-ok">이상이 감지되면 이 자리에 경보와 필요 조치가 표시됩니다.</div></div>`;
+  }
+  const top = al[0];
+  const m = EVENT_META[top.kind] || {ic:"⚠", label:"경보"};
+  const need = ACTION_NEED[top.kind] || "현장 확인 필요";
+  const done = alarmDone(top);
+  const loc = top.sensor_key ? top.device_id : "CCM " + top.device_id;
+  const hl = st==="fail" ? "위험 경보 발생" : "주의 필요";
+  return `<div class="hero ${st}">`+
+    `<div class="hero-top"><span class="hero-ic">${st==="fail"?"⛔":"⚠"}</span>`+
+      `<div><div class="hero-hl">${hl}</div>`+
+      `<div class="hero-sub">활성 경보 ${al.length}건 중 가장 시급한 항목</div></div></div>`+
+    `<div class="hero-nums">`+
+      `<div class="hero-num crit"><div class="hn">${crit}</div><div class="hl">위험</div></div>`+
+      `<div class="hero-num warn"><div class="hn">${warn}</div><div class="hl">주의</div></div>`+
+      `<div class="hero-num ok"><div class="hn">${acked}</div><div class="hl">확인됨</div></div>`+
+    `</div>`+
+    `<div class="hero-cur" data-id="${top.sensor_key?("sensor:"+top.device_id+":"+top.sensor_key):("ccm:"+top.device_id)}">`+
+      `<div class="hc-top"><span class="hc-dot ${top.severity}"></span>`+
+        `<span class="hc-name">${m.ic} ${escapeHtml(m.label)}</span>`+
+        `<span class="hc-loc">${escapeHtml(loc)}</span></div>`+
+      `<div class="hc-detail">${escapeHtml(top.detail||"")}</div>`+
+      `<div class="hero-act need"><span class="ak">필요 조치</span><span class="av">${escapeHtml(need)}</span></div>`+
+      `<div class="hero-act ${done.cls}"><span class="ak">진행 상황</span><span class="av">${escapeHtml(done.txt)}</span></div>`+
+    `</div>`+
+    (al.length>1 ? `<button class="hero-more" id="hero-more">전체 경보 ${al.length}건 보기 →</button>` : "")+
+    `</div>`;
+}
 function renderOverview(panels){
   if(selectedId) return;                 // 노드 선택 중이면 상세 유지
   const box = $("#insp-in"); if(!box) return;
@@ -921,15 +1005,9 @@ function renderOverview(panels){
   const kinds = {};
   for(const s of sensors){ const k = KINDNAME[s.kind]||s.kind||"기타"; kinds[k] = (kinds[k]||0)+1; }
   const kindCount = Object.keys(kinds).length;
-  const crit = lastAlarms.filter(a=>a.severity==="crit").length;
-  const warn = lastAlarms.filter(a=>a.severity==="warn").length;
-  const st = crit ? "fail" : (warn ? "warn" : "pass");
-  const stTxt = crit ? `이상 ${crit}건` : (warn ? `주의 ${warn}건` : "정상 가동 중");
-  const stIcon = crit ? "⛔" : (warn ? "⚠" : "✓");
   box.innerHTML =
     `<div class="ov-h">시스템 개요</div>`+
-    `<div class="ov-status ${st}"><span>${stIcon}</span><span>${stTxt}</span>`+
-      `<span style="margin-left:auto;font:600 11px var(--mono)">CCM ${ccmOnline}/${ccms.length}</span></div>`+
+    heroHtml()+
     `<div class="ov-grid">`+
       ovTile(panels.length, "판넬")+
       ovTile(ccms.length, "CCM", `온라인 ${ccmOnline}`)+
@@ -939,10 +1017,13 @@ function renderOverview(panels){
     `<div class="ov-sec">센서 종류 (${kindCount})</div>`+
     (Object.entries(kinds).sort((a,b)=>b[1]-a[1])
       .map(([k,v])=>`<div class="ov-kind"><span class="kn">${escapeHtml(k)}</span><span class="kv">${v}개</span></div>`).join(""))+
-    `<div class="ov-sec">활성 경보</div>`+
-    `<div class="ov-kind"><span class="kn">위험</span><span class="kv" style="color:var(--crit)">${crit}건</span></div>`+
-    `<div class="ov-kind"><span class="kn">주의</span><span class="kv" style="color:var(--warn)">${warn}건</span></div>`+
     `<div class="ov-hint">노드를 클릭하면 상세 정보가 여기 표시됩니다</div>`;
+  // 히어로 현재경보 클릭 → 해당 노드로 이동, '전체 보기' → 경보 패널
+  const cur = box.querySelector(".hero-cur");
+  if(cur) cur.onclick = ()=>{ const n = nodes.get(cur.dataset.id);
+    if(n){ select(cur.dataset.id); n.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); } };
+  const more = box.querySelector("#hero-more");
+  if(more) more.onclick = ()=>{ alarmPanelOpen = true; $("#alarm-panel").hidden = false; loadAlarms(); };
 }
 function showOverview(){
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); selectedId = null; }
