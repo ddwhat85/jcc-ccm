@@ -203,6 +203,16 @@
     .node.reveal-in{animation:none}
     .wirepath.draw{animation:none!important;stroke-dashoffset:0}
   }
+  /* 경보 노드는 히어로와 같은 색으로 — 어느 노드가 문제인지 한눈에 */
+  .node.sev-warn{border-color:var(--warn)}
+  .node.sev-warn .nhead{background:linear-gradient(180deg,#e0a92e,#c2870d);color:#fff}
+  .node.sev-crit{border-color:var(--crit)}
+  .node.sev-crit .nhead{background:linear-gradient(180deg,#e5565a,#c23539);color:#fff}
+  .node.sev-crit{animation:nodealarm 1.5s ease-in-out infinite}
+  @keyframes nodealarm{
+    0%,100%{box-shadow:0 0 0 1px var(--crit),0 1px 3px rgba(20,24,32,.14)}
+    50%{box-shadow:0 0 0 1px var(--crit),0 0 16px rgba(229,72,77,.55)}}
+  @media (prefers-reduced-motion:reduce){.node.sev-crit{animation:none;box-shadow:0 0 0 1px var(--crit)}}
   .node.guess-node{border-style:dashed}
   .node.disabled-node{opacity:.5;border-style:dashed}
   /* 전원 꺼짐: 회색조 + "전원 꺼짐" 워터마크 */
@@ -247,40 +257,45 @@
   .ov-kind .kn{color:var(--ink-2)} .ov-kind .kv{font-family:var(--mono);color:var(--ink);font-variant-numeric:tabular-nums}
   .ov-hint{margin-top:14px;font-size:11.5px;color:var(--ink-3);text-align:center;line-height:1.6;
            padding:12px;background:var(--canvas);border:1px solid var(--rule);border-radius:8px}
-  /* ── 히어로 경보 박스 (개요 상단) ── */
-  .hero{border-radius:12px;padding:15px 16px;margin-bottom:14px;border:1px solid var(--rule)}
-  .hero.pass{background:linear-gradient(160deg,var(--ok-soft),var(--surface));border-color:var(--ok)}
-  .hero.warn{background:linear-gradient(160deg,var(--warn-soft),var(--surface));border-color:var(--warn)}
-  .hero.fail{background:linear-gradient(160deg,var(--crit-soft),var(--surface));border-color:var(--crit)}
-  .hero-top{display:flex;align-items:center;gap:10px}
-  .hero-ic{font-size:26px;line-height:1}
-  .hero-hl{font:800 17px var(--sans);letter-spacing:-.01em}
-  .hero.pass .hero-hl{color:var(--ok)} .hero.warn .hero-hl{color:var(--warn)} .hero.fail .hero-hl{color:var(--crit)}
-  .hero-sub{font-size:11.5px;color:var(--ink-2);margin-top:1px}
-  .hero-nums{display:flex;gap:8px;margin:13px 0 4px}
-  .hero-num{flex:1;text-align:center;background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:8px 4px}
-  .hero-num .hn{font:800 22px var(--mono);font-variant-numeric:tabular-nums;line-height:1}
-  .hero-num.crit .hn{color:var(--crit)} .hero-num.warn .hn{color:var(--warn)} .hero-num.ok .hn{color:var(--ok)}
-  .hero-num .hl{font-size:10px;color:var(--ink-3);margin-top:4px}
-  .hero-cur{margin-top:12px;background:var(--surface);border:1px solid var(--rule);border-radius:9px;padding:11px 12px}
-  .hero-cur .hc-top{display:flex;align-items:baseline;gap:7px}
-  .hero-cur .hc-dot{width:9px;height:9px;border-radius:50%;flex:none;align-self:center}
-  .hero-cur .hc-dot.crit{background:var(--crit)} .hero-cur .hc-dot.warn{background:var(--warn)}
-  .hero-cur .hc-name{font-weight:700;font-size:13.5px}
-  .hero-cur .hc-badge{margin-left:auto;font:700 9.5px var(--mono);padding:2px 6px;border-radius:4px;
-                      border:1px solid currentColor;white-space:nowrap}
-  .hero-cur .hc-badge.crit{color:var(--crit)} .hero-cur .hc-badge.warn{color:var(--warn)}
-  .hero-cur .hc-id{font:600 10.5px var(--mono);color:var(--ink-3);margin-top:3px}
-  .hero-cur .hc-detail{font-size:12px;color:var(--ink-2);margin-top:6px;line-height:1.45}
-  .hero-cur{cursor:pointer} .hero-cur:hover{border-color:var(--accent)}
-  .hero-act{display:flex;gap:8px;align-items:flex-start;margin-top:9px;padding-top:9px;border-top:1px dashed var(--rule);
-            font-size:11.5px;line-height:1.5}
-  .hero-act .ak{flex:none;font-weight:700;color:var(--ink-3);width:58px}
-  .hero-act.need .av{color:var(--ink)} .hero-act.done .av{color:var(--ok)}
-  .hero-more{margin-top:9px;width:100%;padding:7px;border:1px solid var(--rule);border-radius:7px;
-             background:var(--surface);color:var(--accent);font-weight:600;font-size:12px;cursor:pointer}
-  .hero-more:hover{background:var(--canvas)}
-  .hero-ok{margin-top:11px;font-size:12px;color:var(--ink-2)}
+  /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
+  .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
+        background:var(--surface);border:1px solid var(--rule);overflow:hidden;
+        box-shadow:0 1px 2px rgba(20,24,32,.06)}
+  .hero::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px}
+  .hero.fail::before{background:var(--crit)} .hero.warn::before{background:var(--warn)}
+  .hero.pass::before{background:var(--ok)}
+  .hero-head{display:flex;align-items:center;gap:8px;margin-bottom:11px}
+  .hero-chip{display:inline-flex;align-items:center;gap:5px;font:700 11px var(--sans);
+             padding:3px 9px;border-radius:20px;color:#fff}
+  .hero.fail .hero-chip{background:var(--crit)} .hero.warn .hero-chip{background:var(--warn)}
+  .hero.pass .hero-chip{background:var(--ok)}
+  .hero-chip .pulse{width:7px;height:7px;border-radius:50%;background:#fff}
+  .hero.fail .hero-chip .pulse{animation:hpulse 1.2s ease-in-out infinite}
+  @keyframes hpulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .hero-stat{margin-left:auto;font:600 11px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .hero-stat b.c{color:var(--crit)} .hero-stat b.w{color:var(--warn)} .hero-stat b.o{color:var(--ok)}
+  /* 무엇이 경보인지: 센서 이름 크게 + 위치 + 상세 (카드 전체가 클릭영역) */
+  .hero-cur{cursor:pointer;border-radius:9px;transition:background .1s}
+  .hero-cur:hover{background:var(--canvas)}
+  .hero-name{font:800 18px var(--sans);letter-spacing:-.02em;line-height:1.2}
+  .hero-loc{display:inline-flex;align-items:center;gap:6px;margin-top:5px;font:600 10.5px var(--mono);
+            color:var(--ink-2);background:var(--canvas);border:1px solid var(--rule);
+            border-radius:6px;padding:3px 8px}
+  .hero-detail{font-size:12.5px;color:var(--ink);margin-top:9px;line-height:1.5;font-weight:500}
+  .hero-actions{margin-top:12px;display:flex;flex-direction:column;gap:0}
+  .ha{display:flex;gap:9px;align-items:baseline;padding:7px 0;font-size:12px;line-height:1.45}
+  .ha + .ha{border-top:1px solid var(--rule)}
+  .ha .hai{flex:none;width:15px;text-align:center}
+  .ha .hak{flex:none;width:52px;color:var(--ink-3);font-weight:600;font-size:11px}
+  .ha .hav{flex:1;color:var(--ink)}
+  .ha.done .hav{color:var(--ok);font-weight:600}
+  .hero-more{margin-top:13px;width:100%;padding:9px;border:none;border-radius:9px;
+             background:var(--ink);color:var(--surface);font-weight:700;font-size:12.5px;cursor:pointer;
+             display:flex;align-items:center;justify-content:center;gap:6px}
+  .hero-more:hover{filter:brightness(1.12)}
+  .hero-ok{font-size:12px;color:var(--ink-2);line-height:1.5}
+  .hero-okrow{display:flex;align-items:center;gap:10px}
+  .hero-okrow .oki{font-size:22px}
   .insp-kind{font:600 10px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .insp-title{font-weight:700;font-size:17px;margin:2px 0 12px;letter-spacing:-.01em}
   .insp-row{display:flex;justify-content:space-between;gap:12px;padding:7px 0;
@@ -885,15 +900,30 @@ async function runReveal(panels){
   setStatus(`자동 연결 완료 — CCM ${panels.reduce((a,p)=>a+(p.ccms||[]).length,0)}대 · 센서 ${sn}개`);
 }
 
+// 노드에 심각도 색을 입힌다(경보=히어로와 같은 색). crit>warn>없음.
+function applySev(el, sev){
+  if(!el) return;
+  el.classList.toggle("sev-crit", sev==="crit");
+  el.classList.toggle("sev-warn", sev==="warn");
+}
+function worseSev(a, b){ const r={crit:2,warn:1}; return (r[b]||0)>(r[a]||0) ? b : a; }
+
 // ── 값·상태 갱신 (제자리) ─────────────────────────────
 function updateValues(panels){
-  let onlinePanels = 0, lastSeen = 0;
+  let onlinePanels = 0, lastSeen = 0, overallSev = "";
   nodeOnline = {};
+  // 활성 경보로 노드 색을 정한다(고착·침묵·드리프트·이상까지 전부 반영 — 값 기준만으론 놓침)
+  const aSensor = {}, aCcm = {};
+  for(const a of lastAlarms){
+    if(a.sensor_key) aSensor[a.device_id+":"+a.sensor_key] = worseSev(aSensor[a.device_id+":"+a.sensor_key]||"", a.severity);
+    else aCcm[a.device_id] = worseSev(aCcm[a.device_id]||"", a.severity);
+  }
   for(const p of panels){
     if(p.online) onlinePanels++;
     nodeOnline["panel:"+p.panel] = p.online;
     const pEl = nodes.get("panel:"+p.panel)?.el; if(!pEl) continue;
     setPill(pEl.querySelector('[data-role="pill"]'), p.online);
+    let panelSev = "";
     for(const c of (p.ccms||[])){
       lastSeen = Math.max(lastSeen, c.last_seen||0);
       const ccmId = "ccm:"+c.device_id;
@@ -905,6 +935,7 @@ function updateValues(panels){
       const cEl = nodes.get(ccmId)?.el; if(!cEl) continue;
       setPill(cEl.querySelector('[data-role="pill"]'), cOnline);
       cEl.classList.toggle("node-off", forcedOff);   // 전원 꺼짐 워터마크
+      let ccmSev = "";
       for(const r of (c.latest||[])){
         nodeOnline["sensor:"+c.device_id+":"+r.sensor_key] = cOnline;
         // CCM이 꺼져 있으면 그 아래 센서도 전원이 끊긴 것 → 값은 마지막 값으로 얼리고 흐리게.
@@ -913,19 +944,32 @@ function updateValues(panels){
         const cv = cEl.querySelector(`[data-role="cv:${cssAttr(r.sensor_key)}"]`);
         if(cv){ cv.className = "pval "+sev;
           if(!forcedOff) cv.innerHTML = fmtValue(r.value)+`<span class="punit">${escapeHtml(r.unit||"")}</span>`; }
-        // 센서 노드 큰 값
+        // 센서 노드 큰 값 + 노드 색
+        // 노드 카드 색 = 활성 경보 기준(값 기준 severity와 합침)
+        const valSev = (sev==="crit"||sev==="warn") ? sev : "";
+        const cardSev = forcedOff ? "" : worseSev(valSev, aSensor[c.device_id+":"+r.sensor_key]||"");
         const sEl = nodes.get("sensor:"+c.device_id+":"+r.sensor_key)?.el;
         if(sEl){ sEl.classList.toggle("node-off", forcedOff);   // 꺼진 CCM의 센서도 '전원 꺼짐'
+          applySev(sEl, cardSev);
           const bv=sEl.querySelector('[data-role="sv"]');
           bv.className = "vpill "+sev;
           if(!forcedOff) bv.querySelector(".v").textContent = fmtValue(r.value); }
+        if(cardSev) ccmSev = worseSev(ccmSev, cardSev);
         // 인스펙터 열려있으면 현재값·상태 실시간 갱신
         const rec = sensorRec[c.device_id+":"+r.sensor_key];
         if(rec){ rec.value = r.value; rec.ok = r.ok; }
         if(selectedId === "sensor:"+c.device_id+":"+r.sensor_key) updateInspLive(r.value, r.unit, sev);
       }
+      // CCM 자체 경보(장비 침묵 등) + 오프라인이면 위험
+      if(!forcedOff) ccmSev = worseSev(ccmSev, aCcm[c.device_id]||"");
+      if(!cOnline && !forcedOff) ccmSev = "crit";
+      applySev(cEl, forcedOff ? "" : ccmSev);
+      panelSev = worseSev(panelSev, ccmSev);
     }
+    applySev(pEl, panelSev);
+    overallSev = worseSev(overallSev, panelSev);
   }
+  applySev(nodes.get("server:jcc")?.el, overallSev);
   // 서버 노드 요약
   nodeOnline["server:jcc"] = onlinePanels > 0;
   const sSub = nodes.get("server:jcc")?.el.querySelector('[data-role="server-sub"]');
@@ -979,37 +1023,30 @@ function heroHtml(){
   const acked = al.filter(a=>a.acked_at).length;
   const st = crit ? "fail" : (warn ? "warn" : "pass");
   if(!al.length){
-    return `<div class="hero pass"><div class="hero-top"><span class="hero-ic">✓</span>`+
-      `<div><div class="hero-hl">정상 가동 중</div>`+
-      `<div class="hero-sub">활성 경보 없음 · 모든 장비 정상</div></div></div>`+
-      `<div class="hero-ok">이상이 감지되면 이 자리에 경보와 필요 조치가 표시됩니다.</div></div>`;
+    return `<div class="hero pass">`+
+      `<div class="hero-head"><span class="hero-chip"><span class="pulse"></span>정상</span></div>`+
+      `<div class="hero-okrow"><span class="oki">🛡️</span>`+
+      `<div class="hero-ok"><b>모든 장비 정상 가동 중</b><br>활성 경보가 없습니다. 이상이 감지되면 여기에 어느 센서·무슨 문제·필요 조치가 표시됩니다.</div></div></div>`;
   }
   const top = al[0];
   const m = EVENT_META[top.kind] || {ic:"⚠", label:"경보"};
   const need = ACTION_NEED[top.kind] || "현장 확인 필요";
   const done = alarmDone(top);
   const s = findSensor(top.device_id, top.sensor_key);
-  // 무엇이 경보인지: 센서 이름(없으면 CCM) + 경보 종류 배지
   const who = s ? s.name : (top.sensor_key || ("CCM " + top.device_id));
   const idline = sensorIdLine(top.device_id, top.sensor_key);
-  const hl = st==="fail" ? "위험 경보 발생" : "주의 필요";
+  const chip = st==="fail" ? "위험" : "주의";
   return `<div class="hero ${st}">`+
-    `<div class="hero-top"><span class="hero-ic">${st==="fail"?"⛔":"⚠"}</span>`+
-      `<div><div class="hero-hl">${hl}</div>`+
-      `<div class="hero-sub">활성 경보 ${al.length}건 중 가장 시급한 항목</div></div></div>`+
-    `<div class="hero-nums">`+
-      `<div class="hero-num crit"><div class="hn">${crit}</div><div class="hl">위험</div></div>`+
-      `<div class="hero-num warn"><div class="hn">${warn}</div><div class="hl">주의</div></div>`+
-      `<div class="hero-num ok"><div class="hn">${acked}</div><div class="hl">확인됨</div></div>`+
-    `</div>`+
+    `<div class="hero-head"><span class="hero-chip"><span class="pulse"></span>${chip} ${escapeHtml(m.label)}</span>`+
+      `<span class="hero-stat">위험 <b class="c">${crit}</b> · 주의 <b class="w">${warn}</b> · 확인 <b class="o">${acked}</b></span></div>`+
     `<div class="hero-cur" data-id="${top.sensor_key?("sensor:"+top.device_id+":"+top.sensor_key):("ccm:"+top.device_id)}">`+
-      `<div class="hc-top"><span class="hc-dot ${top.severity}"></span>`+
-        `<span class="hc-name">${escapeHtml(who)}</span>`+
-        `<span class="hc-badge ${top.severity}">${m.ic} ${escapeHtml(m.label)}</span></div>`+
-      `<div class="hc-id">${escapeHtml(idline)}</div>`+
-      `<div class="hc-detail">${escapeHtml(top.detail||"")}</div>`+
-      `<div class="hero-act need"><span class="ak">필요 조치</span><span class="av">${escapeHtml(need)}</span></div>`+
-      `<div class="hero-act ${done.cls}"><span class="ak">진행 상황</span><span class="av">${escapeHtml(done.txt)}</span></div>`+
+      `<div class="hero-name">${escapeHtml(who)}</div>`+
+      `<div class="hero-loc">${m.ic} ${escapeHtml(idline)}</div>`+
+      `<div class="hero-detail">${escapeHtml(top.detail||"")}</div>`+
+      `<div class="hero-actions">`+
+        `<div class="ha need"><span class="hai">🛠</span><span class="hak">필요 조치</span><span class="hav">${escapeHtml(need)}</span></div>`+
+        `<div class="ha ${done.cls}"><span class="hai">${done.cls==="done"?"✓":"⏳"}</span><span class="hak">진행 상황</span><span class="hav">${escapeHtml(done.txt)}</span></div>`+
+      `</div>`+
     `</div>`+
     `<button class="hero-more" id="hero-more">전체 경보 ${al.length}건 보기 →</button>`+
     `</div>`;
