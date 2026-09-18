@@ -879,6 +879,93 @@ class Storage:
         return {"ok": True, "checked": checked, "counts": counts,
                 "overall": overall, "summary": summary, "problems": problems}
 
+    # ── 기간별 종합 리포트 (이력 트렌드) ─────────────────────
+    _PROB_LABEL = {"alarm": "위험", "alarm_warn": "경고", "silent": "침묵",
+                   "stuck": "고착", "drift": "드리프트", "anomaly": "이상"}
+
+    def build_report(self, days: float = 7) -> dict:
+        """지정 기간의 운영 리포트를 만든다.
+
+        가동 현황·경보 요약·**자가치유 성과**·센서별 값 통계(min/avg/max)·문제
+        하드웨어 Top을 한 번에 집계한다. 고객 검토·정기 보고용 자료.
+        """
+        now = time.time()
+        days = max(1 / 24, float(days))               # 최소 1시간
+        since = now - days * 86400
+        with self._lock:
+            ev_rows = self._conn.execute(
+                "SELECT etype, COUNT(*) c FROM events WHERE ts >= ? GROUP BY etype",
+                (since,)).fetchall()
+            rd_rows = self._conn.execute(
+                "SELECT device_id, sensor_key, COUNT(*) n, MIN(value) mn, AVG(value) av, "
+                "MAX(value) mx FROM readings WHERE ts >= ? AND ok = 1 AND value IS NOT NULL "
+                "GROUP BY device_id, sensor_key", (since,)).fetchall()
+            prob_rows = self._conn.execute(
+                "SELECT device_id, sensor_key, etype, COUNT(*) c FROM events WHERE ts >= ? "
+                "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly') "
+                "GROUP BY device_id, sensor_key, etype", (since,)).fetchall()
+            dev_rows = self._conn.execute("SELECT device_id, last_seen FROM devices").fetchall()
+
+        ev = {r["etype"]: r["c"] for r in ev_rows}
+        disc = self._discovered_map()                 # 락 밖(자체 락 사용)
+        name_unit = {(dev, s["sensor_key"]): (s.get("name") or s["sensor_key"], s.get("unit") or "")
+                     for dev, slist in disc.items() for s in slist}
+
+        crit = ev.get("alarm", 0) + ev.get("silent", 0)
+        warn = (ev.get("alarm_warn", 0) + ev.get("stuck", 0)
+                + ev.get("drift", 0) + ev.get("anomaly", 0))
+        l1ok, l1gu = ev.get("heal_ok", 0), ev.get("heal_giveup", 0)
+        l2ok, l2gu = ev.get("heal2_ok", 0), ev.get("heal2_giveup", 0)
+        auto_fixed = l1ok + l2ok
+        resolved = l1ok + l1gu + l2ok + l2gu          # 결말이 난 자동복구 시도
+        success_rate = round(100 * auto_fixed / resolved) if resolved else None
+        online = sum(1 for r in dev_rows if r["last_seen"]
+                     and (now - r["last_seen"]) < 60 and r["device_id"] not in self._powered_off)
+
+        prob_map: dict = {}
+        for r in prob_rows:
+            prob_map.setdefault((r["device_id"], r["sensor_key"]), {})[r["etype"]] = r["c"]
+
+        sensors = []
+        for r in rd_rows:
+            dev, key = r["device_id"], r["sensor_key"]
+            nm, un = name_unit.get((dev, key), (key, ""))
+            pm = prob_map.get((dev, key), {})
+            sensors.append({
+                "device_id": dev, "sensor_key": key, "name": nm, "unit": un, "count": r["n"],
+                "min": round(r["mn"], 2) if r["mn"] is not None else None,
+                "avg": round(r["av"], 2) if r["av"] is not None else None,
+                "max": round(r["mx"], 2) if r["mx"] is not None else None,
+                "problems": {k: v for k, v in pm.items() if v},
+            })
+        sensors.sort(key=lambda s: s["name"])
+
+        problems = []
+        for (dev, key), pm in prob_map.items():
+            nm, _ = name_unit.get((dev, key), (key or dev, ""))
+            problems.append({
+                "device_id": dev, "sensor_key": key,
+                "name": nm if key else ("CCM " + dev), "count": sum(pm.values()),
+                "detail": " · ".join(f"{self._PROB_LABEL.get(k, k)} {v}" for k, v in pm.items()),
+            })
+        problems.sort(key=lambda p: -p["count"])
+
+        return {
+            "ok": True, "range_days": days, "since": since, "generated_at": now,
+            "summary": {
+                "devices": {"total": len(dev_rows), "online": online},
+                "sensors": {"total": sum(len(v) for v in disc.values())},
+                "alarms": {"crit": crit, "warn": warn, "total": crit + warn},
+                "acks": ev.get("ack", 0), "escalations": ev.get("escalate", 0),
+                "heal": {
+                    "l1_restart": ev.get("heal_restart", 0), "l1_ok": l1ok, "l1_giveup": l1gu,
+                    "l2_restart": ev.get("heal2_restart", 0), "l2_ok": l2ok, "l2_giveup": l2gu,
+                    "auto_fixed": auto_fixed, "success_rate": success_rate,
+                },
+            },
+            "sensors": sensors, "problems": problems[:8],
+        }
+
     # ── 센서 건강도 분석 (고착·드리프트) ────────────────────
     def history_stats(self, device_id: str, sensor_key: str, n: int = 30) -> dict:
         """최근 이력으로 센서의 '믿을 수 있는지'를 본다.

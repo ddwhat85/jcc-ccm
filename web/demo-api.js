@@ -552,6 +552,66 @@
     return { ok: true, checked, counts, overall, summary, problems };
   }
 
+  // ── 기간별 종합 리포트 (storage.build_report 미러) ──────────────────────────
+  const PROB_LABEL = { alarm: "위험", alarm_warn: "경고", silent: "침묵", stuck: "고착", drift: "드리프트", anomaly: "이상" };
+  function buildReport(days) {
+    const t = now();
+    days = Math.max(1 / 24, days || 7);
+    const since = t - days * 86400;
+    const ev = {};                       // etype -> count
+    const probMap = {};                  // "dev:key" -> {etype:count}
+    for (const e of S.events) {
+      if (e.ts < since) continue;
+      ev[e.etype] = (ev[e.etype] || 0) + 1;
+      if (PROB_LABEL[e.etype]) { const k = K(e.device_id, e.sensor_key);
+        (probMap[k] || (probMap[k] = {}))[e.etype] = (probMap[k][e.etype] || 0) + 1; }
+    }
+    const nameUnit = {};
+    let totalSensors = 0;
+    for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      nameUnit[K(dev, s.key)] = [s.name || s.key, s.unit || ""]; totalSensors++;
+    }
+    // 센서별 값 통계
+    const sensors = [];
+    for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      const arr = (S.readings[K(dev, s.key)] || []).filter(p => p.ts >= since && p.ok && p.value != null);
+      if (!arr.length) continue;
+      let mn = Infinity, mx = -Infinity, sum = 0;
+      for (const p of arr) { if (p.value < mn) mn = p.value; if (p.value > mx) mx = p.value; sum += p.value; }
+      const pm = probMap[K(dev, s.key)] || {};
+      sensors.push({ device_id: dev, sensor_key: s.key, name: s.name || s.key, unit: s.unit || "",
+        count: arr.length, min: Math.round(mn * 100) / 100, avg: Math.round((sum / arr.length) * 100) / 100,
+        max: Math.round(mx * 100) / 100, problems: Object.assign({}, pm) });
+    }
+    sensors.sort((a, b) => a.name.localeCompare(b.name));
+    // 문제 하드웨어 Top
+    const problems = [];
+    for (const k in probMap) { const pm = probMap[k]; const i = k.indexOf(":");
+      const dev = k.slice(0, i), key = k.slice(i + 1);
+      const nm = nameUnit[k] ? nameUnit[k][0] : (key || dev);
+      problems.push({ device_id: dev, sensor_key: key, name: key ? nm : ("CCM " + dev),
+        count: Object.values(pm).reduce((a, c) => a + c, 0),
+        detail: Object.keys(pm).map(x => `${PROB_LABEL[x] || x} ${pm[x]}`).join(" · ") });
+    }
+    problems.sort((a, b) => b.count - a.count);
+    const crit = (ev.alarm || 0) + (ev.silent || 0);
+    const warn = (ev.alarm_warn || 0) + (ev.stuck || 0) + (ev.drift || 0) + (ev.anomaly || 0);
+    const l1ok = ev.heal_ok || 0, l1gu = ev.heal_giveup || 0, l2ok = ev.heal2_ok || 0, l2gu = ev.heal2_giveup || 0;
+    const autoFixed = l1ok + l2ok, resolved = l1ok + l1gu + l2ok + l2gu;
+    let online = 0;
+    for (const dev in S.discovered) if (!S.poweredOff[dev] && S.lastSeen[dev] && (t - S.lastSeen[dev]) < 45) online++;
+    return { ok: true, range_days: days, since, generated_at: t,
+      summary: {
+        devices: { total: Object.keys(S.discovered).length, online },
+        sensors: { total: totalSensors },
+        alarms: { crit, warn, total: crit + warn },
+        acks: ev.ack || 0, escalations: ev.escalate || 0,
+        heal: { l1_restart: ev.heal_restart || 0, l1_ok: l1ok, l1_giveup: l1gu,
+          l2_restart: ev.heal2_restart || 0, l2_ok: l2ok, l2_giveup: l2gu,
+          auto_fixed: autoFixed, success_rate: resolved ? Math.round(100 * autoFixed / resolved) : null } },
+      sensors, problems: problems.slice(0, 8) };
+  }
+
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   const J = (obj, status) => new Response(JSON.stringify(obj), {
@@ -580,6 +640,7 @@
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
       if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false }));
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
+      if (p === "/api/report") return Promise.resolve(J(buildReport(parseFloat(qs.get("days") || "7"))));
       if (p === "/api/events") {
         const dev = qs.get("device_id") || "", key = qs.get("sensor_key") || "";
         const lim = Math.min(parseInt(qs.get("limit") || "50", 10) || 50, 500);

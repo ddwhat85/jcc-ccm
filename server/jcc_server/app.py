@@ -179,6 +179,13 @@ class Handler(BaseHTTPRequestHandler):
                                    f"전체 점검: {rep.get('summary','')} "
                                    f"(정상 {c.get('pass',0)}·주의 {c.get('warn',0)}·이상 {c.get('fail',0)})")
             return self._json(rep)
+        if path == "/api/report":
+            q = parse_qs(parsed.query)
+            try:
+                days = float((q.get("days") or ["7"])[0])
+            except ValueError:
+                days = 7
+            return self._json(self.storage.build_report(days))
         if path == "/api/auth/status":
             return self._json({"enabled": bool(_DASH_PW)})
         if path == "/api/notify/status":

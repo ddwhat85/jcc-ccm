@@ -415,6 +415,62 @@
   .hc-item .hcloc{flex:none;font:600 10px var(--mono);color:var(--ink-3);
                   background:var(--surface-2);border-radius:4px;padding:2px 6px}
   .hc-allok{text-align:center;padding:26px 8px;color:var(--ok);font-weight:600;font-size:14px}
+  /* ── 이력 리포트 ── */
+  .rp-modal{width:min(720px,95vw);max-height:88vh;overflow-y:auto}
+  .rp-range{margin-left:16px;display:flex;gap:4px;background:var(--canvas);border:1px solid var(--rule);
+            border-radius:8px;padding:3px}
+  .rp-rbtn{font:600 12px var(--sans);border:none;background:none;color:var(--ink-2);
+           padding:5px 11px;border-radius:6px;cursor:pointer}
+  .rp-rbtn.on{background:var(--accent);color:#fff}
+  .rp-print{margin-left:auto;font:600 12px var(--sans);border:1px solid var(--rule);background:var(--canvas);
+            color:var(--ink);padding:6px 11px;border-radius:7px;cursor:pointer}
+  .rp-print:hover{border-color:var(--accent);color:var(--accent)}
+  .modal-head .rp-print + #rp-close,.modal-head #rp-close{margin-left:8px}
+  .rp-meta{font:500 11.5px var(--mono);color:var(--ink-3);margin:-2px 0 14px}
+  /* 자가치유 성과 하이라이트(판매 포인트) */
+  .rp-heal{background:linear-gradient(135deg,var(--ok-soft),var(--canvas));border:1px solid var(--ok);
+           border-radius:12px;padding:14px 16px;margin-bottom:14px;display:flex;align-items:center;gap:16px}
+  .rp-heal .rh-big{font:800 34px var(--mono);color:var(--ok);line-height:1;font-variant-numeric:tabular-nums}
+  .rp-heal .rh-txt{flex:1}
+  .rp-heal .rh-h{font-weight:700;font-size:14px}
+  .rp-heal .rh-sub{font-size:12px;color:var(--ink-2);margin-top:3px}
+  .rp-heal .rh-rate{text-align:center;flex:none}
+  .rp-heal .rh-rate .n{font:800 22px var(--mono);color:var(--ok)}
+  .rp-heal .rh-rate .l{font-size:10px;color:var(--ink-3)}
+  .rp-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:16px}
+  .rp-card{background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:11px 12px}
+  .rp-card .n{font:700 21px var(--mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .rp-card .n small{font-size:11px;color:var(--ink-3);font-weight:600;margin-left:3px}
+  .rp-card .n.crit{color:var(--crit)} .rp-card .n.warn{color:var(--warn)}
+  .rp-card .l{font-size:11px;color:var(--ink-3);margin-top:3px}
+  .rp-sec{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+          margin:16px 0 7px}
+  .rp-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .rp-table th{text-align:right;font:600 10px var(--mono);letter-spacing:.04em;text-transform:uppercase;
+               color:var(--ink-3);padding:5px 8px;border-bottom:1px solid var(--rule)}
+  .rp-table th:first-child{text-align:left}
+  .rp-table td{padding:7px 8px;border-bottom:1px solid var(--rule);text-align:right;
+               font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .rp-table td:first-child{text-align:left;font-family:var(--sans);font-weight:600}
+  .rp-table td .u{font-size:9px;color:var(--ink-3);margin-left:1px}
+  .rp-table tr:hover td{background:var(--canvas)}
+  .rp-badge{display:inline-block;font:600 9.5px var(--mono);padding:1px 5px;border-radius:3px;margin-left:5px}
+  .rp-badge.crit{background:var(--crit-soft);color:var(--crit)} .rp-badge.warn{background:var(--warn-soft);color:var(--warn)}
+  .rp-prob{display:flex;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--rule);cursor:pointer}
+  .rp-prob:hover{background:var(--canvas)}
+  .rp-prob .rank{font:800 13px var(--mono);color:var(--ink-3);width:20px;text-align:center;flex:none}
+  .rp-prob .col{flex:1;min-width:0}
+  .rp-prob .pn{font-weight:600;font-size:13px}
+  .rp-prob .pd{font:600 11px var(--mono);color:var(--ink-2);margin-top:2px}
+  .rp-prob .pc{font:700 13px var(--mono);color:var(--crit);flex:none;min-width:26px;text-align:right}
+  .rp-empty{color:var(--ink-3);font-size:12.5px;padding:14px 4px;text-align:center}
+  @media print{
+    body *{visibility:hidden}
+    #report-overlay,#report-overlay *{visibility:visible}
+    #report-overlay{position:absolute;inset:0;background:#fff;display:block!important}
+    .rp-modal{box-shadow:none;max-height:none;width:100%}
+    .rp-range,.rp-print,#rp-close{display:none!important}
+  }
   /* 테마 전환 버튼 */
   .mb-theme{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
             padding:3px 6px;border-radius:6px;opacity:.85}
@@ -519,6 +575,7 @@
       <button class="mb-title">도구</button>
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
+        <button class="mb-item" id="btn-report">이력 리포트</button>
         <div class="mb-div"></div>
         <button class="mb-item" id="btn-notify-test">알림 테스트 발송</button>
       </div>
@@ -572,6 +629,23 @@
     <div class="modal hc-modal">
       <div class="modal-head"><h3>전체 시스템 점검</h3><button id="hc-close">×</button></div>
       <div id="hc-body"></div>
+    </div>
+  </div>
+
+  <!-- 이력 리포트 -->
+  <div class="overlay" id="report-overlay">
+    <div class="modal rp-modal" id="rp-modal">
+      <div class="modal-head">
+        <h3>이력 리포트</h3>
+        <div class="rp-range" id="rp-range">
+          <button data-days="1" class="rp-rbtn">오늘</button>
+          <button data-days="7" class="rp-rbtn on">최근 7일</button>
+          <button data-days="30" class="rp-rbtn">최근 30일</button>
+        </div>
+        <button class="rp-print" id="rp-print" title="인쇄·PDF 저장">🖨 인쇄</button>
+        <button id="rp-close">×</button>
+      </div>
+      <div id="rp-body"></div>
     </div>
   </div>
 
@@ -1975,6 +2049,84 @@ function renderHealth(rep){
 $("#btn-health").onclick = runHealthCheck;
 $("#hc-close").onclick = ()=> $("#health-overlay").classList.remove("open");
 $("#health-overlay").onclick = e=>{ if(e.target===$("#health-overlay")) $("#health-overlay").classList.remove("open"); };
+
+// ── 이력 리포트 ───────────────────────────────────────
+const PROB_KO = {alarm:"위험", alarm_warn:"경고", silent:"침묵", stuck:"고착", drift:"드리프트", anomaly:"이상"};
+let reportDays = 7;
+function ovC(n, label, cls){ return `<div class="rp-card"><div class="n ${cls||""}">${n}</div><div class="l">${escapeHtml(label)}</div></div>`; }
+function fmtNum(v){ return v==null ? "–" : (Math.round(v*100)/100); }
+function openReport(days){
+  reportDays = days || reportDays;
+  $("#rp-range").querySelectorAll(".rp-rbtn").forEach(b=> b.classList.toggle("on", (+b.dataset.days)===reportDays));
+  const body = $("#rp-body"); body.innerHTML = `<div class="rp-empty">집계 중…</div>`;
+  $("#report-overlay").classList.add("open");
+  fetch("/api/report?days="+reportDays,{cache:"no-store"}).then(r=>r.json()).then(renderReport)
+    .catch(()=> body.innerHTML = `<div class="rp-empty">리포트를 불러오지 못했습니다.</div>`);
+}
+function renderReport(rep){
+  const s = rep.summary||{}, h = s.heal||{}, dev = s.devices||{}, al = s.alarms||{};
+  const rd = rep.range_days||7;
+  const rangeLabel = rd>=30?"최근 30일":(rd>=7?"최근 7일":(rd>=1?"오늘":"최근 "+Math.round(rd*24)+"시간"));
+  const g = new Date((rep.generated_at||Date.now()/1000)*1000), pad = n=>String(n).padStart(2,"0");
+  let html = `<div class="rp-meta">${rangeLabel} · ${g.getFullYear()}-${pad(g.getMonth()+1)}-${pad(g.getDate())} ${pad(g.getHours())}:${pad(g.getMinutes())} 기준</div>`;
+  // 자가치유 성과(판매 포인트) — 시도가 있었을 때만
+  const attempts = (h.l1_restart||0)+(h.l2_restart||0);
+  if(attempts){
+    const needHuman = (h.l1_giveup||0)+(h.l2_giveup||0);
+    html += `<div class="rp-heal"><div class="rh-big">${h.auto_fixed||0}</div>`+
+      `<div class="rh-txt"><div class="rh-h">자동복구가 문제를 ${h.auto_fixed||0}번 스스로 해결했습니다</div>`+
+      `<div class="rh-sub">채널 재시작 ${h.l1_restart||0}회(복구 ${h.l1_ok||0}) · CCM 재시작 ${h.l2_restart||0}회(복구 ${h.l2_ok||0}) · 사람 확인 필요 ${needHuman}건</div></div>`+
+      (h.success_rate!=null ? `<div class="rh-rate"><div class="n">${h.success_rate}%</div><div class="l">복구 성공률</div></div>` : "")+
+      `</div>`;
+  }
+  // 요약 카드
+  html += `<div class="rp-cards">`+
+    ovC(`${dev.online||0}<small>/${dev.total||0}</small>`, "온라인 CCM", "")+
+    ovC(`${(s.sensors&&s.sensors.total)||0}`, "센서", "")+
+    ovC(`${al.crit||0}`, "위험 경보", al.crit?"crit":"")+
+    ovC(`${al.warn||0}`, "주의 경보", al.warn?"warn":"")+
+    `</div>`;
+  // 센서별 값 통계
+  const sensors = rep.sensors||[];
+  html += `<div class="rp-sec">센서별 값 통계 (${sensors.length})</div>`;
+  if(!sensors.length){ html += `<div class="rp-empty">아직 수집된 값이 없습니다.</div>`; }
+  else {
+    html += `<table class="rp-table"><thead><tr><th>센서</th><th>측정수</th><th>최소</th><th>평균</th><th>최대</th></tr></thead><tbody>`;
+    for(const se of sensors){
+      const u = se.unit ? `<span class="u">${escapeHtml(se.unit)}</span>` : "";
+      const pk = Object.keys(se.problems||{});
+      let badge = "";
+      if(pk.length){ const crit = se.problems.alarm||se.problems.silent;
+        badge = `<span class="rp-badge ${crit?'crit':'warn'}">${pk.map(k=>PROB_KO[k]||k).join("·")}</span>`; }
+      html += `<tr><td>${escapeHtml(se.name)}${badge}</td><td>${se.count}</td>`+
+        `<td>${fmtNum(se.min)}${u}</td><td>${fmtNum(se.avg)}${u}</td><td>${fmtNum(se.max)}${u}</td></tr>`;
+    }
+    html += `</tbody></table>`;
+  }
+  // 문제 하드웨어 Top
+  const probs = rep.problems||[];
+  html += `<div class="rp-sec">문제 하드웨어 Top (${probs.length})</div>`;
+  if(!probs.length){ html += `<div class="rp-empty">기간 내 경보·문제가 없었습니다 ✓</div>`; }
+  else {
+    probs.forEach((p,i)=>{
+      const nid = p.sensor_key ? ("sensor:"+p.device_id+":"+p.sensor_key) : ("ccm:"+p.device_id);
+      html += `<div class="rp-prob" data-id="${escapeHtml(nid)}"><span class="rank">${i+1}</span>`+
+        `<div class="col"><div class="pn">${escapeHtml(p.name)}</div><div class="pd">${escapeHtml(p.detail||"")}</div></div>`+
+        `<span class="pc">${p.count}</span></div>`;
+    });
+  }
+  const body = $("#rp-body"); body.innerHTML = html;
+  body.querySelectorAll(".rp-prob").forEach(it=> it.onclick = ()=>{
+    const n = nodes.get(it.dataset.id);
+    if(n){ $("#report-overlay").classList.remove("open"); select(it.dataset.id);
+      n.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); }
+  });
+}
+$("#btn-report").onclick = ()=> openReport(reportDays);
+$("#rp-close").onclick = ()=> $("#report-overlay").classList.remove("open");
+$("#rp-print").onclick = ()=> window.print();
+$("#report-overlay").onclick = e=>{ if(e.target===$("#report-overlay")) $("#report-overlay").classList.remove("open"); };
+$("#rp-range").querySelectorAll(".rp-rbtn").forEach(b=> b.onclick = ()=> openReport(+b.dataset.days));
 
 // ── 활성 경보 패널 (🔔) ───────────────────────────────
 let alarmPanelOpen = false;
