@@ -81,6 +81,9 @@ def main() -> int:
             r'<script src="demo-api\.js[^"]*"></script>',
             "<script>\n" + api_src + "\n</script>",
             body_only, count=1)
+    # 인코딩 선언은 반드시 남긴다 — 위에서 <meta>를 전부 지웠으므로 charset을 다시 넣는다.
+    # (호스트가 UTF-8 charset을 안 붙여주는 환경에서 한글이 깨지는 것을 막는다.)
+    body_only = '<meta charset="utf-8">\n' + body_only.lstrip()
     with open(os.path.join(OUT, "artifact.html"), "w", encoding="utf-8") as fh:
         fh.write(body_only)
 
