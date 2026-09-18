@@ -475,6 +475,34 @@
   .rp-prob .pd{font:600 11px var(--mono);color:var(--ink-2);margin-top:2px}
   .rp-prob .pc{font:700 13px var(--mono);color:var(--crit);flex:none;min-width:26px;text-align:right}
   .rp-empty{color:var(--ink-3);font-size:12.5px;padding:14px 4px;text-align:center}
+  /* ── 자가복구 내역 ── */
+  .hh-modal{width:min(560px,94vw);max-height:86vh;overflow-y:auto}
+  .hh-sum{display:flex;gap:8px;margin-bottom:14px}
+  .hh-sum .s{flex:1;background:var(--canvas);border:1px solid var(--rule);border-radius:9px;
+             padding:9px 10px;text-align:center}
+  .hh-sum .s .n{font:700 19px var(--mono);font-variant-numeric:tabular-nums}
+  .hh-sum .s .l{font-size:10.5px;color:var(--ink-3);margin-top:2px}
+  .hh-sum .s.ok .n{color:var(--ok)} .hh-sum .s.fail .n{color:var(--crit)} .hh-sum .s.run .n{color:var(--warn)}
+  .hh-item{border:1px solid var(--rule);border-radius:11px;padding:12px 14px;margin-bottom:10px;
+           background:var(--surface)}
+  .hh-item.l2{border-left:3px solid #a06bd6}
+  .hh-item.l1{border-left:3px solid #3a90ff}
+  .hh-top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .hh-ic{font-size:16px;flex:none}
+  .hh-name{font-weight:700;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hh-badge{font:700 10.5px var(--sans);padding:3px 9px;border-radius:20px;flex:none}
+  .hh-badge.ok{background:var(--ok-soft);color:var(--ok)}
+  .hh-badge.fail{background:var(--crit-soft);color:var(--crit)}
+  .hh-badge.run{background:var(--warn-soft);color:var(--warn)}
+  .hh-loc{font:600 10px var(--mono);color:var(--ink-3);margin-bottom:8px;word-break:break-word}
+  .hh-flow{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .hh-step{display:flex;gap:10px;align-items:baseline;padding:7px 11px;font-size:12.5px}
+  .hh-step + .hh-step{border-top:1px solid var(--rule)}
+  .hh-step .hh-k{flex:none;width:34px;color:var(--ink-3);font-weight:700;font-size:11px}
+  .hh-step .hh-v{flex:1;color:var(--ink)}
+  .hh-step.res.ok .hh-v{color:var(--ok);font-weight:600}
+  .hh-step.res.fail .hh-v{color:var(--crit);font-weight:600}
+  .hh-time{font:600 10px var(--mono);color:var(--ink-3);margin-top:8px}
   @media print{
     body *{visibility:hidden}
     #report-overlay,#report-overlay *{visibility:visible}
@@ -485,7 +513,8 @@
   /* 자가치유 표시기 — 스스로 복구한 횟수(오늘). 켜졌는지·방금 일했는지 항상 보임 */
   .mb-heal{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--mono);color:var(--ink-2);
            background:var(--ok-soft);border:1px solid var(--ok);border-radius:7px;padding:4px 9px;
-           cursor:default;white-space:nowrap}
+           cursor:pointer;white-space:nowrap}
+  .mb-heal:hover{filter:brightness(1.04)}
   .mb-heal .hi{font-size:12px}
   .mb-heal b{color:var(--ok);font-variant-numeric:tabular-nums}
   .mb-heal.pulse{animation:healpulse .8s ease}
@@ -606,7 +635,7 @@
       <span class="mb-status" id="status"></span>
       <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
       <button class="mb-check" id="btn-health">🩺 전체 점검</button>
-      <span class="mb-heal" id="heal-ind" title="자가치유가 스스로 복구한 횟수(오늘). 노드에 '자가복구 중' 표시가 뜨면 지금 복구 중입니다."><span class="hi">🔧</span>자가복구 <b id="heal-n">0</b></span>
+      <span class="mb-heal" id="heal-ind" title="클릭하면 자가복구 내역(왜·뭘·어떻게·결과)을 봅니다."><span class="hi">🔧</span>자가복구 <b id="heal-n">0</b></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
@@ -668,6 +697,14 @@
         <button id="rp-close">×</button>
       </div>
       <div id="rp-body"></div>
+    </div>
+  </div>
+
+  <!-- 자가복구 내역 -->
+  <div class="overlay" id="heal-overlay">
+    <div class="modal hh-modal">
+      <div class="modal-head"><h3>🔧 자가복구 내역</h3><button id="hh-close">×</button></div>
+      <div id="heal-body"></div>
     </div>
   </div>
 
@@ -2068,6 +2105,82 @@ function baselineHealCount(){    // 오늘 누적 복구 수를 정확히 맞춘
     setHealCount(h.auto_fixed || 0);
   }).catch(()=>{});
 }
+// ── 자가복구 내역 (왜·뭘·어떻게·결과 한 편의 이야기로) ──
+function healCause(detail, level){
+  const m = /\(([^)]+)\)\s*$/.exec(detail||"");        // 상세 끝의 "(원인)"
+  const raw = m ? m[1] : "";
+  const map = { silent:"응답 없음(침묵) — 데이터가 끊김", stuck:"값이 고정됨(고착) — 센서가 얼어붙음",
+    "CCM 침묵":"CCM 전체가 응답 없음", "채널 재시작 실패 → 승격":"채널 재시작으로 안 풀려 CCM 재시작으로 올림" };
+  return map[raw] || raw || (level===2 ? "CCM 이상" : "채널 이상");
+}
+function buildHealEpisodes(events){
+  const evs = events.slice().reverse();                // 오래된→최신
+  const open = {}, out = [];
+  for(const e of evs){
+    const L = (e.etype==="heal2_restart"||e.etype==="heal2_ok"||e.etype==="heal2_giveup") ? 2 : 1;
+    const key = e.device_id+"|"+(L===2?"":e.sensor_key)+"|"+L;
+    if(e.etype==="heal_restart" || e.etype==="heal2_restart"){
+      let ep = open[key];
+      if(!ep || ep.closed){
+        ep = { device_id:e.device_id, sensor_key:(L===2?"":e.sensor_key), level:L,
+               start:e.ts, attempts:0, cause:healCause(e.detail, L), status:"run", end:null, closed:false };
+        open[key] = ep; out.push(ep);
+      }
+      ep.attempts++;
+    } else if(e.etype==="heal_ok" || e.etype==="heal2_ok"){
+      const ep = open[key]; if(ep){ ep.status="ok"; ep.end=e.ts; ep.closed=true; }
+    } else if(e.etype==="heal_giveup" || e.etype==="heal2_giveup"){
+      const ep = open[key]; if(ep){ ep.status="fail"; ep.end=e.ts; ep.closed=true; }
+    }
+  }
+  out.reverse();                                       // 최신 에피소드 먼저
+  return out;
+}
+function renderHealHistory(eps){
+  if(!eps.length) return `<div class="rp-empty">아직 자가복구 내역이 없습니다.<br>문제가 감지되면 시스템이 스스로 복구를 시도하고, 그 기록(왜·뭘·어떻게·결과)이 여기에 쌓입니다.</div>`;
+  const ok = eps.filter(e=>e.status==="ok").length, fail = eps.filter(e=>e.status==="fail").length,
+        run = eps.filter(e=>e.status==="run").length;
+  let html = `<div class="hh-sum">`+
+    `<div class="s ok"><div class="n">${ok}</div><div class="l">스스로 복구</div></div>`+
+    `<div class="s fail"><div class="n">${fail}</div><div class="l">사람 확인 필요</div></div>`+
+    `<div class="s run"><div class="n">${run}</div><div class="l">복구 중</div></div></div>`;
+  for(const ep of eps){
+    const isL2 = ep.level===2;
+    const s = findSensor(ep.device_id, ep.sensor_key);
+    const who = isL2 ? ("CCM "+ep.device_id) : (s ? s.name : (ep.sensor_key || ep.device_id));
+    const loc = isL2 ? ("Modbus 게이트웨이 · "+ep.device_id) : sensorIdLine(ep.device_id, ep.sensor_key);
+    const ic = isL2 ? "♻" : "🔧";
+    const action = (isL2 ? "자가치유 L2 — CCM 전체 재시작 " : "자가치유 L1 — 센서 채널 재시작 ") + ep.attempts + "회";
+    let badge, res, rescls;
+    if(ep.status==="ok"){ const dur = (ep.end&&ep.start) ? Math.max(1,Math.round(ep.end-ep.start)) : null;
+      badge = `<span class="hh-badge ok">✓ 복구됨</span>`; rescls="ok";
+      res = "정상 복귀" + (dur ? ` · ${dur}초 만에 자동 해결` : ""); }
+    else if(ep.status==="fail"){ badge = `<span class="hh-badge fail">✗ 사람 확인 필요</span>`; rescls="fail";
+      res = "자동으로 못 고침 — 담당자에게 넘김(알림 발송)"; }
+    else { badge = `<span class="hh-badge run">⏳ 복구 중</span>`; rescls=""; res = "복구 시도 중…"; }
+    html += `<div class="hh-item ${isL2?'l2':'l1'}"><div class="hh-top"><span class="hh-ic">${ic}</span>`+
+      `<span class="hh-name">${escapeHtml(who)}</span>${badge}</div>`+
+      `<div class="hh-loc">${escapeHtml(loc)}</div>`+
+      `<div class="hh-flow">`+
+        `<div class="hh-step"><span class="hh-k">왜</span><span class="hh-v">${escapeHtml(ep.cause)}</span></div>`+
+        `<div class="hh-step"><span class="hh-k">조치</span><span class="hh-v">${escapeHtml(action)}</span></div>`+
+        `<div class="hh-step res ${rescls}"><span class="hh-k">결과</span><span class="hh-v">${escapeHtml(res)}</span></div>`+
+      `</div>`+
+      `<div class="hh-time">${ago(ep.start)||"방금"} 시작${ep.status!=="run"?` · ${ago(ep.end)||"방금"} 종료`:""}</div></div>`;
+  }
+  return html;
+}
+function openHealHistory(){
+  const body = $("#heal-body"); if(!body) return;
+  body.innerHTML = `<div class="rp-empty">불러오는 중…</div>`;
+  $("#heal-overlay").classList.add("open");
+  fetch("/api/events?limit=300",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    body.innerHTML = renderHealHistory(buildHealEpisodes(d.events||[]));
+  }).catch(()=> body.innerHTML = `<div class="rp-empty">불러오지 못했습니다.</div>`);
+}
+{ const _hi=$("#heal-ind"); if(_hi) _hi.onclick = openHealHistory; }
+{ const _hc=$("#hh-close"); if(_hc) _hc.onclick = ()=> $("#heal-overlay").classList.remove("open"); }
+{ const _ho=$("#heal-overlay"); if(_ho) _ho.onclick = e=>{ if(e.target===_ho) _ho.classList.remove("open"); }; }
 
 // ── 전체 시스템 점검 ──────────────────────────────────
 function runHealthCheck(){
