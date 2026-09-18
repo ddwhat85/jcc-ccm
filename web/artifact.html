@@ -216,15 +216,26 @@
   .node.node-off::after{content:"⏻ 전원 꺼짐";position:absolute;inset:0;display:flex;
     align-items:center;justify-content:center;font:700 10px var(--mono);letter-spacing:.04em;
     color:#ff453a;background:rgba(10,12,16,.34);border-radius:5px;z-index:6;pointer-events:none}
-  /* 재시작 모션: 중앙 스피너 + '재시작 중' */
+  /* 재시작·자가복구 모션: 중앙 스피너 + 라벨 */
   @keyframes jcc-spin{to{transform:rotate(360deg)}}
-  .node.restarting::before{content:"";position:absolute;top:50%;left:50%;width:24px;height:24px;
-    margin:-16px 0 0 -12px;border:2.5px solid #e6b422;border-top-color:transparent;border-radius:50%;
-    z-index:7;pointer-events:none;animation:jcc-spin .7s linear infinite}
-  .node.restarting::after{content:"재시작 중…";position:absolute;left:0;right:0;bottom:7px;text-align:center;
-    font:700 9px var(--mono);letter-spacing:.03em;color:#e6b422;z-index:7;pointer-events:none}
+  .node.restarting::before,.node.healing::before,.node.healing2::before{content:"";position:absolute;
+    top:50%;left:50%;width:24px;height:24px;margin:-16px 0 0 -12px;border:2.5px solid #e6b422;
+    border-top-color:transparent;border-radius:50%;z-index:7;pointer-events:none;
+    animation:jcc-spin .7s linear infinite}
+  .node.restarting::after,.node.healing::after,.node.healing2::after{position:absolute;left:0;right:0;
+    bottom:7px;text-align:center;font:700 9px var(--mono);letter-spacing:.03em;color:#e6b422;
+    z-index:7;pointer-events:none}
+  .node.restarting::after{content:"재시작 중…"}
   .node.restarting{box-shadow:0 0 0 2px #e6b422,0 2px 7px rgba(20,24,32,.22)}
-  @media (prefers-reduced-motion:reduce){.node.restarting::before{animation:none}}
+  /* 자가복구(자동): L1=파랑 '자가복구 중', L2=보라 'CCM 재시작 중' — 사람이 아니라 시스템이 함 */
+  .node.healing::before{border-color:#3a90ff;border-top-color:transparent}
+  .node.healing::after{content:"🔧 자가복구 중…";color:#3a90ff}
+  .node.healing{box-shadow:0 0 0 2px #3a90ff,0 2px 7px rgba(20,24,32,.22)}
+  .node.healing2::before{border-color:#a06bd6;border-top-color:transparent}
+  .node.healing2::after{content:"♻ CCM 재시작 중…";color:#a06bd6}
+  .node.healing2{box-shadow:0 0 0 2px #a06bd6,0 2px 7px rgba(20,24,32,.22)}
+  @media (prefers-reduced-motion:reduce){
+    .node.restarting::before,.node.healing::before,.node.healing2::before{animation:none}}
   .offbadge{display:inline-block;font:600 7.5px var(--mono);letter-spacing:.03em;
             color:var(--ink-3);background:var(--surface-2);border:1px solid var(--rule);
             border-radius:3px;padding:0 4px;margin-left:5px;vertical-align:1px}
@@ -466,6 +477,16 @@
     .rp-modal{box-shadow:none;max-height:none;width:100%}
     .rp-range,.rp-print,#rp-close{display:none!important}
   }
+  /* 자가치유 표시기 — 스스로 복구한 횟수(오늘). 켜졌는지·방금 일했는지 항상 보임 */
+  .mb-heal{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--mono);color:var(--ink-2);
+           background:var(--ok-soft);border:1px solid var(--ok);border-radius:7px;padding:4px 9px;
+           cursor:default;white-space:nowrap}
+  .mb-heal .hi{font-size:12px}
+  .mb-heal b{color:var(--ok);font-variant-numeric:tabular-nums}
+  .mb-heal.pulse{animation:healpulse .8s ease}
+  @keyframes healpulse{0%,100%{transform:scale(1)}40%{transform:scale(1.14);
+    box-shadow:0 0 0 4px var(--ok-soft)}}
+  @media (prefers-reduced-motion:reduce){.mb-heal.pulse{animation:none}}
   /* 테마 전환 버튼 */
   .mb-theme{background:none;border:none;cursor:pointer;font-size:15px;line-height:1;
             padding:3px 6px;border-radius:6px;opacity:.85}
@@ -580,6 +601,7 @@
       <span class="mb-status" id="status"></span>
       <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
       <button class="mb-check" id="btn-health">🩺 전체 점검</button>
+      <span class="mb-heal" id="heal-ind" title="자가치유가 스스로 복구한 횟수(오늘). 노드에 '자가복구 중' 표시가 뜨면 지금 복구 중입니다."><span class="hi">🔧</span>자가복구 <b id="heal-n">0</b></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
@@ -2730,6 +2752,47 @@ function loadTicker(){
   }).catch(()=>{});
 }
 
+// ── 자가치유 실시간 표시 (노드 애니메이션 + 상단 카운터) ──
+// 자동 복구가 일하는 순간을 눈으로 보이게 한다. heal_restart→해당 노드에 '자가복구 중'
+// 스피너, heal_ok→상단 '자가복구 N' 카운터 증가(펄스). 사람 버튼과 구분되는 파랑/보라색.
+let healSeen = null;            // 이 시각 이후 새 이벤트만 처리(로드 시 과거 이벤트로 도배 방지)
+let healCount = 0;
+function flashHeal(nid, cls){
+  const n = nodes.get(nid); if(!n || !n.el) return;
+  n.el.classList.remove("healing","healing2"); void n.el.offsetWidth;
+  n.el.classList.add(cls);
+  clearTimeout(n._healT); n._healT = setTimeout(()=> n.el.classList.remove(cls), 3200);
+}
+function setHealCount(n){
+  if(n === healCount) return;
+  const up = n > healCount; healCount = n;
+  const el = $("#heal-n"); if(el) el.textContent = n;
+  const chip = $("#heal-ind");
+  if(chip && up){ chip.classList.remove("pulse"); void chip.offsetWidth; chip.classList.add("pulse"); }
+}
+function watchHeal(){
+  fetch("/api/events?limit=40",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const evs = d.events || [];                       // 최신순
+    const newest = evs.length ? evs[0].ts : 0;
+    if(healSeen === null){ healSeen = newest; return; }   // 첫 폴은 기준선만 잡음
+    const fresh = evs.filter(e=> e.ts > healSeen).reverse();   // 오래된→최신
+    healSeen = Math.max(healSeen, newest);
+    let gained = 0;
+    for(const e of fresh){
+      if(e.etype === "heal_restart" && e.sensor_key) flashHeal("sensor:"+e.device_id+":"+e.sensor_key, "healing");
+      else if(e.etype === "heal2_restart") flashHeal("ccm:"+e.device_id, "healing2");
+      else if(e.etype === "heal_ok" || e.etype === "heal2_ok") gained++;
+    }
+    if(gained) setHealCount(healCount + gained);
+  }).catch(()=>{});
+}
+function baselineHealCount(){    // 오늘 누적 복구 수를 정확히 맞춘다(새로고침해도 유지)
+  fetch("/api/report?days=1",{cache:"no-store"}).then(r=>r.json()).then(rep=>{
+    const h = (rep.summary && rep.summary.heal) || {};
+    setHealCount(h.auto_fixed || 0);
+  }).catch(()=>{});
+}
+
 // ── 전체 시스템 점검 ──────────────────────────────────
 function runHealthCheck(){
   const btn = $("#btn-health"); if(btn.classList.contains("busy")) return;
@@ -2939,6 +3002,8 @@ renderOverview([]);  // 우측 바 초기 화면(개요)
 refresh(); setInterval(refresh, REFRESH_MS);
 loadTicker(); setInterval(loadTicker, 3000);   // 하단 실시간 로그
 loadAlarms(); setInterval(loadAlarms, 3000);   // 활성 경보 벨/패널
+watchHeal(); setInterval(watchHeal, 2500);     // 자가치유 노드 애니메이션(실시간)
+baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 누적 보정
 </script>
 
 
