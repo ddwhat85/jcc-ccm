@@ -174,6 +174,49 @@
   const SPIKE = { h2: 28, current: 33, vibration: 5.2, temp: 47, humidity: 88 };
   const ANOM = { h2: 6, current: 22, vibration: 2.2, temp: 36, humidity: 66 };
   const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {};
+
+  // ── 자가치유 L1 (채널 자동 재시작) — server/jcc_server/heal.py 미러 ──────────
+  const HEAL = { enabled: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"] };
+  const healAt = {};                 // "dev:key" -> 재시작 시각(피더가 일시장애 해제에 사용)
+  const healRec = {};                // "dev:key" -> {n,last,episode,gaveup}
+  let healDay = null, healDayN = 0;
+  function restartChannel(dev, key, note) {
+    healAt[K(dev, key)] = now();
+    logEvent(dev, key, "heal_restart", note, "system");
+  }
+  function healTick() {
+    if (!HEAL.enabled) return;
+    const t = now(), day = Math.floor(t / 86400);
+    if (day !== healDay) { healDay = day; healDayN = 0; }
+    const active = S.alarms.filter(a => !a.cleared_at);
+    const seen = {};
+    for (const a of active) {
+      const key = a.sensor_key;
+      if (!key || HEAL.targets.indexOf(a.kind) < 0) continue;   // 센서 채널 장애만
+      const sk = K(a.device_id, key); seen[sk] = 1;
+      let rec = healRec[sk];
+      if (!rec || rec.episode !== a.raised_at) { rec = healRec[sk] = { n: 0, last: 0, episode: a.raised_at, gaveup: false }; }
+      if (a.acked_at) continue;                                 // 사람이 조치 중 → 보류
+      if (rec.n >= HEAL.max) {
+        if (!rec.gaveup) { rec.gaveup = true;
+          logEvent(a.device_id, key, "heal_giveup",
+            `자동복구 실패: 채널 재시작 ${HEAL.max}회로 복구 안 됨 — 사람 확인 필요`, "system"); }
+        continue;
+      }
+      if (t - rec.last < HEAL.cooldown) continue;               // 쿨다운
+      if (healDayN >= HEAL.dailyCap) continue;                  // 하루 총량
+      rec.n++; rec.last = t; healDayN++;
+      restartChannel(a.device_id, key, `자동복구 L1: 채널 재시작 ${rec.n}/${HEAL.max}차 시도 (${a.kind})`);
+    }
+    for (const sk in healRec) {
+      if (!seen[sk]) { const rec = healRec[sk]; delete healRec[sk];
+        if (rec.n > 0 && !rec.gaveup) {
+          const i = sk.indexOf(":");
+          logEvent(sk.slice(0, i), sk.slice(i + 1), "heal_ok", "자동복구 성공: 채널 재시작 후 정상 복귀", "system");
+        }
+      }
+    }
+  }
   const rnd = () => Math.random();
   const gauss = (m, s) => m + s * (Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd()));
   function genValue(key, kind, t) {
@@ -209,6 +252,8 @@
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;
         const sk = K(dev, s.key);
+        // 자가치유(L1)가 이 채널을 재시작했으면 진행 중이던 일시 장애(침묵·고착·이상)를 해제
+        if (healAt[sk]) { delete healAt[sk]; delete drop[sk]; delete stuckU[sk]; delete anomU[sk]; }
         if (wall < (drop[sk] || 0)) continue;                 // 침묵 구간
         if (rnd() < 0.012) { drop[sk] = wall + 70; continue; } // 침묵 시작
         let val = genValue(s.key, s.kind, t);
@@ -336,7 +381,10 @@
         }
       }
     }
-    // 미확인 위험 경보 상향 (주의는 제외 — 알림 피로 방지)
+    // 자가치유 L1: 채널 장애(침묵·고착)는 먼저 자동 재시작으로 복구를 시도한다.
+    healTick();
+    // 미확인 위험 경보 상향 (주의는 제외 — 알림 피로 방지).
+    // 자동복구가 손대는 종류(침묵)는 여기서 상향 로그를 남기지만, 대개 재시작으로 먼저 풀린다.
     S.alarms.filter(a => !a.cleared_at && !a.acked_at && !a.escalated_at &&
       a.severity === "crit" && a.raised_at < t - ESC_AFTER).forEach(a => {
       a.escalated_at = t;
@@ -480,6 +528,7 @@
       if (p === "/api/alarms")
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
+      if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false }));
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/events") {
         const dev = qs.get("device_id") || "", key = qs.get("sensor_key") || "";

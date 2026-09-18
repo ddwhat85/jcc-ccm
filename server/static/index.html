@@ -483,6 +483,7 @@
         <button class="mb-item" id="btn-open">열기</button>
         <button class="mb-item" id="btn-save">저장<span class="sc">⌘S</span></button>
         <button class="mb-item" id="btn-saveas">다른 이름으로 저장…</button>
+        <button class="mb-item" id="btn-logout" hidden>로그아웃</button>
       </div>
     </div>
 
@@ -1416,10 +1417,14 @@ const EVENT_META = {
   discover:    {label:"자동 탐색",    dot:"info", ic:"✨"},
   rename:      {label:"이름 변경",    dot:"info", ic:"✏"},
   healthcheck: {label:"전체 점검",    dot:"info", ic:"🩺"},
+  heal_restart:{label:"자동복구 시도", dot:"info", ic:"🔧"},
+  heal_ok:     {label:"자동복구 성공", dot:"ok",   ic:"🛠"},
+  heal_giveup: {label:"자동복구 실패", dot:"crit", ic:"🛠"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
-  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck"]);
+  "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
+  "heal_restart","heal_ok","heal_giveup"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -1838,6 +1843,13 @@ $("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setSta
 $("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
   if(name!==null){ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨: "+name); } };
 $("#btn-delete").onclick = deleteSelected;
+// 로그아웃: 서버에 비밀번호 인증이 켜져 있을 때만 메뉴에 표시한다.
+fetch("/api/auth/status").then(r=>r.ok?r.json():null).then(d=>{
+  if(d && d.enabled){ const b=$("#btn-logout"); if(b) b.hidden=false; }
+}).catch(()=>{});
+const _lo=$("#btn-logout");
+if(_lo) _lo.onclick = ()=>{ fetch("/api/logout",{method:"POST"})
+  .then(()=>location.replace("/")).catch(()=>location.replace("/")); };
 $("#btn-restore").onclick = ()=>{ setStatus("꺼진 센서 채널 모두 켜는 중…");
   enableAllChannels().then(d=>{ topoSig=""; refresh();
     setStatus(d.enabled?`센서 채널 ${d.enabled}개 다시 켬`:"꺼진 센서가 없습니다"); })

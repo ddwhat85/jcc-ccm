@@ -150,6 +150,7 @@ class Storage:
         self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
         self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
         self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
+        self._heal_at: dict = {}       # (device_id, key) -> 자동복구가 채널을 재시작한 시각
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -452,6 +453,17 @@ class Storage:
         else:
             self._powered_off.discard(device_id)
         return ok
+
+    def restart_channel(self, device_id: str, sensor_key: str, note: str = "채널 재시작") -> bool:
+        """센서 채널을 재시작한다(자가치유 L1). = 실기에서는 CCM에 해당 Modbus 채널
+        재초기화 명령을 보낸다(전체 CCM 재부팅이 아니라 그 채널만).
+
+        시뮬레이션에서는 재시작 시각을 남겨, 데모 피더가 진행 중이던 일시 장애
+        (침묵·고착)를 해제하게 한다 — '재시작이 일시 결함을 고쳤다'를 그대로 재현.
+        """
+        self._heal_at[(device_id, sensor_key)] = time.time()
+        self.log_event(device_id, sensor_key, "heal_restart", note, source="system")
+        return True
 
     def enable_all_channels(self) -> int:
         with self._lock:

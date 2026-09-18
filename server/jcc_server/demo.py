@@ -93,6 +93,12 @@ def _loop(storage, interval: float) -> None:
             for s in c.get("sensors") or []:
                 key = s.get("key", "")
                 sk = (dev, key)
+                # 자가치유(L1)가 이 채널을 재시작했으면, 진행 중이던 일시 장애를 해제한다.
+                # = '채널 재시작이 침묵·고착 같은 일시 결함을 실제로 고쳤다'를 재현.
+                if storage._heal_at.pop(sk, None):
+                    drop_until.pop(sk, None)
+                    stuck_until.pop(sk, None)
+                    anom_until.pop(sk, None)
                 # 가끔 한 센서가 한동안 침묵(케이블 탈락·센서 사망 시연) → watchdog가 잡는다.
                 if wall < drop_until.get(sk, 0):
                     continue

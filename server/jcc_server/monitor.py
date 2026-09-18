@@ -21,6 +21,8 @@ def start(storage, interval: float = 10) -> None:
     # 어느 등급까지 상향·알림할지. 기본 crit(위험)만 — 주의까지 문자로 보내면 알림 피로.
     escalate_sev = os.environ.get("JCC_ESCALATE_SEVERITY") or "crit"
     from .notify import dispatch
+    from .heal import Healer, HEAL_TARGETS as _HEAL_TARGETS
+    healer = Healer.from_env(storage)   # 자가치유 L1(채널 자동 재시작)
 
     keep_readings = float(os.environ.get("JCC_KEEP_READING_DAYS") or 14)
     keep_events = float(os.environ.get("JCC_KEEP_EVENT_DAYS") or 90)
@@ -36,14 +38,20 @@ def start(storage, interval: float = 10) -> None:
                 storage.liveness_scan(device_timeout=dev_to, sensor_timeout=sen_to)
                 storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트·이상 감지
 
-                # 새로 뜬 위험(crit) 경보는 즉시 알림 발송
+                # 자가치유 L1: 채널 장애(침묵·고착)는 먼저 자동 재시작으로 복구를 시도한다.
                 active = storage.list_active_alarms()
+                healer.tick(active)
+
+                # 새로 뜬 위험(crit) 경보는 즉시 알림 발송.
+                # 단, 자동복구가 손대는 종류(침묵)는 즉시 알리지 않고 복구 실패 시
+                # 상향(escalate)에서 알린다 — 재시작 한 번에 풀릴 일로 매번 문자 보내지 않게.
                 notified.intersection_update({a["id"] for a in active})   # 해제된 건 잊는다
+                heal_kinds = set(_HEAL_TARGETS) if healer.enabled else set()
                 for a in active:
                     if a["id"] in notified:
                         continue
                     notified.add(a["id"])
-                    if not first_pass and a.get("severity") == "crit":
+                    if not first_pass and a.get("severity") == "crit" and a.get("kind") not in heal_kinds:
                         dispatch(a, "발생")
                 first_pass = False
 
