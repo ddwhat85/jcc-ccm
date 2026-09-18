@@ -37,11 +37,12 @@ HEAL_TARGETS = ("silent", "stuck")
 class Healer:
     """활성 경보를 받아 L1(채널)·L2(CCM) 자동 복구를 수행하고, 내역을 로그로 남긴다."""
 
-    def __init__(self, storage, *, enabled=True, max_retry=2, cooldown=60.0, daily_cap=30,
-                 l2_enabled=True, l2_max_retry=1, l2_cooldown=180.0, l2_daily_cap=10,
+    def __init__(self, storage, *, enabled=True, l1_enabled=True, max_retry=2, cooldown=60.0,
+                 daily_cap=30, l2_enabled=True, l2_max_retry=1, l2_cooldown=180.0, l2_daily_cap=10,
                  l2_on_channel_fail=True):
         self.storage = storage
-        self.enabled = enabled
+        self.enabled = enabled               # 마스터 스위치(전체 on/off)
+        self.l1_enabled = l1_enabled         # L1 채널 재시작 on/off
         self.max_retry = max(1, int(max_retry))
         self.cooldown = float(cooldown)
         self.daily_cap = int(daily_cap)
@@ -64,6 +65,7 @@ class Healer:
         return cls(
             storage,
             enabled=(os.environ.get("JCC_AUTOHEAL", "1") != "0"),
+            l1_enabled=(os.environ.get("JCC_AUTOHEAL_L1", "1") != "0"),
             max_retry=int(os.environ.get("JCC_HEAL_MAX_RETRY") or 2),
             cooldown=float(os.environ.get("JCC_HEAL_COOLDOWN") or 60),
             daily_cap=int(os.environ.get("JCC_HEAL_DAILY_CAP") or 30),
@@ -89,7 +91,7 @@ class Healer:
 
         # ── L1: 센서 채널 재시작 ──────────────────────────────
         seen: set = set()
-        for a in active_alarms:
+        for a in (active_alarms if self.l1_enabled else []):
             key = a.get("sensor_key")
             if not key or a.get("kind") not in HEAL_TARGETS:
                 continue                              # 센서 채널 장애만(CCM 침묵은 L2)
@@ -127,13 +129,16 @@ class Healer:
             acted.append({"level": 1, "device_id": dev, "sensor_key": key, "attempt": rec["n"]})
 
         # 더 이상 경보가 없는 센서: 재시작 이력이 있으면 '복구 성공'으로 마감.
-        for sk in list(self._attempts):
-            if sk not in seen:
-                rec = self._attempts.pop(sk)
-                if rec["n"] > 0 and not rec["gaveup"]:
-                    self.storage.log_event(
-                        sk[0], sk[1], "heal_ok",
-                        "자동복구 성공: 채널 재시작 후 정상 복귀", source="system")
+        # (L1을 꺼둔 동안에는 마감 처리하지 않는다 — 안 그러면 진행 중이던 건이
+        #  거짓 '복구 성공'으로 찍힌다.)
+        if self.l1_enabled:
+            for sk in list(self._attempts):
+                if sk not in seen:
+                    rec = self._attempts.pop(sk)
+                    if rec["n"] > 0 and not rec["gaveup"]:
+                        self.storage.log_event(
+                            sk[0], sk[1], "heal_ok",
+                            "자동복구 성공: 채널 재시작 후 정상 복귀", source="system")
 
         # ── L2: CCM 재시작 ────────────────────────────────────
         if self.l2_enabled:

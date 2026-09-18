@@ -553,12 +553,44 @@
   .ap-ack:hover{filter:brightness(1.06)}
   .ap-ack.done{background:transparent;color:var(--ok,#2f9e54);border-color:var(--rule);cursor:default}
 
-  /* 하단 실시간 로그 스트립 — 배경 투명, 최근 3줄 */
-  /* 레이아웃에서 자기 자리를 차지한다(캔버스 위에 떠 있지 않음 → 노드와 안 겹침).
-     배경은 투명하게 두어 페이지 바탕이 그대로 보인다. */
-  .ticker{flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;
-          min-height:76px;padding:8px 16px 10px;box-sizing:border-box;
-          background:transparent;pointer-events:none;overflow:hidden}
+  /* ── 하단 도크: [실시간 데이터 로그 | 제어판] ── */
+  .dock{flex:0 0 auto;display:flex;align-items:stretch;height:140px;
+        border-top:1px solid var(--rule);background:var(--surface)}
+  .dock-log{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:9px 14px 11px;overflow:hidden}
+  .dock-h{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
+          margin-bottom:6px;flex:none}
+  /* 제어판: 위(버튼)–아래(자가복구)로 벌려 왼쪽 로그와 같은 높이를 채운다 */
+  .dock-ctrl{flex:0 0 auto;width:400px;max-width:46%;border-left:1px solid var(--rule);
+             padding:11px 14px;display:flex;flex-direction:column;justify-content:space-between;
+             gap:10px;background:var(--canvas)}
+  .dc-actions{display:flex;gap:8px}
+  .dc-actions .mb-ai,.dc-actions .mb-check{flex:1;justify-content:center;text-align:center}
+  .dc-heal{border:1px solid var(--rule);border-radius:9px;padding:8px 10px;background:var(--surface)}
+  .dch-row{display:flex;align-items:center;gap:9px}
+  .dch-title{font-weight:700;font-size:12.5px}
+  .dch-count{margin-left:auto;font:600 11px var(--mono);color:var(--ink-2)}
+  .dch-count b{color:var(--ok);font-variant-numeric:tabular-nums}
+  .dch-count.pulse{display:inline-block;animation:healpulse .8s ease}
+  .dch-hist{border:none;background:none;color:var(--accent);font:600 11px var(--sans);cursor:pointer;padding:2px 4px}
+  .dch-hist:hover{text-decoration:underline}
+  .dch-subs{display:flex;gap:16px;margin-top:8px;padding-top:8px;border-top:1px solid var(--rule)}
+  .dch-subs.off{opacity:.4;pointer-events:none}
+  .csw{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-2);cursor:pointer}
+  .csw input{margin:0;width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+  .cd{width:8px;height:8px;border-radius:2px;flex:none} .cd.l1{background:#3a90ff} .cd.l2{background:#a06bd6}
+  .cl{font:600 8.5px var(--mono);color:var(--ink-3);border:1px solid var(--rule);border-radius:3px;padding:0 3px}
+  /* 토글 스위치 */
+  .sw{position:relative;display:inline-block;width:34px;height:19px;flex:none}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw .sl{position:absolute;inset:0;background:var(--surface-2);border:1px solid var(--rule);
+          border-radius:19px;transition:.15s;cursor:pointer}
+  .sw .sl::before{content:"";position:absolute;width:13px;height:13px;left:2px;top:2px;background:#fff;
+                  border-radius:50%;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .sw input:checked + .sl{background:var(--ok);border-color:var(--ok)}
+  .sw input:checked + .sl::before{transform:translateX(15px)}
+  /* 실시간 로그(도크 안, 아래 정렬) */
+  .ticker{flex:1 1 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:3px;
+          pointer-events:none;overflow:hidden}
   .ticker .tk{display:flex;gap:8px;align-items:baseline;font:600 11.5px var(--mono);
               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ticker .tk .tt{color:var(--ink-3);flex:none;font-weight:500}
@@ -631,9 +663,6 @@
 
     <div class="mb-right">
       <span class="mb-status" id="status"></span>
-      <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
-      <button class="mb-check" id="btn-health">🩺 전체 점검</button>
-      <span class="mb-heal" id="heal-ind" title="클릭하면 자가복구 내역(왜·뭘·어떻게·결과)을 봅니다."><span class="hi">🔧</span>자가복구 <b id="heal-n">0</b></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
@@ -656,8 +685,31 @@
     <aside class="inspector" id="inspector"><div class="insp-in" id="insp-in"></div></aside>
   </div>
 
-  <!-- 하단 실시간 로그 스트립 (알람·특이사항 최근 3줄, 배경 투명) -->
-  <div class="ticker" id="ticker"></div>
+  <!-- 하단 도크: 왼쪽=실시간 데이터 로그 / 오른쪽=제어판(자동연결·점검·자가복구) -->
+  <div class="dock">
+    <div class="dock-log">
+      <div class="dock-h">실시간 데이터 로그</div>
+      <div class="ticker" id="ticker"></div>
+    </div>
+    <div class="dock-ctrl">
+      <div class="dc-actions">
+        <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
+        <button class="mb-check" id="btn-health">🩺 전체 점검</button>
+      </div>
+      <div class="dc-heal">
+        <div class="dch-row">
+          <span class="dch-title">🔧 자가복구</span>
+          <label class="sw" title="자가치유 전체 켜기/끄기"><input type="checkbox" id="heal-master" checked><span class="sl"></span></label>
+          <span class="dch-count">오늘 <b id="heal-n">0</b>건</span>
+          <button class="dch-hist" id="heal-hist">내역 →</button>
+        </div>
+        <div class="dch-subs" id="heal-subs">
+          <label class="csw"><input type="checkbox" id="heal-l1" checked><span class="cd l1"></span>채널 재시작 <span class="cl">L1</span></label>
+          <label class="csw"><input type="checkbox" id="heal-l2" checked><span class="cd l2"></span>CCM 재시작 <span class="cl">L2</span></label>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- 활성 경보 패널 (🔔) -->
   <div class="alarm-panel" id="alarm-panel" hidden>
@@ -885,7 +937,7 @@
   const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {}, ccmDrop = {};
 
   // ── 자가치유 L1(채널)·L2(CCM) — server/jcc_server/heal.py 미러 ───────────────
-  const HEAL = { enabled: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
+  const HEAL = { enabled: true, l1: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
                  l2: true, l2max: 1, l2cooldown: 180, l2dailyCap: 10, l2onChannelFail: true };
   const healAt = {};                 // "dev:key" -> 채널 재시작 시각(피더가 일시장애 해제)
   const healDevAt = {};              // dev -> CCM 재시작 시각(피더가 CCM 침묵 해제)
@@ -908,7 +960,7 @@
 
     // ── L1: 센서 채널 재시작 ──
     const seen = {};
-    for (const a of active) {
+    for (const a of (HEAL.l1 ? active : [])) {
       const key = a.sensor_key;
       if (!key || HEAL.targets.indexOf(a.kind) < 0) continue;   // 센서 채널 장애만
       const sk = K(a.device_id, key); seen[sk] = 1;
@@ -927,7 +979,7 @@
       rec.n++; rec.last = t; healDayN++;
       restartChannel(a.device_id, key, `자동복구 L1: 채널 재시작 ${rec.n}/${HEAL.max}차 시도 (${a.kind})`);
     }
-    for (const sk in healRec) {
+    if (HEAL.l1) for (const sk in healRec) {
       if (!seen[sk]) { const rec = healRec[sk]; delete healRec[sk];
         if (rec.n > 0 && !rec.gaveup) {
           const i = sk.indexOf(":");
@@ -1348,6 +1400,17 @@
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
       if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false }));
+      if (p === "/api/heal/config") {
+        if (method === "POST") {
+          const changed = [];
+          const lab = { enabled: "자가치유 전체", l1: "채널 재시작(L1)", l2: "CCM 재시작(L2)" };
+          [["enabled", "enabled"], ["l1_enabled", "l1"], ["l2_enabled", "l2"]].forEach(([f, k]) => {
+            if (f in body) { const v = !!body[f]; if (HEAL[k] !== v) { HEAL[k] = v; changed.push(`${lab[k]} ${v ? "켜짐" : "꺼짐"}`); } }
+          });
+          if (changed.length) logEvent("", "", "heal_config", "자가치유 설정 변경: " + changed.join(", "), "user");
+        }
+        return Promise.resolve(J({ available: true, enabled: HEAL.enabled, l1_enabled: HEAL.l1, l2_enabled: HEAL.l2 }));
+      }
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/report") return Promise.resolve(J(buildReport(parseFloat(qs.get("days") || "7"))));
       if (p === "/api/events") {
@@ -2283,11 +2346,12 @@ const EVENT_META = {
   heal2_restart:{label:"CCM 자동 재시작", dot:"warn", ic:"♻"},
   heal2_ok:    {label:"CCM 복구 성공",  dot:"ok",   ic:"♻"},
   heal2_giveup:{label:"CCM 복구 실패",  dot:"crit", ic:"♻"},
+  heal_config: {label:"자가복구 설정",  dot:"info", ic:"⚙"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
-  "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup"]);
+  "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -2768,11 +2832,11 @@ function applyTheme(t){
 })();
 $("#btn-theme").onclick = ()=> applyTheme(currentTheme()==="dark" ? "light" : "dark");
 
-// ── 하단 실시간 로그 스트립 (알람·특이사항 3줄) ─────────
+// ── 하단 실시간 로그 스트립 (알람·특이사항 5줄) ─────────
 function loadTicker(){
   const el = $("#ticker"); if(!el) return;
-  fetch("/api/events?limit=6",{cache:"no-store"}).then(r=>r.json()).then(d=>{
-    const evs = (d.events||[]).slice(0,3);
+  fetch("/api/events?limit=12",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const evs = (d.events||[]).slice(0,5);
     const prevTop = el.firstChild ? el.firstChild.dataset.k : "";
     el.innerHTML = evs.map((e,i)=>{
       const m = EVENT_META[e.etype] || {label:e.etype, dot:"info", ic:"•"};
@@ -2807,7 +2871,7 @@ function setHealCount(n){
   if(n === healCount) return;
   const up = n > healCount; healCount = n;
   const el = $("#heal-n"); if(el) el.textContent = n;
-  const chip = $("#heal-ind");
+  const chip = $(".dch-count");
   if(chip && up){ chip.classList.remove("pulse"); void chip.offsetWidth; chip.classList.add("pulse"); }
 }
 function watchHeal(){
@@ -2905,9 +2969,31 @@ function openHealHistory(){
     body.innerHTML = renderHealHistory(buildHealEpisodes(d.events||[]));
   }).catch(()=> body.innerHTML = `<div class="rp-empty">불러오지 못했습니다.</div>`);
 }
-{ const _hi=$("#heal-ind"); if(_hi) _hi.onclick = openHealHistory; }
+{ const _hh=$("#heal-hist"); if(_hh) _hh.onclick = openHealHistory; }
 { const _hc=$("#hh-close"); if(_hc) _hc.onclick = ()=> $("#heal-overlay").classList.remove("open"); }
 { const _ho=$("#heal-overlay"); if(_ho) _ho.onclick = e=>{ if(e.target===_ho) _ho.classList.remove("open"); }; }
+
+// ── 자가복구 on/off 제어 (마스터 · L1 채널 · L2 CCM) ──
+function applyHealUI(cfg){
+  const m=$("#heal-master"), l1=$("#heal-l1"), l2=$("#heal-l2"), subs=$("#heal-subs");
+  if(m) m.checked = cfg.enabled!==false;
+  if(l1) l1.checked = cfg.l1_enabled!==false;
+  if(l2) l2.checked = cfg.l2_enabled!==false;
+  if(subs) subs.classList.toggle("off", cfg.enabled===false);   // 전체 꺼지면 하위 흐리게
+}
+function loadHealConfig(){
+  fetch("/api/heal/config",{cache:"no-store"}).then(r=>r.json()).then(applyHealUI).catch(()=>{});
+}
+function saveHealConfig(){
+  const body = { enabled:$("#heal-master").checked, l1_enabled:$("#heal-l1").checked, l2_enabled:$("#heal-l2").checked };
+  $("#heal-subs").classList.toggle("off", !body.enabled);
+  fetch("/api/heal/config",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+    .then(r=>r.json()).then(cfg=>{ applyHealUI(cfg);
+      setStatus(`자가복구: ${cfg.enabled?"켜짐":"꺼짐"}${cfg.enabled?` · 채널 ${cfg.l1_enabled?"O":"X"} · CCM ${cfg.l2_enabled?"O":"X"}`:""}`); })
+    .catch(()=> setStatus("자가복구 설정 저장 실패"));
+}
+["#heal-master","#heal-l1","#heal-l2"].forEach(id=>{ const el=$(id); if(el) el.onchange = saveHealConfig; });
+loadHealConfig();
 
 // ── 전체 시스템 점검 ──────────────────────────────────
 function runHealthCheck(){

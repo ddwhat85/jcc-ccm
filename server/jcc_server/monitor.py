@@ -23,6 +23,7 @@ def start(storage, interval: float = 10) -> None:
     from .notify import dispatch
     from .heal import Healer, HEAL_TARGETS as _HEAL_TARGETS
     healer = Healer.from_env(storage)   # 자가치유 L1(채널 자동 재시작)
+    storage.healer = healer             # API에서 런타임 on/off 제어할 수 있게 노출
 
     keep_readings = float(os.environ.get("JCC_KEEP_READING_DAYS") or 14)
     keep_events = float(os.environ.get("JCC_KEEP_EVENT_DAYS") or 90)

@@ -176,7 +176,7 @@
   const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {}, ccmDrop = {};
 
   // ── 자가치유 L1(채널)·L2(CCM) — server/jcc_server/heal.py 미러 ───────────────
-  const HEAL = { enabled: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
+  const HEAL = { enabled: true, l1: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
                  l2: true, l2max: 1, l2cooldown: 180, l2dailyCap: 10, l2onChannelFail: true };
   const healAt = {};                 // "dev:key" -> 채널 재시작 시각(피더가 일시장애 해제)
   const healDevAt = {};              // dev -> CCM 재시작 시각(피더가 CCM 침묵 해제)
@@ -199,7 +199,7 @@
 
     // ── L1: 센서 채널 재시작 ──
     const seen = {};
-    for (const a of active) {
+    for (const a of (HEAL.l1 ? active : [])) {
       const key = a.sensor_key;
       if (!key || HEAL.targets.indexOf(a.kind) < 0) continue;   // 센서 채널 장애만
       const sk = K(a.device_id, key); seen[sk] = 1;
@@ -218,7 +218,7 @@
       rec.n++; rec.last = t; healDayN++;
       restartChannel(a.device_id, key, `자동복구 L1: 채널 재시작 ${rec.n}/${HEAL.max}차 시도 (${a.kind})`);
     }
-    for (const sk in healRec) {
+    if (HEAL.l1) for (const sk in healRec) {
       if (!seen[sk]) { const rec = healRec[sk]; delete healRec[sk];
         if (rec.n > 0 && !rec.gaveup) {
           const i = sk.indexOf(":");
@@ -639,6 +639,17 @@
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
       if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false }));
+      if (p === "/api/heal/config") {
+        if (method === "POST") {
+          const changed = [];
+          const lab = { enabled: "자가치유 전체", l1: "채널 재시작(L1)", l2: "CCM 재시작(L2)" };
+          [["enabled", "enabled"], ["l1_enabled", "l1"], ["l2_enabled", "l2"]].forEach(([f, k]) => {
+            if (f in body) { const v = !!body[f]; if (HEAL[k] !== v) { HEAL[k] = v; changed.push(`${lab[k]} ${v ? "켜짐" : "꺼짐"}`); } }
+          });
+          if (changed.length) logEvent("", "", "heal_config", "자가치유 설정 변경: " + changed.join(", "), "user");
+        }
+        return Promise.resolve(J({ available: true, enabled: HEAL.enabled, l1_enabled: HEAL.l1, l2_enabled: HEAL.l2 }));
+      }
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/report") return Promise.resolve(J(buildReport(parseFloat(qs.get("days") || "7"))));
       if (p === "/api/events") {

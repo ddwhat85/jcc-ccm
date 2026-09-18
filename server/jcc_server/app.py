@@ -186,6 +186,8 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 days = 7
             return self._json(self.storage.build_report(days))
+        if path == "/api/heal/config":
+            return self._json(self._heal_config())
         if path == "/api/auth/status":
             return self._json({"enabled": bool(_DASH_PW)})
         if path == "/api/notify/status":
@@ -255,6 +257,8 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/channels/enable-all":
             n = self.storage.enable_all_channels()
             return self._json({"ok": True, "enabled": n})
+        if parsed.path == "/api/heal/config":
+            return self._set_heal_config()
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 
@@ -307,6 +311,39 @@ class Handler(BaseHTTPRequestHandler):
             "identified": len(sensors) - inferred,
             "inferred": inferred,
         })
+
+    # ── 자가치유 런타임 제어 (켜기/끄기 · L1/L2) ─────────────
+    def _heal_config(self) -> dict:
+        h = getattr(self.storage, "healer", None)
+        if h is None:
+            # 감시 스레드가 아직 안 붙었거나 꺼진 환경 — 안전한 기본값.
+            return {"available": False, "enabled": True, "l1_enabled": True, "l2_enabled": True}
+        return {"available": True, "enabled": bool(h.enabled),
+                "l1_enabled": bool(h.l1_enabled), "l2_enabled": bool(h.l2_enabled)}
+
+    def _set_heal_config(self) -> None:
+        """{enabled?, l1_enabled?, l2_enabled?} — 자가치유를 런타임에 켜고 끈다."""
+        h = getattr(self.storage, "healer", None)
+        if h is None:
+            return self._json({"error": "자가치유 제어를 사용할 수 없습니다"}, 503)
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        changed = []
+        for field in ("enabled", "l1_enabled", "l2_enabled"):
+            if field in body:
+                new = bool(body[field])
+                if getattr(h, field) != new:
+                    setattr(h, field, new)
+                    changed.append((field, new))
+        if changed:
+            label = {"enabled": "자가치유 전체", "l1_enabled": "채널 재시작(L1)",
+                     "l2_enabled": "CCM 재시작(L2)"}
+            detail = ", ".join(f"{label[f]} {'켜짐' if v else '꺼짐'}" for f, v in changed)
+            self.storage.log_event("", "", "heal_config", f"자가치유 설정 변경: {detail}", source="user")
+        return self._json(self._heal_config())
 
     # ── 판넬 이름 변경 ───────────────────────────────────────
     def _panel_name(self) -> None:
