@@ -487,10 +487,12 @@
   .hh-sum .s.ok .n{color:var(--ok)} .hh-sum .s.fail .n{color:var(--crit)} .hh-sum .s.run .n{color:var(--warn)}
   .hh-item{border:1px solid var(--rule);border-radius:11px;padding:12px 14px;margin-bottom:10px;
            background:var(--surface)}
-  .hh-item.l2{border-left:3px solid #a06bd6}
-  .hh-item.l1{border-left:3px solid #3a90ff}
   .hh-top{display:flex;align-items:center;gap:9px;margin-bottom:7px}
-  .hh-ic{font-size:16px;flex:none}
+  /* 단계(L1 채널=파랑 / L2 CCM=보라)는 아이콘 배지 색으로만 구분 — 카드 옆 굵은 띠는 쓰지 않는다 */
+  .hh-ic{font-size:13px;flex:none;width:26px;height:26px;border-radius:7px;display:inline-flex;
+         align-items:center;justify-content:center;background:var(--canvas);border:1px solid var(--rule)}
+  .hh-item.l1 .hh-ic{color:#3a90ff;border-color:color-mix(in srgb,#3a90ff 45%,var(--rule))}
+  .hh-item.l2 .hh-ic{color:#a06bd6;border-color:color-mix(in srgb,#a06bd6 45%,var(--rule))}
   .hh-name{font-weight:700;font-size:14px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .hh-badge{font:700 10.5px var(--sans);padding:3px 9px;border-radius:20px;flex:none}
   .hh-badge.ok{background:var(--ok-soft);color:var(--ok)}
