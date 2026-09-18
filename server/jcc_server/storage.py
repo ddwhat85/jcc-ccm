@@ -151,6 +151,7 @@ class Storage:
         self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
         self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
         self._heal_at: dict = {}       # (device_id, key) -> 자동복구가 채널을 재시작한 시각
+        self._heal_dev_at: dict = {}   # device_id -> 자동복구(L2)가 CCM을 재시작한 시각
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -463,6 +464,17 @@ class Storage:
         """
         self._heal_at[(device_id, sensor_key)] = time.time()
         self.log_event(device_id, sensor_key, "heal_restart", note, source="system")
+        return True
+
+    def restart_device(self, device_id: str, note: str = "CCM 재시작") -> bool:
+        """CCM 전체를 재시작한다(자가치유 L2). = 실기에서는 SSH로 reboot.
+
+        CCM이 통째로 침묵하거나 채널 재시작(L1)으로도 안 풀릴 때의 상위 조치다.
+        그 CCM 아래 전 센서가 잠깐 끊기므로 상한을 엄격히 둔다(heal.py 참고).
+        시뮬레이션에서는 재시작 시각을 남겨, 데모 피더가 CCM 침묵 구간을 해제하게 한다.
+        """
+        self._heal_dev_at[device_id] = time.time()
+        self.log_event(device_id, "", "heal2_restart", note, source="system")
         return True
 
     def enable_all_channels(self) -> int:

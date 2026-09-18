@@ -173,22 +173,31 @@
   // ── 값 생성 (demo.py와 같은 패턴) ────────────────────────────────────────
   const SPIKE = { h2: 28, current: 33, vibration: 5.2, temp: 47, humidity: 88 };
   const ANOM = { h2: 6, current: 22, vibration: 2.2, temp: 36, humidity: 66 };
-  const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {};
+  const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {}, ccmDrop = {};
 
-  // ── 자가치유 L1 (채널 자동 재시작) — server/jcc_server/heal.py 미러 ──────────
-  const HEAL = { enabled: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"] };
-  const healAt = {};                 // "dev:key" -> 재시작 시각(피더가 일시장애 해제에 사용)
+  // ── 자가치유 L1(채널)·L2(CCM) — server/jcc_server/heal.py 미러 ───────────────
+  const HEAL = { enabled: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
+                 l2: true, l2max: 1, l2cooldown: 180, l2dailyCap: 10, l2onChannelFail: true };
+  const healAt = {};                 // "dev:key" -> 채널 재시작 시각(피더가 일시장애 해제)
+  const healDevAt = {};              // dev -> CCM 재시작 시각(피더가 CCM 침묵 해제)
   const healRec = {};                // "dev:key" -> {n,last,episode,gaveup}
-  let healDay = null, healDayN = 0;
+  const healDevRec = {};             // dev -> {n,last,episode,gaveup,reason}
+  let healDay = null, healDayN = 0, healDayN2 = 0;
   function restartChannel(dev, key, note) {
     healAt[K(dev, key)] = now();
     logEvent(dev, key, "heal_restart", note, "system");
   }
+  function restartDevice(dev, note) {
+    healDevAt[dev] = now();
+    logEvent(dev, "", "heal2_restart", note, "system");
+  }
   function healTick() {
     if (!HEAL.enabled) return;
     const t = now(), day = Math.floor(t / 86400);
-    if (day !== healDay) { healDay = day; healDayN = 0; }
+    if (day !== healDay) { healDay = day; healDayN = 0; healDayN2 = 0; }
     const active = S.alarms.filter(a => !a.cleared_at);
+
+    // ── L1: 센서 채널 재시작 ──
     const seen = {};
     for (const a of active) {
       const key = a.sensor_key;
@@ -200,7 +209,8 @@
       if (rec.n >= HEAL.max) {
         if (!rec.gaveup) { rec.gaveup = true;
           logEvent(a.device_id, key, "heal_giveup",
-            `자동복구 실패: 채널 재시작 ${HEAL.max}회로 복구 안 됨 — 사람 확인 필요`, "system"); }
+            `자동복구 실패: 채널 재시작 ${HEAL.max}회로 복구 안 됨` +
+            ((HEAL.l2 && HEAL.l2onChannelFail) ? " — CCM 재시작으로 승격" : " — 사람 확인 필요"), "system"); }
         continue;
       }
       if (t - rec.last < HEAL.cooldown) continue;               // 쿨다운
@@ -214,6 +224,41 @@
           const i = sk.indexOf(":");
           logEvent(sk.slice(0, i), sk.slice(i + 1), "heal_ok", "자동복구 성공: 채널 재시작 후 정상 복귀", "system");
         }
+      }
+    }
+
+    // ── L2: CCM 재시작 ──
+    if (!HEAL.l2) return;
+    const targets = {};   // dev -> {reason, episode, acked}
+    for (const a of active) {
+      if (a.kind === "silent" && !a.sensor_key) targets[a.device_id] = { reason: "silent", episode: a.raised_at, acked: !!a.acked_at };
+    }
+    if (HEAL.l2onChannelFail) {
+      for (const sk in healRec) {
+        if (healRec[sk].gaveup) { const dev = sk.slice(0, sk.indexOf(":"));
+          if (!targets[dev]) targets[dev] = { reason: "channel_fail", episode: healRec[sk].episode, acked: false }; }
+      }
+    }
+    const seenDev = {};
+    for (const dev in targets) {
+      const tg = targets[dev]; seenDev[dev] = 1;
+      let drec = healDevRec[dev];
+      if (!drec || drec.episode !== tg.episode) { drec = healDevRec[dev] = { n: 0, last: 0, episode: tg.episode, gaveup: false, reason: tg.reason }; }
+      if (tg.acked) continue;
+      if (drec.n >= HEAL.l2max) {
+        if (!drec.gaveup) { drec.gaveup = true;
+          logEvent(dev, "", "heal2_giveup", `CCM 자동 재시작 ${HEAL.l2max}회로도 복구 안 됨 — 사람 확인 필요`, "system"); }
+        continue;
+      }
+      if (t - drec.last < HEAL.l2cooldown) continue;
+      if (healDayN2 >= HEAL.l2dailyCap) continue;
+      drec.n++; drec.last = t; healDayN2++;
+      const why = tg.reason === "silent" ? "CCM 침묵" : "채널 재시작 실패 → 승격";
+      restartDevice(dev, `자동복구 L2: CCM 재시작 ${drec.n}/${HEAL.l2max}차 시도 (${why})`);
+    }
+    for (const dev in healDevRec) {
+      if (!seenDev[dev]) { const drec = healDevRec[dev]; delete healDevRec[dev];
+        if (drec.n > 0 && !drec.gaveup) logEvent(dev, "", "heal2_ok", "자동복구 성공: CCM 재시작 후 정상 복귀", "system");
       }
     }
   }
@@ -248,6 +293,11 @@
     const t = now() - S.t0, wall = now();
     for (const dev in S.discovered) {
       if (S.poweredOff[dev]) continue;      // 전원 꺼진 CCM은 아무 값도 안 올린다
+      // L2 자가치유가 이 CCM을 재시작했으면 침묵 구간 해제(재시작이 두절을 고침)
+      if (healDevAt[dev]) { delete healDevAt[dev]; delete ccmDrop[dev]; }
+      // 드물게 CCM 전체가 한동안 침묵(게이트웨이 두절) → watchdog가 CCM 침묵으로 잡고 L2가 복구
+      if (wall < (ccmDrop[dev] || 0)) continue;
+      if (rnd() < 0.004) { ccmDrop[dev] = wall + 120; continue; }
       let sent = 0;
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;

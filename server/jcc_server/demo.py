@@ -73,6 +73,7 @@ def _loop(storage, interval: float) -> None:
     stuck_val: dict = {}
     anom_until: dict = {}   # (dev,key) -> 이 시각까지 '평소보다 높지만 임계 아래'(조기감지 시연)
     anom_base: dict = {}
+    ccm_drop: dict = {}     # dev -> 이 시각까지 CCM 전체가 침묵(게이트웨이 두절 시연 → L2가 재시작)
     # 임계값 아래에서 평소보다 높은 이상 수준(각 센서 알람 기준 아래로 잡음)
     # 경고 기준보다는 낮지만 평소보다 확실히 높은 값 → 베이스라인 이상탐지가 잡는 구간
     ANOM = {"h2": 6, "current": 22, "vibration": 2.2, "temp": 36, "humidity": 66}
@@ -88,6 +89,16 @@ def _loop(storage, interval: float) -> None:
             if dev in storage._powered_off:     # 전원 끈 CCM은 값을 올리지 않는다
                 continue
             rng = rngs.setdefault(dev, random.Random(hash(dev) & 0xffff))
+            # L2 자가치유가 이 CCM을 재시작했으면 침묵 구간을 해제한다(재시작이 두절을 고침).
+            if storage._heal_dev_at.pop(dev, None):
+                ccm_drop.pop(dev, None)
+            # 드물게 CCM 전체가 한동안 침묵(게이트웨이 행·통신 두절 시연) → watchdog가 CCM
+            # 침묵으로 잡고, 자가치유 L2가 CCM을 재시작해 복구한다.
+            if wall < ccm_drop.get(dev, 0):
+                continue
+            if rng.random() < 0.004:
+                ccm_drop[dev] = wall + 120
+                continue
             panel, panel_name, site = c["panel"], c["panel_name"], c["site"]
             readings = []
             for s in c.get("sensors") or []:

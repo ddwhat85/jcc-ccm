@@ -1420,11 +1420,14 @@ const EVENT_META = {
   heal_restart:{label:"자동복구 시도", dot:"info", ic:"🔧"},
   heal_ok:     {label:"자동복구 성공", dot:"ok",   ic:"🛠"},
   heal_giveup: {label:"자동복구 실패", dot:"crit", ic:"🛠"},
+  heal2_restart:{label:"CCM 자동 재시작", dot:"warn", ic:"♻"},
+  heal2_ok:    {label:"CCM 복구 성공",  dot:"ok",   ic:"♻"},
+  heal2_giveup:{label:"CCM 복구 실패",  dot:"crit", ic:"♻"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
-  "heal_restart","heal_ok","heal_giveup"]);
+  "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
