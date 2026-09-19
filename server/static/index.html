@@ -215,6 +215,28 @@
     .node.reveal-in{animation:none}
     .wirepath.draw{animation:none!important;stroke-dashoffset:0}
   }
+  /* ── AI 자동연결 스캔 HUD (클라우드 노드 옆) ── */
+  .scanhud{position:absolute;z-index:20;width:216px;pointer-events:none;
+           opacity:0;transform:translateY(6px);transition:opacity .3s ease,transform .3s ease}
+  .scanhud.on{opacity:1;transform:none}
+  .scanhud.done .sh-timer{color:var(--ok)} .scanhud.done .sh-title .dot{animation:none;background:var(--ok)}
+  .sh-timer{font:700 34px var(--mono);color:var(--accent);letter-spacing:-.03em;line-height:1;
+            font-variant-numeric:tabular-nums}
+  .sh-timer small{font-size:13px;color:var(--ink-3);margin-left:5px;font-weight:600;letter-spacing:0}
+  .sh-title{font:700 12px var(--sans);color:var(--ink-2);margin:9px 0 6px;display:flex;align-items:center;gap:6px}
+  .sh-title .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;
+                 animation:hpulse 1s ease-in-out infinite}
+  .sh-count{font:600 11px var(--mono);color:var(--ink-3);margin-bottom:7px}
+  .sh-log{display:flex;flex-direction:column;gap:3px}
+  .sh-line{font:600 11px var(--mono);color:var(--ink-2);display:flex;align-items:center;gap:6px;
+           white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+           opacity:0;transform:translateY(4px);animation:shln .28s ease forwards}
+  .sh-line .ic{flex:none}
+  .sh-line.found .ic{color:var(--ok)} .sh-line.busy .ic{color:var(--accent)}
+  @keyframes shln{to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .scanhud{transition:opacity .2s} .sh-line{animation:none;opacity:1;transform:none}
+    .sh-title .dot{animation:none}}
   /* 경보 노드는 히어로와 같은 색으로 — 어느 노드가 문제인지 한눈에 */
   .node.sev-warn{border-color:var(--warn)}
   .node.sev-warn .nhead{background:linear-gradient(180deg,#e0a92e,#c2870d);color:#fff}
@@ -578,7 +600,11 @@
         border-top:1px solid var(--rule);background:var(--surface)}
   .dock-log{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;padding:8px 14px 9px;overflow:hidden}
   .dock-h{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);
-          margin-bottom:5px;flex:none}
+          margin-bottom:5px;flex:none;display:flex;align-items:center;justify-content:space-between}
+  .dock-fit{font:600 10.5px var(--sans);letter-spacing:0;text-transform:none;color:var(--accent);
+            background:var(--accent-soft);border:1px solid var(--accent);border-radius:6px;
+            padding:3px 9px;cursor:pointer}
+  .dock-fit:hover{filter:brightness(1.05)} .dock-fit.on{background:var(--accent);color:#fff}
   /* 제어판: 왼쪽=버튼 세로 2개 / 오른쪽=자가복구 (가로 배치로 높이 절약) */
   .dock-ctrl{flex:0 0 auto;width:432px;max-width:50%;border-left:1px solid var(--rule);
              padding:9px 13px;display:flex;flex-direction:row;align-items:stretch;gap:10px;background:var(--canvas)}
@@ -699,6 +725,13 @@
           <div style="font-size:14px;color:var(--ink-2);font-weight:600">데이터를 기다리는 중…</div>
           <div style="font-size:12px;margin-top:6px">CCM이 텔레메트리를 보내면 노드가 나타납니다.</div>
         </div>
+        <!-- AI 자동연결 스캔 HUD (클라우드 노드 옆, 스캔 중에만 표시) -->
+        <div class="scanhud" id="scanhud" hidden>
+          <div class="sh-timer"><span id="sh-time">0.0</span><small>초</small></div>
+          <div class="sh-title"><span class="dot"></span><span id="sh-title-t">자동 스캔 중…</span></div>
+          <div class="sh-count" id="sh-count"></div>
+          <div class="sh-log" id="sh-log"></div>
+        </div>
       </div>
     </div>
 
@@ -708,7 +741,8 @@
   <!-- 하단 도크: 왼쪽=실시간 데이터 로그 / 오른쪽=제어판(자동연결·점검·자가복구) -->
   <div class="dock">
     <div class="dock-log">
-      <div class="dock-h">실시간 데이터 로그</div>
+      <div class="dock-h"><span>실시간 데이터 로그</span>
+        <button class="dock-fit" id="btn-fit" title="모든 노드를 한 화면에 맞춤 ↔ 100%">⤢ 전체 보기</button></div>
       <div class="ticker" id="ticker"></div>
     </div>
     <div class="dock-ctrl">
@@ -1045,6 +1079,49 @@ function applyPositions(){
 // ── AI 자동연결 등장 연출 ─────────────────────────────
 // 클라우드·판넬 → CCM → 센서 순서로 하나씩 나타나며 선이 이어진다.
 // 자동 탐색이 '무엇을 어떤 순서로 찾아냈는지'를 눈으로 보여주는 연출.
+// ── AI 자동연결 스캔 HUD (클라우드 노드 옆의 라이브 스캔 콘솔 + 큰 타이머) ──
+let _shTimer = null, _shStart = 0;
+function scanHudStart(){
+  const hud = $("#scanhud"); if(!hud) return;
+  const cel = nodes.get("server:jcc")?.el;      // 클라우드 노드 왼쪽 빈 공간에 배치
+  if(cel){
+    const x = parseFloat(cel.style.left) || cel.offsetLeft || 0;
+    const y = parseFloat(cel.style.top)  || cel.offsetTop  || 0;
+    hud.style.left = Math.max(12, x - 244) + "px";
+    hud.style.top  = Math.max(12, y - 40) + "px";
+  } else { hud.style.left = "24px"; hud.style.top = "24px"; }
+  hud.classList.remove("done");
+  $("#sh-title-t").textContent = "자동 스캔 중…";
+  $("#sh-count").textContent = "";
+  $("#sh-log").innerHTML = "";
+  hud.hidden = false;
+  requestAnimationFrame(()=> hud.classList.add("on"));
+  _shStart = performance.now();
+  clearInterval(_shTimer);
+  _shTimer = setInterval(()=>{ const el = $("#sh-time");
+    if(el) el.textContent = ((performance.now()-_shStart)/1000).toFixed(1); }, 100);
+}
+function scanHudLine(ic, text, cls){
+  const log = $("#sh-log"); if(!log) return;
+  const d = document.createElement("div");
+  d.className = "sh-line " + (cls||"");
+  d.innerHTML = `<span class="ic">${ic}</span><span class="tx">${escapeHtml(text)}</span>`;
+  log.appendChild(d);
+  while(log.children.length > 7) log.removeChild(log.firstChild);   // 최근 것만 유지
+}
+function scanHudCount(txt){ const el = $("#sh-count"); if(el) el.textContent = txt; }
+function scanHudFinish(count){
+  const hud = $("#scanhud"); if(!hud) return;
+  clearInterval(_shTimer); _shTimer = null;
+  const t = ((performance.now()-_shStart)/1000).toFixed(1);
+  const el = $("#sh-time"); if(el) el.textContent = t;
+  hud.classList.add("done");
+  $("#sh-title-t").textContent = "스캔 완료";
+  scanHudCount(`${count}개 연결 · ${t}초 소요`);
+  setTimeout(()=>{ hud.classList.remove("on");
+    setTimeout(()=>{ hud.hidden = true; }, 360); }, 2000);   // 잠깐 보였다 사라짐
+}
+
 async function runReveal(panels){
   if(revealing) return;          // 연출 중 또 누르면 두 연출이 겹쳐 뒤엉킨다
   const wait = (ms)=> new Promise(r=>setTimeout(r, ms));
@@ -1060,8 +1137,15 @@ async function runReveal(panels){
   revealing = true;
   revealSet = new Set();
   drawnWires = new Set();
+  if(graphZoom !== 1){ applyZoom(1);            // 연출은 100%에서 (전체보기 상태였다면 해제)
+    const bf=$("#btn-fit"); if(bf){ bf.classList.remove("on"); bf.textContent="⤢ 전체 보기"; } }
+  const totCcm = panels.reduce((a,p)=>a+(p.ccms||[]).length,0);
+  const totSen = panels.reduce((a,p)=>a+(p.ccms||[]).reduce((b,c)=>b+(c.latest||[]).length,0),0);
+  let fCcm = 0;
   for(const [, n] of nodes){ if(!n.user) n.el.classList.add("reveal-hide"); }
   redraw();
+  scanHudStart();
+  scanHudCount("버스 스캔 시작…");
   await wait(260);
 
   // 1) 클라우드 + 판넬부터
@@ -1069,6 +1153,9 @@ async function runReveal(panels){
   for(const p of panels) show("panel:"+p.panel);
   redraw();
   setStatus("클라우드·판넬 인식됨");
+  scanHudLine("☁", "JCC 클라우드 연결", "found");
+  for(const p of panels) scanHudLine("▣", p.panel_name || p.panel, "found");
+  scanHudCount(`CCM 0/${totCcm} · 센서 0/${totSen}`);
   await wait(620);
   redraw();                       // 판넬 ↔ 클라우드 선이 이어지는 순간
   await wait(560);
@@ -1079,7 +1166,10 @@ async function runReveal(panels){
     for(let i=0; i<ccms.length; i++){
       show("ccm:"+ccms[i].device_id);
       redraw();
+      fCcm++;
       setStatus(`CCM 발견 ${i+1}/${ccms.length} — ${ccms[i].device_id}`);
+      scanHudLine("🔌", `${ccms[i].device_id} 연결됨`, "found");
+      scanHudCount(`CCM ${fCcm}/${totCcm} · 센서 0/${totSen}`);
       await wait(430);
     }
   }
@@ -1094,6 +1184,8 @@ async function runReveal(panels){
         redraw();
         sn++;
         setStatus(`센서 연결 ${sn} — ${r.name || r.sensor_key}`);
+        scanHudLine("●", r.name || r.sensor_key, "found");
+        scanHudCount(`CCM ${fCcm}/${totCcm} · 센서 ${sn}/${totSen}`);
         await wait(170);
       }
     }
@@ -1102,7 +1194,8 @@ async function runReveal(panels){
   revealSet = null;               // 연출 끝 → 평소 표시로
   revealing = false;
   redraw();
-  setStatus(`자동 연결 완료 — CCM ${panels.reduce((a,p)=>a+(p.ccms||[]).length,0)}대 · 센서 ${sn}개`);
+  scanHudFinish(totCcm + sn);
+  setStatus(`자동 연결 완료 — CCM ${totCcm}대 · 센서 ${sn}개`);
 }
 
 // 노드에 심각도 색을 입힌다(경보=히어로와 같은 색). crit>warn>없음.
@@ -1322,13 +1415,51 @@ function colorPorts(){
   });
 }
 
+// ── 화면 확대/축소 (전체 보기 ↔ 100%) ─────────────────
+// 화면 좌표(getBoundingClientRect·마우스)는 배율이 곱해져 오므로, 그래프 좌표로
+// 되돌릴 때 graphZoom으로 나눈다. 이 한 값만 지키면 배선·드래그가 배율과 무관하게 맞다.
+let graphZoom = 1;
+function applyZoom(z){
+  graphZoom = z;
+  const g = $("#graph"), c = $("#canvas");
+  g.style.transformOrigin = "0 0";
+  g.style.transform = z === 1 ? "" : `scale(${z})`;
+  c.style.overflow = z === 1 ? "auto" : "hidden";   // 다 들어오면 스크롤 불필요
+  drawWires();
+}
+function fitToView(){
+  const c = $("#canvas");
+  let maxX = 0, maxY = 0;
+  for(const [, n] of nodes){
+    if(n.el.classList.contains("reveal-hide")) continue;
+    maxX = Math.max(maxX, (parseFloat(n.el.style.left)||0) + n.el.offsetWidth);
+    maxY = Math.max(maxY, (parseFloat(n.el.style.top)||0)  + n.el.offsetHeight);
+  }
+  if(maxX <= 0 || maxY <= 0) return 1;
+  const pad = 36;
+  const z = Math.min((c.clientWidth - pad)/(maxX + pad), (c.clientHeight - pad)/(maxY + pad), 1);
+  applyZoom(Math.max(0.3, Math.round(z*100)/100));
+  return graphZoom;
+}
+function toggleFit(){
+  const btn = $("#btn-fit");
+  if(graphZoom === 1){
+    const z = fitToView();
+    if(z < 1){ btn.classList.add("on"); btn.textContent = "100%"; }
+    else setStatus("이미 전체가 화면에 들어옵니다");
+  } else {
+    applyZoom(1); $("#canvas").scrollTo(0,0);
+    btn.classList.remove("on"); btn.textContent = "⤢ 전체 보기";
+  }
+}
+
 // ── 배선 그리기 (포트 중심 실측) ───────────────────────
 function portCenter(portId){
   const el = $(`.graph [data-port="${cssAttr2(portId)}"]`);
   if(!el) return null;
   const gr = $("#graph").getBoundingClientRect();
   const r = el.getBoundingClientRect();
-  return { x: r.left - gr.left + r.width/2, y: r.top - gr.top + r.height/2 };
+  return { x: (r.left - gr.left + r.width/2)/graphZoom, y: (r.top - gr.top + r.height/2)/graphZoom };
 }
 function cssAttr2(s){ // data-port 값은 cssAttr로 안전화되어 저장됨 → 조회도 동일 변환
   return String(s).replace(/[^a-zA-Z0-9_:.-]/g,"_").replace(/["\\]/g,"\\$&"); }
@@ -1396,7 +1527,7 @@ function makeDraggable(el){
   });
   window.addEventListener("mousemove", e=>{
     if(!drag) return;
-    const nx=Math.max(0,ox+(e.clientX-sx)), ny=Math.max(0,oy+(e.clientY-sy));
+    const nx=Math.max(0,ox+(e.clientX-sx)/graphZoom), ny=Math.max(0,oy+(e.clientY-sy)/graphZoom);
     el.style.left=nx+"px"; el.style.top=ny+"px";
     drawWires();
   });
@@ -1457,7 +1588,7 @@ function findSnapPort(gx, gy, gr){
     const node = el.closest(".node")?.dataset.id;
     if(node === wiring.fromNode) return;               // 같은 노드끼리는 연결 불가
     const r = el.getBoundingClientRect();
-    const cx = r.left - gr.left + r.width/2, cy = r.top - gr.top + r.height/2;
+    const cx = (r.left - gr.left + r.width/2)/graphZoom, cy = (r.top - gr.top + r.height/2)/graphZoom;
     const dx = cx-gx, dy = cy-gy, d = dx*dx + dy*dy;
     if(d < bestD){ bestD = d; best = {el, id:el.getAttribute("data-port"), node, x:cx, y:cy}; }
   });
@@ -1468,7 +1599,7 @@ function clearSnap(){ document.querySelectorAll(".graph .snap").forEach(el=>el.c
 window.addEventListener("mousemove", e=>{
   if(!wiring) return;
   const gr = $("#graph").getBoundingClientRect();
-  const gx = e.clientX - gr.left, gy = e.clientY - gr.top;
+  const gx = (e.clientX - gr.left)/graphZoom, gy = (e.clientY - gr.top)/graphZoom;
   clearSnap();
   snapPort = findSnapPort(gx, gy, gr);
   if(snapPort){ snapPort.el.classList.add("snap"); tempPt = {x:snapPort.x, y:snapPort.y}; }  // 착 붙는다
@@ -2278,6 +2409,7 @@ function saveHealConfig(){
 }
 ["#heal-master","#heal-l1","#heal-l2"].forEach(id=>{ const el=$(id); if(el) el.onchange = saveHealConfig; });
 loadHealConfig();
+{ const _bf=$("#btn-fit"); if(_bf) _bf.onclick = toggleFit; }
 
 // ── 전체 시스템 점검 ──────────────────────────────────
 function runHealthCheck(){
