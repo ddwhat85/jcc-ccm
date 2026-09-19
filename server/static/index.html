@@ -318,6 +318,38 @@
            font-size:11px;color:var(--ink-3);text-align:center}
   .ov-hint{margin-top:14px;font-size:11.5px;color:var(--ink-3);text-align:center;line-height:1.6;
            padding:12px;background:var(--canvas);border:1px solid var(--rule);border-radius:8px}
+  /* ── 센서 스포트라이트 (개요 자동 순회 상세) ── */
+  .spot{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:15px 15px 13px;
+        margin-bottom:12px;cursor:pointer;transition:border-color .12s}
+  .spot:hover{border-color:var(--accent)}
+  .spot-kind{font:600 10px var(--mono);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+  .spot-name{font:700 19px var(--sans);letter-spacing:-.02em;line-height:1.2;margin:3px 0 8px}
+  .spot-meta{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:12px}
+  .spot-chip{display:inline-flex;align-items:center;gap:4px;font:600 10px var(--mono);color:var(--ink-2);
+             background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:2px 7px}
+  .spot-val{display:flex;align-items:baseline;gap:6px;margin:2px 0 2px}
+  .spot-val .v{font:700 40px var(--mono);letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .spot-val .u{font:600 14px var(--mono);color:var(--ink-3)}
+  .spot-val.warn .v{color:var(--warn)} .spot-val.crit .v{color:var(--crit)} .spot-val.ok .v{color:var(--ok)}
+  .spot-status{font:700 11px var(--sans);margin-bottom:11px}
+  .spot-status.warn{color:var(--warn)} .spot-status.crit{color:var(--crit)} .spot-status.ok{color:var(--ok)}
+  .spot-spark{width:100%;height:56px;display:block;margin-bottom:11px}
+  .spot-th{display:flex;gap:8px;flex-wrap:wrap}
+  .spot-th span{flex:1;min-width:0;text-align:center;font:600 10px var(--mono);color:var(--ink-3);
+                background:var(--canvas);border:1px solid var(--rule);border-radius:7px;padding:5px 4px}
+  .spot-th b{display:block;font-size:13px;margin-top:2px;font-variant-numeric:tabular-nums}
+  .spot-th .warn b{color:var(--warn)} .spot-th .crit b{color:var(--crit)}
+  .spot-dots{display:flex;gap:4px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .spot-dots i{width:5px;height:5px;border-radius:50%;background:var(--rule);transition:background .2s,transform .2s}
+  .spot-dots i.on{background:var(--accent);transform:scale(1.3)}
+  .ov-mini{display:flex;justify-content:center;gap:10px;font:600 10.5px var(--mono);color:var(--ink-3);
+           padding-top:12px;border-top:1px solid var(--rule);margin-top:2px}
+  .ov-mini b{color:var(--ink-2)}
+  /* 스포트라이트가 가리키는 노드 — 솔리드 링 펄스(번짐 글로우 아님) */
+  .node.ov-highlight{animation:ovhl 1.3s ease-in-out infinite;z-index:6}
+  @keyframes ovhl{0%,100%{box-shadow:0 0 0 2px var(--accent)}
+    50%{box-shadow:0 0 0 2px var(--accent),0 0 0 5px color-mix(in srgb,var(--accent) 26%,transparent)}}
+  @media (prefers-reduced-motion:reduce){.node.ov-highlight{animation:none;box-shadow:0 0 0 2px var(--accent)}}
   /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
   .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
         background:var(--surface);border:1px solid var(--rule);overflow:hidden;
@@ -1367,45 +1399,116 @@ function heroHtml(){
     `<button class="hero-more" id="hero-more">전체 경보 ${al.length}건 보기 →</button>`+
     `</div>`;
 }
+// ── 센서 스포트라이트(개요 자동 순회) ──────────────────
+let _ovSig = "", _spotIdx = 0, _spotTimer = null, _spotPaused = false, _spotList = [];
+function ovSensorList(panels){
+  const out = [];
+  for(const p of panels||[]) for(const c of (p.ccms||[])) for(const r of (c.latest||[]))
+    out.push({dev:c.device_id, key:r.sensor_key});
+  return out;
+}
+function highlightNode(id){
+  document.querySelectorAll(".graph .node.ov-highlight").forEach(el=>el.classList.remove("ov-highlight"));
+  const n = nodes.get(id); if(n) n.el.classList.add("ov-highlight");
+}
+function drawSpark(dev, key){
+  fetch(`/api/devices/${encodeURIComponent(dev)}/history?sensor=${encodeURIComponent(key)}&limit=80`,{cache:"no-store"})
+    .then(r=>r.json()).then(d=>{
+      const cv = $("#spot-spark"); if(!cv) return;
+      const ctx = cv.getContext("2d"), W = cv.width, H = cv.height; ctx.clearRect(0,0,W,H);
+      const pts = (d.points||[]).filter(p=>p.ok && p.value!=null).map(p=>p.value);
+      const accent = cssVar("--accent"), ink3 = cssVar("--ink-3");
+      if(pts.length<2){ ctx.fillStyle=ink3; ctx.font="11px sans-serif"; ctx.fillText("이력 데이터 쌓이는 중…",6,H/2); return; }
+      let mn=Math.min(...pts), mx=Math.max(...pts); if(mn===mx){mn-=1;mx+=1;}
+      const pad=6, x=i=>pad+(W-2*pad)*i/(pts.length-1), y=v=>pad+(H-2*pad)*(1-(v-mn)/(mx-mn));
+      ctx.beginPath(); pts.forEach((v,i)=>{const xx=x(i),yy=y(v); i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);});
+      ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x(pts.length-1),y(pts[pts.length-1]),3,0,7); ctx.fillStyle=accent; ctx.fill();
+    }).catch(()=>{});
+}
+function spotShow(i){
+  const card = $("#spot-card"); if(!card || !_spotList.length) return;
+  const n = _spotList.length; i = ((i%n)+n)%n; _spotIdx = i;
+  const {dev,key} = _spotList[i];
+  const rec = sensorRec[dev+":"+key] || {};
+  const v = rec.value, unit = rec.unit||"", nm = rec.name||key;
+  const sev = rec.ok===false ? "" : severity(key, v, rec);
+  const cls = sev==="crit"?"crit":(sev==="warn"?"warn":"ok");
+  const statusTxt = rec.ok===false ? "데이터 없음" : (sev==="crit"?"위험":(sev==="warn"?"경고":"정상 범위"));
+  const kindLabel = KINDNAME[rec.kind]||rec.kind||"";
+  const chips = [`<span class="spot-chip">🔌 ${escapeHtml(dev)}</span>`];
+  if(rec.part_no) chips.push(`<span class="spot-chip">${escapeHtml(rec.part_no)}</span>`);
+  if(rec.address!=null) chips.push(`<span class="spot-chip">Modbus #${rec.address}</span>`);
+  const th=[];
+  if(rec.alarm_warn!=null) th.push(`<span class="warn">경고<b>${fmtValue(rec.alarm_warn)}</b></span>`);
+  if(rec.alarm_max!=null)  th.push(`<span class="crit">위험<b>${fmtValue(rec.alarm_max)}</b></span>`);
+  if(rec.alarm_min!=null && rec.alarm_min!==0) th.push(`<span>하한<b>${fmtValue(rec.alarm_min)}</b></span>`);
+  card.innerHTML =
+    `<div class="spot-kind">${escapeHtml((kindLabel||"센서")+(rec.brand?" · "+rec.brand:""))}</div>`+
+    `<div class="spot-name">${escapeHtml(nm)}</div>`+
+    `<div class="spot-meta">${chips.join("")}</div>`+
+    `<div class="spot-val ${cls}"><span class="v">${fmtValue(v)}</span><span class="u">${escapeHtml(unit)}</span></div>`+
+    `<div class="spot-status ${cls}">${statusTxt}</div>`+
+    `<canvas class="spot-spark" id="spot-spark" width="244" height="56"></canvas>`+
+    (th.length?`<div class="spot-th">${th.join("")}</div>`:"")+
+    `<div class="spot-dots">${_spotList.map((_,j)=>`<i class="${j===i?'on':''}"></i>`).join("")}</div>`;
+  card.onclick = ()=>{ const id="sensor:"+dev+":"+key, node=nodes.get(id);
+    if(node){ select(id); node.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); } };
+  highlightNode("sensor:"+dev+":"+key);
+  drawSpark(dev, key);
+}
+function spotStart(){
+  spotStop(true);
+  if(_spotList.length<=1) return;
+  _spotTimer = setInterval(()=>{ if(_spotPaused||selectedId||revealing) return; spotShow(_spotIdx+1); }, 4500);
+}
+function spotStop(keepHighlight){
+  if(_spotTimer){ clearInterval(_spotTimer); _spotTimer=null; }
+  if(!keepHighlight) document.querySelectorAll(".graph .node.ov-highlight").forEach(el=>el.classList.remove("ov-highlight"));
+}
 function renderOverview(panels){
-  if(selectedId) return;                 // 노드 선택 중이면 상세 유지
+  if(selectedId){ spotStop(); return; }   // 노드 선택 중이면 상세(인스펙터) 유지
   const box = $("#insp-in"); if(!box) return;
   panels = panels || [];
   const ccms = panels.flatMap(p=>p.ccms||[]);
   const sensors = ccms.flatMap(c=>c.latest||[]);
   if(!panels.length){
+    spotStop(); _ovSig="";
     box.innerHTML = `<div class="ov-h">시스템 개요</div>`+
       `<div class="ov-hint">아직 연결된 장비가 없습니다.<br><b>[✨ AI 자동연결]</b>을 누르면<br>하드웨어를 자동으로 찾아 연결합니다.</div>`;
     return;
   }
   const ccmOnline = ccms.filter(c=>c.online && !clientOff.has("ccm:"+c.device_id)).length;
-  const allOnline = ccmOnline === ccms.length;
-  const kinds = {};
-  for(const s of sensors){ const k = KINDNAME[s.kind]||s.kind||"기타"; kinds[k] = (kinds[k]||0)+1; }
-  const kindCount = Object.keys(kinds).length;
-  const ccmVal = allOnline ? `${ccms.length}` : `${ccmOnline}<span class="sub">/${ccms.length}</span>`;
-  box.innerHTML =
-    `<div class="ov-h">시스템 개요</div>`+
-    heroHtml()+
-    `<div class="ov-stats">`+
-      ovCell(ccmVal, "CCM 온라인", allOnline ? "ok" : "warn")+
-      ovCell(sensors.length, "센서")+
-      ovCell(panels.length, "판넬")+
-      ovCell(nodes.size, "전체 노드")+
-    `</div>`+
-    `<div class="ov-sec">센서 구성 · ${kindCount}종</div>`+
-    `<div class="ov-chips">`+
-      Object.entries(kinds).sort((a,b)=>b[1]-a[1])
-        .map(([k,v])=>`<span class="ov-chip">${escapeHtml(k)} <b>${v}</b></span>`).join("")+
-    `</div>`+
-    `<div class="ov-foot">노드를 클릭하면 상세가 표시됩니다</div>`;
-  // 히어로 현재경보 클릭 → 해당 노드로 이동, '전체 보기' → 경보 패널
-  const cur = box.querySelector(".hero-cur");
-  if(cur) cur.onclick = (e)=>{ e.stopPropagation(); const n = nodes.get(cur.dataset.id);
-    if(n){ select(cur.dataset.id); n.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); } };
-  const more = box.querySelector("#hero-more");
-  // stopPropagation 없으면 이 클릭이 문서로 전파돼 '패널 밖 클릭=닫기'가 즉시 다시 닫는다
-  if(more) more.onclick = (e)=>{ e.stopPropagation(); alarmPanelOpen = true; $("#alarm-panel").hidden = false; loadAlarms(); };
+  _spotList = ovSensorList(panels);
+  const sig = "n"+_spotList.length+"|c"+ccms.length;   // 구조 변화 시에만 재구성(순회 상태 보존)
+  if(sig !== _ovSig || !box.querySelector("#spot-card")){
+    _ovSig = sig;
+    box.innerHTML = `<div id="ov-hero"></div><div class="spot" id="spot-card"></div><div class="ov-mini" id="ov-mini"></div>`;
+    const sc = $("#spot-card");
+    sc.onmouseenter = ()=> _spotPaused = true;   // 읽는 동안 순회 멈춤
+    sc.onmouseleave = ()=> _spotPaused = false;
+    if(_spotIdx >= _spotList.length) _spotIdx = 0;
+    spotShow(_spotIdx); spotStart();
+  }
+  // 히어로(경보) — 매 갱신
+  const hero = $("#ov-hero");
+  if(hero){ hero.innerHTML = heroHtml();
+    const cur = hero.querySelector(".hero-cur");
+    if(cur) cur.onclick = (e)=>{ e.stopPropagation(); const nn=nodes.get(cur.dataset.id);
+      if(nn){ select(cur.dataset.id); nn.el.scrollIntoView({behavior:"smooth",block:"center",inline:"center"}); } };
+    const more = hero.querySelector("#hero-more");
+    if(more) more.onclick = (e)=>{ e.stopPropagation(); alarmPanelOpen=true; $("#alarm-panel").hidden=false; loadAlarms(); };
+  }
+  // 현재 스포트라이트 센서의 큰 값은 실시간으로 갱신
+  const sc = $("#spot-card");
+  if(sc && _spotList[_spotIdx]){ const {dev,key}=_spotList[_spotIdx]; const rec=sensorRec[dev+":"+key];
+    const vEl=sc.querySelector(".spot-val .v"), box2=sc.querySelector(".spot-val");
+    if(vEl && rec){ vEl.textContent=fmtValue(rec.value);
+      const sev=rec.ok===false?"":severity(key,rec.value,rec);
+      if(box2) box2.className="spot-val "+(sev==="crit"?"crit":(sev==="warn"?"warn":"ok")); } }
+  // 미니 요약(작게)
+  const mini = $("#ov-mini");
+  if(mini) mini.innerHTML = `<span>CCM <b>${ccmOnline}/${ccms.length}</b></span><span>센서 <b>${sensors.length}</b></span><span>판넬 <b>${panels.length}</b></span>`;
 }
 function showOverview(){
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); selectedId = null; }
@@ -1681,6 +1784,7 @@ $("#canvas").addEventListener("mousedown", e=>{
 // ── 선택 · 인스펙터 ───────────────────────────────────
 function select(id){
   selectedWireId = null;
+  spotStop();                            // 스포트라이트 순회·하이라이트 정지(상세 보기 우선)
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); }
   selectedId = id; const n = nodes.get(id); if(!n) return;
   n.el.classList.add("sel");
