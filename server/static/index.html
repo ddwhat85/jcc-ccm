@@ -81,7 +81,9 @@
            border-bottom:1px solid var(--menubar-border);position:relative;z-index:50}
   .mb-app{font-weight:700;font-size:14px;letter-spacing:-.01em;color:var(--ink);
           padding:0 14px 0 4px;display:flex;align-items:center}
-  .mb-app img{height:22px;width:auto;display:block}
+  .mb-app img.lgo{height:24px;width:auto;display:none;object-fit:contain}
+  /* 흰 배경 raster여도 다크에서 흰 박스가 안 보이게: 로고를 살짝 여백 준 투명 배지로.
+     JS(setupLogo)가 어떤 이미지를 쓸지(라이트/다크/글자) 최종 결정한다. */
   .mb-app b{color:var(--accent)}
   .mb-menu{position:relative}
   .mb-title{font:inherit;font-size:13px;color:var(--ink);background:none;border:none;
@@ -216,11 +218,12 @@
     .wirepath.draw{animation:none!important;stroke-dashoffset:0}
   }
   /* ── AI 자동연결 스캔 HUD — 캔버스 우측 상단 고정(개요 사이드바 왼쪽), 불투명 패널 ── */
-  .scanhud{position:absolute;right:324px;top:24px;z-index:40;width:214px;pointer-events:none;
-           background:color-mix(in srgb,var(--surface) 90%,transparent);
-           border:1px solid var(--rule);border-radius:14px;padding:15px 16px;
-           box-shadow:0 14px 44px rgba(0,0,0,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-           opacity:0;transform:translateY(8px);transition:opacity .35s ease,transform .35s ease}
+  .scanhud{position:absolute;right:324px;top:24px;z-index:40;width:264px;pointer-events:none;
+           background:rgba(5,14,10,.9);border:1px solid #1c3a2e;border-radius:12px;padding:14px 15px;
+           box-shadow:0 14px 44px rgba(0,0,0,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+           font-family:var(--mono);opacity:0;transform:translateY(8px);transition:opacity .35s ease,transform .35s ease}
+  .scanhud::before{content:"";position:absolute;inset:0;border-radius:12px;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(0deg,rgba(0,255,150,.035) 0 1px,transparent 1px 3px)}
   .scanhud.on{opacity:1;transform:none}
   /* 헤드라이트 포커스: 스캔 시작 순간 나머지는 어둡게, 판넬·클라우드만 환하게 */
   .graph.focusing .node{opacity:.18;transition:opacity .3s ease}
@@ -230,24 +233,26 @@
   .node.spot{box-shadow:0 0 0 2px var(--accent),0 0 0 6px color-mix(in srgb,var(--accent) 22%,transparent);
              transition:box-shadow .3s ease}
   @media (prefers-reduced-motion:reduce){.graph.focusing .node{transition:none}}
-  .scanhud.done .sh-timer{color:var(--ok)} .scanhud.done .sh-title .dot{animation:none;background:var(--ok)}
-  .sh-timer{font:700 34px var(--mono);color:var(--accent);letter-spacing:-.03em;line-height:1;
-            font-variant-numeric:tabular-nums}
-  .sh-timer small{font-size:13px;color:var(--ink-3);margin-left:5px;font-weight:600;letter-spacing:0}
-  .sh-title{font:700 12px var(--sans);color:var(--ink-2);margin:9px 0 6px;display:flex;align-items:center;gap:6px}
-  .sh-title .dot{width:7px;height:7px;border-radius:50%;background:var(--accent);flex:none;
-                 animation:hpulse 1s ease-in-out infinite}
-  .sh-count{font:600 11px var(--mono);color:var(--ink-3);margin-bottom:7px}
-  .sh-log{display:flex;flex-direction:column;gap:3px}
-  .sh-line{font:600 11px var(--mono);color:var(--ink-2);display:flex;align-items:center;gap:6px;
+  .scanhud.done .sh-timer{color:#20e39a}
+  .sh-timer{font:700 34px var(--mono);color:#3fe0a0;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+  .sh-timer small{font-size:13px;color:#5f9c86;margin-left:5px;font-weight:600;letter-spacing:0}
+  .sh-title{font:700 10.5px var(--mono);color:#8fe8c4;margin:8px 0 7px;display:flex;align-items:center;gap:6px;
+            letter-spacing:.05em;text-transform:uppercase}
+  .sh-title .dot{width:7px;height:7px;border-radius:50%;background:#20e39a;flex:none;animation:hpulse 1s ease-in-out infinite}
+  .sh-count{font:600 10.5px var(--mono);color:#5f9c86;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #14291f}
+  .sh-log{display:flex;flex-direction:column;gap:2px;min-height:158px;justify-content:flex-end}
+  .sh-line{font:600 10.5px var(--mono);color:#3fe0a0;display:flex;align-items:center;gap:5px;
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
            opacity:0;transform:translateY(4px);animation:shln .28s ease forwards}
+  .sh-line::before{content:"›";color:#2f7d5f;flex:none}
   .sh-line .ic{flex:none}
-  .sh-line.found .ic{color:var(--ok)} .sh-line.busy .ic{color:var(--accent)}
+  .sh-line.found .ic{color:#20e39a} .sh-line.sys{color:#2f9d78}
+  .sh-log::after{content:"▊";color:#20e39a;font-size:10px;align-self:flex-start;animation:blink 1s step-end infinite}
   @keyframes shln{to{opacity:1;transform:none}}
+  @keyframes blink{50%{opacity:0}}
   @media (prefers-reduced-motion:reduce){
     .scanhud{transition:opacity .2s} .sh-line{animation:none;opacity:1;transform:none}
-    .sh-title .dot{animation:none}}
+    .sh-title .dot,.sh-log::after{animation:none}}
   /* 경보 노드는 히어로와 같은 색으로 — 어느 노드가 문제인지 한눈에 */
   .node.sev-warn{border-color:var(--warn)}
   .node.sev-warn .nhead{background:linear-gradient(180deg,#e0a92e,#c2870d);color:#fff}
@@ -708,14 +713,82 @@
   .ticker .tk.newest{animation:tkin .35s ease}
   @keyframes tkin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.ticker .tk.newest{animation:none}}
+
+  /* ── 부팅 로그인 (회선 확인 → 접속 → 해킹풍 게이지) ── */
+  .boot{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+        background:radial-gradient(1000px 600px at 50% 20%,#0d1b16 0%,#05080b 70%);
+        font-family:var(--mono);opacity:1;transition:opacity .5s ease}
+  .boot.gone{opacity:0;pointer-events:none}
+  .boot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
+    background:repeating-linear-gradient(0deg,rgba(0,255,150,.03) 0 1px,transparent 1px 3px)}
+  .boot-inner{position:relative;width:min(440px,92vw);padding:30px 32px;border:1px solid #1c3a2e;
+    border-radius:14px;background:rgba(6,12,10,.72);box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .boot-brand{font:800 26px var(--sans);letter-spacing:-.02em;color:#e8fff4}
+  .boot-brand b{color:#20e39a}
+  .boot-sub{font-size:12px;color:#5f9c86;margin:2px 0 20px;letter-spacing:.04em}
+  .boot-links{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+  .blink{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;
+    background:rgba(10,20,16,.7);border:1px solid #163227;font-size:12.5px;color:#bfe8d7}
+  .blink .bl-ic{flex:none;font-size:14px}
+  .blink .bl-name{flex:1}
+  .blink .bl-st{flex:none;font:600 11px var(--mono);color:#5f9c86}
+  .blink .bl-st.checking{color:#c9a227}
+  .blink .bl-st.checking::before{content:"◌ "}
+  .blink.up{border-color:#1f6b4d} .blink.up .bl-st{color:#20e39a} .blink.up .bl-st::before{content:"● "}
+  .blink.down{border-color:#7a2320} .blink.down .bl-st{color:#ff5b52} .blink.down .bl-st::before{content:"○ "}
+  .boot-msg{min-height:18px;font-size:12px;color:#ff5b52;margin-bottom:12px;text-align:center}
+  .boot-form{display:flex;flex-direction:column;gap:9px}
+  .boot-form input{padding:11px 13px;border-radius:9px;border:1px solid #1c3a2e;background:#0a1512;
+    color:#e8fff4;font:14px var(--sans);outline:none}
+  .boot-form input:focus{border-color:#20e39a}
+  .boot-form button{margin-top:4px;padding:12px;border:none;border-radius:9px;cursor:pointer;
+    background:linear-gradient(180deg,#1fc98a,#149e6c);color:#04120c;font:800 14px var(--sans)}
+  .boot-form button:disabled{background:#1a2c25;color:#4a6b5d;cursor:not-allowed}
+  .boot-form button:not(:disabled):hover{filter:brightness(1.08)}
+  .boot-hint{margin-top:10px;text-align:center;font:600 11px var(--mono);color:#4a6b5d}
+  .boot-hint b{color:#8fe8c4}
+  .boot-hack{margin-top:6px}
+  .hack-log{height:150px;overflow:hidden;font:600 11px var(--mono);color:#3fe0a0;line-height:1.5;
+    display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:12px}
+  .hack-log .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
+  .hack-log .hl.ok{color:#20e39a} .hack-log .hl.dim{color:#2f7d5f}
+  .hack-bar{height:12px;border-radius:7px;background:#0a1512;border:1px solid #1c3a2e;overflow:hidden}
+  .hack-fill{height:100%;width:0;background:linear-gradient(90deg,#149e6c,#3fe0a0);transition:width .2s linear}
+  .hack-pct{text-align:right;font:700 12px var(--mono);color:#20e39a;margin-top:6px}
+  @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}}
 </style>
 </head>
 <body>
+  <!-- 부팅 로그인: 회선 2개(WAN·LAN) 물리 연결 확인 → 접속 → 해킹풍 게이지 -->
+  <div class="boot" id="boot">
+    <div class="boot-inner">
+      <div class="boot-brand">JCC<b>·</b>CCM</div>
+      <div class="boot-sub">SMART PANEL MONITORING · SECURE ACCESS</div>
+      <div class="boot-links">
+        <div class="blink" id="blink-wan"><span class="bl-ic">🌐</span><span class="bl-name">인터넷 회선 (WAN)</span><span class="bl-st checking">확인 중</span></div>
+        <div class="blink" id="blink-lan"><span class="bl-ic">🔌</span><span class="bl-name">이더넷 · 센서망 (LAN)</span><span class="bl-st checking">확인 중</span></div>
+      </div>
+      <div class="boot-msg" id="boot-msg"></div>
+      <form class="boot-form" id="boot-form" autocomplete="off">
+        <input id="boot-id" placeholder="아이디" autocomplete="username">
+        <input id="boot-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
+        <button id="boot-login" type="submit" disabled>회선 확인 중…</button>
+        <div class="boot-hint">데모 접속 — 아이디 <b>jcc</b> · 비밀번호 <b>1234</b></div>
+      </form>
+      <div class="boot-hack" id="boot-hack" hidden>
+        <div class="hack-log" id="hack-log"></div>
+        <div class="hack-bar"><div class="hack-fill" id="hack-fill"></div></div>
+        <div class="hack-pct" id="hack-pct">0%</div>
+      </div>
+    </div>
+  </div>
+
   <div class="menubar">
-    <!-- 로고 파일(static/img/jcc-logo.png)이 있으면 그것을, 없으면 글자 로고를 쓴다 -->
+    <!-- 로고: img/jcc-logo.png(라이트). 다크용 img/jcc-logo-dark.png 있으면 다크모드에서 그걸 씀.
+         둘 다 없으면 글자 로고. 파일은 server/static/img/ 에 넣으면 자동 적용된다. -->
     <div class="mb-app">
-      <img id="brand-logo" src="img/jcc-logo.png" alt="JCC Solution"
-           onload="document.getElementById('brand-text').hidden=true" onerror="this.remove()">
+      <img id="brand-logo" class="lgo lgo-light" src="img/jcc-logo.png" alt="JCC Solution">
+      <img id="brand-logo-dark" class="lgo lgo-dark" src="img/jcc-logo-dark.png" alt="JCC Solution">
       <span id="brand-text">JCC<b>·</b>CCM</span>
     </div>
 
@@ -1216,12 +1289,14 @@ async function runReveal(panels){
   setStatus("클라우드·판넬 인식됨");
   await wait(700);                           // 헤드라이트로 잠깐 주목
   scanHudStart();                            // 우측 상단에 HUD 등장
+  scanHudLine("⛓", "SECURE LINK ESTABLISHED", "sys");
   scanHudLine("☁", "JCC 클라우드 연결", "found");
   for(const p of panels) scanHudLine("▣", p.panel_name || p.panel, "found");
   scanHudCount(`CCM 0/${totCcm} · 센서 0/${totSen}`);
   await wait(650);
   graphEl.classList.remove("focusing"); unspotAll();   // 포커스 해제 → 나머지 탐색 시작
   redraw();                       // 판넬 ↔ 클라우드 선이 이어지는 순간
+  scanHudLine("⛓", "PROBING RS485 0x01–0x20…", "sys");
   await wait(320);
 
   // 2) CCM을 한 대씩
@@ -1237,6 +1312,7 @@ async function runReveal(panels){
       await wait(430);
     }
   }
+  scanHudLine("🔑", "장치 지문 식별 중 (0x2B/0x0E)…", "sys");
   await wait(260);
 
   // 3) 센서를 하나씩
@@ -2357,8 +2433,27 @@ function applyTheme(t){
   document.documentElement.setAttribute("data-theme", t);
   const b = $("#btn-theme"); if(b) b.textContent = t==="dark" ? "☀️" : "🌙";
   try{ localStorage.setItem(LS_THEME, t); }catch(e){}
+  if(window._logoApply) window._logoApply();   // 테마에 맞는 로고 재선택
   requestAnimationFrame(drawWires);   // 색 바뀌면 배선 다시(색 캐시 방지)
 }
+// 테마별 로고 선택: 다크모드엔 jcc-logo-dark.png(있으면) → 흰 배경 박스 방지.
+// 없으면 라이트 로고, 그것도 없으면 글자 로고.
+(function setupLogo(){
+  const light=$("#brand-logo"), dark=$("#brand-logo-dark"), txt=$("#brand-text");
+  const ok = img => img && img.complete && img.naturalWidth>0;
+  function apply(){
+    const isDark = currentTheme()==="dark";
+    let use = null;                       // "light" | "dark" | null(글자)
+    if(isDark) use = ok(dark) ? "dark" : (ok(light) ? "light" : null);
+    else       use = ok(light) ? "light" : (ok(dark) ? "dark" : null);
+    if(light) light.style.display = use==="light" ? "block" : "none";
+    if(dark)  dark.style.display  = use==="dark"  ? "block" : "none";
+    if(txt)   txt.hidden = !!use;
+  }
+  window._logoApply = apply;
+  [light,dark].forEach(img=>{ if(img){ img.addEventListener("load",apply); img.addEventListener("error",apply); } });
+  apply();
+})();
 (function initTheme(){
   let t; try{ t = localStorage.getItem(LS_THEME); }catch(e){}
   applyTheme(t || currentTheme());
@@ -2794,6 +2889,60 @@ loadTicker(); setInterval(loadTicker, 3000);   // 하단 실시간 로그
 loadAlarms(); setInterval(loadAlarms, 3000);   // 활성 경보 벨/패널
 watchHeal(); setInterval(watchHeal, 2500);     // 자가치유 노드 애니메이션(실시간)
 baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 누적 보정
+
+// ── 부팅 로그인 시퀀스 (회선 물리 연결 확인 → 접속 → 해킹풍 게이지) ──
+(function(){
+  const boot = document.getElementById("boot"); if(!boot) return;
+  let booted=false; try{ booted = sessionStorage.getItem("jcc-booted")==="1"; }catch(e){}
+  if(booted){ boot.remove(); return; }        // 세션 중 한 번만
+  const wan=document.getElementById("blink-wan"), lan=document.getElementById("blink-lan");
+  const btn=document.getElementById("boot-login"), msg=document.getElementById("boot-msg");
+  const idEl=document.getElementById("boot-id"), pwEl=document.getElementById("boot-pw");
+  let wanUp=false, lanUp=false;
+  function setLink(el, up){ el.classList.remove("up","down"); el.classList.add(up?"up":"down");
+    const st=el.querySelector(".bl-st"); st.classList.remove("checking"); st.textContent=up?"연결됨":"미연결"; }
+  function gate(){
+    if(wanUp && lanUp){ btn.disabled=false; btn.textContent="접속"; msg.textContent=""; }
+    else { btn.disabled=true; btn.textContent="회선 미연결";
+      msg.textContent="⛔ 회선이 연결되지 않아 접속할 수 없습니다 — 케이블을 확인하세요"; } }
+  // 데모: 두 회선 모두 연결로 시뮬레이션(실기에선 실제 링크 상태로 교체). 둘 중 하나라도
+  // false면 로그인 불가 메시지가 뜬다.
+  const LINK = { wan:true, lan:true };
+  setTimeout(()=>{ wanUp=LINK.wan; setLink(wan,wanUp); gate(); }, 900);
+  setTimeout(()=>{ lanUp=LINK.lan; setLink(lan,lanUp); gate(); }, 1750);
+
+  const HACK=["[ OK ] SECURE CHANNEL ESTABLISHED","AUTH TOKEN → 0x%H","HANDSHAKE TLS1.3 … OK",
+    "MOUNT NODE MAP /dev/rs485","DECRYPT TOPOLOGY 0x%H","VERIFY FIRMWARE SIGNATURE … OK",
+    "SYNC CLOCK … OK","LOAD PROFILE LIBRARY","NEGOTIATE STREAM KEYS 0x%H","ACCESS LEVEL: OPERATOR",
+    "PURGE LEGACY GATEWAY","[ OK ] SECURE LINK 100%"];
+  const hx=()=>Array.from({length:6},()=>"0123456789ABCDEF"[Math.floor(Math.random()*16)]).join("");
+  function runHack(){
+    document.getElementById("boot-form").hidden=true;
+    const hack=document.getElementById("boot-hack"), log=document.getElementById("hack-log"),
+          fill=document.getElementById("hack-fill"), pct=document.getElementById("hack-pct");
+    hack.hidden=false; let p=0,i=0;
+    const iv=setInterval(()=>{
+      p=Math.min(100, p+Math.floor(4+Math.random()*12)); fill.style.width=p+"%"; pct.textContent=p+"%";
+      const line=document.createElement("div"); line.className="hl";
+      const t=(HACK[i%HACK.length]||"").replace("%H",hx()); i++;
+      line.textContent="> "+t; if(/OK|100%/.test(t)) line.classList.add("ok");
+      log.appendChild(line); while(log.children.length>9) log.removeChild(log.firstChild);
+      if(p>=100){ clearInterval(iv);
+        const d=document.createElement("div"); d.className="hl ok"; d.textContent="> ACCESS GRANTED ✓"; log.appendChild(d);
+        setTimeout(()=>{ boot.classList.add("gone"); try{sessionStorage.setItem("jcc-booted","1");}catch(e){}
+          setTimeout(()=>boot.remove(),600); }, 750); }
+    }, 190);
+  }
+  document.getElementById("boot-form").addEventListener("submit",(e)=>{
+    e.preventDefault();
+    if(!(wanUp&&lanUp)){ gate(); return; }
+    const id=idEl.value.trim(), pw=pwEl.value;
+    if(!id || !pw){ msg.textContent="아이디와 비밀번호를 입력하세요"; return; }
+    if(id!=="jcc" || pw!=="1234"){ msg.textContent="아이디 또는 비밀번호가 올바르지 않습니다"; pwEl.value=""; pwEl.focus(); return; }
+    msg.textContent=""; runHack();
+  });
+  setTimeout(()=>{ try{ idEl.focus(); }catch(e){} }, 200);
+})();
 </script>
 </body>
 </html>
