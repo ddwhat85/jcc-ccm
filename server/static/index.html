@@ -723,6 +723,7 @@
     background:repeating-linear-gradient(0deg,rgba(0,255,150,.03) 0 1px,transparent 1px 3px)}
   .boot-inner{position:relative;width:min(440px,92vw);padding:30px 32px;border:1px solid #1c3a2e;
     border-radius:14px;background:rgba(6,12,10,.72);box-shadow:0 24px 70px rgba(0,0,0,.6)}
+  .boot-logo{height:46px;width:auto;display:block;margin-bottom:14px}
   .boot-brand{font:800 26px var(--sans);letter-spacing:-.02em;color:#e8fff4}
   .boot-brand b{color:#20e39a}
   .boot-sub{font-size:12px;color:#5f9c86;margin:2px 0 20px;letter-spacing:.04em}
@@ -753,7 +754,8 @@
   .hack-log .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
   .hack-log .hl.ok{color:#20e39a} .hack-log .hl.dim{color:#2f7d5f}
   .hack-bar{height:12px;border-radius:7px;background:#0a1512;border:1px solid #1c3a2e;overflow:hidden}
-  .hack-fill{height:100%;width:0;background:linear-gradient(90deg,#149e6c,#3fe0a0);transition:width .2s linear}
+  .hack-fill{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;
+             background:linear-gradient(90deg,#149e6c,#3fe0a0);transition:transform .2s linear}
   .hack-pct{text-align:right;font:700 12px var(--mono);color:#20e39a;margin-top:6px}
   @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}}
 </style>
@@ -762,6 +764,7 @@
   <!-- 부팅 로그인: 회선 2개(WAN·LAN) 물리 연결 확인 → 접속 → 해킹풍 게이지 -->
   <div class="boot" id="boot">
     <div class="boot-inner">
+      <img class="boot-logo" src="img/logo-dark.png" alt="JCC Solution" onerror="this.remove()">
       <div class="boot-brand">JCC<b>·</b>CCM</div>
       <div class="boot-sub">SMART PANEL MONITORING · SECURE ACCESS</div>
       <div class="boot-links">
@@ -787,8 +790,8 @@
     <!-- 로고: img/jcc-logo.png(라이트). 다크용 img/jcc-logo-dark.png 있으면 다크모드에서 그걸 씀.
          둘 다 없으면 글자 로고. 파일은 server/static/img/ 에 넣으면 자동 적용된다. -->
     <div class="mb-app">
-      <img id="brand-logo" class="lgo lgo-light" src="img/jcc-logo.png" alt="JCC Solution">
-      <img id="brand-logo-dark" class="lgo lgo-dark" src="img/jcc-logo-dark.png" alt="JCC Solution">
+      <img id="brand-logo" class="lgo lgo-light" src="img/logo-light.png" alt="JCC Solution">
+      <img id="brand-logo-dark" class="lgo lgo-dark" src="img/logo-dark.png" alt="JCC Solution">
       <span id="brand-text">JCC<b>·</b>CCM</span>
     </div>
 
@@ -2376,8 +2379,9 @@ $("#btn-new").onclick = ()=>{
 $("#btn-open").onclick = ()=>{ userNodes=loadUser(); userWires=loadWires(); nodePos=loadPos(); renderUserNodes();
   requestAnimationFrame(drawWires); setStatus("불러옴"); };
 $("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨 ✓"); };
-$("#btn-saveas").onclick = ()=>{ const name=prompt("구성 이름 메모","기본 구성");
-  if(name!==null){ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨: "+name); } };
+$("#btn-saveas").onclick = ()=>{                 // prompt()은 샌드박스에서 막혀 사용 안 함
+  saveUser(); saveWires(); savePos(nodePos);
+  setStatus("구성 저장됨 · "+new Date().toLocaleString("ko-KR",{hour12:false})); };
 $("#btn-delete").onclick = deleteSelected;
 // 로그아웃: 서버에 비밀번호 인증이 켜져 있을 때만 메뉴에 표시한다.
 fetch("/api/auth/status").then(r=>r.ok?r.json():null).then(d=>{
@@ -2922,7 +2926,7 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
           fill=document.getElementById("hack-fill"), pct=document.getElementById("hack-pct");
     hack.hidden=false; let p=0,i=0;
     const iv=setInterval(()=>{
-      p=Math.min(100, p+Math.floor(4+Math.random()*12)); fill.style.width=p+"%"; pct.textContent=p+"%";
+      p=Math.min(100, p+Math.floor(4+Math.random()*12)); fill.style.transform="scaleX("+(p/100)+")"; pct.textContent=p+"%";
       const line=document.createElement("div"); line.className="hl";
       const t=(HACK[i%HACK.length]||"").replace("%H",hx()); i++;
       line.textContent="> "+t; if(/OK|100%/.test(t)) line.classList.add("ok");
