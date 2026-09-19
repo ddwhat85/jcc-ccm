@@ -1622,6 +1622,7 @@ let graphZoom = 1;
 function applyZoom(z){
   graphZoom = z;
   const g = $("#graph"), c = $("#canvas");
+  if(z !== 1) c.scrollTo(0, 0);                      // 스크롤 오프셋 때문에 잘려 보이는 것 방지
   g.style.transformOrigin = "0 0";
   g.style.transform = z === 1 ? "" : `scale(${z})`;
   c.style.overflow = z === 1 ? "auto" : "hidden";   // 다 들어오면 스크롤 불필요
@@ -1629,6 +1630,7 @@ function applyZoom(z){
 }
 function fitToView(){
   const c = $("#canvas");
+  c.scrollTo(0, 0);                                  // 먼저 좌상단으로(overflow가 auto일 때)
   let maxX = 0, maxY = 0;
   for(const [, n] of nodes){
     if(n.el.classList.contains("reveal-hide")) continue;
