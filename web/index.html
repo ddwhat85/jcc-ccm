@@ -67,6 +67,14 @@
        font-size:13px;line-height:1.5;letter-spacing:-.005em;
        -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
        display:flex;flex-direction:column;overflow:hidden}
+  /* 스크롤바 — 테마에 맞춰 어둡게(밝은 기본 스크롤바가 다크 화면에서 튀는 것 제거) */
+  *{scrollbar-width:thin;scrollbar-color:var(--rule) transparent}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--rule);border-radius:7px;
+                            border:2px solid transparent;background-clip:padding-box}
+  ::-webkit-scrollbar-thumb:hover{background:var(--ink-3)}
+  ::-webkit-scrollbar-corner{background:transparent}
 
   /* ── macOS 스타일 메뉴바 (프로스티드 글래스) ── */
   .menubar{display:flex;align-items:center;gap:1px;height:40px;padding:0 12px;flex:0 0 auto;
