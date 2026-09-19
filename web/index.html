@@ -804,7 +804,7 @@
         <button class="mb-item" id="btn-open">열기</button>
         <button class="mb-item" id="btn-save">저장<span class="sc">⌘S</span></button>
         <button class="mb-item" id="btn-saveas">다른 이름으로 저장…</button>
-        <button class="mb-item" id="btn-logout" hidden>로그아웃</button>
+        <button class="mb-item" id="btn-logout">로그아웃</button>
       </div>
     </div>
 
@@ -2386,13 +2386,14 @@ $("#btn-saveas").onclick = ()=>{                 // prompt()은 샌드박스에�
   saveUser(); saveWires(); savePos(nodePos);
   setStatus("구성 저장됨 · "+new Date().toLocaleString("ko-KR",{hour12:false})); };
 $("#btn-delete").onclick = deleteSelected;
-// 로그아웃: 서버에 비밀번호 인증이 켜져 있을 때만 메뉴에 표시한다.
-fetch("/api/auth/status").then(r=>r.ok?r.json():null).then(d=>{
-  if(d && d.enabled){ const b=$("#btn-logout"); if(b) b.hidden=false; }
-}).catch(()=>{});
+// 로그아웃: 부팅 로그인 화면으로 되돌린다(부팅 플래그 해제 후 새로고침).
+// 서버 비밀번호 인증이 켜져 있으면 세션 쿠키도 함께 해제한다(없으면 무해).
 const _lo=$("#btn-logout");
-if(_lo) _lo.onclick = ()=>{ fetch("/api/logout",{method:"POST"})
-  .then(()=>location.replace("/")).catch(()=>location.replace("/")); };
+if(_lo) _lo.onclick = ()=>{
+  try{ sessionStorage.removeItem("jcc-booted"); }catch(e){}
+  setStatus("로그아웃 — 로그인 화면으로 이동합니다");
+  fetch("/api/logout",{method:"POST"}).catch(()=>{}).finally(()=> location.reload());
+};
 $("#btn-restore").onclick = ()=>{ setStatus("꺼진 센서 채널 모두 켜는 중…");
   enableAllChannels().then(d=>{ topoSig=""; refresh();
     setStatus(d.enabled?`센서 채널 ${d.enabled}개 다시 켬`:"꺼진 센서가 없습니다"); })
