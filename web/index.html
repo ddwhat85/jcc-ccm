@@ -228,7 +228,8 @@
   .graph.focusing .node{opacity:.18;transition:opacity .3s ease}
   .graph.focusing .node.reveal-hide{opacity:0}
   .graph.focusing .node.spot{opacity:1}
-  .node.spot{box-shadow:0 0 0 2px var(--accent),0 0 24px 3px color-mix(in srgb,var(--accent) 55%,transparent);
+  /* 포커스 강조는 번짐 글로우 대신 또렷한 이중 솔리드 링으로(주변 디밍이 헤드라이트 역할) */
+  .node.spot{box-shadow:0 0 0 2px var(--accent),0 0 0 6px color-mix(in srgb,var(--accent) 22%,transparent);
              transition:box-shadow .3s ease}
   @media (prefers-reduced-motion:reduce){.graph.focusing .node{transition:none}}
   .scanhud.done .sh-timer{color:var(--ok)} .scanhud.done .sh-title .dot{animation:none;background:var(--ok)}
