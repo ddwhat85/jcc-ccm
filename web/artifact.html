@@ -586,7 +586,11 @@
   .alarm-panel{position:fixed;top:44px;right:12px;z-index:60;width:min(370px,92vw);max-height:72vh;overflow-y:auto;
                background:var(--menu-bg);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
                border:1px solid var(--menu-border);border-radius:11px;box-shadow:0 16px 46px rgba(0,0,0,.36);padding:6px}
-  .ap-head{font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);padding:7px 9px}
+  .ap-head{font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);
+           padding:7px 9px;display:flex;align-items:center;justify-content:space-between}
+  .ap-ackall{font:600 10.5px var(--sans);color:var(--accent);background:var(--accent-soft);
+             border:1px solid var(--accent);border-radius:6px;padding:3px 9px;cursor:pointer;letter-spacing:0;text-transform:none}
+  .ap-ackall:hover{filter:brightness(1.05)}
   .ap-empty{color:var(--ink-3);font-size:12px;padding:16px 9px;text-align:center}
   #ap-list{display:flex;flex-direction:column}
   .ap-item{display:flex;gap:9px;align-items:flex-start;width:100%;box-sizing:border-box;
@@ -717,6 +721,7 @@
     <div class="mb-right">
       <span class="mb-status" id="status"></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
+      <button class="mb-theme" id="btn-sound" title="위험 경보 소리 알림 켜기/끄기">🔇</button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
       <span class="clock" id="clock">--:--:--</span>
@@ -775,7 +780,8 @@
 
   <!-- 활성 경보 패널 (🔔) -->
   <div class="alarm-panel" id="alarm-panel" hidden>
-    <div class="ap-head">활성 경보 <span id="ap-count">0</span></div>
+    <div class="ap-head"><span>활성 경보 <span id="ap-count">0</span></span>
+      <button class="ap-ackall" id="ap-ackall" hidden>전체 확인</button></div>
     <div id="ap-list"></div>
   </div>
 
@@ -3282,16 +3288,49 @@ $("#report-overlay").onclick = e=>{ if(e.target===$("#report-overlay")) $("#repo
 $("#rp-range").querySelectorAll(".rp-rbtn").forEach(b=> b.onclick = ()=> openReport(+b.dataset.days));
 
 // ── 활성 경보 패널 (🔔) ───────────────────────────────
+// ── 위험 경보 소리 알림 (opt-in) ──────────────────────
+let soundOn = false; try{ soundOn = localStorage.getItem("jcc-sound")==="1"; }catch(e){}
+let _critSeen = null;   // 이미 본 crit 경보 id (첫 로드는 소리 없이 기준선만)
+function beep(){
+  try{
+    const ac = beep._ac || (beep._ac = new (window.AudioContext||window.webkitAudioContext)());
+    const now = ac.currentTime;
+    [0, .18].forEach(dt=>{                        // 삐-삐 두 번
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type="sine"; o.frequency.value = 880;
+      o.connect(g); g.connect(ac.destination);
+      g.gain.setValueAtTime(.0001, now+dt);
+      g.gain.exponentialRampToValueAtTime(.22, now+dt+.02);
+      g.gain.exponentialRampToValueAtTime(.0001, now+dt+.15);
+      o.start(now+dt); o.stop(now+dt+.16);
+    });
+  }catch(e){}
+}
+function applySound(on){
+  soundOn = on; try{ localStorage.setItem("jcc-sound", on?"1":"0"); }catch(e){}
+  const b = $("#btn-sound"); if(b){ b.textContent = on?"🔊":"🔇";
+    b.title = on?"위험 경보 소리 알림 켜짐 (누르면 끄기)":"위험 경보 소리 알림 꺼짐 (누르면 켜기)"; }
+}
+
 let alarmPanelOpen = false;
 function loadAlarms(){
   fetch("/api/alarms",{cache:"no-store"}).then(r=>r.json()).then(d=>{
     const al = d.alarms||[];
     lastAlarms = al;                             // 개요의 경보 카운트에 사용
     if(!selectedId && !revealing) renderOverview(lastPanels);   // 개요 경보 숫자 갱신
+    // 새 위험(crit) 경보가 뜨면 소리로 알린다(켜져 있을 때만, 첫 로드 제외)
+    const critIds = new Set(al.filter(a=>a.severity==="crit").map(a=>a.id));
+    if(_critSeen !== null){
+      let isNew = false; critIds.forEach(id=>{ if(!_critSeen.has(id)) isNew = true; });
+      if(isNew && soundOn) beep();
+    }
+    _critSeen = critIds;
     const badge = $("#bell-badge"), bell = $("#btn-bell");
     if(al.length){ badge.textContent = al.length; badge.hidden = false; bell.classList.add("has-alarms"); }
     else { badge.hidden = true; bell.classList.remove("has-alarms"); }
     const cnt = $("#ap-count"); if(cnt) cnt.textContent = al.length;
+    const ackAllBtn = $("#ap-ackall");
+    if(ackAllBtn) ackAllBtn.hidden = !al.some(a=>!a.acked_at);   // 미확인 있을 때만
     if(!alarmPanelOpen) return;                 // 열려있을 때만 목록 렌더
     const list = $("#ap-list");
     if(!al.length){ list.innerHTML = `<div class="ap-empty">활성 경보 없음 — 정상 ✓</div>`; return; }
@@ -3319,6 +3358,27 @@ $("#btn-bell").onclick = (e)=>{ e.stopPropagation();
 document.addEventListener("click", (e)=>{
   if(alarmPanelOpen && !e.target.closest("#alarm-panel") && !e.target.closest("#btn-bell")){
     alarmPanelOpen = false; $("#alarm-panel").hidden = true; } });
+// 위험 경보 소리 토글
+applySound(soundOn);
+$("#btn-sound").onclick = ()=>{ applySound(!soundOn); if(soundOn) beep();   // 켤 때 한번 울려 확인
+  setStatus(soundOn?"위험 경보 소리 알림 켜짐":"위험 경보 소리 알림 꺼짐"); };
+// 알람 패널: 전체 확인(미확인 경보 일괄 ack)
+$("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
+  const un = (lastAlarms||[]).filter(a=>!a.acked_at);
+  if(!un.length) return;
+  setStatus(`경보 ${un.length}건 확인 중…`);
+  Promise.all(un.map(a=>fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({alarm_id:a.id, by:"operator"})}).catch(()=>{})))
+    .then(()=>{ setStatus(`경보 ${un.length}건 전체 확인 완료`); loadAlarms(); }); };
+// Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
+window.addEventListener("keydown", (e)=>{
+  if(e.key !== "Escape") return;
+  const ov = ["report-overlay","heal-overlay","health-overlay","overlay"].map(id=>$("#"+id))
+    .find(el=>el && el.classList.contains("open"));
+  if(ov){ ov.classList.remove("open"); return; }
+  if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }
+  if(selectedId) showOverview();
+});
 
 // ── 시계 ──────────────────────────────────────────────
 function tick(){ const d=new Date();
