@@ -215,8 +215,8 @@
     .node.reveal-in{animation:none}
     .wirepath.draw{animation:none!important;stroke-dashoffset:0}
   }
-  /* ── AI 자동연결 스캔 HUD — 캔버스 좌측 고정, 불투명 패널(노드와 안 겹침) ── */
-  .scanhud{position:absolute;left:18px;top:24px;z-index:40;width:214px;pointer-events:none;
+  /* ── AI 자동연결 스캔 HUD — 캔버스 우측 상단 고정(개요 사이드바 왼쪽), 불투명 패널 ── */
+  .scanhud{position:absolute;right:324px;top:24px;z-index:40;width:214px;pointer-events:none;
            background:color-mix(in srgb,var(--surface) 90%,transparent);
            border:1px solid var(--rule);border-radius:14px;padding:15px 16px;
            box-shadow:0 14px 44px rgba(0,0,0,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
@@ -1154,14 +1154,16 @@ async function runReveal(panels){
   redraw();
   await wait(200);
 
-  // 1) 헤드라이트 포커스 — 판넬·클라우드부터 환하게 비추고, 그다음 좌측에 HUD 등장
+  // 1) 헤드라이트 포커스 — 스마트 판넬을 노드창 중앙으로 가져와 메인 포커스, 그다음 우상단 HUD
   graphEl.classList.add("focusing");        // 나머지는 어둡게
   show("server:jcc"); spot("server:jcc");
   for(const p of panels){ show("panel:"+p.panel); spot("panel:"+p.panel); }
   redraw();
+  const mainPanel = panels[0] && nodes.get("panel:"+panels[0].panel)?.el;
+  if(mainPanel) mainPanel.scrollIntoView({behavior:"smooth", block:"center", inline:"center"});
   setStatus("클라우드·판넬 인식됨");
   await wait(700);                           // 헤드라이트로 잠깐 주목
-  scanHudStart();                            // 좌측 빈 공간에 HUD 등장
+  scanHudStart();                            // 우측 상단에 HUD 등장
   scanHudLine("☁", "JCC 클라우드 연결", "found");
   for(const p of panels) scanHudLine("▣", p.panel_name || p.panel, "found");
   scanHudCount(`CCM 0/${totCcm} · 센서 0/${totSen}`);
