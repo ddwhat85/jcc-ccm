@@ -844,6 +844,7 @@
       <span class="mb-status" id="status"></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-sound" title="위험 경보 소리 알림 켜기/끄기">🔇</button>
+      <button class="mb-theme" id="btn-full" title="전체화면 (벽걸이 모니터용)">⛶</button>
       <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
       <span class="clock" id="clock">--:--:--</span>
@@ -3200,6 +3201,15 @@ function applyTheme(t){
   applyTheme(t || currentTheme());
 })();
 $("#btn-theme").onclick = ()=> applyTheme(currentTheme()==="dark" ? "light" : "dark");
+// 전체화면 토글 (벽걸이 모니터/시연용). 샌드박스에서 막히면 조용히 무시.
+$("#btn-full").onclick = ()=>{
+  try{
+    if(document.fullscreenElement){ document.exitFullscreen(); }
+    else { (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement); }
+  }catch(e){ setStatus("이 환경에서는 전체화면을 쓸 수 없습니다"); }
+};
+document.addEventListener("fullscreenchange", ()=>{
+  const b=$("#btn-full"); if(b) b.textContent = document.fullscreenElement ? "🗗" : "⛶"; });
 
 // ── 하단 실시간 로그 스트립 (알람·특이사항 3줄) ─────────
 function loadTicker(){
@@ -3529,6 +3539,11 @@ function loadAlarms(){
     if(al.length){ badge.textContent = al.length; badge.hidden = false; bell.classList.add("has-alarms"); }
     else { badge.hidden = true; bell.classList.remove("has-alarms"); }
     const cnt = $("#ap-count"); if(cnt) cnt.textContent = al.length;
+    // 탭 제목에 경보 배지(백그라운드 탭에서도 위험 인지) — 위험>주의
+    const nCrit = critIds.size, nWarn = al.length - nCrit;
+    document.title = nCrit ? `🔴 위험 ${nCrit} · JCC-CCM`
+                  : nWarn ? `🟡 주의 ${nWarn} · JCC-CCM`
+                          : "JCC-CCM 노드 모니터";
     const ackAllBtn = $("#ap-ackall");
     if(ackAllBtn) ackAllBtn.hidden = !al.some(a=>!a.acked_at);   // 미확인 있을 때만
     if(!alarmPanelOpen) return;                 // 열려있을 때만 목록 렌더
