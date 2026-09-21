@@ -710,75 +710,90 @@
   @keyframes tkin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.ticker .tk.newest{animation:none}}
 
-  /* ── 부팅 로그인 (회선 확인 → 접속 → 해킹풍 게이지) ── */
+  /* ── 부팅 로그인 — 국방/해킹 터미널 콘솔 ── */
   .boot{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
-        background:radial-gradient(1000px 600px at 50% 20%,#0d1b16 0%,#05080b 70%);
-        font-family:var(--mono);opacity:1;transition:opacity .5s ease}
+        background:#04070a;font-family:var(--mono);opacity:1;transition:opacity .5s ease;overflow:hidden}
   .boot.gone{opacity:0;pointer-events:none}
-  .boot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.5;
-    background:repeating-linear-gradient(0deg,rgba(0,255,150,.03) 0 1px,transparent 1px 3px)}
-  .boot-inner{position:relative;width:min(440px,92vw);padding:30px 32px;border:1px solid #1c3a2e;
-    border-radius:14px;background:rgba(6,12,10,.72);box-shadow:0 24px 70px rgba(0,0,0,.6)}
-  .boot-logo{height:46px;width:auto;display:block;margin-bottom:14px}
-  .boot-brand{font:800 26px var(--sans);letter-spacing:-.02em;color:#e8fff4}
-  .boot-brand b{color:#20e39a}
-  .boot-sub{font-size:12px;color:#5f9c86;margin:2px 0 20px;letter-spacing:.04em}
-  .boot-links{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
-  .blink{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;
-    background:rgba(10,20,16,.7);border:1px solid #163227;font-size:12.5px;color:#bfe8d7}
-  .blink .bl-ic{flex:none;font-size:14px}
-  .blink .bl-name{flex:1}
-  .blink .bl-st{flex:none;font:600 11px var(--mono);color:#5f9c86}
-  .blink .bl-st.checking{color:#c9a227}
-  .blink .bl-st.checking::before{content:"◌ "}
-  .blink.up{border-color:#1f6b4d} .blink.up .bl-st{color:#20e39a} .blink.up .bl-st::before{content:"● "}
-  .blink.down{border-color:#7a2320} .blink.down .bl-st{color:#ff5b52} .blink.down .bl-st::before{content:"○ "}
-  .boot-msg{min-height:18px;font-size:12px;color:#ff5b52;margin-bottom:12px;text-align:center}
-  .boot-form{display:flex;flex-direction:column;gap:9px}
-  .boot-form input{padding:11px 13px;border-radius:9px;border:1px solid #1c3a2e;background:#0a1512;
-    color:#e8fff4;font:14px var(--sans);outline:none}
-  .boot-form input:focus{border-color:#20e39a}
-  .boot-form button{margin-top:4px;padding:12px;border:none;border-radius:9px;cursor:pointer;
-    background:linear-gradient(180deg,#1fc98a,#149e6c);color:#04120c;font:800 14px var(--sans)}
-  .boot-form button:disabled{background:#1a2c25;color:#4a6b5d;cursor:not-allowed}
-  .boot-form button:not(:disabled):hover{filter:brightness(1.08)}
-  .boot-hint{margin-top:10px;text-align:center;font:600 11px var(--mono);color:#4a6b5d}
+  .boot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
+    background:repeating-linear-gradient(0deg,rgba(53,224,143,.045) 0 1px,transparent 1px 3px)}
+  .boot::after{content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 120% at 50% 40%,transparent 52%,rgba(0,0,0,.7) 100%)}
+  .term{position:relative;width:min(560px,94vw);background:rgba(4,10,8,.92);border:1px solid #17402e;
+    box-shadow:0 0 0 1px #0a1c14,0 30px 80px rgba(0,0,0,.7);color:#8fe8c4}
+  .term-cls{background:#8a1410;color:#ffe0dd;font:700 10px var(--mono);letter-spacing:.22em;
+    text-align:center;padding:5px;border-bottom:1px solid #17402e}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #17402e;
+    font:700 11px var(--mono);letter-spacing:.06em;color:#35e08f}
+  .term-bar .tb-dot{width:8px;height:8px;border-radius:50%;background:#35e08f;flex:none;animation:hpulse 1.2s ease-in-out infinite}
+  .term-bar .tb-v{margin-left:auto;color:#2f7d5f;font-weight:600;letter-spacing:.03em}
+  .term-body{padding:15px 18px 14px}
+  .term-logo{height:34px;width:auto;display:block;margin:0 0 12px;opacity:.95}
+  .term-boot{margin:0 0 12px;font:600 11px var(--mono);color:#2f9d78;line-height:1.55;white-space:pre-wrap;min-height:70px}
+  .term-boot .cur{color:#35e08f;animation:blink 1s step-end infinite}
+  .tline{font:600 12px var(--mono);color:#7fbfa4;letter-spacing:.02em;padding:3px 0;
+    display:flex;align-items:center;white-space:nowrap;overflow:hidden}
+  .tline .nm{flex:none}
+  .tline .dots{flex:1;color:#1f4a37;overflow:hidden;white-space:nowrap;margin:0 6px;letter-spacing:1px}
+  .tline .bl-st{flex:none;color:#e6b93a}
+  .tline.up .bl-st{color:#35e08f} .tline.down .bl-st{color:#ff4b4b}
+  .term-auth{margin-top:12px;border-top:1px dashed #17402e;padding-top:14px}
+  .ta-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .ta-row label{flex:none;width:82px;font:700 11px var(--mono);letter-spacing:.08em;color:#35e08f}
+  .ta-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid #17402e;background:#020705;
+    color:#c9ffe8;font:14px var(--mono);letter-spacing:.08em;outline:none;border-radius:0}
+  .ta-row input:focus{border-color:#35e08f;background:#04120c}
+  #boot-login{width:100%;margin-top:4px;padding:11px;border:1px solid #35e08f;background:#07160f;
+    color:#35e08f;font:800 13px var(--mono);letter-spacing:.14em;cursor:pointer;border-radius:0}
+  #boot-login:hover:not(:disabled){background:#35e08f;color:#04120c}
+  #boot-login:disabled{border-color:#1a3327;color:#3c6b57;cursor:not-allowed}
+  .boot-msg{min-height:16px;font:600 11px var(--mono);color:#ff4b4b;margin:10px 0 0;letter-spacing:.03em}
+  .boot-hint{margin-top:10px;font:600 10.5px var(--mono);color:#2f7d5f;letter-spacing:.04em}
   .boot-hint b{color:#8fe8c4}
-  .boot-hack{margin-top:6px}
-  .hack-log{height:150px;overflow:hidden;font:600 11px var(--mono);color:#3fe0a0;line-height:1.5;
-    display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:12px}
-  .hack-log .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.9}
-  .hack-log .hl.ok{color:#20e39a} .hack-log .hl.dim{color:#2f7d5f}
-  .hack-bar{height:12px;border-radius:7px;background:#0a1512;border:1px solid #1c3a2e;overflow:hidden}
+  .term-warn{margin-top:12px;padding-top:10px;border-top:1px solid #17402e;
+    font:600 9.5px var(--mono);color:#a98a2e;letter-spacing:.05em}
+  .boot-hack{margin-top:12px}
+  .hack-log{height:132px;overflow:hidden;font:600 11px var(--mono);color:#35e08f;line-height:1.5;
+    display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:10px}
+  .hack-log .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hack-log .hl.ok{color:#8fffd0}
+  .hack-bar{height:10px;background:#020705;border:1px solid #17402e;overflow:hidden}
   .hack-fill{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;
-             background:linear-gradient(90deg,#149e6c,#3fe0a0);transition:transform .2s linear}
-  .hack-pct{text-align:right;font:700 12px var(--mono);color:#20e39a;margin-top:6px}
-  @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}}
+             background:#35e08f;transition:transform .2s linear}
+  .hack-pct{text-align:right;font:700 12px var(--mono);color:#35e08f;margin-top:6px;letter-spacing:.06em}
+  .term .corner{position:absolute;width:12px;height:12px;border:2px solid #35e08f;pointer-events:none}
+  .term .corner.tl{top:-1px;left:-1px;border-right:0;border-bottom:0}
+  .term .corner.tr{top:-1px;right:-1px;border-left:0;border-bottom:0}
+  .term .corner.bl{bottom:-1px;left:-1px;border-right:0;border-top:0}
+  .term .corner.br{bottom:-1px;right:-1px;border-left:0;border-top:0}
+  @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}.term-bar .tb-dot{animation:none}}
 </style>
 
 
-  <!-- 부팅 로그인: 회선 2개(WAN·LAN) 물리 연결 확인 → 접속 → 해킹풍 게이지 -->
+  <!-- 부팅 로그인: 국방/해킹 터미널풍. 회선 2개(WAN·LAN) 연결 확인 → 인증 → 게이지 -->
   <div class="boot" id="boot">
-    <div class="boot-inner">
-      <img class="boot-logo" src="img/logo-dark.png" alt="JCC Solution" onerror="this.remove()">
-      <div class="boot-brand">JCC<b>·</b>CCM</div>
-      <div class="boot-sub">SMART PANEL MONITORING · SECURE ACCESS</div>
-      <div class="boot-links">
-        <div class="blink" id="blink-wan"><span class="bl-ic">🌐</span><span class="bl-name">인터넷 회선 (WAN)</span><span class="bl-st checking">확인 중</span></div>
-        <div class="blink" id="blink-lan"><span class="bl-ic">🔌</span><span class="bl-name">이더넷 · 센서망 (LAN)</span><span class="bl-st checking">확인 중</span></div>
+    <div class="term">
+      <div class="term-cls">// CLASSIFIED — RESTRICTED ACCESS //</div>
+      <div class="term-bar"><span class="tb-dot"></span>JCC-CCM :: SECURE ACCESS TERMINAL<span class="tb-v">NODE SEOUL-01 · v3.7</span></div>
+      <div class="term-body">
+        <img class="term-logo" src="img/logo-dark.png" alt="JCC Solution" onerror="this.remove()">
+        <pre class="term-boot" id="term-boot"></pre>
+        <div class="tline" id="blink-wan"><span class="nm">LINK//WAN  인터넷 회선</span><span class="dots">····························</span><span class="bl-st">[ SCAN ]</span></div>
+        <div class="tline" id="blink-lan"><span class="nm">LINK//LAN  이더넷·센서망</span><span class="dots">··························</span><span class="bl-st">[ SCAN ]</span></div>
+        <form class="term-auth" id="boot-form" autocomplete="off">
+          <div class="ta-row"><label>USER-ID</label><input id="boot-id" placeholder="_" autocomplete="username"></div>
+          <div class="ta-row"><label>PASSCODE</label><input id="boot-pw" type="password" placeholder="_" autocomplete="current-password"></div>
+          <button id="boot-login" type="submit" disabled>[ 회선 확인 중… ]</button>
+          <div class="boot-msg" id="boot-msg"></div>
+          <div class="boot-hint">DEMO CREDENTIALS — ID <b>jcc</b> / PW <b>1234</b></div>
+        </form>
+        <div class="boot-hack" id="boot-hack" hidden>
+          <div class="hack-log" id="hack-log"></div>
+          <div class="hack-bar"><div class="hack-fill" id="hack-fill"></div></div>
+          <div class="hack-pct" id="hack-pct">0%</div>
+        </div>
+        <div class="term-warn">⚠ AUTHORIZED PERSONNEL ONLY — ALL SESSIONS ARE MONITORED &amp; LOGGED</div>
       </div>
-      <div class="boot-msg" id="boot-msg"></div>
-      <form class="boot-form" id="boot-form" autocomplete="off">
-        <input id="boot-id" placeholder="아이디" autocomplete="username">
-        <input id="boot-pw" type="password" placeholder="비밀번호" autocomplete="current-password">
-        <button id="boot-login" type="submit" disabled>회선 확인 중…</button>
-        <div class="boot-hint">데모 접속 — 아이디 <b>jcc</b> · 비밀번호 <b>1234</b></div>
-      </form>
-      <div class="boot-hack" id="boot-hack" hidden>
-        <div class="hack-log" id="hack-log"></div>
-        <div class="hack-bar"><div class="hack-fill" id="hack-fill"></div></div>
-        <div class="hack-pct" id="hack-pct">0%</div>
-      </div>
+      <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     </div>
   </div>
 
@@ -3658,16 +3673,28 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
   const idEl=document.getElementById("boot-id"), pwEl=document.getElementById("boot-pw");
   let wanUp=false, lanUp=false;
   function setLink(el, up){ el.classList.remove("up","down"); el.classList.add(up?"up":"down");
-    const st=el.querySelector(".bl-st"); st.classList.remove("checking"); st.textContent=up?"연결됨":"미연결"; }
+    const st=el.querySelector(".bl-st"); st.textContent=up?"[ ONLINE ]":"[ OFFLINE ]"; }
   function gate(){
-    if(wanUp && lanUp){ btn.disabled=false; btn.textContent="접속"; msg.textContent=""; }
-    else { btn.disabled=true; btn.textContent="회선 미연결";
-      msg.textContent="⛔ 회선이 연결되지 않아 접속할 수 없습니다 — 케이블을 확인하세요"; } }
+    if(wanUp && lanUp){ btn.disabled=false; btn.textContent="[ AUTHENTICATE ]"; msg.textContent=""; }
+    else { btn.disabled=true; btn.textContent="[ LINK DOWN ]";
+      msg.textContent=">> ERR: 회선 미연결 — 접속 불가. 케이블을 확인하십시오."; } }
+  // POST/부팅 로그 스트리밍(터미널 감성)
+  (function typeBoot(){
+    const el=document.getElementById("term-boot"); if(!el) return;
+    const L=["JCC-CCM BIOS v3.7  (c) JCC SOLUTION",
+             "POST ......................... OK",
+             "CRYPTO MODULE (AES-256) ...... OK",
+             "MOUNT SECURE FS /dev/sda1 .... OK",
+             "INIT NETWORK STACK ........... OK",
+             "SCANNING PHYSICAL LINKS ......"];
+    let i=0; (function step(){ if(i>=L.length){ el.innerHTML+=' <span class="cur">▊</span>'; return; }
+      el.textContent += (i?"\n":"") + L[i]; i++; setTimeout(step, 170); })();
+  })();
   // 데모: 두 회선 모두 연결로 시뮬레이션(실기에선 실제 링크 상태로 교체). 둘 중 하나라도
   // false면 로그인 불가 메시지가 뜬다.
   const LINK = { wan:true, lan:true };
-  setTimeout(()=>{ wanUp=LINK.wan; setLink(wan,wanUp); gate(); }, 900);
-  setTimeout(()=>{ lanUp=LINK.lan; setLink(lan,lanUp); gate(); }, 1750);
+  setTimeout(()=>{ wanUp=LINK.wan; setLink(wan,wanUp); gate(); }, 1100);
+  setTimeout(()=>{ lanUp=LINK.lan; setLink(lan,lanUp); gate(); }, 1900);
 
   const HACK=["[ OK ] SECURE CHANNEL ESTABLISHED","AUTH TOKEN → 0x%H","HANDSHAKE TLS1.3 … OK",
     "MOUNT NODE MAP /dev/rs485","DECRYPT TOPOLOGY 0x%H","VERIFY FIRMWARE SIGNATURE … OK",
