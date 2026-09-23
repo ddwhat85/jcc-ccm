@@ -619,10 +619,23 @@
   .algo-badge.design{background:var(--accent-soft);color:var(--accent)}
   .algo-badge.planned{background:var(--surface-2);color:var(--ink-3)}
   .algo-ts{margin-left:auto;font:600 10.5px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
-  .algo-desc{font-size:12.5px;color:var(--ink);line-height:1.55;margin:6px 0}
-  .algo-next{font-size:11.5px;color:var(--ink-2);margin-top:6px;padding-top:7px;border-top:1px solid var(--rule)}
-  .algo-next b{color:var(--warn);font-weight:700;margin-right:4px}
-  .algo-sec{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:2px 0 10px}
+  /* 라벨 붙은 행으로 정리(기능/방식/다음) — 읽기 편하게 */
+  .algo-row{display:flex;gap:10px;font-size:12.5px;line-height:1.55;margin-top:6px}
+  .algo-row .algo-k{flex:none;width:38px;font:700 10.5px var(--mono);color:var(--ink-3);
+                    letter-spacing:.03em;padding-top:1px}
+  .algo-row .algo-k.next{color:var(--warn)}
+  .algo-row .algo-v{flex:1;min-width:0;color:var(--ink)}
+  .algo-m{flex:1;min-width:0;font:600 11px var(--mono);color:var(--ink-2);background:var(--canvas);
+          border:1px solid var(--rule);border-radius:6px;padding:6px 9px;line-height:1.6;white-space:normal;word-break:break-word}
+  /* 분류 탭 */
+  .algo-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;position:sticky;top:0;
+             background:var(--surface);padding-bottom:4px;z-index:1}
+  .algo-tab{font:600 11.5px var(--sans);color:var(--ink-2);background:var(--canvas);
+            border:1px solid var(--rule);border-radius:16px;padding:5px 11px;cursor:pointer}
+  .algo-tab b{color:var(--ink-3);font-variant-numeric:tabular-nums;margin-left:2px}
+  .algo-tab:hover{border-color:var(--accent)}
+  .algo-tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .algo-tab.on b{color:#fff}
   @media print{
     body *{visibility:hidden}
     #report-overlay,#report-overlay *{visibility:visible}
@@ -2663,50 +2676,76 @@ function openHealHistory(){
 
 // ── 알고리즘 개발 내역(로그) — 무엇을·언제·상태·다음 할 일 ──
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
+// cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
-  {ts:"2026-09-23T16:20", status:"wip", name:"화재 징조 예지 → 자동 환기(벤트)",
-   desc:"신호별로 값(level=ramp(값,경고,위험))·분당 상승속도(최소제곱 기울기)·평소 대비 로버스트 z(중앙값·MAD) 3특징을 [0,1]로 정규화→ g=max. H2·VOC 동시 활성이면 동반 가산(co=0.2·min), 온도 급상승·연기·전류이상은 확증 가산. FRI=100·clamp(0.38·gH2+0.38·gVOC+co+0.10·온도+확증). 임계 도달 前 상승·이상만으로 조기 danger 진입(예지). 단계 normal/watch(30)/danger(55)/critical(80), 히스테리시스로 벤트 개방(≥55)·복구닫힘(<20 유지). fire_risk.py 코어 + 시나리오 테스트 13개 통과.",
-   next:"VOC 센서·벤트 액추에이터 노드, 서버/데모 통합, 대시보드 FRI 게이지·벤트 상태, 펌웨어 엣지 미러"},
-  {ts:"2026-09-18T16:10", status:"done", name:"자가치유 L2 — CCM 자동 재시작",
-   desc:"CCM 전체 침묵 또는 L1(채널 재시작) 실패 시 그 CCM을 자동 재시작. 재시도 상한·쿨다운·하루 총량·사람 우선(ack) 안전장치. 실패 시 사람에게 상향.",
-   next:"실기(SSH reboot) 연동 검증"},
-  {ts:"2026-09-18T14:30", status:"done", name:"자가치유 L1 — 센서 채널 자동 재시작",
-   desc:"센서 채널이 침묵·고착이면 그 채널만 자동 재시작해 일시장애를 스스로 복구. 대상은 침묵·고착만(드리프트·이상 제외).",
+  {ts:"2026-09-23T16:20", status:"wip", cat:"fire", name:"화재 징조 예지 → 자동 환기(벤트)",
+   sensors:"H2 · VOC · 온도",
+   summary:"H2·VOC의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 만들고, 임계 도달 前에 벤트를 자동 개방한다(예지).",
+   method:"g=max(level, rise=분당기울기, anom=중앙값·MAD z) · FRI=100·clamp(0.38·gH2+0.38·gVOC+동반0.2·min+0.10·온도+확증0.15) · 단계 30/55/80 · 히스테리시스(개방≥55·복구<20 유지) · fire_risk.py 테스트 13/13",
+   next:"VOC 센서·벤트 노드, 서버/데모 통합, FRI 게이지, 펌웨어 엣지 미러"},
+  {ts:"2026-09-18T16:10", status:"done", cat:"heal", name:"자가치유 L2 — CCM 자동 재시작",
+   sensors:"CCM 전체",
+   summary:"CCM 전체 침묵 또는 L1 실패 시 그 CCM을 자동 재시작한다.",
+   method:"재시도 상한·쿨다운·하루 총량·사람 우선(ack) 안전장치, 실패 시 사람에게 상향",
+   next:"실기 SSH reboot 연동 검증"},
+  {ts:"2026-09-18T14:30", status:"done", cat:"heal", name:"자가치유 L1 — 센서 채널 자동 재시작",
+   sensors:"전 센서 채널",
+   summary:"센서 채널이 침묵·고착이면 그 채널만 자동 재시작해 일시장애를 스스로 복구한다.",
+   method:"대상은 침묵·고착만(드리프트·이상 제외), 실패 시 사람 상향",
    next:"실기 채널 재초기화 명령 연동"},
-  {ts:"2026-09-17T11:20", status:"done", name:"전체 시스템 진단 (diagnose_all)",
-   desc:"모든 CCM·센서를 한 번에 자가진단해 정상/주의/이상을 집계하고, 문제 하드웨어를 심각한 순으로 제시.",
-   next:"—"},
-  {ts:"2026-09-15T18:40", status:"done", name:"베이스라인 이상탐지 (중앙값·MAD z-score)",
-   desc:"평소 분포를 로버스트 학습(중앙값·MAD)하고 z>3.5 급등을 임계 도달 전에 조기 감지. 예지의 핵심 항.",
-   next:"화재 예지 FRI의 이상 항으로 재사용"},
-  {ts:"2026-09-15T17:10", status:"done", name:"고착·드리프트 감지 (history_stats)",
-   desc:"최근값이 안 변하면 고착, 한 방향으로 지속 이동하면 드리프트로 판정 — 살아는 있어도 못 믿는 센서를 색출.",
-   next:"—"},
-  {ts:"2026-09-15T15:30", status:"done", name:"침묵·하트비트 감지 (watchdog)",
-   desc:"'값 정상'이 아니라 '데이터가 안 옴'을 잡는다 — CCM/센서 침묵을 전이로 감지해 경보. 신뢰의 최저선.",
-   next:"—"},
-  {ts:"2026-09-14T16:00", status:"done", name:"자동 탐색·식별 추론 (Plug&Play)",
-   desc:"버스를 스캔해 물린 센서를 찾고 프로파일로 식별, 미매칭 장비는 값 범위로 종류를 추정. [AI 자동연결]의 실체.",
-   next:"실기 Modbus 0x2B/0x0E 식별 검증"},
+  {ts:"2026-09-17T11:20", status:"done", cat:"diag", name:"전체 시스템 진단 (diagnose_all)",
+   sensors:"전 CCM·센서",
+   summary:"모든 CCM·센서를 한 번에 자가진단해 정상/주의/이상을 집계하고 문제 하드웨어를 심각한 순으로 제시한다.",
+   method:"", next:""},
+  {ts:"2026-09-15T18:40", status:"done", cat:"watch", name:"베이스라인 이상탐지",
+   sensors:"전 센서",
+   summary:"평소 분포 대비 급등을 임계 도달 전에 조기 감지한다. 예지의 핵심 항.",
+   method:"로버스트 학습(중앙값·MAD) + z-score > 3.5",
+   next:"화재 예지 FRI의 이상 항으로 재사용(완료)"},
+  {ts:"2026-09-15T17:10", status:"done", cat:"watch", name:"고착·드리프트 감지",
+   sensors:"전 센서",
+   summary:"값이 안 변하면 고착, 한 방향으로 지속 이동하면 드리프트로 판정한다(살아는 있어도 못 믿는 센서).",
+   method:"", next:""},
+  {ts:"2026-09-15T15:30", status:"done", cat:"watch", name:"침묵·하트비트 감지",
+   sensors:"전 CCM·센서",
+   summary:"'값 정상'이 아니라 '데이터가 안 옴'을 전이로 감지해 침묵 경보를 올린다. 신뢰의 최저선.",
+   method:"", next:""},
+  {ts:"2026-09-14T16:00", status:"done", cat:"diag", name:"자동 탐색·식별 추론 (Plug&Play)",
+   sensors:"전 센서",
+   summary:"버스를 스캔해 물린 센서를 찾고 프로파일로 식별, 미매칭은 값 범위로 종류를 추정한다([AI 자동연결]).",
+   method:"", next:"실기 Modbus 0x2B/0x0E 식별 검증"},
 ];
+const ALGO_CATS = [
+  {k:"all", label:"전체"}, {k:"fire", label:"🔥 가스·화재"}, {k:"watch", label:"👁 감시·이상"},
+  {k:"heal", label:"🔧 자가치유"}, {k:"diag", label:"🩺 진단·탐색"},
+];
+const ALGO_LABEL = {done:"구현됨", wip:"코어 구현·통합중", design:"설계 완료", planned:"예정"};
+let _algoCat = "all";
 function fmtAlgoTs(s){ const d=new Date(s); if(isNaN(d)) return s;
   const p=n=>String(n).padStart(2,"0");
-  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`; }
-function openAlgo(){
+  return `${d.getFullYear()}.${p(d.getMonth()+1)}.${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function renderAlgo(){
   const body=$("#algo-body"); if(!body) return;
-  const label={done:"구현됨", wip:"코어 구현·통합중", design:"설계 완료", planned:"예정"};
-  const done=ALGORITHMS.filter(a=>a.status==="done").length,
-        rest=ALGORITHMS.filter(a=>a.status!=="done").length;
-  const sum=$("#algo-sum"); if(sum) sum.textContent=`구현 ${done} · 진행/설계 ${rest} · 총 ${ALGORITHMS.length}`;
-  body.innerHTML = `<div class="algo-sec">최신순 — 무엇을 · 언제 · 상태 · 다음 할 일</div>`+
-    ALGORITHMS.slice().sort((a,b)=> a.ts<b.ts?1:-1).map(a=>
-      `<div class="algo-item ${a.status}"><div class="algo-top">`+
-        `<span class="algo-name">${escapeHtml(a.name)}</span>`+
-        `<span class="algo-badge ${a.status}">${label[a.status]||a.status}</span>`+
-        `<span class="algo-ts">${fmtAlgoTs(a.ts)}</span></div>`+
-        `<div class="algo-desc">${escapeHtml(a.desc)}</div>`+
-        (a.next && a.next!=="—" ? `<div class="algo-next"><b>다음</b>${escapeHtml(a.next)}</div>` : "")+
-      `</div>`).join("");
+  const cnt = k => k==="all" ? ALGORITHMS.length : ALGORITHMS.filter(a=>a.cat===k).length;
+  const tabs = ALGO_CATS.map(c=>`<button class="algo-tab ${c.k===_algoCat?'on':''}" data-cat="${c.k}">${c.label} <b>${cnt(c.k)}</b></button>`).join("");
+  const list = ALGORITHMS.filter(a=> _algoCat==="all" || a.cat===_algoCat).sort((a,b)=> a.ts<b.ts?1:-1);
+  const cards = list.map(a=>
+    `<div class="algo-item"><div class="algo-top">`+
+      `<span class="algo-name">${escapeHtml(a.name)}</span>`+
+      `<span class="algo-badge ${a.status}">${ALGO_LABEL[a.status]||a.status}</span>`+
+      `<span class="algo-ts">${fmtAlgoTs(a.ts)}</span></div>`+
+      `<div class="algo-row"><span class="algo-k">센서</span><span class="algo-v">${escapeHtml(a.sensors||"—")}</span></div>`+
+      `<div class="algo-row"><span class="algo-k">기능</span><span class="algo-v">${escapeHtml(a.summary)}</span></div>`+
+      (a.method ? `<div class="algo-row"><span class="algo-k">방식</span><code class="algo-m">${escapeHtml(a.method)}</code></div>` : "")+
+      (a.next ? `<div class="algo-row"><span class="algo-k next">다음</span><span class="algo-v">${escapeHtml(a.next)}</span></div>` : "")+
+    `</div>`).join("");
+  body.innerHTML = `<div class="algo-tabs">${tabs}</div>${cards}`;
+  body.querySelectorAll(".algo-tab").forEach(b=> b.onclick=()=>{ _algoCat=b.dataset.cat; renderAlgo(); });
+}
+function openAlgo(){
+  const done=ALGORITHMS.filter(a=>a.status==="done").length;
+  const sum=$("#algo-sum"); if(sum) sum.textContent=`구현 ${done} · 총 ${ALGORITHMS.length}`;
+  renderAlgo();
   $("#algo-overlay").classList.add("open");
 }
 $("#btn-algo").onclick = openAlgo;
