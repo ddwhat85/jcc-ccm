@@ -3414,6 +3414,16 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-09-23T18:10", status:"wip", cat:"elec", name:"접점·커넥터 발열 예지",
+   sensors:"전류(CT20A) · 접점온도(비접촉) · 함내온도",
+   summary:"전류 대비 접점 온도의 상관을 학습해, 같은 전류에서 초과 발열(잔차)이 커지거나 서서히 오르면 접촉저항 증가(접점 풀림·부식=열화)로 판정한다. 판넬 화재 1위 원인인 접점 발열을 화염 전에 잡는다.",
+   method:"정상 구간에서 ΔT≈k·I² 최소제곱 학습(부하 2A 미만 제외) · 잔차=측정ΔT−k·I² · 절대 60°C 또는 잔차 12°C=위험 · 잔차 5°C 또는 추세 0.3°C/분=주의 · 잔차 분당기울기로 열화 추세 예지 · contact_heat.py 테스트 7/7",
+   next:"접점온도 노드 매핑, 서버/데모 통합, 잔차 추세 카드, 초기 기준 학습기간 고정"},
+  {ts:"2026-09-23T18:00", status:"wip", cat:"env", name:"결로(이슬점) 예지 → 히터·팬",
+   sensors:"함내 온도 · 습도 · 표면온도(선택)",
+   summary:"온·습도로 이슬점을 계산하고 표면온도 여유가 좁아지면 결로 위험으로 판정, 히터/팬을 선제 가동해 누전·트래킹·부식·기판손상을 예방한다.",
+   method:"Magnus 식 이슬점 Td · 여유=표면(또는 기온)−Td · 여유 ≤1°C=위험(히터·팬) · ≤3°C 또는 RH≥80% 또는 여유 축소추세=주의(팬) · 여유 분당기울기로 결로 예지 · dewpoint.py 테스트 6/6",
+   next:"표면 최냉점 온도 입력, 서버/데모 통합, 히터·팬 액추에이터 연동"},
   {ts:"2026-09-23T16:20", status:"wip", cat:"fire", name:"화재 징조 예지 → 자동 환기(벤트)",
    sensors:"H2 · VOC · 온도",
    summary:"H2·VOC의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 만들고, 임계 도달 前에 벤트를 자동 개방한다(예지).",
@@ -3452,7 +3462,8 @@ const ALGORITHMS = [
    method:"", next:"실기 Modbus 0x2B/0x0E 식별 검증"},
 ];
 const ALGO_CATS = [
-  {k:"all", label:"전체"}, {k:"fire", label:"🔥 가스·화재"}, {k:"watch", label:"👁 감시·이상"},
+  {k:"all", label:"전체"}, {k:"fire", label:"🔥 가스·화재"}, {k:"elec", label:"⚡ 전기·발열"},
+  {k:"env", label:"🌡 환경·결로"}, {k:"watch", label:"👁 감시·이상"},
   {k:"heal", label:"🔧 자가치유"}, {k:"diag", label:"🩺 진단·탐색"},
 ];
 const ALGO_LABEL = {done:"구현됨", wip:"코어 구현·통합중", design:"설계 완료", planned:"예정"};
