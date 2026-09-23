@@ -607,6 +607,25 @@
   .hh-step.res.ok .hh-v{color:var(--ok);font-weight:600}
   .hh-step.res.fail .hh-v{color:var(--crit);font-weight:600}
   .hh-time{font:600 10px var(--mono);color:var(--ink-3);margin-top:8px}
+  /* ── 알고리즘 개발 내역 ── */
+  .algo-modal{width:min(640px,95vw);max-height:88vh;overflow-y:auto}
+  .algo-sum{margin-left:auto;font:600 11px var(--mono);color:var(--ink-3)}
+  .algo-item{border:1px solid var(--rule);border-left:3px solid var(--rule);border-radius:10px;
+             padding:13px 15px;margin-bottom:11px;background:var(--surface)}
+  .algo-item.done{border-left-color:var(--ok)}
+  .algo-item.design{border-left-color:var(--accent)}
+  .algo-item.planned{border-left-color:var(--ink-3)}
+  .algo-top{display:flex;align-items:center;gap:9px;margin-bottom:5px;flex-wrap:wrap}
+  .algo-name{font:700 14px var(--sans);letter-spacing:-.01em}
+  .algo-badge{font:700 10px var(--sans);padding:2px 8px;border-radius:20px;flex:none}
+  .algo-badge.done{background:var(--ok-soft);color:var(--ok)}
+  .algo-badge.design{background:var(--accent-soft);color:var(--accent)}
+  .algo-badge.planned{background:var(--surface-2);color:var(--ink-3)}
+  .algo-ts{margin-left:auto;font:600 10.5px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .algo-desc{font-size:12.5px;color:var(--ink);line-height:1.55;margin:6px 0}
+  .algo-next{font-size:11.5px;color:var(--ink-2);margin-top:6px;padding-top:7px;border-top:1px solid var(--rule)}
+  .algo-next b{color:var(--warn);font-weight:700;margin-right:4px}
+  .algo-sec{font:600 10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:2px 0 10px}
   @media print{
     body *{visibility:hidden}
     #report-overlay,#report-overlay *{visibility:visible}
@@ -856,6 +875,7 @@
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
         <button class="mb-item" id="btn-report">이력 리포트</button>
+        <button class="mb-item" id="btn-algo">알고리즘 내역</button>
         <div class="mb-div"></div>
         <button class="mb-item" id="btn-notify-test">알림 테스트 발송</button>
       </div>
@@ -967,6 +987,15 @@
     <div class="modal hh-modal">
       <div class="modal-head"><h3>🔧 자가복구 내역</h3><button id="hh-close">×</button></div>
       <div id="heal-body"></div>
+    </div>
+  </div>
+
+  <!-- 알고리즘 내역(개발 로그) -->
+  <div class="overlay" id="algo-overlay">
+    <div class="modal algo-modal">
+      <div class="modal-head"><h3>🧠 알고리즘 개발 내역</h3>
+        <span class="algo-sum" id="algo-sum"></span><button id="algo-close">×</button></div>
+      <div id="algo-body"></div>
     </div>
   </div>
 
@@ -2636,6 +2665,58 @@ function openHealHistory(){
 { const _hc=$("#hh-close"); if(_hc) _hc.onclick = ()=> $("#heal-overlay").classList.remove("open"); }
 { const _ho=$("#heal-overlay"); if(_ho) _ho.onclick = e=>{ if(e.target===_ho) _ho.classList.remove("open"); }; }
 
+// ── 알고리즘 개발 내역(로그) — 무엇을·언제·상태·다음 할 일 ──
+// 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
+const ALGORITHMS = [
+  {ts:"2026-09-23T15:45", status:"design", name:"화재 징조 예지 → 자동 환기(벤트)",
+   desc:"H2 수소 + VOC 가스의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 산출. H2·VOC 동반 상승 시 열폭주 강신호로 보고 단계적으로 벤트를 자동 개방/닫는다(엣지+서버 이중화, 설명가능·결정론).",
+   next:"FRI 코어·VOC센서·벤트 액추에이터 구현, 데모 화재-징조 에피소드, 단위/통합 테스트"},
+  {ts:"2026-09-18T16:10", status:"done", name:"자가치유 L2 — CCM 자동 재시작",
+   desc:"CCM 전체 침묵 또는 L1(채널 재시작) 실패 시 그 CCM을 자동 재시작. 재시도 상한·쿨다운·하루 총량·사람 우선(ack) 안전장치. 실패 시 사람에게 상향.",
+   next:"실기(SSH reboot) 연동 검증"},
+  {ts:"2026-09-18T14:30", status:"done", name:"자가치유 L1 — 센서 채널 자동 재시작",
+   desc:"센서 채널이 침묵·고착이면 그 채널만 자동 재시작해 일시장애를 스스로 복구. 대상은 침묵·고착만(드리프트·이상 제외).",
+   next:"실기 채널 재초기화 명령 연동"},
+  {ts:"2026-09-17T11:20", status:"done", name:"전체 시스템 진단 (diagnose_all)",
+   desc:"모든 CCM·센서를 한 번에 자가진단해 정상/주의/이상을 집계하고, 문제 하드웨어를 심각한 순으로 제시.",
+   next:"—"},
+  {ts:"2026-09-15T18:40", status:"done", name:"베이스라인 이상탐지 (중앙값·MAD z-score)",
+   desc:"평소 분포를 로버스트 학습(중앙값·MAD)하고 z>3.5 급등을 임계 도달 전에 조기 감지. 예지의 핵심 항.",
+   next:"화재 예지 FRI의 이상 항으로 재사용"},
+  {ts:"2026-09-15T17:10", status:"done", name:"고착·드리프트 감지 (history_stats)",
+   desc:"최근값이 안 변하면 고착, 한 방향으로 지속 이동하면 드리프트로 판정 — 살아는 있어도 못 믿는 센서를 색출.",
+   next:"—"},
+  {ts:"2026-09-15T15:30", status:"done", name:"침묵·하트비트 감지 (watchdog)",
+   desc:"'값 정상'이 아니라 '데이터가 안 옴'을 잡는다 — CCM/센서 침묵을 전이로 감지해 경보. 신뢰의 최저선.",
+   next:"—"},
+  {ts:"2026-09-14T16:00", status:"done", name:"자동 탐색·식별 추론 (Plug&Play)",
+   desc:"버스를 스캔해 물린 센서를 찾고 프로파일로 식별, 미매칭 장비는 값 범위로 종류를 추정. [AI 자동연결]의 실체.",
+   next:"실기 Modbus 0x2B/0x0E 식별 검증"},
+];
+function fmtAlgoTs(s){ const d=new Date(s); if(isNaN(d)) return s;
+  const p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`; }
+function openAlgo(){
+  const body=$("#algo-body"); if(!body) return;
+  const label={done:"구현됨", design:"설계 완료", planned:"예정"};
+  const done=ALGORITHMS.filter(a=>a.status==="done").length,
+        design=ALGORITHMS.filter(a=>a.status!=="done").length;
+  const sum=$("#algo-sum"); if(sum) sum.textContent=`구현 ${done} · 설계 ${design} · 총 ${ALGORITHMS.length}`;
+  body.innerHTML = `<div class="algo-sec">최신순 — 무엇을 · 언제 · 상태 · 다음 할 일</div>`+
+    ALGORITHMS.slice().sort((a,b)=> a.ts<b.ts?1:-1).map(a=>
+      `<div class="algo-item ${a.status}"><div class="algo-top">`+
+        `<span class="algo-name">${escapeHtml(a.name)}</span>`+
+        `<span class="algo-badge ${a.status}">${label[a.status]||a.status}</span>`+
+        `<span class="algo-ts">${fmtAlgoTs(a.ts)}</span></div>`+
+        `<div class="algo-desc">${escapeHtml(a.desc)}</div>`+
+        (a.next && a.next!=="—" ? `<div class="algo-next"><b>다음</b>${escapeHtml(a.next)}</div>` : "")+
+      `</div>`).join("");
+  $("#algo-overlay").classList.add("open");
+}
+$("#btn-algo").onclick = openAlgo;
+$("#algo-close").onclick = ()=> $("#algo-overlay").classList.remove("open");
+$("#algo-overlay").onclick = e=>{ if(e.target===$("#algo-overlay")) $("#algo-overlay").classList.remove("open"); };
+
 // ── 자가복구 on/off 제어 (마스터 · L1 채널 · L2 CCM) ──
 function applyHealUI(cfg){
   const m=$("#heal-master"), l1=$("#heal-l1"), l2=$("#heal-l2"), subs=$("#heal-subs");
@@ -2872,7 +2953,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["report-overlay","heal-overlay","health-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }
