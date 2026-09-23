@@ -608,11 +608,9 @@
   /* ── 알고리즘 개발 내역 ── */
   .algo-modal{width:min(640px,95vw);max-height:88vh;overflow-y:auto}
   .algo-sum{margin-left:auto;font:600 11px var(--mono);color:var(--ink-3)}
-  .algo-item{border:1px solid var(--rule);border-left:3px solid var(--rule);border-radius:10px;
+  /* 상태 구분은 배지 색으로만 — 카드 옆 굵은 띠(side-tab)는 쓰지 않는다 */
+  .algo-item{border:1px solid var(--rule);border-radius:10px;
              padding:13px 15px;margin-bottom:11px;background:var(--surface)}
-  .algo-item.done{border-left-color:var(--ok)}
-  .algo-item.design{border-left-color:var(--accent)}
-  .algo-item.planned{border-left-color:var(--ink-3)}
   .algo-top{display:flex;align-items:center;gap:9px;margin-bottom:5px;flex-wrap:wrap}
   .algo-name{font:700 14px var(--sans);letter-spacing:-.01em}
   .algo-badge{font:700 10px var(--sans);padding:2px 8px;border-radius:20px;flex:none}
