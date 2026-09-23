@@ -617,6 +617,7 @@
   .algo-name{font:700 14px var(--sans);letter-spacing:-.01em}
   .algo-badge{font:700 10px var(--sans);padding:2px 8px;border-radius:20px;flex:none}
   .algo-badge.done{background:var(--ok-soft);color:var(--ok)}
+  .algo-badge.wip{background:var(--warn-soft);color:var(--warn)}
   .algo-badge.design{background:var(--accent-soft);color:var(--accent)}
   .algo-badge.planned{background:var(--surface-2);color:var(--ink-3)}
   .algo-ts{margin-left:auto;font:600 10.5px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -2666,9 +2667,9 @@ function openHealHistory(){
 // ── 알고리즘 개발 내역(로그) — 무엇을·언제·상태·다음 할 일 ──
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 const ALGORITHMS = [
-  {ts:"2026-09-23T15:45", status:"design", name:"화재 징조 예지 → 자동 환기(벤트)",
-   desc:"H2 수소 + VOC 가스의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 산출. H2·VOC 동반 상승 시 열폭주 강신호로 보고 단계적으로 벤트를 자동 개방/닫는다(엣지+서버 이중화, 설명가능·결정론).",
-   next:"FRI 코어·VOC센서·벤트 액추에이터 구현, 데모 화재-징조 에피소드, 단위/통합 테스트"},
+  {ts:"2026-09-23T16:20", status:"wip", name:"화재 징조 예지 → 자동 환기(벤트)",
+   desc:"신호별로 값(level=ramp(값,경고,위험))·분당 상승속도(최소제곱 기울기)·평소 대비 로버스트 z(중앙값·MAD) 3특징을 [0,1]로 정규화→ g=max. H2·VOC 동시 활성이면 동반 가산(co=0.2·min), 온도 급상승·연기·전류이상은 확증 가산. FRI=100·clamp(0.38·gH2+0.38·gVOC+co+0.10·온도+확증). 임계 도달 前 상승·이상만으로 조기 danger 진입(예지). 단계 normal/watch(30)/danger(55)/critical(80), 히스테리시스로 벤트 개방(≥55)·복구닫힘(<20 유지). fire_risk.py 코어 + 시나리오 테스트 13개 통과.",
+   next:"VOC 센서·벤트 액추에이터 노드, 서버/데모 통합, 대시보드 FRI 게이지·벤트 상태, 펌웨어 엣지 미러"},
   {ts:"2026-09-18T16:10", status:"done", name:"자가치유 L2 — CCM 자동 재시작",
    desc:"CCM 전체 침묵 또는 L1(채널 재시작) 실패 시 그 CCM을 자동 재시작. 재시도 상한·쿨다운·하루 총량·사람 우선(ack) 안전장치. 실패 시 사람에게 상향.",
    next:"실기(SSH reboot) 연동 검증"},
@@ -2696,10 +2697,10 @@ function fmtAlgoTs(s){ const d=new Date(s); if(isNaN(d)) return s;
   return `${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 ${p(d.getHours())}:${p(d.getMinutes())}`; }
 function openAlgo(){
   const body=$("#algo-body"); if(!body) return;
-  const label={done:"구현됨", design:"설계 완료", planned:"예정"};
+  const label={done:"구현됨", wip:"코어 구현·통합중", design:"설계 완료", planned:"예정"};
   const done=ALGORITHMS.filter(a=>a.status==="done").length,
-        design=ALGORITHMS.filter(a=>a.status!=="done").length;
-  const sum=$("#algo-sum"); if(sum) sum.textContent=`구현 ${done} · 설계 ${design} · 총 ${ALGORITHMS.length}`;
+        rest=ALGORITHMS.filter(a=>a.status!=="done").length;
+  const sum=$("#algo-sum"); if(sum) sum.textContent=`구현 ${done} · 진행/설계 ${rest} · 총 ${ALGORITHMS.length}`;
   body.innerHTML = `<div class="algo-sec">최신순 — 무엇을 · 언제 · 상태 · 다음 할 일</div>`+
     ALGORITHMS.slice().sort((a,b)=> a.ts<b.ts?1:-1).map(a=>
       `<div class="algo-item ${a.status}"><div class="algo-top">`+
