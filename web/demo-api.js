@@ -1040,7 +1040,7 @@
       if (p === "/api/alarms")
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
-      if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false }));
+      if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false, authed: false }));   // 데모: 시연용 로그인
       if (p === "/api/heal/config") {
         if (method === "POST") {
           const changed = [];

@@ -43,6 +43,15 @@ services:
         value: "14"
       - key: JCC_KEEP_EVENT_DAYS
         value: "90"
+      # ── 접근 보안 ───────────────────────────────────────
+      # 비밀번호를 넣으면 대시보드 터미널 로그인이 진짜 서버 인증이 된다(비우면 데모 로그인).
+      # 같은 IP 5회 연속 실패 시 5분 잠금. CCM 텔레메트리는 JCC_API_KEY(Bearer)로 따로 막는다.
+      - key: JCC_DASHBOARD_USER
+        sync: false
+      - key: JCC_DASHBOARD_PW
+        sync: false
+      - key: JCC_API_KEY
+        sync: false
       # ── 알림 채널(선택) ─────────────────────────────────
       # 값을 넣으면 그 채널로 경보가 발송된다. 비워두면 발송 안 함.
       # Render 대시보드 → Environment 에서 직접 넣는 것을 권장(키는 코드에 넣지 말 것).

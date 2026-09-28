@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
@@ -42,73 +43,45 @@ def _run_discovery() -> dict:
 # 선택적 인증: 환경변수 JCC_API_KEY가 설정되면 POST에 Bearer 토큰을 요구한다.
 _API_KEY = os.environ.get("JCC_API_KEY", "")
 
-# 대시보드 접근 비밀번호(공용 1개). 환경변수 JCC_DASHBOARD_PW가 설정됐을 때만
-# 로그인 화면이 뜬다. 비워두면(개발·지인 데모) 인증 없이 바로 열린다.
-#   운영 서버:  set JCC_DASHBOARD_PW=원하는비번   (코드·저장소에 넣지 않는다)
-# 세션은 비밀번호로 서명한 토큰을 쿠키에 담아 유지한다(별도 시크릿 불필요).
+# 대시보드 접근 계정(공용 1개). 환경변수 JCC_DASHBOARD_PW가 설정됐을 때만 인증이 켜진다.
+# 비워두면(개발·지인 데모) 인증 없이 바로 열린다.
+#   운영 서버:  JCC_DASHBOARD_PW=원하는비번  (JCC_DASHBOARD_USER=아이디, 기본 jcc)
+#   — 코드·저장소에 넣지 않는다.
+# 로그인 화면은 대시보드의 터미널 화면 하나뿐이다. 서버는 화면 껍데기(HTML)는 누구에게나
+# 주되, 데이터 API는 로그인 전엔 전부 401로 막는다. 세션은 비밀번호로 서명한 토큰을
+# 쿠키에 담아 유지한다(별도 시크릿 불필요 — 비번을 바꾸면 기존 세션은 모두 무효).
 _DASH_PW = os.environ.get("JCC_DASHBOARD_PW", "")
+_DASH_USER = os.environ.get("JCC_DASHBOARD_USER", "jcc")
+
+# 무차별 대입 방지: 같은 IP에서 LOGIN_WINDOW초 안에 LOGIN_MAX_FAILS번 틀리면 잠근다.
+LOGIN_MAX_FAILS = 5
+LOGIN_WINDOW = 300.0
+_login_fails: dict = {}          # ip -> [실패 시각...]
+_login_lock = threading.Lock()
 
 
 def _session_token() -> str:
     """비밀번호를 키로 서명한 세션 토큰. 비번을 모르면 위조 불가."""
-    return hmac.new(_DASH_PW.encode("utf-8"), b"jcc-auth-v1", hashlib.sha256).hexdigest()
+    return hmac.new(_DASH_PW.encode("utf-8"), f"jcc-auth-v2:{_DASH_USER}".encode("utf-8"),
+                    hashlib.sha256).hexdigest()
 
 
-# 로그인 화면(단독 HTML). 대시보드와 같은 다크 톤. 비번 확인 후 /api/login → 쿠키 → 새로고침.
-_LOGIN_HTML = """<!doctype html><html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>JCC-CCM · 로그인</title>
-<style>
-  :root{--bg:#0b1220;--card:#131c2e;--line:#26324a;--ink:#e7edf7;--dim:#8b98b0;
-        --accent:#3b82f6;--accent2:#22c55e;--err:#f43f5e}
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0}
-  body{background:radial-gradient(1200px 600px at 50% -10%,#16233c 0%,var(--bg) 60%);
-       color:var(--ink);font:15px/1.5 system-ui,"Segoe UI",Roboto,"Malgun Gothic",sans-serif;
-       display:grid;place-items:center;padding:24px}
-  .card{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);
-        border-radius:18px;padding:34px 30px;box-shadow:0 24px 60px rgba(0,0,0,.45)}
-  .brand{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-  .logo{width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#1e40af);
-        display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:.5px}
-  .brand b{font-size:18px;letter-spacing:.3px}
-  .sub{color:var(--dim);font-size:13px;margin:2px 0 22px}
-  label{display:block;font-size:12px;color:var(--dim);margin-bottom:7px}
-  input{width:100%;padding:12px 14px;border-radius:11px;border:1px solid var(--line);
-        background:#0e1626;color:var(--ink);font-size:15px;outline:none;transition:border-color .12s}
-  input:focus{border-color:var(--accent)}
-  button{width:100%;margin-top:16px;padding:12px;border:none;border-radius:11px;cursor:pointer;
-         background:linear-gradient(135deg,var(--accent),#2563eb);color:#fff;font-size:15px;
-         font-weight:700;transition:filter .12s}
-  button:hover{filter:brightness(1.1)}
-  button:disabled{opacity:.6;cursor:default}
-  .err{color:var(--err);font-size:13px;margin-top:12px;min-height:18px}
-  .foot{margin-top:20px;color:var(--dim);font-size:11px;text-align:center}
-</style></head><body>
-  <form class="card" id="f" autocomplete="off">
-    <div class="brand"><div class="logo">JCC</div><b>JCC-CCM</b></div>
-    <div class="sub">스마트 판넬 모니터링 · 접근 인증</div>
-    <label for="pw">비밀번호</label>
-    <input id="pw" type="password" autofocus autocomplete="current-password" placeholder="비밀번호를 입력하세요">
-    <button id="b" type="submit">로그인</button>
-    <div class="err" id="e"></div>
-    <div class="foot">JCC Solution</div>
-  </form>
-<script>
-  const f=document.getElementById('f'),pw=document.getElementById('pw'),
-        e=document.getElementById('e'),b=document.getElementById('b');
-  f.addEventListener('submit',async(ev)=>{
-    ev.preventDefault(); e.textContent=''; b.disabled=true; b.textContent='확인 중…';
-    try{
-      const r=await fetch('/api/login',{method:'POST',
-        headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw.value})});
-      if(r.ok){ location.replace('/'); return; }
-      const j=await r.json().catch(()=>({}));
-      e.textContent=j.error||'로그인에 실패했습니다.';
-    }catch(_){ e.textContent='서버에 연결할 수 없습니다.'; }
-    b.disabled=false; b.textContent='로그인'; pw.select();
-  });
-</script></body></html>"""
+def _login_locked(ip: str, now: float) -> float:
+    """잠겨 있으면 남은 초, 아니면 0."""
+    with _login_lock:
+        fails = [t for t in _login_fails.get(ip, []) if now - t < LOGIN_WINDOW]
+        _login_fails[ip] = fails
+        if len(fails) >= LOGIN_MAX_FAILS:
+            return LOGIN_WINDOW - (now - fails[0])
+    return 0.0
+
+
+def _login_record(ip: str, ok: bool, now: float) -> None:
+    with _login_lock:
+        if ok:
+            _login_fails.pop(ip, None)
+        else:
+            _login_fails.setdefault(ip, []).append(now)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -155,11 +128,11 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        # 로그인 게이트: 비번이 걸려 있고 미인증이면 대시보드/API 접근 차단.
-        # (상태 확인 /health 와 이미지 /img/* 는 로그인 화면 표시용으로 열어둔다)
-        if _DASH_PW and not self._authed() and path != "/health" and not path.startswith("/img/"):
-            if path in ("/", "/index.html"):
-                return self._serve_login()
+        # 로그인 게이트: 비번이 걸려 있고 미인증이면 데이터 API는 전부 차단.
+        # 열어두는 것: 화면 껍데기(/ — 터미널 로그인이 그 안에 있다), 이미지, 상태 확인,
+        # 인증 상태 조회. 화면 껍데기엔 현장 데이터가 없다(데이터는 모두 API로만 온다).
+        if (_DASH_PW and not self._authed() and path not in ("/", "/index.html", "/health", "/api/auth/status")
+                and not path.startswith("/img/")):
             return self._json({"error": "unauthorized"}, 401)
 
         if path in ("/", "/index.html"):
@@ -191,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/predict":
             return self._json({"panels": self.storage.predict_state()})
         if path == "/api/auth/status":
-            return self._json({"enabled": bool(_DASH_PW)})
+            return self._json({"enabled": bool(_DASH_PW), "authed": self._authed()})
         if path == "/api/notify/status":
             from .notify import configured_channels
             return self._json({"channels": configured_channels()})
@@ -610,7 +583,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── 로그인 ──────────────────────────────────────────────
     def _login(self) -> None:
-        """{password} 확인 후 맞으면 세션 쿠키를 심는다."""
+        """{user, password} 확인 후 맞으면 세션 쿠키를 심는다. 같은 IP 연속 실패는 잠근다."""
         length = int(self.headers.get("Content-Length", 0) or 0)
         raw = self.rfile.read(length) if 0 < length <= 10000 else b""
         try:
@@ -619,9 +592,20 @@ class Handler(BaseHTTPRequestHandler):
             body = {}
         if not _DASH_PW:                       # 인증 비활성 상태면 그냥 통과
             return self._json({"ok": True, "auth": False})
-        pw = str(body.get("password", ""))
-        if not hmac.compare_digest(pw, _DASH_PW):
-            return self._json({"error": "비밀번호가 올바르지 않습니다"}, 401)
+        ip, now = self.client_address[0], time.time()
+        wait = _login_locked(ip, now)
+        if wait > 0:
+            return self._json({"error": f"로그인 시도가 너무 많습니다 — {int(wait) + 1}초 뒤 다시 시도하세요",
+                               "retry_after": int(wait) + 1}, 429)
+        user, pw = str(body.get("user", "")), str(body.get("password", ""))
+        # 아이디·비번 둘 다 항상 비교(어느 쪽이 틀렸는지 시간 차로도 새지 않게), 메시지도 하나
+        ok_user = hmac.compare_digest(user.encode("utf-8"), _DASH_USER.encode("utf-8"))
+        ok_pw = hmac.compare_digest(pw.encode("utf-8"), _DASH_PW.encode("utf-8"))
+        _login_record(ip, ok_user and ok_pw, now)
+        if not (ok_user and ok_pw):
+            left = LOGIN_MAX_FAILS - len(_login_fails.get(ip, []))
+            return self._json({"error": "아이디 또는 비밀번호가 올바르지 않습니다"
+                                        + (f" (남은 시도 {left}회)" if 0 < left <= 2 else "")}, 401)
         tok = _session_token()
         out = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
@@ -641,9 +625,6 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(out)))
         self.end_headers()
         self.wfile.write(out)
-
-    def _serve_login(self) -> None:
-        self._text(_LOGIN_HTML, 200, "text/html; charset=utf-8")
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_dashboard(self) -> None:
