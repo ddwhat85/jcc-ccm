@@ -369,6 +369,43 @@
   .hero-mini.pass{cursor:default;background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:600}
   .hero-mini.pass:hover{filter:none}
   .hero-mini.pass .hm-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
+  /* 예지보전 카드 — 화재·접점·결로 위험도 + 벤트·히터·팬 */
+  .pdm{background:var(--surface);border:1px solid var(--rule);border-radius:14px;padding:12px 13px 12px;margin-bottom:12px}
+  .pdm-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
+  .pdm-title{font:700 13px var(--sans);letter-spacing:-.01em;color:var(--ink)}
+  .pdm-age{font:600 10px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .pdm-row{display:grid;grid-template-columns:62px 1fr auto auto;align-items:center;gap:8px;
+           padding:7px 2px;border-top:1px solid var(--rule);cursor:pointer}
+  .pdm-row:first-child{border-top:0}
+  .pdm-row:hover .pdm-name{color:var(--accent)}
+  .pdm-name{font:600 11.5px var(--sans);color:var(--ink);transition:color .15s}
+  .pdm-meter{height:4px;border-radius:2px;background:var(--rule);overflow:hidden}
+  .pdm-meter i{display:block;height:100%;width:100%;transform-origin:left center;transform:scaleX(0);
+               background:var(--ok);transition:transform .7s cubic-bezier(.16,1,.3,1),background-color .3s}
+  .pdm-row.warn .pdm-meter i{background:var(--warn)} .pdm-row.crit .pdm-meter i{background:var(--crit)}
+  .pdm-num{font:600 11px var(--mono);font-variant-numeric:tabular-nums;color:var(--ink-2);min-width:58px;text-align:right}
+  .pdm-chip{font:700 10px var(--sans);padding:2px 7px;border-radius:20px;min-width:34px;text-align:center;
+            color:var(--ok);background:var(--ok-soft)}
+  .pdm-row.warn .pdm-chip{color:var(--warn);background:var(--warn-soft)}
+  .pdm-row.crit .pdm-chip{color:#fff;background:var(--crit)}
+  .pdm-row.pending .pdm-chip{color:var(--ink-3);background:transparent;box-shadow:inset 0 0 0 1px var(--rule)}
+  .pdm-row.pending .pdm-num{color:var(--ink-3)}
+  .pdm-why{font-size:11px;line-height:1.5;color:var(--ink-2);margin:2px 2px 0}
+  .pdm-why:empty{display:none}
+  .pdm-act{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
+  .pdm-a{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 9px;border-radius:9px;
+         border:1px solid var(--rule);background:transparent;color:var(--ink-2);cursor:pointer;text-align:left;
+         font:inherit;transition:border-color .15s,background-color .15s}
+  .pdm-a:hover{border-color:var(--accent)}
+  .pdm-a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .pdm-a .an{font:600 10px var(--mono);color:var(--ink-3)}
+  .pdm-a .as{font:700 12.5px var(--sans);color:var(--ink)}
+  .pdm-a .am{font:600 9.5px var(--mono);color:var(--ink-3)}
+  .pdm-a.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .pdm-a.on .as{color:var(--accent)}
+  .pdm-a.manual .am{color:var(--warn)}
+  .pdm-empty{font-size:11px;color:var(--ink-3);padding:6px 2px 2px}
+  @media (prefers-reduced-motion:reduce){.pdm-meter i{transition:none}}
   /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
   .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
         background:var(--surface);border:1px solid var(--rule);overflow:hidden;
@@ -1618,7 +1655,7 @@ function renderOverview(panels){
   const sig = "n"+_spotList.length+"|c"+ccms.length;   // 구조 변화 시에만 재구성(순회 상태 보존)
   if(sig !== _ovSig || !box.querySelector("#spot-card")){
     _ovSig = sig;
-    box.innerHTML = `<div id="ov-hero"></div><div class="spot" id="spot-card"></div><div class="ov-mini" id="ov-mini"></div>`;
+    box.innerHTML = `<div id="ov-hero"></div><div class="pdm" id="ov-pred"></div><div class="spot" id="spot-card"></div><div class="ov-mini" id="ov-mini"></div>`;
     const sc = $("#spot-card");
     sc.onmouseenter = ()=> _spotPaused = true;   // 읽는 동안 순회 멈춤
     sc.onmouseleave = ()=> _spotPaused = false;
@@ -1631,6 +1668,7 @@ function renderOverview(panels){
     const hm = hero.querySelector("#hero-mini");   // 클릭 → 전체 경보 목록(자세히)
     if(hm) hm.onclick = (e)=>{ e.stopPropagation(); alarmPanelOpen=true; $("#alarm-panel").hidden=false; loadAlarms(); };
   }
+  renderPred();   // 예지보전 카드(화재·접점·결로 + 벤트·히터·팬)
   // 현재 스포트라이트 센서의 큰 값은 실시간으로 갱신
   const sc = $("#spot-card");
   if(sc && _spotList[_spotIdx]){ const {dev,key}=_spotList[_spotIdx]; const rec=sensorRec[dev+":"+key];
@@ -1645,6 +1683,118 @@ function renderOverview(panels){
 function showOverview(){
   if(selectedId){ nodes.get(selectedId)?.el.classList.remove("sel"); selectedId = null; }
   renderOverview(lastPanels);
+}
+
+// ── 예지보전 카드 ─────────────────────────────────────
+// /api/predict 결과를 개요에 보여준다. 뼈대는 한 번 만들고 값만 제자리 갱신(미터 전환이 끊기지 않게).
+let lastPred = null;
+const PDM_STAGE = {normal:["ok","정상"], watch:["warn","주의"], danger:["crit","위험"], critical:["crit","극한"],
+                   pending:["pending","대기"]};
+const pdmClamp = x => x<0 ? 0 : (x>1 ? 1 : x);
+// 알고리즘별 대표 센서 노드(행 클릭 시 강조) — 판넬 구성에서 찾는다
+function pdmRep(which){
+  for(const p of lastPanels||[]) for(const c of (p.ccms||[])) for(const r of (c.latest||[])){
+    const k = r.sensor_key||"";
+    if(which==="fire" && r.kind==="h2") return "sensor:"+c.device_id+":"+k;
+    if(which==="contact" && k.includes("ncontact")) return "sensor:"+c.device_id+":"+k;
+    if(which==="dew" && r.kind==="humidity") return "sensor:"+c.device_id+":"+k;
+  }
+  return null;
+}
+function renderPred(){
+  const box = $("#ov-pred"); if(!box) return;
+  if(!box.querySelector(".pdm-rows")){
+    box.innerHTML =
+      `<div class="pdm-head"><span class="pdm-title">예지보전</span><span class="pdm-age" id="pdm-age"></span></div>`+
+      `<div class="pdm-rows">`+
+      [["fire","화재 징조"],["contact","접점 발열"],["dew","결로"]].map(([k,nm])=>
+        `<div class="pdm-row ok" data-pdm="${k}" title="클릭하면 해당 센서 노드를 표시합니다">`+
+        `<span class="pdm-name">${nm}</span><span class="pdm-meter"><i></i></span>`+
+        `<span class="pdm-num">—</span><span class="pdm-chip">대기</span></div>`).join("")+
+      `</div><div class="pdm-why" id="pdm-why"></div><div class="pdm-act">`+
+      [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
+        `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
+        `<span class="as">—</span><span class="am">자동</span></button>`).join("")+
+      `</div>`;
+    box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
+    box.querySelectorAll("[data-act]").forEach(b=> b.onclick = ()=> pdmToggle(b.dataset.act));
+  }
+  const p = lastPred;
+  if(!p){ $("#pdm-age").textContent = "데이터 쌓이는 중"; return; }
+  pdmPaintActs(box, pdmActs(p));
+  const f = p.fire||{}, c = p.contact||{}, d = p.dew||{};
+  const rows = {
+    fire:    {stage:f.stage, risk:(f.fri||0)/100, num:f.fri==null ? "—" : `FRI ${f.fri}`},
+    contact: {stage:c.stage, risk:pdmClamp((c.residual||0)/12),
+              num:c.residual==null ? "—" : `${c.residual>0?"+":""}${c.residual}°C`},
+    dew:     {stage:d.stage, risk:d.margin==null ? 0 : pdmClamp((8-d.margin)/7),
+              num:d.margin==null ? "—" : `여유 ${d.margin}°C`},
+  };
+  for(const k in rows){
+    const el = box.querySelector(`[data-pdm="${k}"]`); if(!el) continue;
+    const [cls, lab] = PDM_STAGE[rows[k].stage] || ["ok","정상"];
+    el.className = "pdm-row "+cls;
+    el.querySelector(".pdm-meter i").style.transform = `scaleX(${rows[k].risk.toFixed(3)})`;
+    el.querySelector(".pdm-num").textContent = rows[k].num;
+    el.querySelector(".pdm-chip").textContent = lab;
+    // 보류(학습 중·데이터 끊김)면 사유를 툴팁으로
+    el.title = rows[k].stage==="pending" ? ((p[k]||{}).reasons||[""])[0] : "클릭하면 해당 센서 노드를 표시합니다";
+  }
+  // 근거: 가장 심각한 알고리즘의 이유 두 개(모두 정상이면 숨김)
+  const rank = {normal:0, watch:1, danger:2, critical:3};
+  const worst = [["화재",f],["접점",c],["결로",d]].sort((a,b)=>(rank[b[1].stage]||0)-(rank[a[1].stage]||0))[0];
+  $("#pdm-why").textContent = (rank[worst[1].stage]||0) > 0
+    ? `${worst[0]} — ${(worst[1].reasons||[]).slice(0,2).join(" · ")}` : "";
+  // 세 알고리즘 모두 보류면(기동 직후) 그 사유를, 아니면 갱신 시각을
+  const allPend = ["fire","contact","dew"].every(k=>(p[k]||{}).stage==="pending");
+  const age = Math.max(0, Math.round(Date.now()/1000 - (p.ts||0)));
+  $("#pdm-age").textContent = allPend ? (f.reasons||["대기"])[0]
+                            : age < 6 ? "실시간" : `${age}초 전`;
+}
+// 액추에이터 상태 읽기(벤트=fire.vent, 히터·팬=dew)
+function pdmActs(p){
+  const f = p.fire||{}, d = p.dew||{};
+  return {
+    vent:   {on:!!(f.vent&&f.vent.open), mode:(f.vent&&f.vent.mode)||"auto"},
+    heater: {on:!!d.heater, mode:d.mode||"auto"},
+    fan:    {on:!!d.fan,    mode:d.mode||"auto"},
+  };
+}
+function pdmPaintActs(box, acts){
+  const words = {vent:["개방","닫힘"], heater:["가동","정지"], fan:["가동","정지"]};
+  for(const k in acts){
+    const b = box.querySelector(`[data-act="${k}"]`); if(!b) continue;
+    const a = acts[k];
+    b.classList.toggle("on", a.on);
+    b.classList.toggle("manual", a.mode==="manual");
+    b.setAttribute("aria-pressed", a.on ? "true" : "false");
+    b.querySelector(".as").textContent = a.on ? words[k][0] : words[k][1];
+    b.querySelector(".am").textContent = a.mode==="manual" ? "수동" : "자동";
+    b.title = a.mode==="manual" ? "클릭: 수동 켬 → 수동 끔 → 자동 복귀" : "클릭: 수동 조작으로 전환";
+  }
+}
+// 클릭 순환: 자동 → 수동 켬 → 수동 끔 → 자동 (사람 조작이 자동보다 우선)
+function pdmToggle(act){
+  const p = lastPred; if(!p) return;
+  const cur = pdmActs(p)[act];
+  const action = cur.mode!=="manual" ? (act==="vent" ? "open" : "on")
+               : cur.on ? (act==="vent" ? "close" : "off")
+               : "auto";
+  fetch("/api/predict/actuator",{method:"POST",headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({panel:p.panel||"", actuator:act, action})})
+    .then(r=>r.json()).then(res=>{
+      if(!res.ok){ setStatus(res.error||"액추에이터 조작 실패"); return; }
+      const lab = {vent:"벤트", heater:"히터", fan:"팬"}[act];
+      const t = {open:"수동 개방", close:"수동 닫힘", on:"수동 가동", off:"수동 정지", auto:"자동 복귀"}[action];
+      setStatus(`${lab} ${t}`);
+      loadPredict();
+    }).catch(()=> setStatus("액추에이터 조작 실패 — 연결을 확인하세요"));
+}
+function loadPredict(){
+  fetch("/api/predict",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    lastPred = (d.panels||[])[0] || null;
+    renderPred();
+  }).catch(()=>{});
 }
 function setPill(el, online){ if(!el) return;
   el.className = "npill " + (online?"on":"off"); el.textContent = online?"ON":"OFF"; }
@@ -2018,11 +2168,25 @@ const EVENT_META = {
   heal2_ok:    {label:"CCM 복구 성공",  dot:"ok",   ic:"♻"},
   heal2_giveup:{label:"CCM 복구 실패",  dot:"crit", ic:"♻"},
   heal_config: {label:"자가복구 설정",  dot:"info", ic:"⚙"},
+  // 예지보전(화재·접점발열·결로) + 액추에이터
+  fire:        {label:"화재 징조",      dot:"crit", ic:"🔥"},
+  fire_clear:  {label:"화재 위험 해소", dot:"ok",   ic:"✓"},
+  contact:     {label:"접점 발열",      dot:"crit", ic:"⚡"},
+  contact_clear:{label:"접점 정상",     dot:"ok",   ic:"✓"},
+  dew:         {label:"결로 위험",      dot:"warn", ic:"💧"},
+  dew_clear:   {label:"결로 해소",      dot:"ok",   ic:"✓"},
+  vent_open:   {label:"벤트 자동 개방", dot:"crit", ic:"🌀"},
+  vent_close:  {label:"벤트 자동 닫힘", dot:"ok",   ic:"🌀"},
+  vent_hold:   {label:"벤트 개방 유지", dot:"crit", ic:"🌀"},
+  dew_actuate: {label:"히터·팬 작동",   dot:"info", ic:"🌡"},
+  actuator:    {label:"수동 조작",      dot:"info", ic:"🕹"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
-  "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config"]);
+  "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
+  "fire","fire_clear","contact","contact_clear","dew","dew_clear",
+  "vent_open","vent_close","vent_hold","dew_actuate","actuator"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -2678,21 +2842,26 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
-  {ts:"2026-09-23T18:10", status:"wip", cat:"elec", name:"접점·커넥터 발열 예지",
+  {ts:"2026-09-28T16:14", status:"done", cat:"fire", name:"예지보전 통합 엔진 — 판넬 융합 · 벤트·히터·팬",
+   sensors:"H2 · VOC(신규 SGP41) · 전류 · 접점온도 · 함내 온·습도 · 열연기",
+   summary:"화재·접점발열·결로 세 알고리즘을 판넬 단위로 한 번에 돌려, 위험이면 예지 경보를 해당 센서 노드에 걸고 벤트·히터·팬을 자동으로 움직인다. 사람이 누르면 수동이 자동보다 우선한다.",
+   method:"predict.py Predictor(판넬별 VentController·DewActuator 상태) · 감시 루프마다 predict_scan → 경보는 전이(정상↔위험)로만 발생·해제 · 접점 위험을 화재 확증(current_abnormal)으로 교차전달 · GET /api/predict · POST /api/predict/actuator · demo-api.js 동일 로직 미러 · 현재값=최근 유효 3표본 중앙값, 기울기=3점 이동중앙값, 기준선=최근 30표본 이전 이력(사건이 '평소'를 오염시키지 않게) · 알고리즘별 준비 판정: 6표본·20초 창 미만=학습 중, 보고주기×4(최소 15초) 무소식=데이터 끊김 → 보류 중엔 경보·액추에이터 상태 유지(가스가 끊겼다고 열린 벤트를 닫지 않음), 함내온도는 화재에선 보조항이라 끊기면 그 항만 제외 · 센서 간 이력은 시각으로 짝지음(as-of) · 파이썬↔JS 미러 일치 테스트(에포크 시각 포함) 25/25 · 통합 테스트 23/23",
+   next:"펌웨어 엣지 미러(서버 없이 CCM이 벤트 직접 작동) · 하드웨어 fail-safe(정전·통신두절 시 벤트 개방) · 실센서 캘리브레이션"},
+  {ts:"2026-09-23T18:10", status:"done", cat:"elec", name:"접점·커넥터 발열 예지",
    sensors:"전류(CT20A) · 접점온도(비접촉) · 함내온도",
    summary:"전류 대비 접점 온도의 상관을 학습해, 같은 전류에서 초과 발열(잔차)이 커지거나 서서히 오르면 접촉저항 증가(접점 풀림·부식=열화)로 판정한다. 판넬 화재 1위 원인인 접점 발열을 화염 전에 잡는다.",
    method:"정상 구간에서 ΔT≈k·I² 최소제곱 학습(부하 2A 미만 제외) · 잔차=측정ΔT−k·I² · 절대 60°C 또는 잔차 12°C=위험 · 잔차 5°C 또는 추세 0.3°C/분=주의 · 잔차 분당기울기로 열화 추세 예지 · contact_heat.py 테스트 7/7",
-   next:"접점온도 노드 매핑, 서버/데모 통합, 잔차 추세 카드, 초기 기준 학습기간 고정"},
-  {ts:"2026-09-23T18:00", status:"wip", cat:"env", name:"결로(이슬점) 예지 → 히터·팬",
+   next:"통합 완료(예지 카드·접점온도 노드 경보) · 남은 것: 초기 기준 학습기간 고정(열화 구간이 k를 부풀리지 않게)"},
+  {ts:"2026-09-23T18:00", status:"done", cat:"env", name:"결로(이슬점) 예지 → 히터·팬",
    sensors:"함내 온도 · 습도 · 표면온도(선택)",
    summary:"온·습도로 이슬점을 계산하고 표면온도 여유가 좁아지면 결로 위험으로 판정, 히터/팬을 선제 가동해 누전·트래킹·부식·기판손상을 예방한다.",
-   method:"Magnus 식 이슬점 Td · 여유=표면(또는 기온)−Td · 여유 ≤1°C=위험(히터·팬) · ≤3°C 또는 RH≥80% 또는 여유 축소추세=주의(팬) · 여유 분당기울기로 결로 예지 · dewpoint.py 테스트 6/6",
-   next:"표면 최냉점 온도 입력, 서버/데모 통합, 히터·팬 액추에이터 연동"},
-  {ts:"2026-09-23T16:20", status:"wip", cat:"fire", name:"화재 징조 예지 → 자동 환기(벤트)",
+   method:"Magnus 식 이슬점 Td · 여유=표면(또는 기온)−Td · 여유 ≤1°C=위험(히터·팬) · ≤3°C 또는 RH≥80%=주의(팬) · 추세 예지: 여유 분당기울기로 '결로 임박까지 남은 시간'을 추정, 여유 ≤6°C이고 10분 이내일 때만 주의(먼 곳의 요동은 무시) · dewpoint.py 테스트 8/8",
+   next:"통합 완료(히터·팬 자동·수동, 표면=함내·접점온도 중 최냉점) · 남은 것: 실제 최냉점(도어 안쪽 금속면) 전용 센서"},
+  {ts:"2026-09-23T16:20", status:"done", cat:"fire", name:"화재 징조 예지 → 자동 환기(벤트)",
    sensors:"H2 · VOC · 온도",
    summary:"H2·VOC의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 만들고, 임계 도달 前에 벤트를 자동 개방한다(예지).",
    method:"g=max(level, rise=분당기울기, anom=중앙값·MAD z) · FRI=100·clamp(0.38·gH2+0.38·gVOC+동반0.2·min+0.10·온도+확증0.15) · 단계 30/55/80 · 히스테리시스(개방≥55·복구<20 유지) · fire_risk.py 테스트 13/13",
-   next:"VOC 센서·벤트 노드, 서버/데모 통합, FRI 게이지, 펌웨어 엣지 미러"},
+   next:"통합 완료(VOC 센서·FRI 미터·벤트 자동/수동·예지 경보) · 남은 것: 펌웨어 엣지 미러"},
   {ts:"2026-09-18T16:10", status:"done", cat:"heal", name:"자가치유 L2 — CCM 자동 재시작",
    sensors:"CCM 전체",
    summary:"CCM 전체 침묵 또는 L1 실패 시 그 CCM을 자동 재시작한다.",
@@ -3054,6 +3223,7 @@ renderOverview([]);  // 우측 바 초기 화면(개요)
 refresh(); setInterval(refresh, REFRESH_MS);
 loadTicker(); setInterval(loadTicker, 3000);   // 하단 실시간 로그
 loadAlarms(); setInterval(loadAlarms, 3000);   // 활성 경보 벨/패널
+loadPredict(); setInterval(loadPredict, 3000); // 예지보전(화재·접점·결로 + 벤트·히터·팬)
 watchHeal(); setInterval(watchHeal, 2500);     // 자가치유 노드 애니메이션(실시간)
 baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 누적 보정
 

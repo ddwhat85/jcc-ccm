@@ -125,6 +125,17 @@ def run():
     r = assess_dewpoint(25.0, 45 + 19 * 1.8, surface_temp=24.0, history=hist_d, cfg=dcfg)
     check("예지(여유 축소 추세 감지)", r.margin_slope < 0.0, f"slope={r.margin_slope}°C/분")
 
+    # 14) 먼 곳의 요동: 여유 11°C에서 분당 1°C씩 줄어도 → 정상(오경보 방지)
+    far = [(i * 6, 25.0, 50.0, 27.0 - i * (2.0 / 19)) for i in range(20)]
+    r = assess_dewpoint(25.0, 50.0, surface_temp=25.0, history=far, cfg=dcfg)
+    check("먼 곳 요동은 무시", r.stage == "normal", f"stage={r.stage} margin={r.margin} slope={r.margin_slope}")
+
+    # 15) 가까운 추세: 여유 5°C에서 분당 ~0.6°C 축소 → 약 7분 뒤 결로 임박 → 주의
+    near = [(i * 6, 25.0, 50.0, 20.0 - i * (1.1 / 19)) for i in range(20)]
+    r = assess_dewpoint(25.0, 50.0, surface_temp=18.9, history=near, cfg=dcfg)
+    check("가까운 추세는 주의(ETA)", r.stage == "watch" and any("분 뒤" in x for x in r.reasons),
+          f"stage={r.stage} margin={r.margin} reasons={r.reasons}")
+
     print()
     if _fails:
         print(f"❌ {len(_fails)} FAIL: {_fails}")

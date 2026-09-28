@@ -188,6 +188,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(self.storage.build_report(days))
         if path == "/api/heal/config":
             return self._json(self._heal_config())
+        if path == "/api/predict":
+            return self._json({"panels": self.storage.predict_state()})
         if path == "/api/auth/status":
             return self._json({"enabled": bool(_DASH_PW)})
         if path == "/api/notify/status":
@@ -259,6 +261,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "enabled": n})
         if parsed.path == "/api/heal/config":
             return self._set_heal_config()
+        if parsed.path == "/api/predict/actuator":
+            return self._set_actuator()
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 
@@ -344,6 +348,22 @@ class Handler(BaseHTTPRequestHandler):
             detail = ", ".join(f"{label[f]} {'켜짐' if v else '꺼짐'}" for f, v in changed)
             self.storage.log_event("", "", "heal_config", f"자가치유 설정 변경: {detail}", source="user")
         return self._json(self._heal_config())
+
+    # ── 예지 액추에이터 수동 조작 (벤트·히터·팬) ──────────────
+    def _set_actuator(self) -> None:
+        """{panel, actuator(vent|heater|fan), action(open|close|on|off|auto)} — 수동 오버라이드."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        panel = str(body.get("panel", ""))
+        actuator = str(body.get("actuator", ""))
+        action = str(body.get("action", ""))
+        if actuator not in ("vent", "heater", "fan") or \
+           action not in ("open", "close", "on", "off", "auto"):
+            return self._json({"error": "actuator/action 값이 올바르지 않습니다"}, 400)
+        return self._json(self.storage.set_actuator(panel, actuator, action))
 
     # ── 판넬 이름 변경 ───────────────────────────────────────
     def _panel_name(self) -> None:

@@ -36,6 +36,8 @@ class DewCfg:
     margin_alarm: float = 1.0   # 표면 여유(°C) 위험(결로 임박)
     rh_high: float = 80.0       # 이 습도(%) 이상은 여유와 무관히 주의
     fall_warn: float = 0.4      # 여유가 분당 이만큼 좁아지면 추세 주의(예지)
+    horizon_min: float = 10.0   # 추세대로면 이 시간(분) 안에 결로 임박선에 닿을 때만 주의
+    trend_cap: float = 6.0      # 여유가 이보다 넉넉하면 추세만으로는 경보 안 함(먼 곳의 요동 무시)
 
     @classmethod
     def from_env(cls) -> "DewCfg":
@@ -80,18 +82,23 @@ def assess_dewpoint(temp, rh, surface_temp=None, history=None, cfg: DewCfg | Non
         mser.append((ts, href - htd))
     mslope = slope_per_min(mser)
 
+    # 추세 예지: 여유가 좁아지는 속도로 '결로 임박선까지 남은 시간'을 추정해 가까울 때만 경보
+    eta = (margin - cfg.margin_alarm) / -mslope if mslope < 0 else None
+    trend_hit = (mslope <= -cfg.fall_warn and margin <= cfg.trend_cap
+                 and eta is not None and eta <= cfg.horizon_min)
+
     reasons: list = []
     if margin <= cfg.margin_alarm:
         stage, action = "danger", "heater_fan"
         reasons.append(f"이슬점 여유 {round(margin,1)}°C — 결로 임박 (이슬점 {round(td,1)}°C)")
-    elif margin <= cfg.margin_warn or (rh is not None and rh >= cfg.rh_high) or (mslope <= -cfg.fall_warn):
+    elif margin <= cfg.margin_warn or (rh is not None and rh >= cfg.rh_high) or trend_hit:
         stage, action = "watch", "fan"
         if margin <= cfg.margin_warn:
             reasons.append(f"이슬점 여유 {round(margin,1)}°C 좁음")
         if rh is not None and rh >= cfg.rh_high:
             reasons.append(f"습도 {round(rh)}% 높음")
-        if mslope <= -cfg.fall_warn:
-            reasons.append(f"여유 축소 추세 {round(mslope,2)}°C/분 — 결로 예지")
+        if trend_hit:
+            reasons.append(f"여유 축소 {round(mslope,2)}°C/분 — 약 {max(1, round(eta))}분 뒤 결로 임박")
     else:
         stage, action = "normal", "none"
         reasons.append(f"정상 — 이슬점 여유 {round(margin,1)}°C")

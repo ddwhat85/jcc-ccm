@@ -25,6 +25,9 @@ def start(storage, interval: float = 10) -> None:
     healer = Healer.from_env(storage)   # 자가치유 L1(채널 자동 재시작)
     storage.healer = healer             # API에서 런타임 on/off 제어할 수 있게 노출
 
+    from .predict import Predictor
+    storage.predictor = Predictor()     # 예지보전 엔진(화재·접점발열·결로) — set_actuator에서 사용
+
     keep_readings = float(os.environ.get("JCC_KEEP_READING_DAYS") or 14)
     keep_events = float(os.environ.get("JCC_KEEP_EVENT_DAYS") or 90)
 
@@ -38,6 +41,7 @@ def start(storage, interval: float = 10) -> None:
             try:
                 storage.liveness_scan(device_timeout=dev_to, sensor_timeout=sen_to)
                 storage.health_scan(sensor_timeout=sen_to)   # 고착·드리프트·이상 감지
+                storage.predict_scan()                       # 예지보전: 화재·접점발열·결로 + 액추에이터
 
                 # 자가치유 L1: 채널 장애(침묵·고착)는 먼저 자동 재시작으로 복구를 시도한다.
                 active = storage.list_active_alarms()

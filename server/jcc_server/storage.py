@@ -152,6 +152,9 @@ class Storage:
         self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
         self._heal_at: dict = {}       # (device_id, key) -> 자동복구가 채널을 재시작한 시각
         self._heal_dev_at: dict = {}   # device_id -> 자동복구(L2)가 CCM을 재시작한 시각
+        self.predictor = None          # 예지보전 엔진(monitor가 주입) — set_actuator에서 사용
+        self._predict: dict = {}       # panel -> 최신 예지 평가(assess_panel 결과)
+        self._pred_alarm: dict = {}     # (dev,key,kind) -> 예지 경보 열림 여부(전이 추적)
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -646,7 +649,8 @@ class Storage:
 
     # ── 활성 경보 생명주기 (발생·확인·해제·상향) ────────────
     _SEVERITY = {"alarm": "crit", "silent": "crit", "anomaly": "warn",
-                 "stuck": "warn", "drift": "warn", "alarm_warn": "warn"}
+                 "stuck": "warn", "drift": "warn", "alarm_warn": "warn",
+                 "fire": "crit", "contact": "crit", "dew": "warn"}
 
     def _open_alarm(self, cur, dev, key, kind, detail, now) -> None:
         """열린(미해제) 경보가 없으면 새로 연다. (락을 쥔 호출자의 cursor를 받는다)"""
@@ -1149,6 +1153,257 @@ class Storage:
             elif et == "recovered":
                 self.clear_alarm(dev, key, "silent", "recovered", detail)
         return len(to_log)
+
+    # ── 예지보전 (화재·접점발열·결로) ──────────────────────────
+    _PRED_LABEL = {"fire": "화재 징조", "contact": "접점 발열", "dew": "결로"}
+
+    def _series(self, dev: str, key: str, n: int, despike: bool = False) -> list:
+        """(ts, value) 시계열 — slope 계산용(값 없는 표본 제외).
+
+        despike=True면 인과 3점 이동중앙값을 씌운다: 단발 튐 1개가 최소제곱 기울기와
+        기준선을 크게 비트는 것을 막는다(이력이 짧은 기동 직후에 특히 중요, 지연 약 1표본).
+        """
+        pts = [(p["ts"], p["value"]) for p in self.history(dev, key, n)
+               if p.get("value") is not None and p.get("ok")]
+        if not despike or len(pts) < 3:
+            return pts
+        # 창이 3개로 꽉 찬 지점부터만 낸다 — 앞의 두 점은 창이 2개라 튄 값이 그대로 새어 나온다
+        return [(pts[i][0], sorted((pts[i - 2][1], pts[i - 1][1], pts[i][1]))[1])
+                for i in range(2, len(pts))]
+
+    def _panel_inputs(self, ccms: list, now: float | None = None) -> dict:
+        """판넬의 CCM 센서들에서 예지 알고리즘 입력을 조립한다.
+
+        반환에는 각 알고리즘 경보를 걸 대표 노드(rep_*)도 담는다(노드 강조·경보 귀속).
+        """
+        # kind/key로 역할 센서 찾기
+        def find(pred):
+            for d in ccms:
+                for s in (d.get("latest") or []):
+                    if not s.get("enabled", True):
+                        continue
+                    if pred(s):
+                        return d["device_id"], s
+            return None, None
+
+        dev_h2, s_h2 = find(lambda s: s.get("kind") == "h2")
+        dev_voc, s_voc = find(lambda s: s.get("kind") == "voc")
+        dev_cur, s_cur = find(lambda s: s.get("kind") == "current")
+        dev_ct, s_ct = find(lambda s: "ncontact" in (s.get("sensor_key") or ""))
+        dev_amb, s_amb = find(lambda s: s.get("kind") == "temp" and "ncontact" not in (s.get("sensor_key") or ""))
+        dev_hum, s_hum = find(lambda s: s.get("kind") == "humidity")
+        dev_smk, s_smk = find(lambda s: s.get("kind") == "smoke")
+
+        owner = {id(s): d for d, s in ((dev_h2, s_h2), (dev_voc, s_voc), (dev_cur, s_cur), (dev_ct, s_ct),
+                                        (dev_amb, s_amb), (dev_hum, s_hum), (dev_smk, s_smk)) if s}
+        memo: dict = {}
+
+        def val(s):
+            """현재값 = 최근 '유효' 3표본의 중앙값. 센서 단발 글리치(1표본 튐)로 벤트가 열리지
+            않게 한다(지연 약 1표본). 읽기 실패가 끼어도 유효 3개를 채우도록 넉넉히 읽는다
+            — 2개만 남으면 튄 값이 중앙값으로 뽑히기 때문. 2개뿐이면 낮은 쪽(오작동 방지)."""
+            if not s:
+                return None
+            if id(s) not in memo:
+                vs = sorted(v for _, v in self._series(owner[id(s)], s["sensor_key"], 8)[-3:])
+                memo[id(s)] = (vs[0] if len(vs) == 2 else vs[len(vs) // 2]) if vs else s.get("value")
+            return memo[id(s)]
+
+        def asof(base, other, tol=30.0):
+            """base 각 시각에, 그 시각 이하에서 가장 최근의 other 값(tol초 이내)을 붙인다.
+            센서마다 읽기 실패 위치가 달라 '위치'로 짝지으면 시각이 어긋난다 → 시각으로 맞춘다."""
+            out, j = [], 0
+            for ts, _ in base:
+                while j + 1 < len(other) and other[j + 1][0] <= ts:
+                    j += 1
+                ok = other and other[j][0] <= ts and ts - other[j][0] <= tol
+                out.append(other[j][1] if ok else None)
+            return out
+
+        def ser(dev, s, n):   # 기울기·기준선용 시계열(단발 튐 제거)
+            return self._series(dev, s["sensor_key"], n, despike=True)
+
+        # 알고리즘별 준비 상태: 입력이 워밍업(표본 W개) 전이거나 끊겼으면 그 알고리즘만 보류.
+        # (판넬 전체를 막으면 센서 하나 조용해진 것 때문에 나머지 예지까지 멈춘다)
+        W = self.PREDICT_WARMUP
+        now = time.time() if now is None else now
+
+        def status(pairs):
+            ns, spans = [], []
+            for d, s in pairs:
+                if not s:
+                    continue
+                # 기울기 창(30표본)만큼 읽어 유효 표본 수·시간 폭으로 판정 — 가끔 있는 읽기
+                # 실패 1건으로 '학습 중'과 판정을 오가며 깜빡이지 않게 넉넉히 읽는다.
+                pts = self._series(d, s["sensor_key"], 30)
+                # 끊김 판정은 센서 자기 보고 주기에 맞춘다: 최근 간격 중앙값의 4배(최소 15초).
+                # 고정 60초면 몇십 초 멈춘 센서를 '학습 중'으로 잘못 부르고 옛 값으로 판정한다.
+                gaps = sorted(b[0] - a[0] for a, b in zip(pts, pts[1:]))
+                limit = max(self.PREDICT_STALE_MIN, 4 * gaps[len(gaps) // 2]) if gaps else self.PREDICT_STALE_MIN
+                if not pts or now - pts[-1][0] > limit:
+                    return "데이터 끊김 — 판정 보류(상태 유지)"
+                ns.append(len(pts))
+                spans.append(pts[-1][0] - pts[0][0])
+            if not ns:
+                return "센서 없음"
+            if min(ns) < W:
+                return f"학습 중 {min(ns)}/{W}표본"
+            # 몇 초짜리 창의 기울기는 잡음이 '분당 급상승'으로 부풀려진다 → 시간 폭도 채워야 판정
+            if min(spans) < self.PREDICT_MIN_SPAN:
+                return f"학습 중 {int(min(spans))}/{int(self.PREDICT_MIN_SPAN)}초"
+            return None
+
+        pending = {}
+        for k, pairs in (("fire", [(dev_h2, s_h2), (dev_voc, s_voc)]),
+                         ("contact", [(dev_cur, s_cur), (dev_ct, s_ct), (dev_amb, s_amb)]),
+                         ("dew", [(dev_amb, s_amb), (dev_hum, s_hum)])):
+            why = status(pairs)
+            if why:
+                pending[k] = why
+
+        def base(dev, s):
+            """기준선('평소') = 최근 30표본(지금 사건 구간)보다 이전 이력. 사건 값이 섞이면
+            중앙값이 끌려 올라가 평소대비 급등(z)이 작아진다."""
+            return [v for _, v in ser(dev, s, 150)[:-30]]
+
+        inputs: dict = {}
+        if s_h2:
+            inputs["h2"] = {"value": val(s_h2), "series": ser(dev_h2, s_h2, 30), "baseline": base(dev_h2, s_h2)}
+        if s_voc:
+            inputs["voc"] = {"value": val(s_voc), "series": ser(dev_voc, s_voc, 30), "baseline": base(dev_voc, s_voc)}
+        if s_amb:
+            inputs["temp"] = {"value": val(s_amb), "series": ser(dev_amb, s_amb, 30)}
+        inputs["smoke"] = bool(s_smk and (val(s_smk) or 0) > 0)
+
+        # 접점 발열: 전류 + 접점온도 + 함내온도. 접점온도 표본 시각을 기준으로 나머지를 시각
+        # 맞춤(as-of) — 실제 ts라 보고 주기가 2초든 10초든 분당 기울기가 맞다.
+        if s_cur and s_ct and s_amb:
+            ct_s = ser(dev_ct, s_ct, 24)
+            cur_a = asof(ct_s, ser(dev_cur, s_cur, 30))
+            amb_a = asof(ct_s, ser(dev_amb, s_amb, 30))
+            hist = [(ts, i_, t_, a_) for (ts, t_), i_, a_ in zip(ct_s, cur_a, amb_a)
+                    if i_ is not None and a_ is not None]
+            inputs["contact"] = {"current": val(s_cur), "temp": val(s_ct),
+                                 "ambient": val(s_amb), "history": hist}
+
+        # 결로: 함내 온·습도 + 표면(최냉점=함내온도와 접점온도 중 낮은 값). 습도 시각 기준 as-of.
+        if s_amb and s_hum:
+            surf = val(s_amb)
+            if s_ct and val(s_ct) is not None and (surf is None or val(s_ct) < surf):
+                surf = val(s_ct)
+            h_s = ser(dev_hum, s_hum, 24)
+            t_a = asof(h_s, ser(dev_amb, s_amb, 30))
+            dhist = [(ts, t_, rh, t_) for (ts, rh), t_ in zip(h_s, t_a) if t_ is not None]
+            inputs["dew"] = {"temp": val(s_amb), "rh": val(s_hum), "surface": surf, "history": dhist}
+
+        reps = {
+            "fire": (dev_h2, s_h2["sensor_key"] if s_h2 else ""),
+            "contact": (dev_ct, s_ct["sensor_key"] if s_ct else ""),
+            "dew": (dev_hum, s_hum["sensor_key"] if s_hum else ""),
+        }
+        # 함내온도는 화재에선 보조항(급상승 확증)일 뿐 — 끊겼으면 그 항만 빼고 가스로 판정한다
+        # (가스가 신선·정상이면 벤트를 닫는 것도 정당). 접점·결로에선 필수 입력이라 그대로 보류.
+        if "temp" in inputs and status([(dev_amb, s_amb)]) is not None:
+            inputs.pop("temp")
+        return {"inputs": inputs, "reps": reps, "pending": pending}
+
+    # 기동 직후엔 표본이 1~2개라 중앙값·기울기가 의미 없다 → 이만큼 쌓일 때까지 판정 보류
+    PREDICT_WARMUP = 6
+    PREDICT_STALE_MIN = 15.0  # '끊김' 한계의 하한(초) — 실제 한계는 max(이 값, 보고간격×4)
+    # 기울기 창이 이 시간(초)은 덮어야 판정(몇 초짜리 창의 잡음 기울기 방지). 창은 30표본이라
+    # 최단 보고주기 1초(펌웨어 하한)면 29초까지만 덮는다 → 반드시 그보다 작아야 1초 CCM도 판정된다.
+    PREDICT_MIN_SPAN = 20.0
+
+    def _pred_transition(self, dev, key, kind, on, detail, clear_detail) -> None:
+        """예지 경보를 전이(정상↔위험)로만 열고 닫는다(중복 로그 방지)."""
+        if not dev:
+            return
+        sig = (dev, key, kind)
+        prev = self._pred_alarm.get(sig, False)
+        if on and not prev:
+            self.raise_alarm(dev, key, kind, detail)
+            self._pred_alarm[sig] = True
+        elif not on and prev:
+            self.clear_alarm(dev, key, kind, kind + "_clear", clear_detail)
+            self._pred_alarm[sig] = False
+
+    def predict_scan(self, now: float | None = None) -> int:
+        """판넬마다 예지보전 엔진을 돌려 상태 저장·경보·액추에이터 이벤트를 처리한다.
+
+        monitor 루프가 주기적으로 호출한다. predictor가 없으면 아무것도 안 한다.
+        now는 테스트에서 가상 시각을 주입할 때만 쓴다(기본 = 지금).
+        """
+        pred = self.predictor
+        if pred is None:
+            return 0
+        now = time.time() if now is None else now
+        n = 0
+        for p in self.list_panels():
+            panel = p.get("panel") or ""
+            if not any(c.get("online") for c in p.get("ccms") or []):
+                continue
+            asm = self._panel_inputs(p.get("ccms") or [], now)
+            if not asm["inputs"]:
+                continue
+            pend = asm["pending"]
+            res = pred.assess_panel(panel, now, asm["inputs"], pend)
+            self._predict[panel] = res
+            reps = asm["reps"]
+            n += 1
+
+            # 경보 전이 (danger/critical = 열림). 보류 중인 알고리즘은 경보 상태를 건드리지 않는다
+            # (데이터가 끊겼다고 열려 있던 경보를 '해소'로 닫으면 안 된다).
+            f = res["fire"]
+            if "fire" not in pend:
+                self._pred_transition(*reps["fire"], "fire",
+                                      f["stage"] in ("danger", "critical"),
+                                      f"화재 징조 감지 (FRI {f['fri']}) — " + " · ".join(f["reasons"][:2]),
+                                      "화재 위험 해소 — 정상 복귀")
+            c = res["contact"]
+            if "contact" not in pend:
+                self._pred_transition(*reps["contact"], "contact",
+                                      c["stage"] == "danger",
+                                      "접점 발열 위험 — " + " · ".join(c["reasons"][:2]),
+                                      "접점 발열 정상 복귀")
+            d = res["dew"]
+            if "dew" not in pend:
+                self._pred_transition(*reps["dew"], "dew",
+                                      d["stage"] == "danger",
+                                      "결로 위험 — " + " · ".join(d["reasons"][:2]),
+                                      "결로 위험 해소")
+
+            # 액추에이터 이벤트 (조치가 발생한 주기에만)
+            rep_dev = reps["fire"][0] or ""
+            if f.get("action") == "open":
+                self.log_event(rep_dev, "", "vent_open",
+                               f"🔥 화재 징조 → 벤트 자동 개방 (FRI {f['fri']})", source="system")
+            elif f.get("action") == "close":
+                self.log_event(rep_dev, "", "vent_close", "환기 완료 → 벤트 자동 닫힘", source="system")
+            elif f.get("action") == "hold":
+                self.log_event(rep_dev, "", "vent_hold", f"극한 위험 유지 — 벤트 개방 유지 (FRI {f['fri']})", source="system")
+            da = d.get("action")
+            rep_dh = reps["dew"][0] or ""
+            if da == "heater_fan":
+                self.log_event(rep_dh, "", "dew_actuate", "결로 위험 → 히터·팬 가동", source="system")
+            elif da == "fan":
+                self.log_event(rep_dh, "", "dew_actuate", "습도 상승 → 팬 가동", source="system")
+            elif da == "off":
+                self.log_event(rep_dh, "", "dew_actuate", "결로 위험 해소 → 히터·팬 정지", source="system")
+        return n
+
+    def predict_state(self) -> list:
+        """대시보드용 최신 예지 상태(판넬별)."""
+        return [self._predict[k] for k in sorted(self._predict.keys())]
+
+    def set_actuator(self, panel: str, actuator: str, action: str) -> dict:
+        """벤트/히터/팬 수동 조작(사람 우선). predictor가 없으면 실패."""
+        if self.predictor is None:
+            return {"ok": False, "error": "예지 엔진이 준비되지 않았습니다"}
+        view = self.predictor.set_actuator(panel, actuator, action)
+        label = {"vent": "벤트", "heater": "히터", "fan": "팬"}.get(actuator, actuator)
+        act = {"open": "개방", "close": "닫힘", "on": "켜기", "off": "끄기", "auto": "자동복귀"}.get(action, action)
+        self.log_event(panel, "", "actuator", f"{label} 수동 {act}", source="user")
+        return {"ok": True, "panel": panel, "actuators": view}
 
     # ── 보존 정리 (상시 운영용) ─────────────────────────────
     def prune(self, readings_days: float = 14, events_days: float = 90) -> dict:

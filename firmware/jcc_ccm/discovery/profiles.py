@@ -72,6 +72,14 @@ PROFILES = [
         "emits": [{"key": "smoke", "name": "열연기", "unit": "", "kind": "smoke",
                    "alarm_min": 0, "alarm_max": 1}],
     },
+    {
+        "ident": "SENSIRION-VOC", "brand": "Sensirion", "product": "SGP41 VOC 가스센서",
+        "part_no": "SGP41", "manual": "휘발성 유기화합물(VOC) 지수/농도 감지. 리튬셀 오프가스·전해액 "
+                  "증발의 조기 서명. H2와 동반 상승하면 열폭주 전조. I2C, 정기 자동 보정.",
+        "emits": [{"key": "voc_ppm", "name": "VOC 농도", "unit": "ppm", "kind": "voc",
+                   # 화재 예지(FireConfig.voc)와 동일 기준: 경고 200 / 위험 1000 ppm
+                   "alarm_min": 0, "alarm_warn": 200, "alarm_max": 1000}],
+    },
 ]
 
 PROFILE_BY_IDENT = {p["ident"]: p for p in PROFILES}

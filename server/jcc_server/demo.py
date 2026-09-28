@@ -28,6 +28,8 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
         v = 12 if rng.random() > 0.1 else 340
     elif "h2" in key or kind == "h2":
         v = max(0.0, rng.gauss(0.4, 0.2))
+    elif "voc" in key or kind == "voc":
+        v = max(0.0, rng.gauss(30, 10))
     elif "current" in key or kind == "current":
         v = 18 + 4 * math.sin(t / 20) + rng.uniform(-0.5, 0.5)
     elif "smoke" in key or kind == "smoke":
@@ -41,6 +43,35 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
             if k in key or kind == k:
                 return sv
     return round(v, 2)
+
+
+def _epi_override(epi: dict, wall: float, key: str, kind: str, val=None):
+    """예지 에피소드 진행 중 특정 센서값 오버라이드(임계 도달 前 완만한 상승).
+
+    fire   : H2·VOC 동반 상승 + 함내온도 상승  → FRI↑ → 벤트 자동 개방
+    contact: 접점온도만 상승(전류는 정상)      → 잔차↑ → 접점 발열 위험
+    dew    : 습도 상승                          → 이슬점 여유 축소 → 히터·팬
+    """
+    k = epi.get("kind")
+    if not k or wall > epi.get("until", 0):
+        return None
+    prog = min(1.0, (wall - epi.get("t0", wall)) / 60.0)   # 60초에 걸쳐 상승
+    j = random.uniform(-1.0, 1.0)   # 실센서 잡음 — 고정값이면 고착 감지기가 오탐한다
+    if k == "fire":
+        if kind == "h2":
+            return round(0.5 + 17.0 * prog + 0.15 * j, 2)  # 0.5→~17.5 %LEL (경고10↑·위험25 아래)
+        if kind == "voc":
+            return round(30 + 770 * prog + 5 * j, 1)       # 30→~800 ppm (경고200↑·위험1000 아래)
+        if kind == "temp" and "ncontact" not in key:
+            # 평소값 위에 얹는다(값을 갈아끼우면 시작 순간 계단이 생겨 다른 판정이 흔들림)
+            return round((val if val is not None else 27) + 9 * prog, 2)
+    elif k == "contact":
+        if "ncontact" in key:
+            return round(27 + 24 * prog + 0.2 * j, 2)      # 접점온도만 27→~51°C → 잔차 급증
+    elif k == "dew":
+        if kind == "humidity":
+            return round(min(99.0, 55 + 40 * prog + 0.4 * j), 1)   # 55→~95 %RH → 이슬점 여유 축소
+    return None
 
 
 def _inventory(storage) -> list[dict]:
@@ -77,12 +108,24 @@ def _loop(storage, interval: float) -> None:
     # 임계값 아래에서 평소보다 높은 이상 수준(각 센서 알람 기준 아래로 잡음)
     # 경고 기준보다는 낮지만 평소보다 확실히 높은 값 → 베이스라인 이상탐지가 잡는 구간
     ANOM = {"h2": 6, "current": 22, "vibration": 2.2, "temp": 36, "humidity": 66}
+    # 예지보전 에피소드: 드물게 화재징조/접점발열/결로가 임계 前에 서서히 진행 →
+    # 엔진이 벤트/히터·팬을 자동 작동. 하나씩만 진행하고 끝나면 정상 복귀(복구 시연).
+    epi = {"kind": None, "t0": 0.0, "until": 0.0}
+    EPI_DUR = 90.0
 
     # 2) 이후 주기적으로 각 CCM이 자기 센서값을 올리는 것처럼 저장한다.
     #    구성을 매번 다시 읽어, 나중에 CCM이 추가·삭제돼도 자동으로 따라간다.
     while True:
         t = time.time() - t0
         wall = time.time()
+        # 예지 에피소드 스케줄(판넬 공통): 하나 끝나면 쿨다운, 유휴면 드물게 새로 시작.
+        if epi["kind"] and wall > epi["until"]:
+            epi["kind"] = None
+            epi["until"] = wall + 60          # 60초 쿨다운(정상 복귀·벤트 닫힘 시연 여유)
+        elif not epi["kind"] and wall > epi["until"] and random.random() < 0.02:
+            epi["kind"] = random.choice(["fire", "contact", "dew"])
+            epi["t0"] = wall
+            epi["until"] = wall + EPI_DUR
         ccms = _inventory(storage)
         for c in ccms:
             dev = c["device_id"]
@@ -96,7 +139,7 @@ def _loop(storage, interval: float) -> None:
             # 침묵으로 잡고, 자가치유 L2가 CCM을 재시작해 복구한다.
             if wall < ccm_drop.get(dev, 0):
                 continue
-            if rng.random() < 0.004:
+            if rng.random() < 0.0015:   # CCM마다 드물게(4대 합쳐 몇 분에 한 번꼴)
                 ccm_drop[dev] = wall + 120
                 continue
             panel, panel_name, site = c["panel"], c["panel_name"], c["site"]
@@ -113,13 +156,19 @@ def _loop(storage, interval: float) -> None:
                 # 가끔 한 센서가 한동안 침묵(케이블 탈락·센서 사망 시연) → watchdog가 잡는다.
                 if wall < drop_until.get(sk, 0):
                     continue
-                if rng.random() < 0.012:
+                # 드물게(판넬 전체로 1~2분에 한 번꼴). 너무 잦으면 예지 입력이 자주 끊겨
+                # 예지 카드가 '데이터 끊김'으로 대기하는 시간이 길어진다.
+                if rng.random() < 0.004:
                     drop_until[sk] = wall + 70   # 약 70초 침묵 시작
                     continue
-                val = _value(key, s.get("kind", ""), t, rng)
                 kind = s.get("kind", "")
+                val = _value(key, kind, t, rng)
+                ov = _epi_override(epi, wall, key, kind, val)
+                # 예지 에피소드 진행 중이면 해당 센서값을 서서히 끌어올린다(임계 前 상승).
+                if ov is not None:
+                    val = ov
                 # 고착: 같은 값만 반복(살아는 있어도 못 믿는 상태)
-                if wall < stuck_until.get(sk, 0):
+                elif wall < stuck_until.get(sk, 0):
                     val = stuck_val[sk]
                 # 이상 구간: 평소보다 높지만 임계 아래(작은 잡음 유지 → 고착 아닌 이상으로 감지)
                 elif wall < anom_until.get(sk, 0):

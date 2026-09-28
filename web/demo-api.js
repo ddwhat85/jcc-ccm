@@ -60,13 +60,19 @@
       manual: "열+연기 복합 감지. 접점 출력. 천장부 설치. 정기 청소·시험.",
       emits: [{ key: "smoke", name: "열연기", unit: "", kind: "smoke", alarm_min: 0, alarm_max: 1 }],
     },
+    "SENSIRION-VOC": {
+      brand: "Sensirion", product: "SGP41 VOC 가스센서", part_no: "SGP41", photo: "",
+      manual: "휘발성 유기화합물(VOC) 감지. 리튬셀 오프가스·전해액 증발의 조기 서명. " +
+              "H2와 동반 상승하면 열폭주 전조. I2C, 정기 자동 보정.",
+      emits: [{ key: "voc_ppm", name: "VOC 농도", unit: "ppm", kind: "voc", alarm_min: 0, alarm_warn: 200, alarm_max: 1000 }],
+    },
   };
   const CCM_PHOTO = "img/turck-ccm50.png";
   const LABEL = {
     "TURCK-CCM-AMBIENT": "내장 온습도", "TURCK-CCM-DOOR": "내장 거리센서",
     "BANNER-QM30VT": "Banner QM30VT", "BANNER-CT20A": "Banner CT20A",
     "BANNER-S15S-T": "Banner S15S-T", "INFRASENSING-H2": "InfraSensing H2",
-    "ONOFF-HSD200": "온오프 HSD200",
+    "ONOFF-HSD200": "온오프 HSD200", "SENSIRION-VOC": "Sensirion VOC",
   };
 
   // 스마트 판넬 1개 = CCM 4대 (scanner.py의 _SIM_PANEL과 동일)
@@ -74,7 +80,8 @@
     panel: "panel-01", panel_name: "스마트 판넬", site: "인터배터리 데모",
     ccms: [
       { device_id: "ccm-2661", bus: [
-        { ident: "INFRASENSING-H2", address: 1 }, { ident: "BANNER-CT20A", address: 2 },
+        { ident: "INFRASENSING-H2", address: 1 }, { ident: "SENSIRION-VOC", address: 7 },
+        { ident: "BANNER-CT20A", address: 2 },
         { ident: "UNKNOWN", address: 5, probe: 41.5 }] },
       { device_id: "ccm-2662", bus: [
         { ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true }] },
@@ -99,7 +106,8 @@
     liveState: {},    // 키 -> up|down|stuck|drift|anomaly
     seq: 1, t0: Date.now() / 1000, started: false,
   };
-  const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn" };
+  const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn",
+                fire: "crit", contact: "crit", dew: "warn" };
   const now = () => Date.now() / 1000;
   const K = (d, k) => d + ":" + k;
 
@@ -174,6 +182,27 @@
   const SPIKE = { h2: 28, current: 33, vibration: 5.2, temp: 47, humidity: 88 };
   const ANOM = { h2: 6, current: 22, vibration: 2.2, temp: 36, humidity: 66 };
   const drop = {}, stuckU = {}, stuckV = {}, anomU = {}, anomB = {}, ccmDrop = {};
+
+  // ── 예지보전 에피소드 (demo.py 미러) ────────────────────────────────────────
+  // 드물게 화재징조/접점발열/결로가 임계 前에 서서히 진행 → 엔진이 벤트/히터·팬 자동 작동.
+  let EPI = { kind: null, t0: 0, until: 0 };
+  const EPI_DUR = 90;
+  function epiOverride(wall, key, kind, val) {
+    const k = EPI.kind;
+    if (!k || wall > EPI.until) return null;
+    const prog = Math.min(1, (wall - EPI.t0) / 60);          // 60초에 걸쳐 상승
+    const j = (rnd() - 0.5) * 2;                             // 실센서 잡음(고정값이면 고착 오탐)
+    if (k === "fire") {
+      if (kind === "h2") return Math.round((0.5 + 17 * prog + 0.15 * j) * 100) / 100;  // 0.5→~17.5 %LEL
+      if (kind === "voc") return Math.round((30 + 770 * prog + 5 * j) * 10) / 10;       // 30→~800 ppm
+      if (kind === "temp" && !key.includes("ncontact")) return Math.round(((val != null ? val : 27) + 9 * prog) * 100) / 100;  // 평소값 위에 얹음(계단 방지)
+    } else if (k === "contact") {
+      if (key.includes("ncontact")) return Math.round((27 + 24 * prog + 0.2 * j) * 100) / 100;  // 접점온도만 상승
+    } else if (k === "dew") {
+      if (kind === "humidity") return Math.round(Math.min(99, 55 + 40 * prog + 0.4 * j) * 10) / 10;  // 55→~95 %RH
+    }
+    return null;
+  }
 
   // ── 자가치유 L1(채널)·L2(CCM) — server/jcc_server/heal.py 미러 ───────────────
   const HEAL = { enabled: true, l1: true, max: 2, cooldown: 60, dailyCap: 30, targets: ["silent", "stuck"],
@@ -272,6 +301,7 @@
     else if (key.includes("vibration") || kind === "vibration") v = Math.max(0, gauss(1.2, 0.4));
     else if (key.includes("door") || kind === "door") v = rnd() > 0.1 ? 12 : 340;
     else if (key.includes("h2") || kind === "h2") v = Math.max(0, gauss(0.4, 0.2));
+    else if (key.includes("voc") || kind === "voc") v = Math.max(0, gauss(30, 10));
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
     else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
     else v = Math.max(0, gauss(40, 3));
@@ -291,13 +321,19 @@
   function tickFeed() {
     if (!S.started) return;
     const t = now() - S.t0, wall = now();
+    // 예지 에피소드 스케줄: 하나 끝나면 쿨다운, 유휴면 드물게 새로 시작.
+    if (EPI.kind && wall > EPI.until) { EPI.kind = null; EPI.until = wall + 60; }
+    else if (!EPI.kind && wall > EPI.until && rnd() < 0.02) {
+      EPI.kind = ["fire", "contact", "dew"][Math.floor(rnd() * 3)];
+      EPI.t0 = wall; EPI.until = wall + EPI_DUR;
+    }
     for (const dev in S.discovered) {
       if (S.poweredOff[dev]) continue;      // 전원 꺼진 CCM은 아무 값도 안 올린다
       // L2 자가치유가 이 CCM을 재시작했으면 침묵 구간 해제(재시작이 두절을 고침)
       if (healDevAt[dev]) { delete healDevAt[dev]; delete ccmDrop[dev]; }
       // 드물게 CCM 전체가 한동안 침묵(게이트웨이 두절) → watchdog가 CCM 침묵으로 잡고 L2가 복구
       if (wall < (ccmDrop[dev] || 0)) continue;
-      if (rnd() < 0.004) { ccmDrop[dev] = wall + 120; continue; }
+      if (rnd() < 0.0015) { ccmDrop[dev] = wall + 120; continue; }   // CCM마다 드물게(4대 합쳐 몇 분에 한 번꼴)
       let sent = 0;
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;
@@ -305,9 +341,11 @@
         // 자가치유(L1)가 이 채널을 재시작했으면 진행 중이던 일시 장애(침묵·고착·이상)를 해제
         if (healAt[sk]) { delete healAt[sk]; delete drop[sk]; delete stuckU[sk]; delete anomU[sk]; }
         if (wall < (drop[sk] || 0)) continue;                 // 침묵 구간
-        if (rnd() < 0.012) { drop[sk] = wall + 70; continue; } // 침묵 시작
+        if (rnd() < 0.004) { drop[sk] = wall + 70; continue; } // 침묵 시작(드물게 — 잦으면 예지 입력이 자주 끊김)
         let val = genValue(s.key, s.kind, t);
-        if (wall < (stuckU[sk] || 0)) val = stuckV[sk];        // 고착
+        const ov = epiOverride(wall, s.key, s.kind, val);      // 예지 에피소드 오버라이드(임계 前 상승)
+        if (ov != null) val = ov;
+        else if (wall < (stuckU[sk] || 0)) val = stuckV[sk];        // 고착
         else if (wall < (anomU[sk] || 0)) val = Math.round(anomB[sk] * (1 + (rnd() - 0.5) * 0.06) * 100) / 100;
         else if (rnd() < 0.008) {
           for (const k in ANOM) if (s.key.includes(k) || s.kind === k) { anomU[sk] = wall + 40; anomB[sk] = ANOM[k]; val = ANOM[k]; break; }
@@ -440,6 +478,316 @@
       a.escalated_at = t;
       logEvent(a.device_id, a.sensor_key, "escalate", `미확인 경보 상향: ${a.detail}`);
     });
+  }
+
+  // ── 예지보전 엔진 (server/jcc_server/{fire_risk,contact_heat,dewpoint,predict}.py 미러) ──
+  function ramp(x, lo, hi) { if (hi <= lo) return x >= hi ? 1 : 0; if (x <= lo) return 0; if (x >= hi) return 1; return (x - lo) / (hi - lo); }
+  function clamp01(x) { return x < 0 ? 0 : (x > 1 ? 1 : x); }
+  // 최소제곱 기울기(분당). 시각을 평균 중심으로 옮겨 계산한다 — 에포크 초(≈1.8e9)를 그대로
+  // 제곱합하면 부동소수점 상쇄로 기울기가 0으로 뭉개진다(fire_risk.slope_per_min과 동일 방식).
+  function slopePerMin(series) {
+    const pts = series.filter(p => p[1] != null); const n = pts.length;
+    if (n < 2) return 0;
+    const t0 = pts[0][0], xs = pts.map(p => p[0] - t0), ys = pts.map(p => p[1]);
+    const mx = xs.reduce((a, c) => a + c, 0) / n, my = ys.reduce((a, c) => a + c, 0) / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) { num += (xs[i] - mx) * (ys[i] - my); den += (xs[i] - mx) * (xs[i] - mx); }
+    if (den <= 1e-9) return 0;
+    return (num / den) * 60;
+  }
+  function robustZ(value, baseline) {
+    const vals = baseline.filter(v => v != null); if (vals.length < 6 || value == null) return 0;
+    // 참 중앙값(짝수면 가운데 둘의 평균) — fire_risk.robust_z와 동일
+    const median = a => { const s = a.slice().sort((p, q) => p - q), m = s.length;
+      return m % 2 ? s[(m - 1) / 2] : (s[m / 2 - 1] + s[m / 2]) / 2; };
+    const med = median(vals), mad = median(vals.map(v => Math.abs(v - med)));
+    let sigma = mad > 1e-9 ? 1.4826 * mad : 0;
+    if (!sigma) { const m = vals.reduce((a, c) => a + c, 0) / vals.length; sigma = Math.sqrt(vals.reduce((a, c) => a + (c - m) * (c - m), 0) / vals.length); }
+    if (sigma <= 1e-9) return 0; return (value - med) / sigma;
+  }
+  const FCFG = { h2: { warn: 10, alarm: 25, rw: 3, ra: 10 }, voc: { warn: 200, alarm: 1000, rw: 100, ra: 400 },
+    tRw: 1, tRa: 5, wH2: 0.38, wVoc: 0.38, wTemp: 0.10, co: 0.20, conf: 0.15, zLo: 3, zHi: 6,
+    openFri: 55, closeFri: 20, critFri: 80, watchFri: 30 };
+  function gasScore(value, series, baseline, g) {
+    const lvl = ramp(value == null ? 0 : value, g.warn, g.alarm);
+    const sp = slopePerMin(series || []), rise = ramp(sp, g.rw, g.ra);
+    const z = robustZ(value, baseline || []), anom = ramp(z, FCFG.zLo, FCFG.zHi);
+    return { g: Math.max(lvl, rise, anom), lvl, sp, rise, z, anom };
+  }
+  function assessFire(sig) {
+    const h2 = sig.h2 || {}, voc = sig.voc || {}, temp = sig.temp || {};
+    const smoke = !!sig.smoke, curAb = !!sig.current_abnormal;
+    const H = gasScore(h2.value, h2.series, h2.baseline, FCFG.h2);
+    const V = gasScore(voc.value, voc.series, voc.baseline, FCFG.voc);
+    const tsp = slopePerMin(temp.series || []), tTerm = ramp(tsp, FCFG.tRw, FCFG.tRa);
+    const co = (H.g >= 0.3 && V.g >= 0.3) ? FCFG.co * Math.min(H.g, V.g) : 0;
+    const conf = (smoke || curAb) ? FCFG.conf : 0;
+    let fri = 100 * clamp01(FCFG.wH2 * H.g + FCFG.wVoc * V.g + co + FCFG.wTemp * tTerm + conf);
+    const h2v = h2.value, vocv = voc.value;
+    if ((h2v != null && h2v >= FCFG.h2.alarm) || (vocv != null && vocv >= FCFG.voc.alarm)) fri = Math.max(fri, FCFG.critFri);
+    if (smoke) fri = Math.max(fri, 85);
+    const bothStrong = H.g >= 0.5 && V.g >= 0.5;
+    let stage;
+    if (fri >= FCFG.critFri || smoke || (h2v != null && h2v >= FCFG.h2.alarm && vocv != null && vocv >= FCFG.voc.alarm)) stage = "critical";
+    else if (fri >= FCFG.openFri || bothStrong) stage = "danger";
+    else if (fri >= FCFG.watchFri) stage = "watch";
+    else stage = "normal";
+    const R = [];
+    if (H.rise > 0.3) R.push(`H2 상승 ${Math.round(H.sp * 100) / 100}%LEL/분`);
+    if (H.anom > 0.3) R.push(`H2 평소대비 급등 z=${Math.round(H.z * 100) / 100}`);
+    if (H.lvl > 0.3) R.push(`H2 ${h2v}%LEL(경고선 접근)`);
+    if (V.rise > 0.3) R.push(`VOC 상승 ${Math.round(V.sp * 100) / 100}ppm/분`);
+    if (V.anom > 0.3) R.push(`VOC 평소대비 급등 z=${Math.round(V.z * 100) / 100}`);
+    if (V.lvl > 0.3) R.push(`VOC ${vocv}ppm(경고선 접근)`);
+    if (co > 0) R.push("H2·VOC 동반 상승 — 열폭주 서명");
+    if (tTerm > 0.3) R.push(`온도 급상승 ${Math.round(tsp * 10) / 10}°C/분`);
+    if (smoke) R.push("열연기 감지");
+    if (curAb) R.push("전류 이상");
+    if (!R.length) R.push("정상 범위");
+    return { fri: Math.round(fri * 10) / 10, stage, reasons: R };
+  }
+  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1 };
+  function fitK(samples) {
+    let num = 0, den = 0;
+    for (const [ts, I, T, Ta] of samples) { if (I == null || T == null || Ta == null || I < CCFG.iMin) continue; const x = I * I; num += x * (T - Ta); den += x * x; }
+    if (den <= 1e-9) return CCFG.kDef; return Math.min(CCFG.kMax, Math.max(CCFG.kMin, num / den));
+  }
+  function assessContact(cur, temp, amb, hist) {
+    const k = fitK(hist || []);
+    const dt = (temp != null && amb != null) ? temp - amb : 0;
+    const exp = k * (cur || 0) * (cur || 0), res = dt - exp;
+    const rser = [];
+    for (const [ts, I, T, Ta] of (hist || [])) { if (I == null || T == null || Ta == null || I < CCFG.iMin) continue; rser.push([ts, (T - Ta) - k * I * I]); }
+    const rslope = slopePerMin(rser);
+    let stage; const R = [];
+    if (temp != null && temp >= CCFG.tAbs) { stage = "danger"; R.push(`접점 온도 ${Math.round(temp * 10) / 10}°C — 절대 위험`); }
+    else if ((cur || 0) < CCFG.iMin) { stage = "normal"; R.push("부하 낮음 — 발열 판정 보류"); }
+    else if (res >= CCFG.resAlarm) { stage = "danger"; R.push(`전류 대비 초과발열 +${Math.round(res * 10) / 10}°C — 접촉저항 급증 의심`); }
+    else if (res >= CCFG.resWarn || rslope >= CCFG.riseWarn) { stage = "watch"; if (res >= CCFG.resWarn) R.push(`전류 대비 발열 +${Math.round(res * 10) / 10}°C`); if (rslope >= CCFG.riseWarn) R.push(`발열 추세 상승 ${Math.round(rslope * 100) / 100}°C/분`); }
+    else { stage = "normal"; R.push("정상 — 전류 대비 발열 정상"); }
+    return { stage, delta_t: Math.round(dt * 10) / 10, expected: Math.round(exp * 10) / 10, residual: Math.round(res * 10) / 10, residual_slope: Math.round(rslope * 100) / 100, k: Math.round(k * 1e4) / 1e4, reasons: R };
+  }
+  const DCFG = { marginWarn: 3, marginAlarm: 1, rhHigh: 80, fallWarn: 0.4, horizonMin: 10, trendCap: 6 };
+  function dewPoint(t, rh) { if (t == null || rh == null || rh <= 0) return null; rh = Math.max(1, Math.min(100, rh)); const a = 17.62, b = 243.12; const g = Math.log(rh / 100) + a * t / (b + t); return b * g / (a - g); }
+  function assessDew(temp, rh, surface, hist) {
+    const td = dewPoint(temp, rh);
+    if (td == null) return { stage: "normal", dew_point: null, margin: null, margin_slope: 0, rh: rh || 0, action: "none", reasons: ["데이터 부족"] };
+    const ref = surface != null ? surface : temp, margin = ref - td;
+    const mser = [];
+    for (const [ts, ht, hrh, hs] of (hist || [])) { const htd = dewPoint(ht, hrh); if (htd == null) continue; const href = hs != null ? hs : ht; mser.push([ts, href - htd]); }
+    const mslope = slopePerMin(mser);
+    // 추세 예지: 결로 임박선까지 남은 시간(분)이 가까울 때만 (dewpoint.py와 동일)
+    const eta = mslope < 0 ? (margin - DCFG.marginAlarm) / -mslope : null;
+    const trendHit = mslope <= -DCFG.fallWarn && margin <= DCFG.trendCap && eta != null && eta <= DCFG.horizonMin;
+    let stage, action; const R = [];
+    if (margin <= DCFG.marginAlarm) { stage = "danger"; action = "heater_fan"; R.push(`이슬점 여유 ${Math.round(margin * 10) / 10}°C — 결로 임박 (이슬점 ${Math.round(td * 10) / 10}°C)`); }
+    else if (margin <= DCFG.marginWarn || (rh != null && rh >= DCFG.rhHigh) || trendHit) { stage = "watch"; action = "fan"; if (margin <= DCFG.marginWarn) R.push(`이슬점 여유 ${Math.round(margin * 10) / 10}°C 좁음`); if (rh != null && rh >= DCFG.rhHigh) R.push(`습도 ${Math.round(rh)}% 높음`); if (trendHit) R.push(`여유 축소 ${Math.round(mslope * 100) / 100}°C/분 — 약 ${Math.max(1, Math.round(eta))}분 뒤 결로 임박`); }
+    else { stage = "normal"; action = "none"; R.push(`정상 — 이슬점 여유 ${Math.round(margin * 10) / 10}°C`); }
+    return { stage, dew_point: Math.round(td * 10) / 10, margin: Math.round(margin * 10) / 10, margin_slope: Math.round(mslope * 100) / 100, rh: Math.round((rh || 0) * 10) / 10, action, reasons: R };
+  }
+
+  // ── 판넬 상태·컨트롤러 (predict.Predictor 미러) ──
+  const PRED = { autovent: true, panels: {} };
+  const predAlarmState = {};
+  function predState(panel) {
+    let s = PRED.panels[panel];
+    if (!s) s = PRED.panels[panel] = { ventOpen: false, ventManual: false, ventBelow: null,
+      heater: false, fan: false, dewManual: false, dewCalm: null, last: null };
+    return s;
+  }
+  function ventStep(s, fri, stage, t) {
+    if (s.ventManual) return null;
+    if (stage === "danger" || stage === "critical") { s.ventBelow = null; if (!s.ventOpen) { s.ventOpen = true; return "open"; } return stage === "critical" ? "hold" : null; }
+    if (s.ventOpen) { if (fri < FCFG.closeFri) { if (s.ventBelow == null) s.ventBelow = t; else if (t - s.ventBelow >= 60) { s.ventOpen = false; s.ventBelow = null; return "close"; } } else s.ventBelow = null; }
+    return null;
+  }
+  function dewStep(s, stage, t) {
+    if (s.dewManual) return null;
+    if (stage === "danger") { s.dewCalm = null; if (!(s.heater && s.fan)) { s.heater = true; s.fan = true; return "heater_fan"; } return null; }
+    if (stage === "watch") { s.dewCalm = null; if (!s.fan) { s.fan = true; return "fan"; } return null; }
+    if (s.heater || s.fan) { if (s.dewCalm == null) s.dewCalm = t; else if (t - s.dewCalm >= 60) { s.heater = false; s.fan = false; s.dewCalm = null; return "off"; } }
+    return null;
+  }
+  function seriesOf(dev, key, n) {
+    return (S.readings[K(dev, key)] || []).slice(-n).filter(p => p.ok && p.value != null).map(p => [p.ts, p.value]);
+  }
+  // 기울기·기준선용: 인과 3점 이동중앙값(단발 튐 제거 — storage._series(despike=True)와 동일)
+  const PREDICT_WARMUP = 6, PREDICT_STALE_MIN = 15, PREDICT_MIN_SPAN = 20;   // storage.PREDICT_*와 동일
+  function seriesF(dev, key, n) {
+    const pts = seriesOf(dev, key, n);
+    if (pts.length < 3) return pts;
+    // 창이 3개로 꽉 찬 지점부터만(앞 두 점은 창이 2개라 튄 값이 새어 나옴)
+    const out = [];
+    for (let i = 2; i < pts.length; i++) out.push([pts[i][0], [pts[i - 2][1], pts[i - 1][1], pts[i][1]].sort((a, b) => a - b)[1]]);
+    return out;
+  }
+  // base 각 시각에, 그 시각 이하에서 가장 최근의 other 값(tol초 이내) — 위치 대신 시각으로 짝짓기
+  function asof(base, other, tol) {
+    tol = tol || 30; const out = []; let j = 0;
+    for (const [ts] of base) {
+      while (j + 1 < other.length && other[j + 1][0] <= ts) j++;
+      const ok = other.length && other[j][0] <= ts && ts - other[j][0] <= tol;
+      out.push(ok ? other[j][1] : null);
+    }
+    return out;
+  }
+  function findSensor(pred) {
+    for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      if (s.enabled && pred(s)) return [dev, s];
+    }
+    return [null, null];
+  }
+  function panelInputs() {
+    const [dH2, sH2] = findSensor(s => s.kind === "h2");
+    const [dVoc, sVoc] = findSensor(s => s.kind === "voc");
+    const [dCur, sCur] = findSensor(s => s.kind === "current");
+    const [dCt, sCt] = findSensor(s => (s.key || "").includes("ncontact"));
+    const [dAmb, sAmb] = findSensor(s => s.kind === "temp" && !(s.key || "").includes("ncontact"));
+    const [dHum, sHum] = findSensor(s => s.kind === "humidity");
+    const [dSmk, sSmk] = findSensor(s => s.kind === "smoke");
+    // 현재값 = 최근 3표본 중앙값(단발 글리치로 벤트가 열리지 않게 — storage._panel_inputs와 동일)
+    // 읽기 실패가 끼어도 '유효' 3표본을 채우도록 넉넉히 읽는다(2개면 튄 값이 중앙값으로 뽑힘 → 낮은 쪽)
+    const lv = (dev, s) => {
+      const v = seriesOf(dev, s.key, 8).slice(-3).map(p => p[1]).sort((a, b) => a - b);
+      if (v.length) return v.length === 2 ? v[0] : v[Math.floor(v.length / 2)];
+      const a = S.readings[K(dev, s.key)] || []; return a.length ? a[a.length - 1].value : null;
+    };
+    const inputs = {};
+    // 기준선('평소')은 최근 30표본(지금 사건 구간)보다 이전 이력 — 사건이 기준선을 오염시키면 z가 줄어든다
+    const base = (d, s) => seriesF(d, s.key, 150).slice(0, -30).map(p => p[1]);
+    if (sH2) inputs.h2 = { value: lv(dH2, sH2), series: seriesF(dH2, sH2.key, 30), baseline: base(dH2, sH2) };
+    if (sVoc) inputs.voc = { value: lv(dVoc, sVoc), series: seriesF(dVoc, sVoc.key, 30), baseline: base(dVoc, sVoc) };
+    if (sAmb) inputs.temp = { value: lv(dAmb, sAmb), series: seriesF(dAmb, sAmb.key, 30) };
+    inputs.smoke = !!(sSmk && (lv(dSmk, sSmk) || 0) > 0);
+    if (sCur && sCt && sAmb) {   // 접점온도 시각 기준 as-of 짝짓기(실제 ts → 분당 기울기 정확)
+      const tS = seriesF(dCt, sCt.key, 24);
+      const cA = asof(tS, seriesF(dCur, sCur.key, 30)), aA = asof(tS, seriesF(dAmb, sAmb.key, 30)), h = [];
+      tS.forEach(([ts, T], i) => { if (cA[i] != null && aA[i] != null) h.push([ts, cA[i], T, aA[i]]); });
+      inputs.contact = { current: lv(dCur, sCur), temp: lv(dCt, sCt), ambient: lv(dAmb, sAmb), history: h };
+    }
+    if (sAmb && sHum) {           // 습도 시각 기준 as-of
+      let surf = lv(dAmb, sAmb); const ct = sCt ? lv(dCt, sCt) : null;
+      if (ct != null && (surf == null || ct < surf)) surf = ct;
+      const hS = seriesF(dHum, sHum.key, 24), tA = asof(hS, seriesF(dAmb, sAmb.key, 30)), h = [];
+      hS.forEach(([ts, rh], i) => { if (tA[i] != null) h.push([ts, tA[i], rh, tA[i]]); });
+      inputs.dew = { temp: lv(dAmb, sAmb), rh: lv(dHum, sHum), surface: surf, history: h };
+    }
+    const reps = {
+      fire: [dH2, sH2 ? sH2.key : ""],
+      contact: [dCt, sCt ? sCt.key : ""],
+      dew: [dHum, sHum ? sHum.key : ""],
+    };
+    // 알고리즘별 준비 상태: 워밍업 전이거나 끊긴 입력이 있으면 그 알고리즘만 보류
+    const t = now();
+    const status = pairs => {
+      const ns = [], spans = [];
+      for (const [d, s] of pairs) {
+        if (!s) continue;
+        const pts = seriesOf(d, s.key, 30);   // 기울기 창만큼 — 유효 표본 수·시간 폭으로 판정
+        // 끊김 한계 = max(15초, 보고간격 중앙값×4) — 센서 자기 주기에 맞춤(storage와 동일)
+        const gaps = pts.slice(1).map((p, i) => p[0] - pts[i][0]).sort((a, b) => a - b);
+        const limit = gaps.length ? Math.max(PREDICT_STALE_MIN, 4 * gaps[Math.floor(gaps.length / 2)]) : PREDICT_STALE_MIN;
+        if (!pts.length || t - pts[pts.length - 1][0] > limit) return "데이터 끊김 — 판정 보류(상태 유지)";
+        ns.push(pts.length); spans.push(pts[pts.length - 1][0] - pts[0][0]);
+      }
+      if (!ns.length) return "센서 없음";
+      const m = Math.min.apply(null, ns);
+      if (m < PREDICT_WARMUP) return `학습 중 ${m}/${PREDICT_WARMUP}표본`;
+      const sp = Math.min.apply(null, spans);   // 짧은 창의 기울기는 잡음이 '분당 급상승'으로 부풀려짐
+      return sp < PREDICT_MIN_SPAN ? `학습 중 ${Math.floor(sp)}/${PREDICT_MIN_SPAN}초` : null;
+    };
+    const pending = {};
+    [["fire", [[dH2, sH2], [dVoc, sVoc]]],
+     ["contact", [[dCur, sCur], [dCt, sCt], [dAmb, sAmb]]],
+     ["dew", [[dAmb, sAmb], [dHum, sHum]]]].forEach(([k, pr]) => { const w = status(pr); if (w) pending[k] = w; });
+    // 함내온도는 화재에선 보조항 — 끊겼으면 그 항만 빼고 가스로 판정(storage와 동일)
+    if (inputs.temp && status([[dAmb, sAmb]]) !== null) delete inputs.temp;
+    return { inputs, reps, pending };
+  }
+  function predAlarmTransition(dev, key, kind, on, detail, clearDetail) {
+    if (!dev) return;
+    const sk = dev + ":" + key + ":" + kind, prev = predAlarmState[sk] || false;
+    if (on && !prev) { openAlarm(dev, key, kind, detail); logEvent(dev, key, kind, detail, "system"); predAlarmState[sk] = true; }
+    else if (!on && prev) { closeAlarm(dev, key, kind); logEvent(dev, key, kind + "_clear", clearDetail, "system"); predAlarmState[sk] = false; }
+  }
+  function actView(s) {
+    return { vent: { open: s.ventOpen, mode: s.ventManual ? "manual" : "auto" },
+      heater: { on: s.heater, mode: s.dewManual ? "manual" : "auto" },
+      fan: { on: s.fan, mode: s.dewManual ? "manual" : "auto" } };
+  }
+  function tickPredict() {
+    if (!S.started) return;
+    const t = now();
+    const online = Object.keys(S.discovered).some(dev => !S.poweredOff[dev] && S.lastSeen[dev] && (t - S.lastSeen[dev]) < 60);
+    if (!online) return;
+    const { inputs, reps, pending } = panelInputs();
+    if (!Object.keys(inputs).length) return;
+    const s = predState("panel-01");
+
+    const c = inputs.contact || {};
+    const contact = assessContact(c.current, c.temp, c.ambient, c.history || []);
+    const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, temp: inputs.temp || {},
+      smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
+    const fire = assessFire(sig);
+    // 보류 중이면 액추에이터 상태 유지(안전측: 가스 데이터가 끊겼다고 열린 벤트를 닫지 않음)
+    const vAct = (PRED.autovent && !pending.fire) ? ventStep(s, fire.fri, fire.stage, t) : null;
+    const d = inputs.dew || {};
+    const dew = assessDew(d.temp, d.rh, d.surface, d.history || []);
+    const dAct = pending.dew ? null : dewStep(s, dew.stage, t);
+
+    s.last = {
+      panel: "panel-01", ts: t,
+      fire: { fri: fire.fri, stage: fire.stage, reasons: fire.reasons,
+        vent: { open: s.ventOpen, mode: s.ventManual ? "manual" : "auto" }, action: vAct, autovent: PRED.autovent },
+      contact: { stage: contact.stage, delta_t: contact.delta_t, expected: contact.expected,
+        residual: contact.residual, residual_slope: contact.residual_slope, k: contact.k, reasons: contact.reasons },
+      dew: { stage: dew.stage, dew_point: dew.dew_point, margin: dew.margin, margin_slope: dew.margin_slope,
+        rh: dew.rh, heater: s.heater, fan: s.fan, mode: s.dewManual ? "manual" : "auto", action: dAct, reasons: dew.reasons },
+    };
+    for (const k in pending) {   // 보류된 알고리즘은 숫자 대신 사유 (predict.assess_panel과 동일)
+      const o = s.last[k]; if (!o) continue;
+      o.stage = "pending"; o.reasons = [pending[k]];
+      ["fri", "residual", "margin"].forEach(f => { if (f in o) o[f] = null; });
+    }
+
+    // 보류 중인 알고리즘은 경보 상태를 건드리지 않는다(끊겼다고 '해소'로 닫지 않음)
+    if (!pending.fire) predAlarmTransition(reps.fire[0], reps.fire[1], "fire", fire.stage === "danger" || fire.stage === "critical",
+      `화재 징조 감지 (FRI ${fire.fri}) — ` + fire.reasons.slice(0, 2).join(" · "), "화재 위험 해소 — 정상 복귀");
+    if (!pending.contact) predAlarmTransition(reps.contact[0], reps.contact[1], "contact", contact.stage === "danger",
+      "접점 발열 위험 — " + contact.reasons.slice(0, 2).join(" · "), "접점 발열 정상 복귀");
+    if (!pending.dew) predAlarmTransition(reps.dew[0], reps.dew[1], "dew", dew.stage === "danger",
+      "결로 위험 — " + dew.reasons.slice(0, 2).join(" · "), "결로 위험 해소");
+
+    const rd = reps.fire[0] || "";
+    if (vAct === "open") logEvent(rd, "", "vent_open", `🔥 화재 징조 → 벤트 자동 개방 (FRI ${fire.fri})`, "system");
+    else if (vAct === "close") logEvent(rd, "", "vent_close", "환기 완료 → 벤트 자동 닫힘", "system");
+    else if (vAct === "hold") logEvent(rd, "", "vent_hold", `극한 위험 유지 — 벤트 개방 유지 (FRI ${fire.fri})`, "system");
+    const rh2 = reps.dew[0] || "";
+    if (dAct === "heater_fan") logEvent(rh2, "", "dew_actuate", "결로 위험 → 히터·팬 가동", "system");
+    else if (dAct === "fan") logEvent(rh2, "", "dew_actuate", "습도 상승 → 팬 가동", "system");
+    else if (dAct === "off") logEvent(rh2, "", "dew_actuate", "결로 위험 해소 → 히터·팬 정지", "system");
+  }
+  function predView() {
+    const s = PRED.panels["panel-01"];
+    if (!s || !s.last) return [];
+    const v = JSON.parse(JSON.stringify(s.last));   // 액추에이터 최신 상태 반영(수동 조작 즉시 표시)
+    v.fire.vent = { open: s.ventOpen, mode: s.ventManual ? "manual" : "auto" };
+    v.dew.heater = s.heater; v.dew.fan = s.fan; v.dew.mode = s.dewManual ? "manual" : "auto";
+    return [v];
+  }
+  function setActuator(panel, actuator, action) {
+    const s = predState(panel);
+    if (actuator === "vent") {
+      if (action === "auto") s.ventManual = false;
+      else if (action === "open" || action === "close") { s.ventManual = true; s.ventOpen = action === "open"; }
+    } else if (actuator === "heater" || actuator === "fan") {
+      if (action === "auto") s.dewManual = false;
+      else { if (actuator === "heater") s.heater = action === "on"; else s.fan = action === "on"; s.dewManual = true; }
+    }
+    const lab = { vent: "벤트", heater: "히터", fan: "팬" }[actuator] || actuator;
+    const act = { open: "개방", close: "닫힘", on: "켜기", off: "끄기", auto: "자동복귀" }[action] || action;
+    logEvent(panel, "", "actuator", `${lab} 수동 ${act}`, "user");
+    return { ok: true, panel, actuators: actView(s) };
   }
 
   // ── API 응답 구성 ───────────────────────────────────────────────────────
@@ -650,6 +998,7 @@
         }
         return Promise.resolve(J({ available: true, enabled: HEAL.enabled, l1_enabled: HEAL.l1, l2_enabled: HEAL.l2 }));
       }
+      if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/report") return Promise.resolve(J(buildReport(parseFloat(qs.get("days") || "7"))));
       if (p === "/api/events") {
@@ -670,6 +1019,12 @@
       }
       if (method === "POST") {
         if (p === "/api/discover") return Promise.resolve(J(runDiscover()));
+        if (p === "/api/predict/actuator") {
+          const panel = String(body.panel || ""), actuator = String(body.actuator || ""), action = String(body.action || "");
+          if (["vent", "heater", "fan"].indexOf(actuator) < 0 || ["open", "close", "on", "off", "auto"].indexOf(action) < 0)
+            return Promise.resolve(J({ error: "actuator/action 값이 올바르지 않습니다" }, 400));
+          return Promise.resolve(J(setActuator(panel, actuator, action)));
+        }
         if (p === "/api/diagnose") return Promise.resolve(J(diagnose(String(body.device_id || ""), String(body.sensor_key || ""))));
         if (p === "/api/alarm/ack") {
           const a = S.alarms.find(x => x.id === Number(body.alarm_id) && !x.cleared_at && !x.acked_at);
@@ -733,5 +1088,16 @@
   // 시뮬레이션 구동 — 탐색 전에는 아무것도 만들지 않는다(첫 화면은 빈 화면).
   setInterval(tickFeed, 2000);
   setInterval(tickMonitor, 8000);
+  setInterval(tickPredict, 4000);   // 예지보전: 화재·접점발열·결로 + 액추에이터
+  // 시연용: 콘솔에서 JCC_DEMO.episode("fire"|"contact"|"dew") 로 에피소드를 바로 시작한다.
+  window.JCC_DEMO = {
+    episode(kind) {
+      if (["fire", "contact", "dew"].indexOf(kind) < 0) return "fire | contact | dew 중 하나";
+      const w = now(); EPI.kind = kind; EPI.t0 = w; EPI.until = w + EPI_DUR;
+      return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
+    },
+    // 파이썬 코어와의 일치 검사용(server/tests/test_parity.py) — 미러가 갈라지면 테스트가 잡는다
+    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint },
+  };
   console.log("[JCC-CCM] 데모 모드: 브라우저 안에서 시뮬레이션이 돕니다 (서버 없음).");
 })();

@@ -129,6 +129,7 @@ _SIM_PANEL = {
         # 가스·전류 계통
         {"device_id": "ccm-2661", "bus": [
             {"source": "modbus",  "ident": "INFRASENSING-H2",   "address": 1},
+            {"source": "modbus",  "ident": "SENSIRION-VOC",     "address": 7},
             {"source": "modbus",  "ident": "BANNER-CT20A",      "address": 2},
             {"source": "modbus",  "ident": "UNKNOWN", "address": 5, "probe": 41.5},  # 추정 시연
         ]},
