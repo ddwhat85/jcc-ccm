@@ -898,7 +898,60 @@ class Storage:
 
     # ── 기간별 종합 리포트 (이력 트렌드) ─────────────────────
     _PROB_LABEL = {"alarm": "위험", "alarm_warn": "경고", "silent": "침묵",
-                   "stuck": "고착", "drift": "드리프트", "anomaly": "이상"}
+                   "stuck": "고착", "drift": "드리프트", "anomaly": "이상",
+                   "fire": "화재 징조", "contact": "접점 발열", "dew": "결로"}
+    PREVENT_WINDOW = 1800.0    # 화재 징조 감지 후 이 시간(초) 안에 가스가 위험선에 닿았는지 본다
+
+    def _predict_report(self, since: float, ev: dict) -> dict:
+        """예지보전 성과: 먼저 잡은 화재 징조, 위험선 도달 전에 끝난 건수, 선행 시간, 조치 횟수."""
+        with self._lock:
+            fires = self._conn.execute(
+                "SELECT ts FROM events WHERE etype='fire' AND ts >= ? ORDER BY ts", (since,)).fetchall()
+            edge_rows = self._conn.execute(
+                "SELECT detail FROM events WHERE etype='edge_actuate' AND ts >= ?", (since,)).fetchall()
+        # 가스 센서와 유효 위험선(사용자 설정 > 프로파일)
+        disc, sets = self._discovered_map(), self._settings_map()
+        gases = []
+        for dev, slist in disc.items():
+            for s in slist:
+                if s.get("kind") in ("h2", "voc"):
+                    lim = (sets.get((dev, s["sensor_key"])) or {}).get("alarm_max")
+                    lim = lim if lim is not None else s.get("alarm_max")
+                    if lim is not None:
+                        gases.append((dev, s["sensor_key"], float(lim)))
+        prevented = reached = watching = 0
+        leads = []
+        now = time.time()
+        for f in fires:
+            t0 = f["ts"]
+            first = None
+            with self._lock:
+                for dev, key, lim in gases:
+                    r = self._conn.execute(
+                        "SELECT MIN(ts) t FROM readings WHERE device_id=? AND sensor_key=? AND ts >= ? "
+                        "AND ts <= ? AND ok=1 AND value >= ?", (dev, key, t0, t0 + self.PREVENT_WINDOW, lim)).fetchone()
+                    if r and r["t"] is not None and (first is None or r["t"] < first):
+                        first = r["t"]
+            if first is None:
+                # 관찰 창(30분)이 다 지나야 '위험선 전에 끝남'이라 말할 수 있다 — 성과 과장 금지
+                if now - t0 < self.PREVENT_WINDOW:
+                    watching += 1
+                else:
+                    prevented += 1             # 위험선에 닿기 전에 끝남(선제 환기)
+            else:
+                reached += 1
+                leads.append((first - t0) / 60.0)
+        details = [r["detail"] or "" for r in edge_rows]
+        return {
+            "fire": {"detected": len(fires), "prevented": prevented, "reached": reached, "watching": watching,
+                     "lead_min_avg": round(sum(leads) / len(leads), 1) if leads else None,
+                     "vent_auto": ev.get("vent_open", 0),
+                     "vent_edge": sum(1 for d in details if "벤트 개방" in d and ("자율" in d or "fail-safe" in d)),
+                     "failsafe": sum(1 for d in details if "fail-safe" in d)},
+            "contact": {"detected": ev.get("contact", 0)},
+            "dew": {"detected": ev.get("dew", 0), "actuations": ev.get("dew_actuate", 0)},
+            "manual": ev.get("actuator", 0),
+        }
 
     def build_report(self, days: float = 7) -> dict:
         """지정 기간의 운영 리포트를 만든다.
@@ -919,7 +972,7 @@ class Storage:
                 "GROUP BY device_id, sensor_key", (since,)).fetchall()
             prob_rows = self._conn.execute(
                 "SELECT device_id, sensor_key, etype, COUNT(*) c FROM events WHERE ts >= ? "
-                "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly') "
+                "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly','fire','contact','dew') "
                 "GROUP BY device_id, sensor_key, etype", (since,)).fetchall()
             dev_rows = self._conn.execute("SELECT device_id, last_seen FROM devices").fetchall()
 
@@ -928,9 +981,9 @@ class Storage:
         name_unit = {(dev, s["sensor_key"]): (s.get("name") or s["sensor_key"], s.get("unit") or "")
                      for dev, slist in disc.items() for s in slist}
 
-        crit = ev.get("alarm", 0) + ev.get("silent", 0)
+        crit = ev.get("alarm", 0) + ev.get("silent", 0) + ev.get("fire", 0) + ev.get("contact", 0)
         warn = (ev.get("alarm_warn", 0) + ev.get("stuck", 0)
-                + ev.get("drift", 0) + ev.get("anomaly", 0))
+                + ev.get("drift", 0) + ev.get("anomaly", 0) + ev.get("dew", 0))
         l1ok, l1gu = ev.get("heal_ok", 0), ev.get("heal_giveup", 0)
         l2ok, l2gu = ev.get("heal2_ok", 0), ev.get("heal2_giveup", 0)
         auto_fixed = l1ok + l2ok
@@ -979,6 +1032,7 @@ class Storage:
                     "l2_restart": ev.get("heal2_restart", 0), "l2_ok": l2ok, "l2_giveup": l2gu,
                     "auto_fixed": auto_fixed, "success_rate": success_rate,
                 },
+                "predict": self._predict_report(since, ev),
             },
             "sensors": sensors, "problems": problems[:8],
         }

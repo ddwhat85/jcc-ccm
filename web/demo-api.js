@@ -955,7 +955,8 @@
   }
 
   // ── 기간별 종합 리포트 (storage.build_report 미러) ──────────────────────────
-  const PROB_LABEL = { alarm: "위험", alarm_warn: "경고", silent: "침묵", stuck: "고착", drift: "드리프트", anomaly: "이상" };
+  const PROB_LABEL = { alarm: "위험", alarm_warn: "경고", silent: "침묵", stuck: "고착", drift: "드리프트", anomaly: "이상",
+                       fire: "화재 징조", contact: "접점 발열", dew: "결로" };
   function buildReport(days) {
     const t = now();
     days = Math.max(1 / 24, days || 7);
@@ -996,8 +997,31 @@
         detail: Object.keys(pm).map(x => `${PROB_LABEL[x] || x} ${pm[x]}`).join(" · ") });
     }
     problems.sort((a, b) => b.count - a.count);
-    const crit = (ev.alarm || 0) + (ev.silent || 0);
-    const warn = (ev.alarm_warn || 0) + (ev.stuck || 0) + (ev.drift || 0) + (ev.anomaly || 0);
+    const crit = (ev.alarm || 0) + (ev.silent || 0) + (ev.fire || 0) + (ev.contact || 0);
+    const warn = (ev.alarm_warn || 0) + (ev.stuck || 0) + (ev.drift || 0) + (ev.anomaly || 0) + (ev.dew || 0);
+    // 예지보전 성과(storage._predict_report 미러): 화재 징조 뒤 30분 안에 가스가 위험선에 닿았는가
+    const gases = [];
+    for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      if (s.kind !== "h2" && s.kind !== "voc") continue;
+      const lim = effThresholds(dev, s.key, s)[1]; if (lim != null) gases.push([dev, s.key, lim]);
+    }
+    let prevented = 0, reached = 0, watching = 0; const leads = [];
+    for (const e of S.events) {
+      if (e.etype !== "fire" || e.ts < since) continue;
+      let first = null;
+      for (const [dev, key, lim] of gases)
+        for (const pt of (S.readings[K(dev, key)] || []))
+          if (pt.ok && pt.value != null && pt.ts >= e.ts && pt.ts <= e.ts + 1800 && pt.value >= lim && (first == null || pt.ts < first)) first = pt.ts;
+      if (first == null) { if (t - e.ts < 1800) watching++; else prevented++; }   // 30분 관찰 전엔 '관찰 중'
+      else { reached++; leads.push((first - e.ts) / 60); }
+    }
+    const predict = {
+      fire: { detected: ev.fire || 0, prevented, reached, watching,
+        lead_min_avg: leads.length ? Math.round(leads.reduce((a, c) => a + c, 0) / leads.length * 10) / 10 : null,
+        vent_auto: ev.vent_open || 0, vent_edge: 0, failsafe: 0 },
+      contact: { detected: ev.contact || 0 },
+      dew: { detected: ev.dew || 0, actuations: ev.dew_actuate || 0 },
+      manual: ev.actuator || 0 };
     const l1ok = ev.heal_ok || 0, l1gu = ev.heal_giveup || 0, l2ok = ev.heal2_ok || 0, l2gu = ev.heal2_giveup || 0;
     const autoFixed = l1ok + l2ok, resolved = l1ok + l1gu + l2ok + l2gu;
     let online = 0;
@@ -1010,7 +1034,8 @@
         acks: ev.ack || 0, escalations: ev.escalate || 0,
         heal: { l1_restart: ev.heal_restart || 0, l1_ok: l1ok, l1_giveup: l1gu,
           l2_restart: ev.heal2_restart || 0, l2_ok: l2ok, l2_giveup: l2gu,
-          auto_fixed: autoFixed, success_rate: resolved ? Math.round(100 * autoFixed / resolved) : null } },
+          auto_fixed: autoFixed, success_rate: resolved ? Math.round(100 * autoFixed / resolved) : null },
+        predict },
       sensors, problems: problems.slice(0, 8) };
   }
 

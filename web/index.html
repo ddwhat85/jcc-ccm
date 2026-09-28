@@ -596,6 +596,14 @@
   .rp-heal .rh-rate{text-align:center;flex:none}
   .rp-heal .rh-rate .n{font:700 19px var(--mono);color:var(--ok)}
   .rp-heal .rh-rate .l{font-size:10px;color:var(--ink-3)}
+  /* 예지보전 성과(먼저 잡은 사고 징조) — 자가치유 블록과 같은 구조, 강조색만 다름 */
+  .rp-pdm{background:var(--canvas);border:1px solid var(--accent);border-radius:12px;padding:14px 16px;
+          display:flex;gap:16px;align-items:flex-start;margin-bottom:14px}
+  .rp-pdm .rh-big{font:700 28px var(--mono);color:var(--accent);line-height:1;font-variant-numeric:tabular-nums;min-width:34px}
+  .rp-pdm .rh-txt{flex:1;min-width:0}
+  .rp-pdm .rh-h{font-weight:700;font-size:14px;margin-bottom:4px}
+  .rp-pdm .rh-sub{font-size:12px;color:var(--ink-2);line-height:1.55;margin-top:2px}
+  .rp-pdm .rh-sub b{color:var(--ink);font-weight:700}
   .rp-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:16px}
   .rp-card{background:var(--canvas);border:1px solid var(--rule);border-radius:9px;padding:11px 12px}
   .rp-card .n{font:700 18px var(--mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -1058,7 +1066,7 @@
     </div>
   </div>
 
-<script src="demo-api.js?v=646914c7"></script>
+<script src="demo-api.js?v=03f49c47"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -3096,7 +3104,8 @@ $("#hc-close").onclick = ()=> $("#health-overlay").classList.remove("open");
 $("#health-overlay").onclick = e=>{ if(e.target===$("#health-overlay")) $("#health-overlay").classList.remove("open"); };
 
 // ── 이력 리포트 ───────────────────────────────────────
-const PROB_KO = {alarm:"위험", alarm_warn:"경고", silent:"침묵", stuck:"고착", drift:"드리프트", anomaly:"이상"};
+const PROB_KO = {alarm:"위험", alarm_warn:"경고", silent:"침묵", stuck:"고착", drift:"드리프트", anomaly:"이상",
+                 fire:"화재 징조", contact:"접점 발열", dew:"결로"};
 let reportDays = 7;
 function ovC(n, label, cls){ return `<div class="rp-card"><div class="n ${cls||""}">${n}</div><div class="l">${escapeHtml(label)}</div></div>`; }
 function fmtNum(v){ return v==null ? "–" : (Math.round(v*100)/100); }
@@ -3124,6 +3133,26 @@ function renderReport(rep){
       (h.success_rate!=null ? `<div class="rh-rate"><div class="n">${h.success_rate}%</div><div class="l">복구 성공률</div></div>` : "")+
       `</div>`;
   }
+  // 예지보전 성과(판매 포인트) — 먼저 잡은 사고 징조. 감지가 있었을 때만
+  const pr = s.predict||{}, pf = pr.fire||{}, pc = pr.contact||{}, pd = pr.dew||{};
+  const caught = (pf.detected||0)+(pc.detected||0)+(pd.detected||0);
+  if(caught){
+    const bits = [];
+    if(pf.detected){
+      const fparts = [];
+      if(pf.prevented) fparts.push(`가스가 위험선에 닿기 전 끝남 <b>${pf.prevented}건</b>`);
+      if(pf.reached) fparts.push(`위험선 도달 ${pf.reached}건은 평균 <b>${pf.lead_min_avg}분</b> 먼저 감지`);
+      if(pf.watching) fparts.push(`최근 ${pf.watching}건은 관찰 중(감지 후 30분 경과 시 판정)`);
+      bits.push(`화재 징조 ${pf.detected}건` + (fparts.length ? " — " + fparts.join(" · ") : ""));
+      if(pf.vent_auto || pf.vent_edge)
+        bits.push(`벤트 자동 개방 ${pf.vent_auto||0}회` + (pf.vent_edge ? ` (현장 CCM 자율 ${pf.vent_edge}회${pf.failsafe?`, 센서 끊김 fail-safe ${pf.failsafe}회`:""})` : ""));
+    }
+    if(pc.detected) bits.push(`접점 발열 ${pc.detected}건 — 화염 전 단계에서 경보`);
+    if(pd.detected || pd.actuations) bits.push(`결로 위험 ${pd.detected||0}건 · 히터·팬 대응 ${pd.actuations||0}회`);
+    html += `<div class="rp-pdm"><div class="rh-big">${caught}</div>`+
+      `<div class="rh-txt"><div class="rh-h">사고 징조를 ${caught}번 먼저 잡았습니다</div>`+
+      bits.map(b=>`<div class="rh-sub">${b}</div>`).join("")+`</div></div>`;
+  }
   // 요약 카드
   html += `<div class="rp-cards">`+
     ovC(`${dev.online||0}<small>/${dev.total||0}</small>`, "온라인 CCM", "")+
@@ -3141,7 +3170,7 @@ function renderReport(rep){
       const u = se.unit ? `<span class="u">${escapeHtml(se.unit)}</span>` : "";
       const pk = Object.keys(se.problems||{});
       let badge = "";
-      if(pk.length){ const crit = se.problems.alarm||se.problems.silent;
+      if(pk.length){ const crit = se.problems.alarm||se.problems.silent||se.problems.fire||se.problems.contact;
         badge = `<span class="rp-badge ${crit?'crit':'warn'}">${pk.map(k=>PROB_KO[k]||k).join("·")}</span>`; }
       html += `<tr><td>${escapeHtml(se.name)}${badge}</td><td>${se.count}</td>`+
         `<td>${fmtNum(se.min)}${u}</td><td>${fmtNum(se.avg)}${u}</td><td>${fmtNum(se.max)}${u}</td></tr>`;

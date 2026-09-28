@@ -268,6 +268,56 @@ def run():
             pass
         os.unlink(dbp)
 
+    print("\n=== 리포트: 예지보전 성과 ===")
+    fd, db3 = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    st3 = Storage(db3)
+    try:
+        st3.set_discovery({"panel": "panel-01", "ccms": [{"device_id": "ccm-g", "sensors": [
+            {"key": "h2_lel", "name": "수소", "unit": "%LEL", "kind": "h2", "alarm_max": 25},
+            {"key": "voc_ppm", "name": "VOC", "unit": "ppm", "kind": "voc", "alarm_max": 1000}]}]})
+        now = time.time()
+        tA, tB = now - 7200, now - 3600          # 징조 A: 위험선 전 종료 / 징조 B: 10분 뒤 위험선 도달
+        rows = []
+        for i in range(30):
+            rows.append(("ccm-g", "h2_lel", "", "", 5 + i * 0.5, 1, tA + i * 60))        # 최대 19.5 < 25
+            rows.append(("ccm-g", "h2_lel", "", "", 20 + i * 0.5, 1, tB + i * 60))       # 25.0 도달 @ +10분
+        ev = [(tA, "ccm-g", "h2_lel", "fire"), (tB, "ccm-g", "h2_lel", "fire"),
+              (now - 60, "ccm-g", "h2_lel", "fire"),         # 1분 전 징조 — 아직 '끝났다'고 말할 수 없음
+              (tA + 5, "ccm-g", "", "vent_open"), (tB + 5, "ccm-g", "", "vent_open"),
+              (tB + 6, "ccm-g", "", "edge_actuate", "현장 자율: 벤트 개방 — 화재 징조"),
+              (tB + 7, "ccm-g", "", "edge_actuate", "현장 fail-safe: 벤트 개방 — 가스 센서 60초 끊김"),
+              (tB + 8, "ccm-g", "", "edge_actuate", "현장 자율: 팬 가동 — 습도"),
+              (tB + 9, "ccm-c", "ncontact_temp", "contact"), (tB + 10, "ccm-e", "cabinet_humidity", "dew"),
+              (tB + 11, "ccm-e", "", "dew_actuate"), (tB + 12, "ccm-e", "", "dew_actuate")]
+        with st3._lock:
+            st3._conn.executemany("INSERT INTO readings (device_id, sensor_key, name, unit, value, ok, ts) "
+                                  "VALUES (?,?,?,?,?,?,?)", rows)
+            st3._conn.executemany("INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) "
+                                  "VALUES (?,?,?,?,?, 'system')",
+                                  [(e[0], e[1], e[2], e[3], e[4] if len(e) > 4 else "") for e in ev])
+            st3._conn.commit()
+        rep = st3.build_report(1)
+        p = rep["summary"]["predict"]
+        lead_expected = (next(i for i in range(30) if 20 + i * 0.5 >= 25) * 60) / 60.0
+        check("화재 징조 3건: 위험선 전 종료 1 · 도달 1 · 관찰 중 1(과장 금지)",
+              p["fire"]["detected"] == 3 and p["fire"]["prevented"] == 1
+              and p["fire"]["reached"] == 1 and p["fire"]["watching"] == 1, str(p["fire"]))
+        check("위험선 도달 건의 선행 시간", p["fire"]["lead_min_avg"] == lead_expected,
+              f'{p["fire"]["lead_min_avg"]}분 (기대 {lead_expected}분)')
+        check("벤트 자동 개방·현장 자율·fail-safe 집계",
+              p["fire"]["vent_auto"] == 2 and p["fire"]["vent_edge"] == 2 and p["fire"]["failsafe"] == 1,
+              f'auto={p["fire"]["vent_auto"]} edge={p["fire"]["vent_edge"]} fs={p["fire"]["failsafe"]}')
+        check("접점·결로 집계", p["contact"]["detected"] == 1 and p["dew"] == {"detected": 1, "actuations": 2},
+              f'{p["contact"]} {p["dew"]}')
+        check("예지 경보가 경보 합계·문제 Top에 반영",
+              rep["summary"]["alarms"]["crit"] == 4 and rep["summary"]["alarms"]["warn"] == 1
+              and any("화재 징조" in x["detail"] for x in rep["problems"]),
+              f'{rep["summary"]["alarms"]} / {[x["detail"] for x in rep["problems"]]}')
+    finally:
+        st3.close()
+        os.unlink(db3)
+
     print()
     if _fails:
         print(f"❌ {len(_fails)} FAIL: {_fails}")
