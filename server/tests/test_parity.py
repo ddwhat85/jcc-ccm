@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(HERE))
 DEMO_API = os.path.join(os.path.dirname(os.path.dirname(HERE)), "web", "demo-api.js")
 
 from jcc_server.fire_risk import assess, robust_z, slope_per_min
-from jcc_server.contact_heat import assess_contact
+from jcc_server.contact_heat import ContactBaseline, ContactCfg, assess_contact
 from jcc_server.dewpoint import assess_dewpoint
 
 _fails = []
@@ -66,7 +66,22 @@ def fixtures() -> dict:
                     [12, 27 + 0.05 * 46, 27, c_trend], [1.0, 40, 25, c_norm], [3, 63, 25, c_norm]],
         "dew": [[25.0, 45.0, 25.0, d_norm], [25.0, 95.0, 25.0, d_norm], [25.0, 50.0, 18.9, d_near],
                 [25.0, 50.0, 25.0, d_far], [25.0, 88.0, 25.0, d_norm], [25.0, 70.0, 20.6, d_norm]],
+        "baseline": [_drift_seq(20, 300.0), _drift_seq(0.2, 60.0)],
+        "contact_ref": [[15, 27 + 0.03 * 225 + 7, 27, c_norm, 0.03], [15, 27 + 0.03 * 225 + 13, 27, c_norm, 0.03],
+                        [15, 27.3, 27, c_norm, 0.0]],
     }
+
+
+def _drift_seq(days: float, step: float) -> list:
+    """에포크 시각의 접점 표본열: 부하 8~16A, 2일째부터 접촉저항이 하루 15%씩 증가."""
+    import math
+    out = []
+    for m in range(int(days * 86400 / step)):
+        d = m * step / 86400
+        I = 12 + 4 * math.sin(m / 7.0)
+        k = 0.03 * (1 + 0.15 * max(0.0, d - 2))
+        out.append((E + m * step, I, 25 + k * I * I + 0.2 * math.sin(m * 1.7), 25.0))
+    return out
 
 
 def python_results(fx: dict) -> dict:
@@ -79,7 +94,21 @@ def python_results(fx: dict) -> dict:
                     for r in (assess_contact(i, t, a, h) for i, t, a, h in fx["contact"])],
         "dew": [{"stage": r.stage, "margin": r.margin, "slope": r.margin_slope}
                 for r in (assess_dewpoint(t, rh, s, h) for t, rh, s, h in fx["dew"])],
+        "baseline": [_py_baseline(seq) for seq in fx["baseline"]],
+        "contact_ref": [{"stage": r.stage, "residual": r.residual}
+                        for r in (assess_contact(i, t, a, h, k_ref=k) for i, t, a, h, k in fx["contact_ref"])],
     }
+
+
+def _py_baseline(seq) -> dict:
+    b = ContactBaseline(ContactCfg())
+    mid = None
+    for i, (ts, I, T, Ta) in enumerate(seq):
+        b.observe(ts, I, T, Ta)
+        if i == 149:
+            mid = b.progress()
+    return {"status": b.status, "k": None if b.k is None else round(b.k, 6), "learned_at": b.learned_at,
+            "mid": round(mid, 4)}
 
 
 def close(a, b, tol):
@@ -124,6 +153,12 @@ def run():
     for i, (p, j) in enumerate(zip(py["dew"], js["dew"])):
         check(f"결로 #{i}", p["stage"] == j["stage"] and close(p["margin"], j["margin"], 0.11)
               and close(p["slope"], j["slope"], 0.02), f"py={p} js={j}")
+    for i, (p, j) in enumerate(zip(py["baseline"], js["baseline"])):
+        check(f"접점 기준 학습 #{i}", p["status"] == j["status"] and p["learned_at"] == j["learned_at"]
+              and close(p["k"], j["k"], 1e-5) and close(p["mid"], j["mid"], 1e-3), f"py={p} js={j}")
+    for i, (p, j) in enumerate(zip(py["contact_ref"], js["contact_ref"])):
+        check(f"접점(기준 k) #{i}", p["stage"] == j["stage"] and close(p["residual"], j["residual"], 0.11),
+              f"py={p} js={j}")
 
     print()
     if _fails:

@@ -404,6 +404,12 @@
   .pdm-edge{margin-top:8px;font:600 10.5px/1.45 var(--mono);color:var(--ink-3)}
   .pdm-edge:empty{display:none}
   .pdm-edge.warn{color:var(--warn)}
+  .pdm-relearn{display:block;margin:8px 0 0 auto;padding:2px 0;background:none;border:0;cursor:pointer;
+               font:600 10.5px var(--mono);color:var(--ink-3);text-decoration:underline dotted;text-underline-offset:3px}
+  .pdm-relearn:hover{color:var(--accent)}
+  .pdm-relearn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .pdm-relearn.armed{color:var(--warn)}
+  .pdm-relearn[hidden]{display:none}
   @media (prefers-reduced-motion:reduce){.pdm-meter i{transition:none}}
   /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
   .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
@@ -1594,14 +1600,53 @@
     if (!R.length) R.push("정상 범위");
     return { fri: Math.round(fri * 10) / 10, stage, reasons: R };
   }
-  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1 };
+  // 기준 학습: 운영 기본은 300표본·30분(contact_heat.ContactCfg). 시연 화면은 몇 분 안에
+  // 학습 완료를 보여주려고 짧게 둔다(로직은 동일, 숫자만 다름).
+  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1,
+                 learnSamples: 45, learnSpan: 60, tauDays: 7 };
   function fitK(samples) {
     let num = 0, den = 0;
     for (const [ts, I, T, Ta] of samples) { if (I == null || T == null || Ta == null || I < CCFG.iMin) continue; const x = I * I; num += x * (T - Ta); den += x * x; }
     if (den <= 1e-9) return CCFG.kDef; return Math.min(CCFG.kMax, Math.max(CCFG.kMin, num / den));
   }
-  function assessContact(cur, temp, amb, hist) {
-    const k = fitK(hist || []);
+  // 접점 발열 기준 — contact_heat.ContactBaseline 미러(정상 기간 학습 → 고정 → 아주 천천히 추종)
+  class ContactBaseline {
+    constructor(cfg) { this.cfg = Object.assign({}, CCFG, cfg || {}); this.reset(); this.last_ts = null; }
+    reset() { const last = this.last_ts; Object.assign(this, { status: "learning", k: null, sxy: 0, sxx: 0, n: 0, t0: null,
+      learned_at: null }); this.last_ts = last === undefined ? null : last; }   // 재학습은 reset 이후 표본만
+    get ready() { return this.status === "ready" && this.k != null; }
+    skip(ts) { if (ts != null && (this.last_ts == null || ts > this.last_ts)) this.last_ts = ts; }   // 이상 구간은 안 배움
+    progress() {
+      if (this.ready) return 1;
+      if (this.t0 == null || this.last_ts == null) return 0;
+      return Math.min(1, this.n / Math.max(1, this.cfg.learnSamples), (this.last_ts - this.t0) / Math.max(1, this.cfg.learnSpan));
+    }
+    observe(ts, I, T, Ta) {
+      const c = this.cfg;
+      if (ts == null || I == null || T == null || Ta == null || I < c.iMin) return null;
+      if (this.last_ts != null && ts <= this.last_ts) return null;
+      const dt = this.last_ts != null ? ts - this.last_ts : 0;
+      this.last_ts = ts;
+      const x = I * I, y = T - Ta;
+      if (!this.ready) {
+        if (this.t0 == null) this.t0 = ts;
+        this.sxy += x * y; this.sxx += x * x; this.n += 1;
+        if (this.n >= c.learnSamples && ts - this.t0 >= c.learnSpan && this.sxx > 1e-9) {
+          this.k = Math.min(c.kMax, Math.max(c.kMin, this.sxy / this.sxx));
+          this.status = "ready"; this.learned_at = ts; return "ready";
+        }
+        return null;
+      }
+      if (dt > 0 && x > 1e-9) {
+        const kObs = Math.min(c.kMax, Math.max(c.kMin, y / x));
+        const xRef = this.n ? Math.sqrt(this.sxx / this.n) : x;      // 평소 부하(학습 기간 I²의 RMS)
+        if (Math.abs(kObs - this.k) * xRef < c.resWarn / 2) this.k += Math.min(1, dt / (c.tauDays * 86400)) * (kObs - this.k);
+      }
+      return null;
+    }
+  }
+  function assessContact(cur, temp, amb, hist, kRef, learning) {
+    const k = kRef != null ? kRef : fitK(hist || []);
     const dt = (temp != null && amb != null) ? temp - amb : 0;
     const exp = k * (cur || 0) * (cur || 0), res = dt - exp;
     const rser = [];
@@ -1611,8 +1656,11 @@
     if (temp != null && temp >= CCFG.tAbs) { stage = "danger"; R.push(`접점 온도 ${Math.round(temp * 10) / 10}°C — 절대 위험`); }
     else if ((cur || 0) < CCFG.iMin) { stage = "normal"; R.push("부하 낮음 — 발열 판정 보류"); }
     else if (res >= CCFG.resAlarm) { stage = "danger"; R.push(`전류 대비 초과발열 +${Math.round(res * 10) / 10}°C — 접촉저항 급증 의심`); }
-    else if (res >= CCFG.resWarn || rslope >= CCFG.riseWarn) { stage = "watch"; if (res >= CCFG.resWarn) R.push(`전류 대비 발열 +${Math.round(res * 10) / 10}°C`); if (rslope >= CCFG.riseWarn) R.push(`발열 추세 상승 ${Math.round(rslope * 100) / 100}°C/분`); }
+    else if (res >= CCFG.resWarn || rslope >= CCFG.riseWarn) { stage = "watch";
+      if (res >= CCFG.resWarn) R.push(`전류 대비 발열 +${Math.round(res * 10) / 10}°C` + (kRef != null ? " — 기준 대비 서서히 증가(접점 풀림·부식 의심)" : ""));
+      if (rslope >= CCFG.riseWarn) R.push(`발열 추세 상승 ${Math.round(rslope * 100) / 100}°C/분 — 접점 열화 조짐`); }
     else { stage = "normal"; R.push("정상 — 전류 대비 발열 정상"); }
+    if (learning != null && kRef == null) R.push(`기준 학습 중 ${Math.floor(learning * 100)}% — 느린 열화 판정은 학습 후`);
     return { stage, delta_t: Math.round(dt * 10) / 10, expected: Math.round(exp * 10) / 10, residual: Math.round(res * 10) / 10, residual_slope: Math.round(rslope * 100) / 100, k: Math.round(k * 1e4) / 1e4, reasons: R };
   }
   const DCFG = { marginWarn: 3, marginAlarm: 1, rhHigh: 80, fallWarn: 0.4, horizonMin: 10, trendCap: 6 };
@@ -1640,7 +1688,8 @@
   function predState(panel) {
     let s = PRED.panels[panel];
     if (!s) s = PRED.panels[panel] = { ventOpen: false, ventManual: false, ventBelow: null,
-      heater: false, fan: false, dewManual: false, dewCalm: null, last: null };
+      heater: false, fan: false, dewManual: false, dewCalm: null, last: null,
+      contact: new ContactBaseline() };
     return s;
   }
   function ventStep(s, fri, stage, t) {
@@ -1773,7 +1822,16 @@
     const s = predState("panel-01");
 
     const c = inputs.contact || {};
-    const contact = assessContact(c.current, c.temp, c.ambient, c.history || []);
+    const bl = s.contact, hist = c.history || [];
+    let blEvent = null;
+    const contact = assessContact(c.current, c.temp, c.ambient, hist,
+      bl.ready ? bl.k : null, bl.ready ? null : bl.progress());
+    if (!pending.contact && hist.length) {   // 새 표본은 기준 학습기에 — 학습 중 이상 구간은 배우지 않음
+      if (bl.ready || contact.stage === "normal") for (const [ts, I, T, Ta] of hist) blEvent = bl.observe(ts, I, T, Ta) || blEvent;
+      else bl.skip(hist[hist.length - 1][0]);
+    }
+    if (blEvent === "ready") logEvent((reps.contact || [""])[0] || "", "", "baseline",
+      `접점 발열 기준 학습 완료 — 이제 서서히 풀리는 접점도 감시 (k=${Math.round(bl.k * 1e5) / 1e5})`, "system");
     const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, temp: inputs.temp || {},
       smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
     const fire = assessFire(sig);
@@ -1788,7 +1846,9 @@
       fire: { fri: fire.fri, stage: fire.stage, reasons: fire.reasons,
         vent: { open: s.ventOpen, mode: s.ventManual ? "manual" : "auto" }, action: vAct, autovent: PRED.autovent },
       contact: { stage: contact.stage, delta_t: contact.delta_t, expected: contact.expected,
-        residual: contact.residual, residual_slope: contact.residual_slope, k: contact.k, reasons: contact.reasons },
+        residual: contact.residual, residual_slope: contact.residual_slope, k: contact.k, reasons: contact.reasons,
+        baseline: { status: bl.status, progress: Math.round(bl.progress() * 1000) / 1000,
+          k: bl.k == null ? null : Math.round(bl.k * 1e5) / 1e5, learned_at: bl.learned_at }, baseline_event: blEvent },
       dew: { stage: dew.stage, dew_point: dew.dew_point, margin: dew.margin, margin_slope: dew.margin_slope,
         rh: dew.rh, heater: s.heater, fan: s.fan, mode: s.dewManual ? "manual" : "auto", action: dAct, reasons: dew.reasons },
     };
@@ -2067,6 +2127,13 @@
       }
       if (method === "POST") {
         if (p === "/api/discover") return Promise.resolve(J(runDiscover()));
+        if (p === "/api/predict/baseline") {
+          const panel = String(body.panel || "");
+          if (body.action !== "relearn" || !panel) return Promise.resolve(J({ error: "{panel, action:'relearn'}이 필요합니다" }, 400));
+          predState(panel).contact.reset();
+          logEvent(panel, "", "baseline", "접점 발열 기준 재학습 시작(정비 후)", "user");
+          return Promise.resolve(J({ ok: true, panel, edge_devices: [] }));
+        }
         if (p === "/api/predict/actuator") {
           const panel = String(body.panel || ""), actuator = String(body.actuator || ""), action = String(body.action || "");
           if (["vent", "heater", "fan"].indexOf(actuator) < 0 || ["open", "close", "on", "off", "auto"].indexOf(action) < 0)
@@ -2145,7 +2212,7 @@
       return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
     },
     // 파이썬 코어와의 일치 검사용(server/tests/test_parity.py) — 미러가 갈라지면 테스트가 잡는다
-    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint },
+    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint, ContactBaseline },
   };
   console.log("[JCC-CCM] 데모 모드: 브라우저 안에서 시뮬레이션이 돕니다 (서버 없음).");
 })();
@@ -2820,9 +2887,27 @@ function renderPred(){
       [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
         `<span class="as">—</span><span class="am">자동</span></button>`).join("")+
-      `</div><div class="pdm-edge" id="pdm-edge"></div>`;
+      `</div><div class="pdm-edge" id="pdm-edge"></div>`+
+      `<button class="pdm-relearn" id="pdm-relearn" hidden>접점 기준 재학습</button>`;
     box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
     box.querySelectorAll("[data-act]").forEach(b=> b.onclick = ()=> pdmToggle(b.dataset.act));
+    // 접점 정비·교체 뒤 기준 재학습 — 학습한 기준을 버리는 조작이라 두 번 눌러야 실행
+    const rl = box.querySelector("#pdm-relearn");
+    rl.onclick = ()=>{
+      if(!rl.classList.contains("armed")){
+        rl.classList.add("armed"); rl.textContent = "정비 후 맞나요? 한 번 더 누르면 재학습";
+        clearTimeout(rl._t); rl._t = setTimeout(()=>{ rl.classList.remove("armed"); rl.textContent = "접점 기준 재학습"; }, 4000);
+        return;
+      }
+      clearTimeout(rl._t); rl.classList.remove("armed"); rl.textContent = "접점 기준 재학습";
+      fetch("/api/predict/baseline",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({panel:(lastPred&&lastPred.panel)||"", action:"relearn"})})
+        .then(r=>r.json()).then(res=>{
+          setStatus(res.ok ? "접점 발열 기준 재학습 시작 — 지금 상태를 새 정상으로 배웁니다"
+                           : (res.error||"재학습 요청 실패"));
+          loadPredict();
+        }).catch(()=> setStatus("재학습 요청 실패 — 연결을 확인하세요"));
+    };
   }
   const p = lastPred;
   if(!p){ $("#pdm-age").textContent = "데이터 쌓이는 중"; return; }
@@ -2832,7 +2917,10 @@ function renderPred(){
   const rows = {
     fire:    {stage:f.stage, risk:(f.fri||0)/100, num:f.fri==null ? "—" : `FRI ${f.fri}`},
     contact: {stage:c.stage, risk:pdmClamp((c.residual||0)/12),
-              num:c.residual==null ? "—" : `${c.residual>0?"+":""}${c.residual}°C`},
+              // 기준 학습 중엔 진행률(그동안은 급격한 발열만 판정, 느린 열화는 학습 후)
+              num: c.stage!=="pending" && c.baseline && c.baseline.status!=="ready"
+                   ? `학습 ${Math.round((c.baseline.progress||0)*100)}%`
+                   : c.residual==null ? "—" : `${c.residual>0?"+":""}${c.residual}°C`},
     dew:     {stage:d.stage, risk:d.margin==null ? 0 : pdmClamp((8-d.margin)/7),
               num:d.margin==null ? "—" : `여유 ${d.margin}°C`},
   };
@@ -2851,6 +2939,13 @@ function renderPred(){
   const worst = [["화재",f],["접점",c],["결로",d]].sort((a,b)=>(rank[b[1].stage]||0)-(rank[a[1].stage]||0))[0];
   $("#pdm-why").textContent = (rank[worst[1].stage]||0) > 0
     ? `${worst[0]} — ${(worst[1].reasons||[]).slice(0,2).join(" · ")}` : "";
+  // 재학습 버튼: 기준이 확정돼 있을 때만(학습 중엔 누를 이유가 없다)
+  const rl = box.querySelector("#pdm-relearn");
+  if(rl){
+    const b = c.baseline||{};
+    rl.hidden = b.status !== "ready";
+    if(b.learned_at) rl.title = `현재 기준은 ${new Date(b.learned_at*1000).toLocaleString("ko-KR")}에 학습 · 접점을 정비·교체했다면 재학습하세요`;
+  }
   // 세 알고리즘 모두 보류면(기동 직후) 그 사유를, 아니면 갱신 시각을
   const allPend = ["fire","contact","dew"].every(k=>(p[k]||{}).stage==="pending");
   const age = Math.max(0, Math.round(Date.now()/1000 - (p.ts||0)));
@@ -3310,13 +3405,14 @@ const EVENT_META = {
   dew_actuate: {label:"히터·팬 작동",   dot:"info", ic:"🌡"},
   actuator:    {label:"수동 조작",      dot:"info", ic:"🕹"},
   edge_actuate:{label:"현장 CCM 작동",  dot:"warn", ic:"📟"},
+  baseline:    {label:"접점 기준",      dot:"info", ic:"📐"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
-  "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate"]);
+  "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";

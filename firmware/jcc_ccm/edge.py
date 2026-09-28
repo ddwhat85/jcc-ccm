@@ -19,7 +19,9 @@
 from __future__ import annotations
 
 import collections
+import json
 import logging
+import os
 import time
 
 from .actuators import on_word
@@ -52,6 +54,48 @@ class EdgePredictor:
         self._pending: dict = {}
         self._res: dict | None = None
         self._actions: list = []
+        self._state_file = cfg.predict.state_file
+        self._saved_at = 0.0
+        self._state_warned = False
+        self._load_state()
+
+    # ── 학습 상태(접점 발열 기준) — 재부팅해도 유지 ───────────
+    SAVE_EVERY = 300.0     # 초. eMMC 쓰기를 줄이려 평소엔 5분에 한 번, 기준 확정·재학습은 즉시
+
+    def _load_state(self) -> None:
+        if not self._state_file:
+            return
+        try:
+            with open(self._state_file, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            log.warning("예지 학습 상태 파일을 못 읽음(새로 학습): %s", exc)
+            return
+        self._pred.load_state(self._panel, data)
+        bl = self._pred.contact_baseline(self._panel)
+        log.info("예지 학습 상태 복원: 접점 기준 %s", "확정" if bl.ready else f"학습 중 {int(bl.progress()*100)}%")
+
+    def _save_state(self, force: bool = False) -> None:
+        if not self._state_file:
+            return
+        now = self._clock()
+        if not force and now - self._saved_at < self.SAVE_EVERY:
+            return
+        state = self._pred.export_state(self._panel)
+        self._saved_at = now
+        if not state:
+            return
+        tmp = self._state_file + ".tmp"
+        try:   # 원자적 교체 — 쓰는 도중 전원이 나가도 옛 파일은 온전
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(state, fh)
+            os.replace(tmp, self._state_file)
+        except OSError as exc:
+            if not self._state_warned:
+                self._state_warned = True
+                log.warning("예지 학습 상태 저장 실패(메모리로만 유지): %s", exc)
 
     # ── 입력 ──────────────────────────────────────────────
     def observe(self, readings) -> None:
@@ -98,6 +142,10 @@ class EdgePredictor:
                     self._pred.failsafe_vent(self._panel)
 
         self._drive(now)
+        ev = (res.get("contact") or {}).get("baseline_event")
+        if ev == "ready":
+            log.info("접점 발열 기준 학습 완료 — 서서히 풀리는 접점도 감시")
+        self._save_state(force=bool(ev))
         return self._report(now)
 
     def _why(self, kind: str, on: bool, mode: str, synced: bool, now: float) -> str:
@@ -138,6 +186,14 @@ class EdgePredictor:
     def apply_command(self, cmd: dict, now: float | None = None) -> bool:
         now = self._clock() if now is None else now
         actuator, action = str(cmd.get("actuator", "")), str(cmd.get("action", ""))
+        if actuator == "contact" and action == "relearn":      # 접점 정비 후 기준 재학습
+            if not all(r in self._roles for r in ("current", "contact_temp", "ambient")):
+                log.info("접점 재학습 명령 — 이 CCM엔 접점 발열 입력이 없어 무시")
+                return False
+            self._pred.reset_contact_baseline(self._panel)
+            self._save_state(force=True)
+            log.info("원격 명령: 접점 발열 기준 재학습 시작")
+            return True
         if actuator not in self._acts or action not in _VALID_ACTIONS.get(actuator, ()):
             log.warning("알 수 없는/이 CCM에 없는 명령 무시: %s", cmd)
             return False
@@ -159,8 +215,12 @@ class EdgePredictor:
             if kind == "vent" and self._failsafe and self._vent_failsafe == "open" and mode != "manual":
                 mode = "failsafe"
             acts[kind] = {"on": act.state, "mode": mode}
+        contact = algo("contact", "residual")
+        bl = (r.get("contact") or {}).get("baseline")
+        if bl:
+            contact["baseline"] = {"status": bl.get("status"), "progress": bl.get("progress")}
         out = {"v": 1, "ts": round(now, 3), "panel": self._panel,
-               "fire": algo("fire", "fri"), "contact": algo("contact", "residual"),
+               "fire": algo("fire", "fri"), "contact": contact,
                "dew": algo("dew", "margin"), "actuators": acts,
                "failsafe": self._failsafe, "actions": self._actions}
         self._actions = []

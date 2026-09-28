@@ -114,6 +114,7 @@ offset = 0.0
 [predict]
 enabled = true
 failsafe_after_seconds = 60
+state_file = ""                  # 개발 PC: 학습 상태를 파일로 남기지 않음(메모리만)
 
 [predict.roles]
 h2 = "h2_lel"

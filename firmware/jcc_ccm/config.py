@@ -102,6 +102,8 @@ class PredictConfig:
     roles: dict = field(default_factory=dict)
     autovent: bool = True               # False면 판정·보고만 하고 벤트는 자동으로 안 연다
     failsafe_after_seconds: float = 60.0  # 가스 입력이 이만큼 끊기면 벤트를 fail-safe 상태로
+    # 학습 상태(접점 발열 기준) 저장 파일 — 재부팅해도 기준 유지. 비우면 저장 안 함(메모리만)
+    state_file: str = "/opt/jcc-ccm/predict_state.json"
 
 
 @dataclass
@@ -268,6 +270,7 @@ def load(path: str) -> Config:
             roles={str(k): str(v) for k, v in (predict_raw.get("roles") or {}).items() if v},
             autovent=bool(predict_raw.get("autovent", True)),
             failsafe_after_seconds=float(predict_raw.get("failsafe_after_seconds", 60.0)),
+            state_file=str(predict_raw.get("state_file", "/opt/jcc-ccm/predict_state.json")),
         ),
         actuators=[
             ActuatorConfig(

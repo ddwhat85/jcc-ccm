@@ -65,6 +65,7 @@ _PREDICT = """
 [predict]
 enabled = true
 failsafe_after_seconds = 60
+state_file = ""
 [predict.roles]
 h2 = "h2_lel"
 voc = "voc_ppm"
@@ -295,6 +296,64 @@ def test_condensation_drives_heater_and_fan():
         rig.cycle(_noisy(i))
     rig.run(8, {"cabinet_humidity": 96})
     assert rig.acts()["heater"].state is True and rig.acts()["fan"].state is True
+
+
+# ── 접점 발열 기준: 재부팅 유지·재학습 명령 ──────────────────
+def _quick_edge(state_file: str):
+    from jcc_ccm.predict.contact_heat import ContactCfg
+    cfg = _load(_BASE + _PREDICT.replace('state_file = ""', f'state_file = "{state_file.replace(chr(92), "/")}"'))
+    edge = build_edge(cfg, force_log=True)
+    edge._pred.contact_cfg = ContactCfg(learn_samples=8, learn_span=10)   # 시험용 빠른 학습
+    edge._pred._panels.clear()
+    edge._load_state()
+    return edge
+
+
+def test_contact_baseline_survives_reboot():
+    fd, path = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    os.unlink(path)
+    try:
+        rig = Rig(_quick_edge(path))
+        for i in range(20):
+            rep = rig.cycle(_noisy(i))
+        assert rep["contact"]["baseline"]["status"] == "ready", rep["contact"]
+        k1 = rig.edge._pred.contact_baseline("panel-01").k
+        assert os.path.isfile(path), "기준 확정 때 즉시 저장되지 않았다"
+        edge2 = _quick_edge(path)                           # 재부팅
+        bl2 = edge2._pred.contact_baseline("panel-01")
+        assert bl2.ready and bl2.k == k1, (bl2.status, bl2.k, k1)
+    finally:
+        for p in (path, path + ".tmp"):
+            if os.path.exists(p):
+                os.unlink(p)
+
+
+def test_relearn_command_resets_contact_baseline():
+    fd, path = tempfile.mkstemp(suffix=".json")
+    os.close(fd)
+    os.unlink(path)
+    try:
+        rig = Rig(_quick_edge(path))
+        for i in range(20):
+            rig.cycle(_noisy(i))
+        assert rig.edge.apply_command({"actuator": "contact", "action": "relearn"})
+        rep = rig.cycle(_noisy(0))
+        assert rep["contact"]["baseline"]["status"] == "learning", rep["contact"]
+        import json as _j
+        with open(path, encoding="utf-8") as fh:
+            assert _j.load(fh)["contact_baseline"]["status"] == "learning"   # 재부팅해도 재학습 유지
+    finally:
+        for p in (path, path + ".tmp"):
+            if os.path.exists(p):
+                os.unlink(p)
+
+
+def test_unwritable_state_file_does_not_break_loop():
+    rig = Rig(_quick_edge(os.path.join(tempfile.gettempdir(), "no_such_dir_jcc", "s.json")))
+    for i in range(20):
+        rep = rig.cycle(_noisy(i))
+    assert rep["contact"]["baseline"]["status"] == "ready"      # 저장 실패해도 판정은 계속
 
 
 # ── 에이전트·전송 연결 ───────────────────────────────────────

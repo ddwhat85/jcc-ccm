@@ -15,7 +15,7 @@ import os
 from dataclasses import dataclass
 
 from .fire_risk import FireConfig, VentController, assess as assess_fire
-from .contact_heat import ContactCfg, assess_contact
+from .contact_heat import ContactBaseline, ContactCfg, assess_contact
 from .dewpoint import DewCfg, assess_dewpoint
 
 
@@ -73,6 +73,7 @@ class DewActuator:
 class _PanelState:
     vent: VentController
     dew: DewActuator
+    contact: ContactBaseline      # 접점 발열 기준(정상 기간 학습 → 고정). 저장·복원 대상
 
 
 class Predictor:
@@ -90,9 +91,30 @@ class Predictor:
     def _state(self, panel: str) -> _PanelState:
         st = self._panels.get(panel)
         if st is None:
-            st = _PanelState(vent=VentController(self.fire_cfg), dew=DewActuator())
+            st = _PanelState(vent=VentController(self.fire_cfg), dew=DewActuator(),
+                             contact=ContactBaseline(self.contact_cfg))
             self._panels[panel] = st
         return st
+
+    # ── 학습 상태 저장·복원 (재시작해도 기준 유지) ────────────
+    def export_state(self, panel: str) -> dict:
+        """저장할 학습 상태. 바뀐 게 없으면 None을 돌려줘 불필요한 쓰기를 줄인다."""
+        bl = self._state(panel).contact
+        if not bl.dirty:
+            return None
+        bl.dirty = False
+        return {"contact_baseline": bl.to_dict()}
+
+    def load_state(self, panel: str, state: dict) -> None:
+        if isinstance(state, dict) and isinstance(state.get("contact_baseline"), dict):
+            self._state(panel).contact = ContactBaseline(self.contact_cfg, state["contact_baseline"])
+
+    def contact_baseline(self, panel: str) -> ContactBaseline:
+        return self._state(panel).contact
+
+    def reset_contact_baseline(self, panel: str) -> None:
+        """접점을 정비·교체한 뒤 — 새 상태를 정상으로 다시 배운다."""
+        self._state(panel).contact.reset()
 
     # ── 수동 오버라이드 ──────────────────────────────────────
     def set_actuator(self, panel: str, actuator: str, action: str) -> dict:
@@ -155,10 +177,22 @@ class Predictor:
         pending = pending or {}
         st = self._state(panel)
 
-        # 1) 접점 발열 — 먼저 평가해 화재 확증으로 넘긴다
+        # 1) 접점 발열 — 먼저 평가해 화재 확증으로 넘긴다.
+        #    새 표본은 기준 학습기에 먹이고(이미 본 표본은 건너뜀), 기준이 확정됐으면 그 k로 판정
         c = inputs.get("contact") or {}
+        hist = c.get("history") or []
+        bl = st.contact
+        baseline_event = None
         contact = assess_contact(c.get("current"), c.get("temp"), c.get("ambient"),
-                                 c.get("history") or [], self.contact_cfg)
+                                 hist, self.contact_cfg,
+                                 k_ref=bl.k if bl.ready else None,
+                                 learning=None if bl.ready else bl.progress())
+        if "contact" not in pending and hist:
+            if bl.ready or contact.stage == "normal":
+                for ts, I, T, Ta in hist:
+                    baseline_event = bl.observe(ts, I, T, Ta) or baseline_event
+            else:
+                bl.skip(hist[-1][0])    # 학습 중 이상 구간은 기준으로 배우지 않는다
 
         # 2) 화재(FRI) — 접점 위험이면 current_abnormal로 확증
         sig = {
@@ -180,6 +214,10 @@ class Predictor:
         dew_action = None if "dew" in pending else st.dew.step(dew.stage, now)
 
         out = self._result(panel, now, st, fire, vent_action, contact, dew, dew_action)
+        out["contact"]["baseline"] = {"status": bl.status, "progress": round(bl.progress(), 3),
+                                      "k": None if bl.k is None else round(bl.k, 5),
+                                      "learned_at": bl.learned_at}
+        out["contact"]["baseline_event"] = baseline_event
         for k, why in pending.items():          # 보류된 알고리즘은 숫자 대신 사유를 보인다
             if k in out:
                 out[k]["stage"] = "pending"

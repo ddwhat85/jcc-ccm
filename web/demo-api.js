@@ -546,14 +546,53 @@
     if (!R.length) R.push("정상 범위");
     return { fri: Math.round(fri * 10) / 10, stage, reasons: R };
   }
-  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1 };
+  // 기준 학습: 운영 기본은 300표본·30분(contact_heat.ContactCfg). 시연 화면은 몇 분 안에
+  // 학습 완료를 보여주려고 짧게 둔다(로직은 동일, 숫자만 다름).
+  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1,
+                 learnSamples: 45, learnSpan: 60, tauDays: 7 };
   function fitK(samples) {
     let num = 0, den = 0;
     for (const [ts, I, T, Ta] of samples) { if (I == null || T == null || Ta == null || I < CCFG.iMin) continue; const x = I * I; num += x * (T - Ta); den += x * x; }
     if (den <= 1e-9) return CCFG.kDef; return Math.min(CCFG.kMax, Math.max(CCFG.kMin, num / den));
   }
-  function assessContact(cur, temp, amb, hist) {
-    const k = fitK(hist || []);
+  // 접점 발열 기준 — contact_heat.ContactBaseline 미러(정상 기간 학습 → 고정 → 아주 천천히 추종)
+  class ContactBaseline {
+    constructor(cfg) { this.cfg = Object.assign({}, CCFG, cfg || {}); this.reset(); this.last_ts = null; }
+    reset() { const last = this.last_ts; Object.assign(this, { status: "learning", k: null, sxy: 0, sxx: 0, n: 0, t0: null,
+      learned_at: null }); this.last_ts = last === undefined ? null : last; }   // 재학습은 reset 이후 표본만
+    get ready() { return this.status === "ready" && this.k != null; }
+    skip(ts) { if (ts != null && (this.last_ts == null || ts > this.last_ts)) this.last_ts = ts; }   // 이상 구간은 안 배움
+    progress() {
+      if (this.ready) return 1;
+      if (this.t0 == null || this.last_ts == null) return 0;
+      return Math.min(1, this.n / Math.max(1, this.cfg.learnSamples), (this.last_ts - this.t0) / Math.max(1, this.cfg.learnSpan));
+    }
+    observe(ts, I, T, Ta) {
+      const c = this.cfg;
+      if (ts == null || I == null || T == null || Ta == null || I < c.iMin) return null;
+      if (this.last_ts != null && ts <= this.last_ts) return null;
+      const dt = this.last_ts != null ? ts - this.last_ts : 0;
+      this.last_ts = ts;
+      const x = I * I, y = T - Ta;
+      if (!this.ready) {
+        if (this.t0 == null) this.t0 = ts;
+        this.sxy += x * y; this.sxx += x * x; this.n += 1;
+        if (this.n >= c.learnSamples && ts - this.t0 >= c.learnSpan && this.sxx > 1e-9) {
+          this.k = Math.min(c.kMax, Math.max(c.kMin, this.sxy / this.sxx));
+          this.status = "ready"; this.learned_at = ts; return "ready";
+        }
+        return null;
+      }
+      if (dt > 0 && x > 1e-9) {
+        const kObs = Math.min(c.kMax, Math.max(c.kMin, y / x));
+        const xRef = this.n ? Math.sqrt(this.sxx / this.n) : x;      // 평소 부하(학습 기간 I²의 RMS)
+        if (Math.abs(kObs - this.k) * xRef < c.resWarn / 2) this.k += Math.min(1, dt / (c.tauDays * 86400)) * (kObs - this.k);
+      }
+      return null;
+    }
+  }
+  function assessContact(cur, temp, amb, hist, kRef, learning) {
+    const k = kRef != null ? kRef : fitK(hist || []);
     const dt = (temp != null && amb != null) ? temp - amb : 0;
     const exp = k * (cur || 0) * (cur || 0), res = dt - exp;
     const rser = [];
@@ -563,8 +602,11 @@
     if (temp != null && temp >= CCFG.tAbs) { stage = "danger"; R.push(`접점 온도 ${Math.round(temp * 10) / 10}°C — 절대 위험`); }
     else if ((cur || 0) < CCFG.iMin) { stage = "normal"; R.push("부하 낮음 — 발열 판정 보류"); }
     else if (res >= CCFG.resAlarm) { stage = "danger"; R.push(`전류 대비 초과발열 +${Math.round(res * 10) / 10}°C — 접촉저항 급증 의심`); }
-    else if (res >= CCFG.resWarn || rslope >= CCFG.riseWarn) { stage = "watch"; if (res >= CCFG.resWarn) R.push(`전류 대비 발열 +${Math.round(res * 10) / 10}°C`); if (rslope >= CCFG.riseWarn) R.push(`발열 추세 상승 ${Math.round(rslope * 100) / 100}°C/분`); }
+    else if (res >= CCFG.resWarn || rslope >= CCFG.riseWarn) { stage = "watch";
+      if (res >= CCFG.resWarn) R.push(`전류 대비 발열 +${Math.round(res * 10) / 10}°C` + (kRef != null ? " — 기준 대비 서서히 증가(접점 풀림·부식 의심)" : ""));
+      if (rslope >= CCFG.riseWarn) R.push(`발열 추세 상승 ${Math.round(rslope * 100) / 100}°C/분 — 접점 열화 조짐`); }
     else { stage = "normal"; R.push("정상 — 전류 대비 발열 정상"); }
+    if (learning != null && kRef == null) R.push(`기준 학습 중 ${Math.floor(learning * 100)}% — 느린 열화 판정은 학습 후`);
     return { stage, delta_t: Math.round(dt * 10) / 10, expected: Math.round(exp * 10) / 10, residual: Math.round(res * 10) / 10, residual_slope: Math.round(rslope * 100) / 100, k: Math.round(k * 1e4) / 1e4, reasons: R };
   }
   const DCFG = { marginWarn: 3, marginAlarm: 1, rhHigh: 80, fallWarn: 0.4, horizonMin: 10, trendCap: 6 };
@@ -592,7 +634,8 @@
   function predState(panel) {
     let s = PRED.panels[panel];
     if (!s) s = PRED.panels[panel] = { ventOpen: false, ventManual: false, ventBelow: null,
-      heater: false, fan: false, dewManual: false, dewCalm: null, last: null };
+      heater: false, fan: false, dewManual: false, dewCalm: null, last: null,
+      contact: new ContactBaseline() };
     return s;
   }
   function ventStep(s, fri, stage, t) {
@@ -725,7 +768,16 @@
     const s = predState("panel-01");
 
     const c = inputs.contact || {};
-    const contact = assessContact(c.current, c.temp, c.ambient, c.history || []);
+    const bl = s.contact, hist = c.history || [];
+    let blEvent = null;
+    const contact = assessContact(c.current, c.temp, c.ambient, hist,
+      bl.ready ? bl.k : null, bl.ready ? null : bl.progress());
+    if (!pending.contact && hist.length) {   // 새 표본은 기준 학습기에 — 학습 중 이상 구간은 배우지 않음
+      if (bl.ready || contact.stage === "normal") for (const [ts, I, T, Ta] of hist) blEvent = bl.observe(ts, I, T, Ta) || blEvent;
+      else bl.skip(hist[hist.length - 1][0]);
+    }
+    if (blEvent === "ready") logEvent((reps.contact || [""])[0] || "", "", "baseline",
+      `접점 발열 기준 학습 완료 — 이제 서서히 풀리는 접점도 감시 (k=${Math.round(bl.k * 1e5) / 1e5})`, "system");
     const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, temp: inputs.temp || {},
       smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
     const fire = assessFire(sig);
@@ -740,7 +792,9 @@
       fire: { fri: fire.fri, stage: fire.stage, reasons: fire.reasons,
         vent: { open: s.ventOpen, mode: s.ventManual ? "manual" : "auto" }, action: vAct, autovent: PRED.autovent },
       contact: { stage: contact.stage, delta_t: contact.delta_t, expected: contact.expected,
-        residual: contact.residual, residual_slope: contact.residual_slope, k: contact.k, reasons: contact.reasons },
+        residual: contact.residual, residual_slope: contact.residual_slope, k: contact.k, reasons: contact.reasons,
+        baseline: { status: bl.status, progress: Math.round(bl.progress() * 1000) / 1000,
+          k: bl.k == null ? null : Math.round(bl.k * 1e5) / 1e5, learned_at: bl.learned_at }, baseline_event: blEvent },
       dew: { stage: dew.stage, dew_point: dew.dew_point, margin: dew.margin, margin_slope: dew.margin_slope,
         rh: dew.rh, heater: s.heater, fan: s.fan, mode: s.dewManual ? "manual" : "auto", action: dAct, reasons: dew.reasons },
     };
@@ -1019,6 +1073,13 @@
       }
       if (method === "POST") {
         if (p === "/api/discover") return Promise.resolve(J(runDiscover()));
+        if (p === "/api/predict/baseline") {
+          const panel = String(body.panel || "");
+          if (body.action !== "relearn" || !panel) return Promise.resolve(J({ error: "{panel, action:'relearn'}이 필요합니다" }, 400));
+          predState(panel).contact.reset();
+          logEvent(panel, "", "baseline", "접점 발열 기준 재학습 시작(정비 후)", "user");
+          return Promise.resolve(J({ ok: true, panel, edge_devices: [] }));
+        }
         if (p === "/api/predict/actuator") {
           const panel = String(body.panel || ""), actuator = String(body.actuator || ""), action = String(body.action || "");
           if (["vent", "heater", "fan"].indexOf(actuator) < 0 || ["open", "close", "on", "off", "auto"].indexOf(action) < 0)
@@ -1097,7 +1158,7 @@
       return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
     },
     // 파이썬 코어와의 일치 검사용(server/tests/test_parity.py) — 미러가 갈라지면 테스트가 잡는다
-    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint },
+    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint, ContactBaseline },
   };
   console.log("[JCC-CCM] 데모 모드: 브라우저 안에서 시뮬레이션이 돕니다 (서버 없음).");
 })();

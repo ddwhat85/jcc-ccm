@@ -263,6 +263,15 @@ class Handler(BaseHTTPRequestHandler):
             return self._set_heal_config()
         if parsed.path == "/api/predict/actuator":
             return self._set_actuator()
+        if parsed.path == "/api/predict/baseline":
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            try:
+                body = json.loads(self.rfile.read(length).decode("utf-8")) if length > 0 else {}
+            except (ValueError, UnicodeDecodeError):
+                return self._json({"error": "잘못된 JSON"}, 400)
+            if body.get("action") != "relearn" or not body.get("panel"):
+                return self._json({"error": "{panel, action:'relearn'}이 필요합니다"}, 400)
+            return self._json(self.storage.relearn_baseline(str(body["panel"])))
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 

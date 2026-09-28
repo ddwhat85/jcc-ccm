@@ -99,6 +99,23 @@ def run():
     r = P4.assess_panel("panel-01", now + 400, normal)    # 히스테리시스 경과 → 닫힘
     check("수동 해제 — 자동 복귀 후 닫힘", not r["fire"]["vent"]["open"] and r["fire"]["vent"]["mode"] == "auto")
 
+    # 접점 기준 학습 중 이상 구간(발열 진행)은 배우지 않는다 — 설치 직후 고장을 정상으로 학습하면 안 됨
+    from jcc_server.contact_heat import ContactCfg as _CC
+    P6 = Predictor(contact_cfg=_CC(learn_samples=20, learn_span=30))
+    base_in = dict(normal)
+    t6 = 5000.0
+    hist6 = []
+    for i in range(60):                                  # 이상 구간+회복 꼬리는 건너뛰므로 넉넉히
+        t6 += 2.0
+        hot = 10 <= i < 22                               # 학습 도중 접점 발열이 12표본 동안 진행
+        T = 27 + (6 + (i - 10) * 1.5 if hot else 0) + 0.1 * (i % 3)
+        hist6 = (hist6 + [(t6, 15.0, T, 27.0)])[-24:]
+        inp = dict(base_in, contact={"current": 15, "temp": T, "ambient": 27, "history": list(hist6)})
+        r = P6.assess_panel("panel-01", t6, inp)
+    bl6 = P6.contact_baseline("panel-01")
+    check("학습 중 이상 구간은 기준에서 제외", bl6.ready and bl6.k < 0.002,
+          f"k={bl6.k} (정상≈0, 오염됐다면 ≈0.03 이상)")
+
     # 안전측(fail-safe): 화재로 벤트가 열린 뒤 가스 데이터가 끊기면 → 닫지 않고 유지
     P5 = Predictor()
     P5.assess_panel("panel-01", now, fire_in)                               # 벤트 개방
@@ -217,6 +234,33 @@ def run():
         # 수동 오버라이드 API 경로
         res = st.set_actuator("panel-01", "vent", "close")
         check("통합 — set_actuator", res.get("ok") and res["actuators"]["vent"]["mode"] == "manual")
+
+        # 접점 기준: 학습 → 저장 → 서버 재시작 후 복원(다시 배우지 않음) → 정비 후 재학습
+        from jcc_server.contact_heat import ContactCfg
+        quick = lambda: Predictor(contact_cfg=ContactCfg(learn_samples=8, learn_span=10))
+        st.predictor = quick()
+        st._pred_loaded.discard("panel-01")
+        st._save_pred_state("panel-01", {"contact_baseline": {}})    # 앞 단계의 흔적 초기화
+        for _ in range(15):
+            cyc()
+            scan()
+        b = st.predict_state()[0]["contact"]["baseline"]
+        evs = [e["detail"] for e in st.list_events(limit=50) if e["etype"] == "baseline"]
+        check("접점 기준 학습 완료 + 이벤트", b["status"] == "ready" and any("학습 완료" in d for d in evs),
+              f'{b} / {evs[:1]}')
+        st2 = Storage(dbp)                                            # 서버 재시작
+        st2.predictor = quick()
+        cyc()
+        st2.predict_scan(now=clock[0] + 1.0)
+        b2 = st2.predict_state()[0]["contact"]["baseline"]
+        check("재시작 후 기준 복원(재학습 안 함)", b2["status"] == "ready" and b2["k"] == b["k"],
+              f'복원 k={b2["k"]} / 이전 k={b["k"]}')
+        r = st2.relearn_baseline("panel-01")
+        cyc()
+        st2.predict_scan(now=clock[0] + 1.0)
+        b3 = st2.predict_state()[0]["contact"]["baseline"]
+        check("정비 후 재학습 → 학습 중으로", r["ok"] and b3["status"] == "learning", str(b3))
+        st2.close()
     finally:
         try:
             st.close()

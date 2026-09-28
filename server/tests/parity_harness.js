@@ -18,5 +18,12 @@ const out = {
     return { stage: r.stage, residual: r.residual, slope: r.residual_slope }; }),
   dew: fx.dew.map(([t, rh, s, h]) => { const r = C.assessDew(t, rh, s, h);
     return { stage: r.stage, margin: r.margin, slope: r.margin_slope }; }),
+  // 접점 기준: 같은 표본열을 먹여 확정 시각·k·진행률이 같은지(운영 기본 학습 조건으로)
+  baseline: fx.baseline.map(seq => { const b = new C.ContactBaseline({ learnSamples: 300, learnSpan: 1800 });
+    const mid = []; seq.forEach(([ts, I, T, Ta], i) => { b.observe(ts, I, T, Ta); if (i === 149) mid.push(b.progress()); });
+    return { status: b.status, k: b.k == null ? null : Math.round(b.k * 1e6) / 1e6, learned_at: b.learned_at,
+      mid: Math.round(mid[0] * 1e4) / 1e4 }; }),
+  contact_ref: fx.contact_ref.map(([i, t, a, h, k]) => { const r = C.assessContact(i, t, a, h, k, null);
+    return { stage: r.stage, residual: r.residual }; }),
 };
 process.stdout.write(JSON.stringify(out));

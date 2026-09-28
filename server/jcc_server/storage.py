@@ -103,6 +103,12 @@ CREATE TABLE IF NOT EXISTS alarms (
     cleared_at   REAL
 );
 CREATE INDEX IF NOT EXISTS idx_alarms_open ON alarms (cleared_at, raised_at);
+-- 예지 학습 상태(접점 발열 기준 등). 재시작해도 유지해야 그동안의 열화가 새 기준에 흡수되지 않는다.
+CREATE TABLE IF NOT EXISTS pred_state (
+    panel      TEXT PRIMARY KEY,
+    state      TEXT,
+    updated_at REAL
+);
 """
 
 # 구버전 DB에 없던 컬럼을 채운다(있으면 조용히 무시).
@@ -160,6 +166,8 @@ class Storage:
         self._edge: dict = {}           # device_id -> 최신 엣지 보고(CCM이 직접 판정·구동한 결과)
         self._edge_cmds: dict = {}      # device_id -> [대기 중인 출력 명령] (텔레메트리 응답으로 전달)
         self._edge_lock = threading.Lock()
+        self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
+        self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -1208,8 +1216,22 @@ class Storage:
             if not asm["inputs"]:
                 continue
             pend = asm["pending"]
+            if panel not in self._pred_loaded:           # 재시작 후 첫 판정 전에 학습 상태 복원
+                self._pred_loaded.add(panel)
+                saved = self._load_pred_state(panel)
+                if saved:
+                    pred.load_state(panel, saved)
             res = pred.assess_panel(panel, now, asm["inputs"], pend)
             self._predict[panel] = res
+            ev = res["contact"].get("baseline_event")
+            if ev == "ready":
+                b = res["contact"]["baseline"]
+                self.log_event((asm["reps"].get("contact") or ("", ""))[0] or "", "", "baseline",
+                               f"접점 발열 기준 학습 완료 — 이제 서서히 풀리는 접점도 감시 (k={b['k']})",
+                               source="system")
+            # 학습 상태 저장: 확정 순간은 즉시, 평소엔 1분에 한 번(쓰기 줄이기)
+            if ev or time.time() - self._pred_saved.get(panel, 0) >= 60:
+                self._save_pred_state(panel, pred.export_state(panel))
             reps = {k: (v or ("", "")) for k, v in asm["reps"].items()}   # 센서 없으면 빈 대표(경보 생략)
             n += 1
 
@@ -1283,6 +1305,41 @@ class Storage:
         via = f" → 현장 {', '.join(owners)} 전송 대기" if owners else ""
         self.log_event(panel, "", "actuator", f"{label} 수동 {act}{via}", source="user")
         return {"ok": True, "panel": panel, "actuators": view, "edge_devices": owners}
+
+    # ── 예지 학습 상태(접점 발열 기준) 저장·복원·재학습 ─────────
+    def _load_pred_state(self, panel: str):
+        with self._lock:
+            row = self._conn.execute("SELECT state FROM pred_state WHERE panel=?", (panel,)).fetchone()
+        try:
+            return json.loads(row["state"]) if row else None
+        except (ValueError, TypeError):
+            return None
+
+    def _save_pred_state(self, panel: str, state) -> None:
+        self._pred_saved[panel] = time.time()
+        if not state:
+            return
+        with self._lock:
+            self._conn.execute(
+                """INSERT INTO pred_state (panel, state, updated_at) VALUES (?, ?, ?)
+                   ON CONFLICT(panel) DO UPDATE SET state=excluded.state, updated_at=excluded.updated_at""",
+                (panel, json.dumps(state), time.time()))
+            self._conn.commit()
+
+    def relearn_baseline(self, panel: str) -> dict:
+        """접점을 정비·교체한 뒤 — 새 상태를 정상으로 다시 배운다(서버 + 그 판넬의 현장 CCM)."""
+        if self.predictor is None:
+            return {"ok": False, "error": "예지 엔진이 준비되지 않았습니다"}
+        self.predictor.reset_contact_baseline(panel)
+        self._save_pred_state(panel, self.predictor.export_state(panel))
+        owners = [dev for dev, e in self.edge_state().items() if e.get("panel") == panel]
+        now = time.time()
+        with self._edge_lock:
+            for dev in owners:
+                self._edge_cmds.setdefault(dev, []).append({"actuator": "contact", "action": "relearn", "ts": now})
+        via = f" → 현장 {', '.join(owners)} 전송 대기" if owners else ""
+        self.log_event(panel, "", "baseline", f"접점 발열 기준 재학습 시작(정비 후){via}", source="user")
+        return {"ok": True, "panel": panel, "edge_devices": owners}
 
     # ── 엣지(현장 CCM 자율 판정) 연동 ────────────────────────
     EDGE_FRESH = 120.0     # 이보다 오래된 엣지 보고는 '현재 상태'로 쓰지 않는다

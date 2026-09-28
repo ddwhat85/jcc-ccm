@@ -99,6 +99,9 @@ offset = 0.0
 enabled = false
 autovent = true                   # false면 판정·보고만(벤트 자동 개방 안 함)
 failsafe_after_seconds = 60       # 가스 센서가 이만큼 끊기면 벤트 fail-safe
+# 접점 발열 기준(설치 초기 정상 기간에 학습) 저장 파일. 재부팅해도 기준이 유지돼야
+# 그동안 서서히 풀린 접점이 '새 정상'으로 흡수되지 않는다. 접점 정비 후엔 대시보드에서 재학습.
+state_file = "/opt/jcc-ccm/predict_state.json"
 
 [predict.roles]
 h2 = "h2_lel"

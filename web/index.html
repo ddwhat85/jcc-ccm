@@ -410,6 +410,12 @@
   .pdm-edge{margin-top:8px;font:600 10.5px/1.45 var(--mono);color:var(--ink-3)}
   .pdm-edge:empty{display:none}
   .pdm-edge.warn{color:var(--warn)}
+  .pdm-relearn{display:block;margin:8px 0 0 auto;padding:2px 0;background:none;border:0;cursor:pointer;
+               font:600 10.5px var(--mono);color:var(--ink-3);text-decoration:underline dotted;text-underline-offset:3px}
+  .pdm-relearn:hover{color:var(--accent)}
+  .pdm-relearn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .pdm-relearn.armed{color:var(--warn)}
+  .pdm-relearn[hidden]{display:none}
   @media (prefers-reduced-motion:reduce){.pdm-meter i{transition:none}}
   /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
   .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
@@ -1051,7 +1057,7 @@
     </div>
   </div>
 
-<script src="demo-api.js?v=2dddcfa4"></script>
+<script src="demo-api.js?v=69163dca"></script>
 <script>
 const $ = s => document.querySelector(s);
 const REFRESH_MS = 3000;
@@ -1721,9 +1727,27 @@ function renderPred(){
       [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
         `<span class="as">—</span><span class="am">자동</span></button>`).join("")+
-      `</div><div class="pdm-edge" id="pdm-edge"></div>`;
+      `</div><div class="pdm-edge" id="pdm-edge"></div>`+
+      `<button class="pdm-relearn" id="pdm-relearn" hidden>접점 기준 재학습</button>`;
     box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
     box.querySelectorAll("[data-act]").forEach(b=> b.onclick = ()=> pdmToggle(b.dataset.act));
+    // 접점 정비·교체 뒤 기준 재학습 — 학습한 기준을 버리는 조작이라 두 번 눌러야 실행
+    const rl = box.querySelector("#pdm-relearn");
+    rl.onclick = ()=>{
+      if(!rl.classList.contains("armed")){
+        rl.classList.add("armed"); rl.textContent = "정비 후 맞나요? 한 번 더 누르면 재학습";
+        clearTimeout(rl._t); rl._t = setTimeout(()=>{ rl.classList.remove("armed"); rl.textContent = "접점 기준 재학습"; }, 4000);
+        return;
+      }
+      clearTimeout(rl._t); rl.classList.remove("armed"); rl.textContent = "접점 기준 재학습";
+      fetch("/api/predict/baseline",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({panel:(lastPred&&lastPred.panel)||"", action:"relearn"})})
+        .then(r=>r.json()).then(res=>{
+          setStatus(res.ok ? "접점 발열 기준 재학습 시작 — 지금 상태를 새 정상으로 배웁니다"
+                           : (res.error||"재학습 요청 실패"));
+          loadPredict();
+        }).catch(()=> setStatus("재학습 요청 실패 — 연결을 확인하세요"));
+    };
   }
   const p = lastPred;
   if(!p){ $("#pdm-age").textContent = "데이터 쌓이는 중"; return; }
@@ -1733,7 +1757,10 @@ function renderPred(){
   const rows = {
     fire:    {stage:f.stage, risk:(f.fri||0)/100, num:f.fri==null ? "—" : `FRI ${f.fri}`},
     contact: {stage:c.stage, risk:pdmClamp((c.residual||0)/12),
-              num:c.residual==null ? "—" : `${c.residual>0?"+":""}${c.residual}°C`},
+              // 기준 학습 중엔 진행률(그동안은 급격한 발열만 판정, 느린 열화는 학습 후)
+              num: c.stage!=="pending" && c.baseline && c.baseline.status!=="ready"
+                   ? `학습 ${Math.round((c.baseline.progress||0)*100)}%`
+                   : c.residual==null ? "—" : `${c.residual>0?"+":""}${c.residual}°C`},
     dew:     {stage:d.stage, risk:d.margin==null ? 0 : pdmClamp((8-d.margin)/7),
               num:d.margin==null ? "—" : `여유 ${d.margin}°C`},
   };
@@ -1752,6 +1779,13 @@ function renderPred(){
   const worst = [["화재",f],["접점",c],["결로",d]].sort((a,b)=>(rank[b[1].stage]||0)-(rank[a[1].stage]||0))[0];
   $("#pdm-why").textContent = (rank[worst[1].stage]||0) > 0
     ? `${worst[0]} — ${(worst[1].reasons||[]).slice(0,2).join(" · ")}` : "";
+  // 재학습 버튼: 기준이 확정돼 있을 때만(학습 중엔 누를 이유가 없다)
+  const rl = box.querySelector("#pdm-relearn");
+  if(rl){
+    const b = c.baseline||{};
+    rl.hidden = b.status !== "ready";
+    if(b.learned_at) rl.title = `현재 기준은 ${new Date(b.learned_at*1000).toLocaleString("ko-KR")}에 학습 · 접점을 정비·교체했다면 재학습하세요`;
+  }
   // 세 알고리즘 모두 보류면(기동 직후) 그 사유를, 아니면 갱신 시각을
   const allPend = ["fire","contact","dew"].every(k=>(p[k]||{}).stage==="pending");
   const age = Math.max(0, Math.round(Date.now()/1000 - (p.ts||0)));
@@ -2211,13 +2245,14 @@ const EVENT_META = {
   dew_actuate: {label:"히터·팬 작동",   dot:"info", ic:"🌡"},
   actuator:    {label:"수동 조작",      dot:"info", ic:"🕹"},
   edge_actuate:{label:"현장 CCM 작동",  dot:"warn", ic:"📟"},
+  baseline:    {label:"접점 기준",      dot:"info", ic:"📐"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
-  "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate"]);
+  "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
