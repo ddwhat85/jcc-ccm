@@ -74,8 +74,8 @@ def build_drivers(
             drivers.append(DistanceDriver(s))
 
     if modbus_sensors:
-        from .modbus import ModbusBus, ModbusDriver
-        bus = ModbusBus(modbus_bus)
+        from .modbus import ModbusDriver, shared_bus
+        bus = shared_bus(modbus_bus)   # 릴레이 출력(actuators)과 같은 버스를 공유
         for s in modbus_sensors:
             drivers.append(ModbusDriver(s, bus))
 

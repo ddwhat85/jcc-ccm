@@ -6,8 +6,13 @@ MQTT는 IoT 텔레메트리의 사실상 표준이다. 경량이고, TLS를 지�
 from __future__ import annotations
 
 import json
+import threading
 
 from ..config import Config
+from . import parse_commands
+
+# 하향 명령 토픽(대시보드 수동 조작 → 이 CCM). 브로커 쪽에서 서버가 발행한다.
+CMD_TOPIC = "jcc/ccm/{device_id}/cmd"
 
 
 class MqttTransport:
@@ -15,8 +20,11 @@ class MqttTransport:
         self._cfg = cfg
         self._m = cfg.mqtt
         self._topic = self._m.topic.replace("{device_id}", cfg.device_id)
+        self._cmd_topic = CMD_TOPIC.replace("{device_id}", cfg.device_id)
         self._client = None
         self._connected = False
+        self._cmds: list[dict] = []
+        self._cmd_lock = threading.Lock()   # paho 콜백 스레드 ↔ 에이전트 루프
 
     def connect(self) -> None:
         from paho.mqtt import client as mqtt
@@ -33,12 +41,23 @@ class MqttTransport:
 
         def _on_connect(client, userdata, flags, rc):  # noqa: ANN001
             self._connected = (rc == 0)
+            if self._connected:   # 재연결 때마다 다시 구독(clean_session)
+                client.subscribe(self._cmd_topic, qos=1)
 
         def _on_disconnect(client, userdata, rc):  # noqa: ANN001
             self._connected = False
 
+        def _on_message(client, userdata, msg):  # noqa: ANN001
+            try:
+                cmds = parse_commands(json.loads(msg.payload.decode("utf-8")))
+            except (ValueError, UnicodeDecodeError):
+                return
+            with self._cmd_lock:
+                self._cmds.extend(cmds)
+
         self._client.on_connect = _on_connect
         self._client.on_disconnect = _on_disconnect
+        self._client.on_message = _on_message
         self._client.connect(self._m.host, self._m.port, keepalive=60)
         self._client.loop_start()  # 백그라운드 스레드가 재연결·핑 처리
 
@@ -57,6 +76,11 @@ class MqttTransport:
             return info.is_published()
         except Exception:  # noqa: BLE001 - 실패는 False로, 재시도는 agent가
             return False
+
+    def take_commands(self) -> list[dict]:
+        with self._cmd_lock:
+            out, self._cmds = self._cmds, []
+        return out
 
     def close(self) -> None:
         if self._client is not None:

@@ -35,6 +35,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="설정 파일 경로 (기본: /opt/jcc-ccm/config.toml)")
     parser.add_argument("--simulate", action="store_true",
                         help="센서·전송을 흉내 내 개발 PC에서 루프를 확인 (실기 불필요)")
+    parser.add_argument("--scenario", choices=["fire", "contact", "dew", "gasloss"], default="",
+                        help="--simulate 와 함께: 엣지 예지 시연 상황(45초 뒤 시작)")
     parser.add_argument("--version", action="version", version=f"jcc-ccm {__version__}")
     args = parser.parse_args(argv)
 
@@ -48,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.simulate:
         from .simulate import run_simulation
-        return run_simulation(cfg)
+        return run_simulation(cfg, args.scenario)
 
     from .agent import Agent
     Agent(cfg).run()

@@ -286,7 +286,17 @@ class Handler(BaseHTTPRequestHandler):
             n = self.storage.ingest(payload)
         except Exception as exc:  # noqa: BLE001
             return self._json({"error": f"저장 실패: {exc}"}, 500)
-        return self._json({"ok": True, "stored": n})
+        dev = str(payload.get("device_id"))
+        resp = {"ok": True, "stored": n}
+        try:
+            # 엣지 보고(CCM이 직접 판정·구동한 결과) 반영 + 대기 중인 수동 조작 명령을 응답으로 하향
+            self.storage.ingest_edge(dev, payload.get("edge"))
+            cmds = self.storage.take_edge_commands(dev)
+            if cmds:
+                resp["commands"] = cmds
+        except Exception:  # noqa: BLE001 - 엣지 연동 오류가 수집 응답을 깨면 안 된다
+            pass
+        return self._json(resp)
 
     # ── 자동 탐색 (AI 자동연결) ──────────────────────────────
     def _discover(self) -> None:

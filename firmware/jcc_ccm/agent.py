@@ -12,6 +12,7 @@ import signal
 import time
 
 from .config import Config
+from .edge import build_edge
 from .sensors import build_drivers, Reading
 from .transport import build_transport
 
@@ -28,6 +29,8 @@ class Agent:
         self._transport = build_transport(cfg)
         self._queue: collections.deque[dict] = collections.deque(maxlen=_MAX_QUEUE)
         self._stop = False
+        # 엣지 예지(config [predict]) — 서버·회선과 무관하게 이 CCM이 직접 벤트·히터·팬을 몬다
+        self._edge = build_edge(cfg)
 
     # ── 수명주기 ──────────────────────────────────────────────
     def _install_signals(self) -> None:
@@ -77,8 +80,30 @@ class Agent:
             failed = [r.key for r in readings if not r.ok]
             log.warning("센서 %d/%d 실패: %s", len(failed), len(readings), ", ".join(failed))
 
+        # 엣지 예지는 전송보다 먼저 — 회선이 죽어도 벤트는 이 주기에 바로 움직인다.
+        edge = getattr(self, "_edge", None)
+        if edge is not None:
+            try:
+                edge.observe(readings)
+                payload["edge"] = edge.step()
+            except Exception as exc:  # noqa: BLE001 - 예지 오류로 수집이 멈추면 안 된다
+                log.exception("엣지 예지 오류(수집은 계속): %s", exc)
+
         self._enqueue(payload)
         self._flush()
+        self._apply_commands()
+
+    def _apply_commands(self) -> None:
+        """서버가 내려보낸 수동 조작 명령을 엣지 출력에 반영한다(다음 보고에 결과가 실린다)."""
+        edge = getattr(self, "_edge", None)
+        take = getattr(self._transport, "take_commands", None)
+        if edge is None or take is None:
+            return
+        try:
+            for cmd in take():
+                edge.apply_command(cmd)
+        except Exception as exc:  # noqa: BLE001
+            log.exception("원격 명령 처리 오류: %s", exc)
 
     def _build_payload(self, readings: list[Reading]) -> dict:
         return {

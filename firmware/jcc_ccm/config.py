@@ -90,6 +90,49 @@ class ModbusBusConfig:
     timeout_seconds: float = 1.0
 
 
+_ROLES = ("h2", "voc", "current", "contact_temp", "ambient", "humidity", "smoke")  # predict/inputs.ROLES
+
+
+@dataclass
+class PredictConfig:
+    """엣지 예지(화재·접점발열·결로). 서버 없이 CCM이 직접 판정해 벤트·히터·팬을 몬다."""
+    enabled: bool = False
+    # 역할 → 이 CCM 센서 key. 이 CCM에 없는 역할은 비워둔다(그 알고리즘은 '센서 없음'으로
+    # 쉬고, 판넬 전체 판정은 서버가 CCM 여러 대의 데이터를 모아 한다).
+    roles: dict = field(default_factory=dict)
+    autovent: bool = True               # False면 판정·보고만 하고 벤트는 자동으로 안 연다
+    failsafe_after_seconds: float = 60.0  # 가스 입력이 이만큼 끊기면 벤트를 fail-safe 상태로
+
+
+@dataclass
+class ActuatorConfig:
+    """출력(릴레이). 벤트·히터·팬 각 1개."""
+    kind: str                     # "vent" | "heater" | "fan"
+    driver: str = "log"           # "modbus_coil" | "log"(실기 없이 로그만 — 시운전·시뮬레이션)
+    modbus_slave: int = 0         # modbus_coil: 릴레이 모듈 슬레이브 주소
+    modbus_coil: int = 0          # modbus_coil: 코일 번호
+    invert: bool = False          # 켜짐=코일 OFF 로 배선했을 때(NC 접점 등)
+    failsafe: str = ""            # 가스 입력 장시간 끊김 시: vent="open"(기본)/"hold"
+
+    _KINDS = ("vent", "heater", "fan")
+    _DRIVERS = ("modbus_coil", "log")
+
+    def validate(self) -> None:
+        if self.kind not in self._KINDS:
+            raise ConfigError(f"actuators: kind는 {self._KINDS} 중 하나여야 합니다 (현재 '{self.kind}').")
+        if self.driver not in self._DRIVERS:
+            raise ConfigError(f"actuator '{self.kind}': driver는 {self._DRIVERS} 중 하나여야 합니다.")
+        if self.driver == "modbus_coil" and self.modbus_slave <= 0:
+            raise ConfigError(f"actuator '{self.kind}': modbus_slave 주소를 1 이상으로 지정하세요.")
+        if self.kind == "vent":
+            if self.failsafe == "":
+                self.failsafe = "open"            # 가스를 못 보면 환기하는 쪽이 안전측
+            if self.failsafe not in ("open", "hold"):
+                raise ConfigError("actuator 'vent': failsafe는 open 또는 hold 여야 합니다.")
+        elif self.failsafe not in ("", "hold"):
+            raise ConfigError(f"actuator '{self.kind}': failsafe는 hold만 지원합니다(비워두면 hold).")
+
+
 @dataclass
 class Config:
     device_id: str
@@ -105,6 +148,8 @@ class Config:
     sensors: list[SensorConfig] = field(default_factory=list)
     log_level: str = "INFO"
     log_file: str = ""
+    predict: PredictConfig = field(default_factory=PredictConfig)
+    actuators: list[ActuatorConfig] = field(default_factory=list)
 
     def validate(self) -> None:
         if self.interval_seconds <= 0:
@@ -124,6 +169,23 @@ class Config:
             raise ConfigError(f"센서 key가 중복됩니다: {sorted(dups)}")
         for s in self.sensors:
             s.validate()
+        # 엣지 예지: 역할은 켜진 센서를 가리켜야 하고, 출력은 종류별 1개.
+        # 꺼져 있으면(배선 전 예시 등) 역할은 검사하지 않는다 — 안 쓰는 기능이 부팅을 막으면 안 된다.
+        for role, key in (self.predict.roles.items() if self.predict.enabled else ()):
+            if role not in _ROLES:
+                raise ConfigError(f"predict.roles: 알 수 없는 역할 '{role}' (가능: {', '.join(_ROLES)})")
+            if key not in keys:
+                raise ConfigError(f"predict.roles.{role} = '{key}': 켜진 센서 중에 그 key가 없습니다.")
+        if self.predict.failsafe_after_seconds <= 0:
+            raise ConfigError("predict.failsafe_after_seconds는 0보다 커야 합니다.")
+        kinds = [a.kind for a in self.actuators]
+        dup_k = {k for k in kinds if kinds.count(k) > 1}
+        if dup_k:
+            raise ConfigError(f"actuators: 같은 종류가 중복됩니다: {sorted(dup_k)}")
+        for a in self.actuators:
+            a.validate()
+        if self.actuators and not self.predict.enabled:
+            raise ConfigError("actuators가 있는데 predict.enabled=false 입니다 — 출력을 쓰려면 predict를 켜세요.")
 
 
 def _resolve_device_id(raw_id: str) -> str:
@@ -148,6 +210,7 @@ def load(path: str) -> Config:
     http_raw = transport.get("http", {})
     modbus_raw = raw.get("modbus", {})
     logging_raw = raw.get("logging", {})
+    predict_raw = raw.get("predict", {})
 
     sensors = [
         SensorConfig(
@@ -200,6 +263,23 @@ def load(path: str) -> Config:
         sensors=sensors,
         log_level=logging_raw.get("level", "INFO"),
         log_file=logging_raw.get("file", ""),
+        predict=PredictConfig(
+            enabled=bool(predict_raw.get("enabled", False)),
+            roles={str(k): str(v) for k, v in (predict_raw.get("roles") or {}).items() if v},
+            autovent=bool(predict_raw.get("autovent", True)),
+            failsafe_after_seconds=float(predict_raw.get("failsafe_after_seconds", 60.0)),
+        ),
+        actuators=[
+            ActuatorConfig(
+                kind=a.get("kind", ""),
+                driver=a.get("driver", "log"),
+                modbus_slave=int(a.get("modbus_slave", 0)),
+                modbus_coil=int(a.get("modbus_coil", 0)),
+                invert=bool(a.get("invert", False)),
+                failsafe=str(a.get("failsafe", "")),
+            )
+            for a in raw.get("actuators", [])
+        ],
     )
     cfg.validate()
     return cfg

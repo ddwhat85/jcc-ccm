@@ -83,6 +83,58 @@ modbus_datatype = "uint16"
 scale = 0.01
 offset = 0.0
 
+[[sensors]]
+key = "voc_ppm"
+name = "VOC 농도"
+driver = "modbus"
+unit = "ppm"
+enabled = true
+modbus_slave = 7
+modbus_register = 0
+modbus_type = "input"
+modbus_datatype = "uint16"
+scale = 1.0
+offset = 0.0
+
+[[sensors]]
+key = "ncontact_temp"
+name = "비접촉 온도"
+driver = "modbus"
+unit = "C"
+enabled = true
+modbus_slave = 6
+modbus_register = 0
+modbus_type = "input"
+modbus_datatype = "int16"
+scale = 0.1
+offset = 0.0
+
+# ── 엣지 예지 (개발용: 출력은 로그만) ──
+#   python -m jcc_ccm -c config/config.dev.toml --simulate --scenario fire
+[predict]
+enabled = true
+failsafe_after_seconds = 60
+
+[predict.roles]
+h2 = "h2_lel"
+voc = "voc_ppm"
+ambient = "cabinet_temp"
+humidity = "cabinet_humidity"
+current = "main_current"
+contact_temp = "ncontact_temp"
+
+[[actuators]]
+kind = "vent"
+driver = "log"
+
+[[actuators]]
+kind = "heater"
+driver = "log"
+
+[[actuators]]
+kind = "fan"
+driver = "log"
+
 [modbus]
 # RS485 포트 설정 (CCM의 CAN/RS485 RJ45). 실기에서 장치 경로 확인 후 조정.
 port = "/dev/ttyS1"

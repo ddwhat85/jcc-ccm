@@ -11,12 +11,14 @@ import urllib.request
 import urllib.error
 
 from ..config import Config
+from . import parse_commands
 
 
 class HttpTransport:
     def __init__(self, cfg: Config):
         self._cfg = cfg
         self._h = cfg.http
+        self._cmds: list[dict] = []
 
     def connect(self) -> None:
         # HTTP는 세션 유지가 필요 없다. 매 전송이 독립적.
@@ -30,11 +32,22 @@ class HttpTransport:
         req = urllib.request.Request(self._h.url, data=data, headers=headers, method="POST")
         try:
             with urllib.request.urlopen(req, timeout=self._h.timeout_seconds) as resp:
-                return 200 <= resp.status < 300
+                ok = 200 <= resp.status < 300
+                if ok:
+                    # 응답에 실려 온 명령(대시보드 수동 조작) — 보고 주기마다 받아가는 하향 채널
+                    try:
+                        self._cmds.extend(parse_commands(json.loads(resp.read().decode("utf-8") or "{}")))
+                    except (ValueError, UnicodeDecodeError):
+                        pass
+                return ok
         except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError):
             return False
         except Exception:  # noqa: BLE001
             return False
+
+    def take_commands(self) -> list[dict]:
+        out, self._cmds = self._cmds, []
+        return out
 
     def close(self) -> None:
         return None

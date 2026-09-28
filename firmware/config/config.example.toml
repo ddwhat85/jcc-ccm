@@ -90,6 +90,36 @@ modbus_datatype = "uint16"
 scale = 0.01
 offset = 0.0
 
+# ── 엣지 예지 (화재 징조·결로 → 벤트·히터·팬) ──
+# 켜면 이 CCM이 서버·인터넷 없이 직접 판정해 릴레이를 움직인다(서버와 같은 로직).
+# roles에는 '이 CCM에 물린' 센서 key만 적는다. 없는 역할은 비워두면 그 알고리즘은
+# 이 CCM에서 쉬고, 판넬 전체 판정은 서버가 여러 CCM 데이터를 모아서 한다.
+#   가스 CCM: h2·voc → 화재 징조 → 벤트    /  환경 CCM: ambient·humidity → 결로 → 히터·팬
+[predict]
+enabled = false
+autovent = true                   # false면 판정·보고만(벤트 자동 개방 안 함)
+failsafe_after_seconds = 60       # 가스 센서가 이만큼 끊기면 벤트 fail-safe
+
+[predict.roles]
+h2 = "h2_lel"
+# voc = "voc_ppm"
+# ambient = "cabinet_temp"
+# humidity = "cabinet_humidity"
+# current = "main_current"
+# contact_temp = "ncontact_temp"
+
+# 출력(릴레이). predict.enabled = true 일 때만 쓸 수 있다. 종류별 1개.
+# driver = "modbus_coil": RS485 릴레이 모듈(센서와 같은 버스 공유) / "log": 로그만(시운전)
+# ⚠ 배선: 벤트는 CCM 전원이 끊기면 '열리는' 쪽(NC 접점·스프링 리턴 댐퍼)으로.
+#   소프트웨어 fail-safe는 가스 센서를 잃었을 때만 다루고, CCM 정전은 배선이 책임진다.
+# [[actuators]]
+# kind = "vent"                   # vent | heater | fan
+# driver = "modbus_coil"
+# modbus_slave = 10               # 릴레이 모듈 주소
+# modbus_coil = 0                 # 코일(채널) 번호
+# invert = false                  # 켜짐=코일 OFF로 배선했으면 true
+# failsafe = "open"               # 벤트: open(기본) | hold
+
 [modbus]
 # RS485 포트 설정 (CCM의 CAN/RS485 RJ45). 실기에서 장치 경로 확인 후 조정.
 port = "/dev/ttyS1"

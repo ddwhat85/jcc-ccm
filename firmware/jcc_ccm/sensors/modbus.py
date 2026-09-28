@@ -71,6 +71,23 @@ class ModbusBus:
                     self._client = None
                 raise
 
+    def write_coil(self, slave: int, address: int, value: bool) -> None:
+        """코일(릴레이 출력) 1개를 쓴다 — 벤트·히터·팬. 실패 시 예외."""
+        with self._lock:
+            try:
+                client = self._ensure_client()
+                rr = client.write_coil(address=address, value=bool(value), slave=slave)
+                if rr.isError():
+                    raise IOError(f"Modbus 코일 쓰기 오류 slave={slave} coil={address}: {rr}")
+            except Exception:
+                if self._client is not None:
+                    try:
+                        self._client.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    self._client = None
+                raise
+
     def close(self) -> None:
         with self._lock:
             if self._client is not None:
@@ -78,6 +95,18 @@ class ModbusBus:
                     self._client.close()
                 finally:
                     self._client = None
+
+
+# RS485 포트는 하나다 — 센서 읽기와 릴레이 쓰기가 같은 버스(같은 락)를 써야 충돌하지 않는다.
+_BUSES: dict = {}
+
+
+def shared_bus(cfg: ModbusBusConfig) -> ModbusBus:
+    """포트별로 하나의 ModbusBus를 돌려준다(연결은 첫 사용 때 지연)."""
+    bus = _BUSES.get(cfg.port)
+    if bus is None:
+        bus = _BUSES[cfg.port] = ModbusBus(cfg)
+    return bus
 
 
 # datatype -> 필요한 16bit 워드 수

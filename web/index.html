@@ -407,6 +407,9 @@
   .pdm-a.on .as{color:var(--accent)}
   .pdm-a.manual .am{color:var(--warn)}
   .pdm-empty{font-size:11px;color:var(--ink-3);padding:6px 2px 2px}
+  .pdm-edge{margin-top:8px;font:600 10.5px/1.45 var(--mono);color:var(--ink-3)}
+  .pdm-edge:empty{display:none}
+  .pdm-edge.warn{color:var(--warn)}
   @media (prefers-reduced-motion:reduce){.pdm-meter i{transition:none}}
   /* ── 히어로 경보 카드 (개요 상단) — 좌측 색 레일 + 깔끔한 카드 ── */
   .hero{position:relative;border-radius:14px;padding:14px 15px 14px 18px;margin-bottom:14px;
@@ -1718,13 +1721,14 @@ function renderPred(){
       [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
         `<span class="as">—</span><span class="am">자동</span></button>`).join("")+
-      `</div>`;
+      `</div><div class="pdm-edge" id="pdm-edge"></div>`;
     box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
     box.querySelectorAll("[data-act]").forEach(b=> b.onclick = ()=> pdmToggle(b.dataset.act));
   }
   const p = lastPred;
   if(!p){ $("#pdm-age").textContent = "데이터 쌓이는 중"; return; }
   pdmPaintActs(box, pdmActs(p));
+  pdmPaintEdge(box, p);
   const f = p.fire||{}, c = p.contact||{}, d = p.dew||{};
   const rows = {
     fire:    {stage:f.stage, risk:(f.fri||0)/100, num:f.fri==null ? "—" : `FRI ${f.fri}`},
@@ -1754,14 +1758,22 @@ function renderPred(){
   $("#pdm-age").textContent = allPend ? (f.reasons||["대기"])[0]
                             : age < 6 ? "실시간" : `${age}초 전`;
 }
-// 액추에이터 상태 읽기(벤트=fire.vent, 히터·팬=dew)
+// 액추에이터 상태 읽기(벤트=fire.vent, 히터·팬=dew). 그 출력을 현장 CCM(엣지)이 직접 쥐고
+// 보고했으면 서버 모델이 아니라 CCM이 실제로 쓴 릴레이 상태를 보여준다(site=true).
 function pdmActs(p){
   const f = p.fire||{}, d = p.dew||{};
-  return {
+  const acts = {
     vent:   {on:!!(f.vent&&f.vent.open), mode:(f.vent&&f.vent.mode)||"auto"},
     heater: {on:!!d.heater, mode:d.mode||"auto"},
     fan:    {on:!!d.fan,    mode:d.mode||"auto"},
   };
+  for(const [dev, e] of Object.entries(p.edge||{})){
+    for(const [k, a] of Object.entries(e.actuators||{})){
+      if(acts[k] && a && a.on !== null && a.on !== undefined)
+        acts[k] = {on:!!a.on, mode:a.mode||"auto", site:dev};
+    }
+  }
+  return acts;
 }
 function pdmPaintActs(box, acts){
   const words = {vent:["개방","닫힘"], heater:["가동","정지"], fan:["가동","정지"]};
@@ -1772,9 +1784,24 @@ function pdmPaintActs(box, acts){
     b.classList.toggle("manual", a.mode==="manual");
     b.setAttribute("aria-pressed", a.on ? "true" : "false");
     b.querySelector(".as").textContent = a.on ? words[k][0] : words[k][1];
-    b.querySelector(".am").textContent = a.mode==="manual" ? "수동" : "자동";
-    b.title = a.mode==="manual" ? "클릭: 수동 켬 → 수동 끔 → 자동 복귀" : "클릭: 수동 조작으로 전환";
+    const m = a.mode==="failsafe" ? "fail-safe" : a.mode==="manual" ? "수동" : "자동";
+    b.querySelector(".am").textContent = a.site ? `현장·${m}` : m;
+    b.classList.toggle("manual", a.mode==="manual" || a.mode==="failsafe");
+    b.title = (a.site ? `현장 CCM ${a.site}이 직접 구동 중 · ` : "")
+            + (a.mode==="manual" ? "클릭: 수동 켬 → 수동 끔 → 자동 복귀" : "클릭: 수동 조작으로 전환");
   }
+}
+// 현장 제어 줄: 출력을 직접 쥔 CCM과 fail-safe 여부
+function pdmPaintEdge(box, p){
+  const el = box.querySelector("#pdm-edge"); if(!el) return;
+  const es = Object.entries(p.edge||{}).filter(([, e])=>Object.keys(e.actuators||{}).length);
+  if(!es.length){ el.textContent = ""; el.className = "pdm-edge"; return; }
+  const names = {vent:"벤트", heater:"히터", fan:"팬"};
+  const fs = es.filter(([, e])=>e.failsafe);
+  el.className = "pdm-edge" + (fs.length ? " warn" : "");
+  el.textContent = fs.length
+    ? `${fs.map(([d])=>d).join(", ")} — 가스 센서 끊김, fail-safe로 벤트 개방`
+    : "현장 제어 · " + es.map(([d, e])=>`${d}(${Object.keys(e.actuators).map(k=>names[k]||k).join("·")}) ${Math.round(e.age||0)}초 전`).join(" / ");
 }
 // 클릭 순환: 자동 → 수동 켬 → 수동 끔 → 자동 (사람 조작이 자동보다 우선)
 function pdmToggle(act){
@@ -2183,13 +2210,14 @@ const EVENT_META = {
   vent_hold:   {label:"벤트 개방 유지", dot:"crit", ic:"🌀"},
   dew_actuate: {label:"히터·팬 작동",   dot:"info", ic:"🌡"},
   actuator:    {label:"수동 조작",      dot:"info", ic:"🕹"},
+  edge_actuate:{label:"현장 CCM 작동",  dot:"warn", ic:"📟"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
   "stuck_clear","anomaly","anomaly_clear","ack","escalate","notify_test","rename","discover","healthcheck",
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
-  "vent_open","vent_close","vent_hold","dew_actuate","actuator"]);
+  "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -2845,11 +2873,16 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-09-28T18:18", status:"done", cat:"fire", name:"엣지 예지 — CCM이 서버 없이 직접 판정·구동",
+   sensors:"이 CCM에 물린 센서(config [predict.roles]) · 출력: 벤트·히터·팬 릴레이",
+   summary:"서버와 똑같은 판정 로직을 CCM 펌웨어가 직접 돌려, 인터넷·서버가 끊겨도 화재 징조면 벤트를 그 주기에 바로 연다. 결과는 텔레메트리로 보고하고, 대시보드 수동 조작은 텔레메트리 응답으로 내려받아 실제 릴레이에 반영한다.",
+   method:"코어 5개(fire_risk·contact_heat·dewpoint·inputs·predict)를 서버 정본에서 바이트 동일 사본으로 동기화(tools/sync_edge_core.py, 테스트가 동일성 검사) · 센서별 메모리 링버퍼 160표본 · 출력은 바뀐 것만 쓰고 실패 시 다음 주기 재시도 · 판정 보류(학습 중·끊김) 중엔 자동 출력 불변(재부팅 직후 열린 벤트를 닫지 않음) · 가스 입력이 마지막 표본부터 60초 끊기면 벤트 fail-safe 개방 → 데이터 복귀 후 히스테리시스로 닫힘 · Modbus 코일 릴레이(센서와 같은 RS485 버스·락 공유) · 하향 명령: HTTP 응답 / MQTT jcc/ccm/{id}/cmd · 엣지 테스트 16/16 · 실제 HTTP 연동 테스트 10/10(서버 두절 중 자율 개방 포함)",
+   next:"실기 릴레이 모듈 슬레이브·코일 주소 확정 · 벤트 NC(정전 시 개방) 배선 확인 · MQTT 하향용 서버 측 브로커 발행"},
   {ts:"2026-09-28T16:14", status:"done", cat:"fire", name:"예지보전 통합 엔진 — 판넬 융합 · 벤트·히터·팬",
    sensors:"H2 · VOC(신규 SGP41) · 전류 · 접점온도 · 함내 온·습도 · 열연기",
    summary:"화재·접점발열·결로 세 알고리즘을 판넬 단위로 한 번에 돌려, 위험이면 예지 경보를 해당 센서 노드에 걸고 벤트·히터·팬을 자동으로 움직인다. 사람이 누르면 수동이 자동보다 우선한다.",
    method:"predict.py Predictor(판넬별 VentController·DewActuator 상태) · 감시 루프마다 predict_scan → 경보는 전이(정상↔위험)로만 발생·해제 · 접점 위험을 화재 확증(current_abnormal)으로 교차전달 · GET /api/predict · POST /api/predict/actuator · demo-api.js 동일 로직 미러 · 현재값=최근 유효 3표본 중앙값, 기울기=3점 이동중앙값, 기준선=최근 30표본 이전 이력(사건이 '평소'를 오염시키지 않게) · 알고리즘별 준비 판정: 6표본·20초 창 미만=학습 중, 보고주기×4(최소 15초) 무소식=데이터 끊김 → 보류 중엔 경보·액추에이터 상태 유지(가스가 끊겼다고 열린 벤트를 닫지 않음), 함내온도는 화재에선 보조항이라 끊기면 그 항만 제외 · 센서 간 이력은 시각으로 짝지음(as-of) · 파이썬↔JS 미러 일치 테스트(에포크 시각 포함) 25/25 · 통합 테스트 23/23",
-   next:"펌웨어 엣지 미러(서버 없이 CCM이 벤트 직접 작동) · 하드웨어 fail-safe(정전·통신두절 시 벤트 개방) · 실센서 캘리브레이션"},
+   next:"엣지 미러 완료(위 항목) · 남은 것: 실센서 캘리브레이션 · 접점 발열 초기 기준 학습기간 고정"},
   {ts:"2026-09-23T18:10", status:"done", cat:"elec", name:"접점·커넥터 발열 예지",
    sensors:"전류(CT20A) · 접점온도(비접촉) · 함내온도",
    summary:"전류 대비 접점 온도의 상관을 학습해, 같은 전류에서 초과 발열(잔차)이 커지거나 서서히 오르면 접촉저항 증가(접점 풀림·부식=열화)로 판정한다. 판넬 화재 1위 원인인 접점 발열을 화염 전에 잡는다.",
@@ -2864,7 +2897,7 @@ const ALGORITHMS = [
    sensors:"H2 · VOC · 온도",
    summary:"H2·VOC의 값·상승속도·평소대비 급등을 융합해 화재 위험지수(FRI 0~100)를 만들고, 임계 도달 前에 벤트를 자동 개방한다(예지).",
    method:"g=max(level, rise=분당기울기, anom=중앙값·MAD z) · FRI=100·clamp(0.38·gH2+0.38·gVOC+동반0.2·min+0.10·온도+확증0.15) · 단계 30/55/80 · 히스테리시스(개방≥55·복구<20 유지) · fire_risk.py 테스트 13/13",
-   next:"통합 완료(VOC 센서·FRI 미터·벤트 자동/수동·예지 경보) · 남은 것: 펌웨어 엣지 미러"},
+   next:"통합 완료(VOC 센서·FRI 미터·벤트 자동/수동·예지 경보) · 엣지 미러 완료(CCM 자율 벤트)"},
   {ts:"2026-09-18T16:10", status:"done", cat:"heal", name:"자가치유 L2 — CCM 자동 재시작",
    sensors:"CCM 전체",
    summary:"CCM 전체 침묵 또는 L1 실패 시 그 CCM을 자동 재시작한다.",
