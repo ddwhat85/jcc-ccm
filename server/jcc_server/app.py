@@ -145,6 +145,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"panels": self.storage.list_panels()})
         if path == "/api/alarms":
             return self._json({"alarms": self.storage.list_active_alarms()})
+        if path == "/api/incidents":
+            al = self.storage.list_active_alarms()
+            return self._json({"incidents": self.storage.list_incidents(al), "alarms": al})
         if path == "/api/healthcheck":
             rep = self.storage.diagnose_all()
             c = rep.get("counts", {})

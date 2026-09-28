@@ -22,6 +22,7 @@ DEMO_API = os.path.join(os.path.dirname(os.path.dirname(HERE)), "web", "demo-api
 from jcc_server.fire_risk import assess, robust_z, slope_per_min
 from jcc_server.contact_heat import ContactBaseline, ContactCfg, assess_contact
 from jcc_server.dewpoint import assess_dewpoint
+from jcc_server.incidents import group_alarms
 
 _fails = []
 
@@ -67,9 +68,36 @@ def fixtures() -> dict:
         "dew": [[25.0, 45.0, 25.0, d_norm], [25.0, 95.0, 25.0, d_norm], [25.0, 50.0, 18.9, d_near],
                 [25.0, 50.0, 25.0, d_far], [25.0, 88.0, 25.0, d_norm], [25.0, 70.0, 20.6, d_norm]],
         "baseline": [_drift_seq(20, 300.0), _drift_seq(0.2, 60.0)],
+        "incidents": _incident_cases(),
         "contact_ref": [[15, 27 + 0.03 * 225 + 7, 27, c_norm, 0.03], [15, 27 + 0.03 * 225 + 13, 27, c_norm, 0.03],
                         [15, 27.3, 27, c_norm, 0.0]],
     }
+
+
+def _incident_cases() -> list:
+    """경보 묶기 비교용: 화재 연쇄·화재 후 CCM 두절·CCM 두절 전후·접점·결로·같은 센서·다른 판넬."""
+    kinds = {"ccm-1:h2": "h2", "ccm-1:voc": "voc", "ccm-2:t": "temp", "ccm-2:rh": "humidity",
+             "ccm-2:door": "door", "ccm-3:rh": "humidity", "ccm-3:vib": "vibration", "ccm-4:smoke": "smoke",
+             "ccm-4:ncontact_temp": "temp", "ccm-9:h2": "h2"}
+    panels = {"ccm-1": "p1", "ccm-2": "p1", "ccm-3": "p1", "ccm-4": "p1", "ccm-9": "p2"}
+    rows = [  # id, dev, key, kind, sev, dt, acked
+        (1, "ccm-1", "h2", "fire", "crit", 0, 0), (2, "ccm-1", "h2", "alarm_warn", "warn", -120, 0),
+        (3, "ccm-1", "voc", "drift", "warn", 30, 1), (4, "ccm-2", "t", "anomaly", "warn", 40, 0),
+        (5, "ccm-4", "smoke", "alarm", "crit", 90, 0), (6, "ccm-2", "door", "alarm_warn", "warn", 10, 0),
+        (7, "ccm-9", "h2", "alarm_warn", "warn", 20, 0), (8, "ccm-1", "", "silent", "crit", 150, 0),
+        (9, "ccm-1", "voc", "stuck", "warn", 200, 0), (10, "ccm-3", "", "silent", "crit", 500, 0),
+        (11, "ccm-3", "vib", "stuck", "warn", 700, 0), (12, "ccm-3", "vib", "alarm_warn", "warn", -400, 1),
+        (13, "ccm-4", "ncontact_temp", "contact", "crit", 800, 0), (14, "ccm-4", "ncontact_temp", "anomaly", "warn", 760, 0),
+        (15, "ccm-2", "rh", "dew", "warn", 900, 0), (16, "ccm-3", "rh", "stuck", "warn", 950, 0),
+        (17, "ccm-2", "rh", "alarm", "crit", 920, 1), (18, "ccm-2", "door", "drift", "warn", 30, 0),
+        (19, "ccm-4", "smoke", "stuck", "warn", 95, 0),       # 연기 센서 고장류는 화재에 안 묶임
+    ]
+    alarms = [{"id": i, "device_id": d, "sensor_key": k, "kind": kd, "severity": sv, "raised_at": E + dt,
+               "acked_at": (E + dt + 1) if ak else None, "detail": f"{d}:{k} {kd}"}
+              for i, d, k, kd, sv, dt, ak in rows]
+    return [{"alarms": alarms, "sensors": kinds, "panels": panels},
+            {"alarms": alarms[:7], "sensors": kinds, "panels": panels},
+            {"alarms": [], "sensors": kinds, "panels": panels}]
 
 
 def _drift_seq(days: float, step: float) -> list:
@@ -97,6 +125,9 @@ def python_results(fx: dict) -> dict:
         "baseline": [_py_baseline(seq) for seq in fx["baseline"]],
         "contact_ref": [{"stage": r.stage, "residual": r.residual}
                         for r in (assess_contact(i, t, a, h, k_ref=k) for i, t, a, h, k in fx["contact_ref"])],
+        "incidents": [[[x["cause"], x["primary"], sorted(x["alarms"]), x["severity"], x["acked"]]
+                       for x in group_alarms(c["alarms"], {tuple(k.split(":", 1)): v for k, v in c["sensors"].items()},
+                                             c["panels"])] for c in fx["incidents"]],
     }
 
 
@@ -156,6 +187,8 @@ def run():
     for i, (p, j) in enumerate(zip(py["baseline"], js["baseline"])):
         check(f"접점 기준 학습 #{i}", p["status"] == j["status"] and p["learned_at"] == j["learned_at"]
               and close(p["k"], j["k"], 1e-5) and close(p["mid"], j["mid"], 1e-3), f"py={p} js={j}")
+    for i, (p, j) in enumerate(zip(py["incidents"], js["incidents"])):
+        check(f"경보 묶기 #{i}", p == j, f"py={p}\n        js={j}" if p != j else f"사건 {len(p)}건 동일")
     for i, (p, j) in enumerate(zip(py["contact_ref"], js["contact_ref"])):
         check(f"접점(기준 k) #{i}", p["stage"] == j["stage"] and close(p["residual"], j["residual"], 0.11),
               f"py={p} js={j}")

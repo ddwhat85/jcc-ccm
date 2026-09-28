@@ -446,7 +446,7 @@
         if (!up || (t - lt) >= SEN_TO) continue;
         const st = historyStats(dev, s.key);
         let state = "ok", anom = null;
-        if (st.stuck) state = "stuck";
+        if (st.stuck && s.kind !== "smoke") state = "stuck";   // 접점(열연기)은 늘 0이 정상 — 고착 판정 제외
         else if (st.drift) state = "drift";
         else {
           const arr = S.readings[K(dev, s.key)] || [];
@@ -844,6 +844,61 @@
     return { ok: true, panel, actuators: actView(s) };
   }
 
+  // ── 경보 원인 묶기 (server/jcc_server/incidents.py 미러) ──────────────────
+  const INC_PRE = 1800, INC_CCM_SLACK = 60, INC_SEV = { crit: 2, warn: 1 };
+  const INC_TITLE = { fire: "화재 징조 — 가스·온도 동반 이상", contact: "접점 발열 — 접점온도 이상", dew: "결로 위험 — 습도 이상" };
+  function groupAlarms(alarms, sensors, panels) {
+    const items = alarms.map(a => Object.assign({}, a)).sort((a, b) => ((a.raised_at || 0) - (b.raised_at || 0)) || ((a.id || 0) - (b.id || 0)));
+    const used = new Set(), out = [];
+    const kindOf = a => sensors[(a.device_id || "") + ":" + (a.sensor_key || "")] || "";
+    const panelOf = a => panels[a.device_id || ""] || a.device_id || "";
+    const make = (cause, p, members, title) => {
+      const ids = members.map(m => m.id); ids.forEach(i => used.add(i));
+      const sev = members.map(m => m.severity || "warn").reduce((x, y) => (INC_SEV[y] || 0) > (INC_SEV[x] || 0) ? y : x);
+      out.push({ key: `${cause}:${p.device_id || ""}:${p.sensor_key || ""}:${p.id}`, cause, title, severity: sev, primary: p.id,
+        alarms: ids, count: ids.length, started_at: Math.min(...members.map(m => m.raised_at || 0)),
+        acked: members.every(m => !!m.acked_at), device_id: p.device_id || "", sensor_key: p.sensor_key || "" });
+    };
+    const attach = (root, pred) => { const t0 = (root.raised_at || 0) - INC_PRE;
+      return [root].concat(items.filter(a => a.id !== root.id && !used.has(a.id) && (a.raised_at || 0) >= t0 && pred(a))); };
+    for (const a of items) {                    // 1) CCM 두절(이후 경보만, 예지 원인은 제외)
+      if (used.has(a.id) || a.kind !== "silent" || a.sensor_key) continue;
+      const t0 = (a.raised_at || 0) - INC_CCM_SLACK;
+      const members = [a].concat(items.filter(b => b.id !== a.id && !used.has(b.id) && b.device_id === a.device_id &&
+        (b.raised_at || 0) >= t0 && ["fire", "contact", "dew"].indexOf(b.kind) < 0));
+      make("ccm", a, members, `CCM ${a.device_id} 통신 두절 — 그 CCM의 경보는 통신 문제의 결과`);
+    }
+    const rules = [
+      ["fire", (r, b) => panelOf(b) === panelOf(r) && (
+        (["h2", "voc"].indexOf(kindOf(b)) >= 0 && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0) ||
+        (kindOf(b) === "temp" && !(b.sensor_key || "").includes("ncontact") && ["anomaly", "drift", "alarm_warn", "alarm"].indexOf(b.kind) >= 0) ||
+        (kindOf(b) === "smoke" && b.kind === "alarm"))],
+      ["contact", (r, b) => b.device_id === r.device_id && b.sensor_key === r.sensor_key && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0],
+      ["dew", (r, b) => panelOf(b) === panelOf(r) && kindOf(b) === "humidity" && ["alarm", "alarm_warn", "anomaly", "drift", "stuck"].indexOf(b.kind) >= 0],
+    ];
+    for (const [cause, pred] of rules) for (const a of items) {
+      if (used.has(a.id) || a.kind !== cause) continue;
+      make(cause, a, attach(a, b => pred(a, b)), INC_TITLE[cause]);
+    }
+    const bySensor = {};                        // 5) 같은 센서의 여러 경보
+    for (const a of items) if (!used.has(a.id)) (bySensor[(a.device_id || "") + ":" + (a.sensor_key || "")] ||= []).push(a);
+    for (const k in bySensor) {
+      const g = bySensor[k];
+      const p = g.reduce((x, y) => { const sx = INC_SEV[x.severity || "warn"] || 0, sy = INC_SEV[y.severity || "warn"] || 0;
+        return sy > sx || (sy === sx && (y.raised_at || 0) < (x.raised_at || 0)) ? y : x; });
+      make("sensor", p, g, p.detail || p.kind || "경보");
+    }
+    const PRIO = { fire: 0, contact: 1, dew: 2, ccm: 3, sensor: 4 };   // 같은 심각도면 안전 사건 먼저
+    out.sort((a, b) => ((INC_SEV[b.severity] || 0) - (INC_SEV[a.severity] || 0)) ||
+      ((PRIO[a.cause] ?? 9) - (PRIO[b.cause] ?? 9)) || (b.started_at - a.started_at));
+    return out;
+  }
+  function incidentList(alarms) {
+    const sensors = {}, panels = {};
+    for (const dev in S.discovered) { panels[dev] = SIM.panel; for (const s of S.discovered[dev]) sensors[dev + ":" + s.key] = s.kind || ""; }
+    return groupAlarms(alarms, sensors, panels);
+  }
+
   // ── API 응답 구성 ───────────────────────────────────────────────────────
   function deviceList() {
     const t = now();
@@ -1064,6 +1119,10 @@
       if (p === "/api/devices") return Promise.resolve(J({ devices: deviceList() }));
       if (p === "/api/alarms")
         return Promise.resolve(J({ alarms: S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200) }));
+      if (p === "/api/incidents") {
+        const al = S.alarms.filter(a => !a.cleared_at).sort((a, b) => b.raised_at - a.raised_at).slice(0, 200);
+        return Promise.resolve(J({ incidents: incidentList(al), alarms: al }));
+      }
       if (p === "/api/notify/status") return Promise.resolve(J({ channels: [] }));
       if (p === "/api/auth/status") return Promise.resolve(J({ enabled: false, authed: false }));   // 데모: 시연용 로그인
       if (p === "/api/heal/config") {
@@ -1183,7 +1242,7 @@
       return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
     },
     // 파이썬 코어와의 일치 검사용(server/tests/test_parity.py) — 미러가 갈라지면 테스트가 잡는다
-    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint, ContactBaseline },
+    _core: { slopePerMin, robustZ, assessFire, assessContact, assessDew, dewPoint, ContactBaseline, groupAlarms },
   };
   console.log("[JCC-CCM] 데모 모드: 브라우저 안에서 시뮬레이션이 돕니다 (서버 없음).");
 })();

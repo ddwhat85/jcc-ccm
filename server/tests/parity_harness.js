@@ -25,5 +25,7 @@ const out = {
       mid: Math.round(mid[0] * 1e4) / 1e4 }; }),
   contact_ref: fx.contact_ref.map(([i, t, a, h, k]) => { const r = C.assessContact(i, t, a, h, k, null);
     return { stage: r.stage, residual: r.residual }; }),
+  incidents: fx.incidents.map(c => C.groupAlarms(c.alarms, c.sensors, c.panels)
+    .map(x => [x.cause, x.primary, x.alarms.slice().sort((a, b) => a - b), x.severity, x.acked])),
 };
 process.stdout.write(JSON.stringify(out));

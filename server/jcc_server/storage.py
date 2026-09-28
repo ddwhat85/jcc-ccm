@@ -16,6 +16,7 @@ import threading
 import time
 from dataclasses import dataclass
 
+from .incidents import group_alarms
 from .inputs import build_panel_inputs, roles_from_kinds
 
 
@@ -712,6 +713,16 @@ class Storage:
                 "WHERE cleared_at IS NULL ORDER BY raised_at DESC LIMIT 200").fetchall()
         return [dict(r) for r in rows]
 
+    def list_incidents(self, alarms: list | None = None) -> list:
+        """활성 경보를 원인 기준 사건으로 묶는다(incidents.group_alarms)."""
+        alarms = self.list_active_alarms() if alarms is None else alarms
+        sensors = {(dev, s["sensor_key"]): s.get("kind") or ""
+                   for dev, slist in self._discovered_map().items() for s in slist}
+        with self._lock:
+            rows = self._conn.execute("SELECT device_id, panel FROM devices").fetchall()
+        panels = {r["device_id"]: (r["panel"] or r["device_id"]) for r in rows}
+        return group_alarms(alarms, sensors, panels)
+
     def ack_alarm(self, alarm_id: int, by: str = "operator") -> bool:
         with self._lock:
             cur = self._conn.execute(
@@ -1087,6 +1098,10 @@ class Storage:
                 res["direction"] = "급등" if z > 0 else "급락"
         return res
 
+    # 값이 늘 같아도 정상인 센서 — 접점 출력(열연기 감지기는 평소 계속 0). 이런 센서에 '값이
+    # 안 변함=고착'을 적용하면 하루 종일 오경보가 뜬다. 살아 있는지는 침묵 감시가 본다.
+    CONSTANT_OK_KINDS = ("smoke",)
+
     def health_scan(self, sensor_timeout: float = 45) -> int:
         """살아있는 센서의 고착·드리프트·베이스라인 이상을 주기 감지해 전이만 기록한다.
         상태 우선순위: 고착 > 드리프트 > (임계값 내) 베이스라인 이상 > 정상."""
@@ -1097,7 +1112,7 @@ class Storage:
                           "SELECT device_id, sensor_key, value, MAX(ts) AS ts FROM readings "
                           "GROUP BY device_id, sensor_key").fetchall()}
             sensors = [dict(r) for r in self._conn.execute(
-                "SELECT device_id, sensor_key, name, enabled, alarm_min, alarm_max "
+                "SELECT device_id, sensor_key, name, kind, enabled, alarm_min, alarm_max "
                 "FROM discovered").fetchall()]
             setmap = {(r["device_id"], r["sensor_key"]): (r["alarm_min"], r["alarm_max"])
                       for r in self._conn.execute(
@@ -1113,7 +1128,7 @@ class Storage:
             cur_val = lv[1]
             st = self.history_stats(dev, key)
             state, anom = "ok", None
-            if st["stuck"]:
+            if st["stuck"] and (s.get("kind") or "") not in self.CONSTANT_OK_KINDS:
                 state = "stuck"
             elif st["drift"]:
                 state = "drift"

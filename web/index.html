@@ -747,6 +747,14 @@
           border:1px solid var(--accent);background:var(--accent);color:#fff}
   .ap-ack:hover{filter:brightness(1.06)}
   .ap-ack.done{background:transparent;color:var(--ok,#2f9e54);border-color:var(--rule);cursor:default}
+  /* 사건(원인) 묶음: 원인 한 줄 + 펼치면 관련 경보(들여쓰기) */
+  .ap-inc{border-bottom:1px solid var(--rule)}
+  .ap-inc > .ap-item{border-bottom:0}
+  .ap-item.ap-sub{padding-left:26px;background:var(--canvas)}
+  .ap-item.ap-sub .aptext{font-size:12px;color:var(--ink-2)}
+  .ap-tog{background:none;border:0;padding:0;font:600 10px var(--mono);color:var(--accent);cursor:pointer}
+  .ap-tog:hover{text-decoration:underline}
+  .ap-tog:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
   /* ── 하단 도크: [실시간 데이터 로그 | 제어판] — 낮게(로그 3줄 높이) ── */
   .dock{flex:0 0 auto;display:flex;align-items:stretch;height:96px;
@@ -1066,7 +1074,7 @@
     </div>
   </div>
 
-<script src="demo-api.js?v=03f49c47"></script>
+<script src="demo-api.js?v=b143a6ca"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -1139,6 +1147,8 @@ let nodeOnline = {};           // nodeId -> bool  노드 온라인 상태(포트
 let clientOff = new Set();     // 사용자가 전원 끈 노드(ccm:...) — 화면에 '전원 꺼짐' 유지
 let lastPanels = [];           // 마지막으로 받은 판넬 데이터(개요 갱신용)
 let lastAlarms = [];           // 마지막 활성 경보 목록(개요 카운트용)
+let lastIncidents = [];        // 원인별로 묶은 사건(한 사건 = 원인 1개 + 관련 경보들)
+const incOpen = new Set();     // 경보 패널에서 펼쳐 둔 사건 key
 // 센서 kind → 사람이 읽는 이름 (개요의 '센서 종류' 집계용)
 const KINDNAME = {temp:"온도",humidity:"습도",vibration:"진동",current:"전류",h2:"수소",
                   smoke:"열연기",door:"도어",ratio:"가스/비율",pressure:"압력",analog:"아날로그",unknown:"미확인"};
@@ -1595,26 +1605,32 @@ function sensorIdLine(dev, key){
   parts.push(dev);                                          // CCM 시리얼
   return parts.join(" · ");
 }
+// 사건 한 줄 제목: 원인형(화재·접점·결로·CCM)은 원인 이름, 단일 센서형은 '센서 · 경보 문구'
+function incLabel(inc){
+  const byId = new Map(lastAlarms.map(a=>[a.id, a]));
+  const p = byId.get(inc.primary) || {};
+  if(inc.cause !== "sensor") return {who:"", text:inc.title};
+  const s = findSensor(p.device_id, p.sensor_key);
+  return {who: s ? s.name : (p.sensor_key || ("CCM " + p.device_id)),
+          text: p.detail || (EVENT_META[p.kind]||{}).label || "경보"};
+}
 function heroHtml(){
-  const al = lastAlarms.slice().sort((a,b)=>
-    (a.severity==="crit"?0:1)-(b.severity==="crit"?0:1) || (a.raised_at-b.raised_at));
-  const crit = al.filter(a=>a.severity==="crit").length;
-  const warn = al.filter(a=>a.severity==="warn").length;
-  const acked = al.filter(a=>a.acked_at).length;
-  if(!al.length){
+  const inc = lastIncidents;
+  if(!lastAlarms.length){
     return `<div class="hero-mini pass"><span class="hm-dot"></span><span class="hm-text">모든 장비 정상 가동 중</span></div>`;
   }
-  // 한 줄 요약만 — 자세한 건 클릭해서 경보 목록으로
-  const top = al[0];
+  // 한 줄 요약만 — 가장 심각한 '사건'(원인) 하나. 자세한 건 클릭해서 경보 목록으로
+  const top = inc[0];
+  if(!top) return "";
+  const crit = inc.some(i=>i.severity==="crit");
   const st = crit ? "crit" : "warn";
   const chip = crit ? "위험" : "주의";
-  const s = findSensor(top.device_id, top.sensor_key);
-  const who = s ? s.name : (top.sensor_key || ("CCM " + top.device_id));
-  const brief = top.detail || (EVENT_META[top.kind]||{}).label || "경보";
+  const L = incLabel(top);
+  const more = lastAlarms.length > inc.length ? `사건 ${inc.length} · 경보 ${lastAlarms.length} ›` : `${inc.length}건 ›`;
   return `<div class="hero-mini ${st}" id="hero-mini" title="클릭하면 전체 경보를 봅니다">`+
     `<span class="hm-chip">${chip}</span>`+
-    `<span class="hm-text"><b>${escapeHtml(who)}</b> · ${escapeHtml(brief)}</span>`+
-    `<span class="hm-more">${al.length}건 ›</span></div>`;
+    `<span class="hm-text">${L.who ? `<b>${escapeHtml(L.who)}</b> · ` : ""}${escapeHtml(L.text)}</span>`+
+    `<span class="hm-more">${more}</span></div>`;
 }
 // ── 센서 스포트라이트(개요 자동 순회) ──────────────────
 let _ovSig = "", _spotIdx = 0, _spotTimer = null, _spotPaused = false, _spotList = [];
@@ -3229,23 +3245,25 @@ function applySound(on){
 
 let alarmPanelOpen = false;
 function loadAlarms(){
-  fetch("/api/alarms",{cache:"no-store"}).then(r=>r.json()).then(d=>{
-    const al = d.alarms||[];
+  fetch("/api/incidents",{cache:"no-store"}).then(r=>r.json()).then(d=>{
+    const al = d.alarms||[], inc = d.incidents||[];
     lastAlarms = al;                             // 개요의 경보 카운트에 사용
+    lastIncidents = inc;
     if(!selectedId && !revealing) renderOverview(lastPanels);   // 개요 경보 숫자 갱신
-    // 새 위험(crit) 경보가 뜨면 소리로 알린다(켜져 있을 때만, 첫 로드 제외)
-    const critIds = new Set(al.filter(a=>a.severity==="crit").map(a=>a.id));
+    // 새 위험 '사건'이 생기면 소리(켜져 있을 때만, 첫 로드 제외). 같은 사건의 후속 경보는 조용히.
+    const critIds = new Set(inc.filter(i=>i.severity==="crit").map(i=>i.key));
     if(_critSeen !== null){
       let isNew = false; critIds.forEach(id=>{ if(!_critSeen.has(id)) isNew = true; });
       if(isNew && soundOn) beep();
     }
     _critSeen = critIds;
     const badge = $("#bell-badge"), bell = $("#btn-bell");
-    if(al.length){ badge.textContent = al.length; badge.hidden = false; bell.classList.add("has-alarms"); }
+    if(inc.length){ badge.textContent = inc.length; badge.hidden = false; bell.classList.add("has-alarms"); }
     else { badge.hidden = true; bell.classList.remove("has-alarms"); }
-    const cnt = $("#ap-count"); if(cnt) cnt.textContent = al.length;
-    // 탭 제목에 경보 배지(백그라운드 탭에서도 위험 인지) — 위험>주의
-    const nCrit = critIds.size, nWarn = al.length - nCrit;
+    const cnt = $("#ap-count");
+    if(cnt) cnt.textContent = al.length > inc.length ? `사건 ${inc.length} · 경보 ${al.length}` : inc.length;
+    // 탭 제목에 사건 배지(백그라운드 탭에서도 위험 인지) — 위험>주의
+    const nCrit = critIds.size, nWarn = inc.length - nCrit;
     document.title = nCrit ? `🔴 위험 ${nCrit} · JCC-CCM`
                   : nWarn ? `🟡 주의 ${nWarn} · JCC-CCM`
                           : "JCC-CCM 노드 모니터";
@@ -3254,19 +3272,42 @@ function loadAlarms(){
     if(!alarmPanelOpen) return;                 // 열려있을 때만 목록 렌더
     const list = $("#ap-list");
     if(!al.length){ list.innerHTML = `<div class="ap-empty">활성 경보 없음 — 정상 ✓</div>`; return; }
-    list.innerHTML = al.map(a=>{
+    const byId = new Map(al.map(a=>[a.id, a]));
+    const alarmRow = (a, sub)=>{
       const m = EVENT_META[a.kind] || {ic:"⚠"};
       const crit = a.severity==="crit";
       const acked = !!a.acked_at;
       const idline = sensorIdLine(a.device_id, a.sensor_key);   // 품번·주소·CCM
-      return `<div class="ap-item"><span class="apd ${crit?'crit':''}"></span>`+
+      return `<div class="ap-item${sub?" ap-sub":""}"><span class="apd ${crit?'crit':''}"></span>`+
         `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
         `<div class="apmeta">${escapeHtml(idline)} · ${ago(a.raised_at)||"방금"}`+
         `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div></div>`+
         (acked ? `<button class="ap-ack done">확인됨</button>` : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
         `</div>`;
+    };
+    // 사건(원인) 단위: 경보 1개짜리는 예전처럼, 여러 개면 원인 제목 + '관련 경보 N개'(펼침) + 모두 확인
+    list.innerHTML = inc.map(i=>{
+      const members = i.alarms.map(id=>byId.get(id)).filter(Boolean);
+      if(members.length <= 1) return members.map(a=>alarmRow(a, false)).join("");
+      const open = incOpen.has(i.key), crit = i.severity==="crit";
+      const unacked = members.filter(a=>!a.acked_at).map(a=>a.id);
+      const L = incLabel(i);
+      return `<div class="ap-inc"><div class="ap-item"><span class="apd ${crit?'crit':''}"></span>`+
+        `<div class="apbody"><div class="aptext"><b>${L.who ? escapeHtml(L.who)+" · " : ""}${escapeHtml(L.text)}</b></div>`+
+        `<div class="apmeta"><button class="ap-tog" data-inc="${escapeHtml(i.key)}" aria-expanded="${open}">`+
+        `${open?"▾":"▸"} 관련 경보 ${members.length}개</button> · ${ago(i.started_at)||"방금"} 시작</div></div>`+
+        (unacked.length ? `<button class="ap-ack" data-ackinc="${unacked.join(",")}">모두 확인</button>`
+                        : `<button class="ap-ack done">확인됨</button>`)+`</div>`+
+        (open ? members.map(a=>alarmRow(a, true)).join("") : "")+`</div>`;
     }).join("");
     list.querySelectorAll("[data-ack]").forEach(b=> b.onclick = ()=> ackAlarm(+b.dataset.ack));
+    list.querySelectorAll("[data-ackinc]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
+      const ids = b.dataset.ackinc.split(",").map(Number); b.disabled = true;
+      Promise.all(ids.map(id=>fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({alarm_id:id, by:"operator"})}).catch(()=>{})))
+        .then(()=>{ setStatus(`사건 경보 ${ids.length}건 확인`); loadAlarms(); }); });
+    list.querySelectorAll("[data-inc]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
+      const k = b.dataset.inc; incOpen.has(k) ? incOpen.delete(k) : incOpen.add(k); loadAlarms(); });
   }).catch(()=>{});
 }
 function ackAlarm(id){
