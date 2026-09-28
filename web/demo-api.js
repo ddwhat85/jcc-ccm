@@ -66,13 +66,19 @@
               "H2와 동반 상승하면 열폭주 전조. I2C, 정기 자동 보정.",
       emits: [{ key: "voc_ppm", name: "VOC 농도", unit: "ppm", kind: "voc", alarm_min: 0, alarm_warn: 200, alarm_max: 1000 }],
     },
+    "GENERIC-CO": {   // ⚠ 모델 미확정 — 범용 CO 트랜스미터 자리(profiles.py와 동일)
+      brand: "미정", product: "CO(일산화탄소) 가스 트랜스미터 — 모델 미확정", part_no: "", photo: "",
+      manual: "전기화학식 CO 센서(0~1000ppm). 리튬셀 열폭주 오프가스·절연물 탄화의 서명. " +
+              "H2·VOC와 동반 상승하면 열폭주 전조. 센서 수명(보통 2~3년) 주기 교체.",
+      emits: [{ key: "co_ppm", name: "CO 농도", unit: "ppm", kind: "co", alarm_min: 0, alarm_warn: 50, alarm_max: 200 }],
+    },
   };
   const CCM_PHOTO = "img/turck-ccm50.png";
   const LABEL = {
     "TURCK-CCM-AMBIENT": "내장 온습도", "TURCK-CCM-DOOR": "내장 거리센서",
     "BANNER-QM30VT": "Banner QM30VT", "BANNER-CT20A": "Banner CT20A",
     "BANNER-S15S-T": "Banner S15S-T", "INFRASENSING-H2": "InfraSensing H2",
-    "ONOFF-HSD200": "온오프 HSD200", "SENSIRION-VOC": "Sensirion VOC",
+    "ONOFF-HSD200": "온오프 HSD200", "SENSIRION-VOC": "Sensirion VOC", "GENERIC-CO": "CO 트랜스미터(미정)",
   };
 
   // 스마트 판넬 1개 = CCM 4대 (scanner.py의 _SIM_PANEL과 동일)
@@ -81,6 +87,7 @@
     ccms: [
       { device_id: "ccm-2661", bus: [
         { ident: "INFRASENSING-H2", address: 1 }, { ident: "SENSIRION-VOC", address: 7 },
+        { ident: "GENERIC-CO", address: 8 },
         { ident: "BANNER-CT20A", address: 2 },
         { ident: "UNKNOWN", address: 5, probe: 41.5 }] },
       { device_id: "ccm-2662", bus: [
@@ -195,6 +202,7 @@
     if (k === "fire") {
       if (kind === "h2") return Math.round((0.5 + 17 * prog + 0.15 * j) * 100) / 100;  // 0.5→~17.5 %LEL
       if (kind === "voc") return Math.round((30 + 770 * prog + 5 * j) * 10) / 10;       // 30→~800 ppm
+      if (kind === "co") return Math.round((3 + 147 * prog + j) * 10) / 10;              // 3→~150 ppm
       if (kind === "temp" && !key.includes("ncontact")) return Math.round(((val != null ? val : 27) + 9 * prog) * 100) / 100;  // 평소값 위에 얹음(계단 방지)
     } else if (k === "contact") {
       if (key.includes("ncontact")) return Math.round((27 + 24 * prog + 0.2 * j) * 100) / 100;  // 접점온도만 상승
@@ -302,6 +310,7 @@
     else if (key.includes("door") || kind === "door") v = rnd() > 0.1 ? 12 : 340;
     else if (key.includes("h2") || kind === "h2") v = Math.max(0, gauss(0.4, 0.2));
     else if (key.includes("voc") || kind === "voc") v = Math.max(0, gauss(30, 10));
+    else if (kind === "co" || key.startsWith("co_")) v = Math.max(0, gauss(3, 1));   // ppm, 평소 한 자릿수
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
     else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
     else v = Math.max(0, gauss(40, 3));
@@ -506,7 +515,8 @@
     if (sigma <= 1e-9) return 0; return (value - med) / sigma;
   }
   const FCFG = { h2: { warn: 10, alarm: 25, rw: 3, ra: 10 }, voc: { warn: 200, alarm: 1000, rw: 100, ra: 400 },
-    tRw: 1, tRa: 5, wH2: 0.38, wVoc: 0.38, wTemp: 0.10, co: 0.20, conf: 0.15, zLo: 3, zHi: 6,
+    co: { warn: 50, alarm: 200, rw: 20, ra: 80 },
+    tRw: 1, tRa: 5, wH2: 0.38, wVoc: 0.38, wCo: 0.32, wTemp: 0.10, pair: 0.20, conf: 0.15, zLo: 3, zHi: 6,
     openFri: 55, closeFri: 20, critFri: 80, watchFri: 30 };
   function gasScore(value, series, baseline, g) {
     const lvl = ramp(value == null ? 0 : value, g.warn, g.alarm);
@@ -515,20 +525,24 @@
     return { g: Math.max(lvl, rise, anom), lvl, sp, rise, z, anom };
   }
   function assessFire(sig) {
-    const h2 = sig.h2 || {}, voc = sig.voc || {}, temp = sig.temp || {};
+    const h2 = sig.h2 || {}, voc = sig.voc || {}, cog = sig.co || {}, temp = sig.temp || {};
     const smoke = !!sig.smoke, curAb = !!sig.current_abnormal;
     const H = gasScore(h2.value, h2.series, h2.baseline, FCFG.h2);
     const V = gasScore(voc.value, voc.series, voc.baseline, FCFG.voc);
+    const C = gasScore(cog.value, cog.series, cog.baseline, FCFG.co);
     const tsp = slopePerMin(temp.series || []), tTerm = ramp(tsp, FCFG.tRw, FCFG.tRa);
-    const co = (H.g >= 0.3 && V.g >= 0.3) ? FCFG.co * Math.min(H.g, V.g) : 0;
+    // 동반 상승: 두 종 이상 → 둘째로 센 가스만큼 가산(CO 없으면 예전 min(H2,VOC)와 동일)
+    const second = [H.g, V.g, C.g].sort((a, b) => b - a)[1];
+    const pair = second >= 0.3 ? FCFG.pair * second : 0;
     const conf = (smoke || curAb) ? FCFG.conf : 0;
-    let fri = 100 * clamp01(FCFG.wH2 * H.g + FCFG.wVoc * V.g + co + FCFG.wTemp * tTerm + conf);
-    const h2v = h2.value, vocv = voc.value;
-    if ((h2v != null && h2v >= FCFG.h2.alarm) || (vocv != null && vocv >= FCFG.voc.alarm)) fri = Math.max(fri, FCFG.critFri);
+    let fri = 100 * clamp01(FCFG.wH2 * H.g + FCFG.wVoc * V.g + FCFG.wCo * C.g + pair + FCFG.wTemp * tTerm + conf);
+    const h2v = h2.value, vocv = voc.value, cov = cog.value;
+    const over = [[h2v, FCFG.h2], [vocv, FCFG.voc], [cov, FCFG.co]].map(([v, g]) => v != null && v >= g.alarm);
+    if (over.some(Boolean)) fri = Math.max(fri, FCFG.critFri);
     if (smoke) fri = Math.max(fri, 85);
-    const bothStrong = H.g >= 0.5 && V.g >= 0.5;
+    const bothStrong = second >= 0.5;
     let stage;
-    if (fri >= FCFG.critFri || smoke || (h2v != null && h2v >= FCFG.h2.alarm && vocv != null && vocv >= FCFG.voc.alarm)) stage = "critical";
+    if (fri >= FCFG.critFri || smoke || over.filter(Boolean).length >= 2) stage = "critical";
     else if (fri >= FCFG.openFri || bothStrong) stage = "danger";
     else if (fri >= FCFG.watchFri) stage = "watch";
     else stage = "normal";
@@ -539,7 +553,10 @@
     if (V.rise > 0.3) R.push(`VOC 상승 ${Math.round(V.sp * 100) / 100}ppm/분`);
     if (V.anom > 0.3) R.push(`VOC 평소대비 급등 z=${Math.round(V.z * 100) / 100}`);
     if (V.lvl > 0.3) R.push(`VOC ${vocv}ppm(경고선 접근)`);
-    if (co > 0) R.push("H2·VOC 동반 상승 — 열폭주 서명");
+    if (C.rise > 0.3) R.push(`CO 상승 ${Math.round(C.sp * 100) / 100}ppm/분`);
+    if (C.anom > 0.3) R.push(`CO 평소대비 급등 z=${Math.round(C.z * 100) / 100}`);
+    if (C.lvl > 0.3) R.push(`CO ${cov}ppm(경고선 접근)`);
+    if (pair > 0) R.push([["H2", H.g], ["VOC", V.g], ["CO", C.g]].filter(x => x[1] >= 0.3).map(x => x[0]).join("·") + " 동반 상승 — 열폭주 서명");
     if (tTerm > 0.3) R.push(`온도 급상승 ${Math.round(tsp * 10) / 10}°C/분`);
     if (smoke) R.push("열연기 감지");
     if (curAb) R.push("전류 이상");
@@ -683,6 +700,7 @@
   function panelInputs() {
     const [dH2, sH2] = findSensor(s => s.kind === "h2");
     const [dVoc, sVoc] = findSensor(s => s.kind === "voc");
+    const [dCo, sCo] = findSensor(s => s.kind === "co");
     const [dCur, sCur] = findSensor(s => s.kind === "current");
     const [dCt, sCt] = findSensor(s => (s.key || "").includes("ncontact"));
     const [dAmb, sAmb] = findSensor(s => s.kind === "temp" && !(s.key || "").includes("ncontact"));
@@ -700,6 +718,7 @@
     const base = (d, s) => seriesF(d, s.key, 150).slice(0, -30).map(p => p[1]);
     if (sH2) inputs.h2 = { value: lv(dH2, sH2), series: seriesF(dH2, sH2.key, 30), baseline: base(dH2, sH2) };
     if (sVoc) inputs.voc = { value: lv(dVoc, sVoc), series: seriesF(dVoc, sVoc.key, 30), baseline: base(dVoc, sVoc) };
+    if (sCo) inputs.co = { value: lv(dCo, sCo), series: seriesF(dCo, sCo.key, 30), baseline: base(dCo, sCo) };
     if (sAmb) inputs.temp = { value: lv(dAmb, sAmb), series: seriesF(dAmb, sAmb.key, 30) };
     inputs.smoke = !!(sSmk && (lv(dSmk, sSmk) || 0) > 0);
     if (sCur && sCt && sAmb) {   // 접점온도 시각 기준 as-of 짝짓기(실제 ts → 분당 기울기 정확)
@@ -740,7 +759,7 @@
       return sp < PREDICT_MIN_SPAN ? `학습 중 ${Math.floor(sp)}/${PREDICT_MIN_SPAN}초` : null;
     };
     const pending = {};
-    [["fire", [[dH2, sH2], [dVoc, sVoc]]],
+    [["fire", [[dH2, sH2], [dVoc, sVoc], [dCo, sCo]]],
      ["contact", [[dCur, sCur], [dCt, sCt], [dAmb, sAmb]]],
      ["dew", [[dAmb, sAmb], [dHum, sHum]]]].forEach(([k, pr]) => { const w = status(pr); if (w) pending[k] = w; });
     // 함내온도는 화재에선 보조항 — 끊겼으면 그 항만 빼고 가스로 판정(storage와 동일)
@@ -778,7 +797,7 @@
     }
     if (blEvent === "ready") logEvent((reps.contact || [""])[0] || "", "", "baseline",
       `접점 발열 기준 학습 완료 — 이제 서서히 풀리는 접점도 감시 (k=${Math.round(bl.k * 1e5) / 1e5})`, "system");
-    const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, temp: inputs.temp || {},
+    const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, co: inputs.co || {}, temp: inputs.temp || {},
       smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
     const fire = assessFire(sig);
     // 보류 중이면 액추에이터 상태 유지(안전측: 가스 데이터가 끊겼다고 열린 벤트를 닫지 않음)
@@ -870,7 +889,7 @@
     }
     const rules = [
       ["fire", (r, b) => panelOf(b) === panelOf(r) && (
-        (["h2", "voc"].indexOf(kindOf(b)) >= 0 && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0) ||
+        (["h2", "voc", "co"].indexOf(kindOf(b)) >= 0 && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0) ||
         (kindOf(b) === "temp" && !(b.sensor_key || "").includes("ncontact") && ["anomaly", "drift", "alarm_warn", "alarm"].indexOf(b.kind) >= 0) ||
         (kindOf(b) === "smoke" && b.kind === "alarm"))],
       ["contact", (r, b) => b.device_id === r.device_id && b.sensor_key === r.sensor_key && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0],
@@ -1057,7 +1076,7 @@
     // 예지보전 성과(storage._predict_report 미러): 화재 징조 뒤 30분 안에 가스가 위험선에 닿았는가
     const gases = [];
     for (const dev in S.discovered) for (const s of S.discovered[dev]) {
-      if (s.kind !== "h2" && s.kind !== "voc") continue;
+      if (["h2", "voc", "co"].indexOf(s.kind) < 0) continue;
       const lim = effThresholds(dev, s.key, s)[1]; if (lim != null) gases.push([dev, s.key, lim]);
     }
     let prevented = 0, reached = 0, watching = 0; const leads = [];

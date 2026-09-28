@@ -198,6 +198,7 @@ class Predictor:
         sig = {
             "h2": inputs.get("h2") or {},
             "voc": inputs.get("voc") or {},
+            "co": inputs.get("co") or {},
             "temp": inputs.get("temp") or {},
             "smoke": bool(inputs.get("smoke")),
             "current_abnormal": contact.stage == "danger" and "contact" not in pending,

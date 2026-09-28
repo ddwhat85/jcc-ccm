@@ -6,7 +6,7 @@
 
 규칙(위에서부터 먼저 잡은 쪽이 가져간다 — 경보 하나는 사건 하나에만 속한다):
   1) CCM 통신 두절   : 두절 이후 그 CCM에서 생긴 경보는 통신 문제의 결과(예지 원인은 제외)
-  2) 화재 징조(fire) : 같은 판넬의 가스(H2·VOC) 경보·이상·드리프트, 함내온도 이상, 열연기
+  2) 화재 징조(fire) : 같은 판넬의 가스(H2·VOC·CO) 경보·이상·드리프트, 함내온도 이상, 연기 감지
   3) 접점 발열       : 접점온도 센서의 경보·이상·드리프트
   4) 결로            : 같은 판넬의 습도 경보·이상·드리프트·고착(포화로 값이 멎음)
   5) 같은 센서의 여러 경보 : 가장 심각한 것이 대표
@@ -83,7 +83,7 @@ def group_alarms(alarms: list, sensors: dict, panels: dict) -> list:
     # 2~4) 예지 원인
     rules = (
         ("fire", lambda root, b: panel_of(b) == panel_of(root) and (
-            (kind_of(b) in ("h2", "voc") and b.get("kind") in _FIRE_CHILD)
+            (kind_of(b) in ("h2", "voc", "co") and b.get("kind") in _FIRE_CHILD)
             or (kind_of(b) == "temp" and "ncontact" not in (b.get("sensor_key") or "")
                 and b.get("kind") in ("anomaly", "drift", "alarm_warn", "alarm"))
             or (kind_of(b) == "smoke" and b.get("kind") == "alarm"))),   # 연기 '감지'만(센서 고장은 별개)

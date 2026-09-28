@@ -30,6 +30,8 @@ def _value(key: str, kind: str, t: float, rng: random.Random):
         v = max(0.0, rng.gauss(0.4, 0.2))
     elif "voc" in key or kind == "voc":
         v = max(0.0, rng.gauss(30, 10))
+    elif kind == "co" or key.startswith("co_"):
+        v = max(0.0, rng.gauss(3, 1))          # ppm, 평소 한 자릿수
     elif "current" in key or kind == "current":
         v = 18 + 4 * math.sin(t / 20) + rng.uniform(-0.5, 0.5)
     elif "smoke" in key or kind == "smoke":
@@ -62,6 +64,8 @@ def _epi_override(epi: dict, wall: float, key: str, kind: str, val=None):
             return round(0.5 + 17.0 * prog + 0.15 * j, 2)  # 0.5→~17.5 %LEL (경고10↑·위험25 아래)
         if kind == "voc":
             return round(30 + 770 * prog + 5 * j, 1)       # 30→~800 ppm (경고200↑·위험1000 아래)
+        if kind == "co":
+            return round(3 + 147 * prog + 1 * j, 1)        # 3→~150 ppm (경고50↑·위험200 아래)
         if kind == "temp" and "ncontact" not in key:
             # 평소값 위에 얹는다(값을 갈아끼우면 시작 순간 계단이 생겨 다른 판정이 흔들림)
             return round((val if val is not None else 27) + 9 * prog, 2)

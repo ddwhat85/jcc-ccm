@@ -90,7 +90,7 @@ class ModbusBusConfig:
     timeout_seconds: float = 1.0
 
 
-_ROLES = ("h2", "voc", "current", "contact_temp", "ambient", "humidity", "smoke")  # predict/inputs.ROLES
+_ROLES = ("h2", "voc", "co", "current", "contact_temp", "ambient", "humidity", "smoke")  # predict/inputs.ROLES
 
 
 @dataclass

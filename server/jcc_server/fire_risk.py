@@ -99,12 +99,15 @@ class GasCfg:
 class FireConfig:
     h2: GasCfg = field(default_factory=lambda: GasCfg(warn=10.0, alarm=25.0, rise_warn=3.0, rise_alarm=10.0))   # %LEL, %LEL/min
     voc: GasCfg = field(default_factory=lambda: GasCfg(warn=200.0, alarm=1000.0, rise_warn=100.0, rise_alarm=400.0))  # ppm
+    # CO(일산화탄소): 리튬셀 열폭주 오프가스·전해액 분해·절연물 탄화의 서명. 센서가 없으면 0으로 빠진다.
+    co: GasCfg = field(default_factory=lambda: GasCfg(warn=50.0, alarm=200.0, rise_warn=20.0, rise_alarm=80.0))  # ppm
     temp_rise_warn: float = 1.0     # °C/min
     temp_rise_alarm: float = 5.0
     w_h2: float = 0.38
     w_voc: float = 0.38
+    w_co: float = 0.32              # CO 단독 급상승만으로도 '주의'(FRI≥30)에는 닿게(절연물 탄화 등)
     w_temp: float = 0.10
-    co_boost: float = 0.20          # H2·VOC 동반 가산 계수
+    pair_boost: float = 0.20        # 가스 두 종 이상 동반 상승 가산(둘째로 센 가스 기준)
     conf_boost: float = 0.15        # 연기/전류이상 확증 가산
     z_lo: float = 3.0               # 이상탐지 z 시작
     z_hi: float = 6.0
@@ -151,40 +154,46 @@ def assess(signals: dict, cfg: FireConfig | None = None) -> FireAssessment:
     signals = {
       "h2":  {"value": %LEL, "series": [(ts,v)..], "baseline": [v..]},
       "voc": {"value": ppm,  "series": [...],      "baseline": [...]},
+      "co":  {"value": ppm,  "series": [...],      "baseline": [...]},   (선택)
       "temp":{"value": °C,   "series": [...]},
       "smoke": bool, "current_abnormal": bool,
-    }  (없는 키는 안전하게 무시)
+    }  (없는 키는 안전하게 무시 — CO 센서가 없으면 예전 H2·VOC 두 가스 식과 똑같다)
     """
     cfg = cfg or FireConfig()
     h2 = signals.get("h2") or {}
     voc = signals.get("voc") or {}
+    cog = signals.get("co") or {}
     temp = signals.get("temp") or {}
     smoke = bool(signals.get("smoke"))
     cur_ab = bool(signals.get("current_abnormal"))
 
     g_h2, t_h2 = _gas_score(h2.get("value"), h2.get("series"), h2.get("baseline"), cfg.h2, cfg)
     g_voc, t_voc = _gas_score(voc.get("value"), voc.get("series"), voc.get("baseline"), cfg.voc, cfg)
+    g_co, t_co = _gas_score(cog.get("value"), cog.get("series"), cog.get("baseline"), cfg.co, cfg)
 
     temp_sp = slope_per_min(temp.get("series") or [])
     temp_term = ramp(temp_sp, cfg.temp_rise_warn, cfg.temp_rise_alarm)
 
-    co = cfg.co_boost * min(g_h2, g_voc) if (g_h2 >= 0.3 and g_voc >= 0.3) else 0.0
+    # 동반 상승: 가스 두 종 이상이 함께 오르면(열폭주 서명) 둘째로 센 가스만큼 가산.
+    # CO가 없으면 둘째 = min(H2, VOC) — 예전 식과 동일.
+    gs = sorted(((g_h2, "H2"), (g_voc, "VOC"), (g_co, "CO")), reverse=True)
+    pair = cfg.pair_boost * gs[1][0] if gs[1][0] >= 0.3 else 0.0
     conf = cfg.conf_boost if (smoke or cur_ab) else 0.0
 
-    fri = 100.0 * clamp01(cfg.w_h2 * g_h2 + cfg.w_voc * g_voc + co
+    fri = 100.0 * clamp01(cfg.w_h2 * g_h2 + cfg.w_voc * g_voc + cfg.w_co * g_co + pair
                           + cfg.w_temp * temp_term + conf)
 
-    # 안전 하한: 가스가 이미 위험 임계 초과거나 연기면 FRI를 강제로 끌어올린다
-    h2v, vocv = h2.get("value"), voc.get("value")
-    if (h2v is not None and h2v >= cfg.h2.alarm) or (vocv is not None and vocv >= cfg.voc.alarm):
+    # 안전 하한: 어느 가스든 이미 위험 임계 초과거나 연기면 FRI를 강제로 끌어올린다
+    h2v, vocv, cov = h2.get("value"), voc.get("value"), cog.get("value")
+    over = [v is not None and v >= g.alarm for v, g in ((h2v, cfg.h2), (vocv, cfg.voc), (cov, cfg.co))]
+    if any(over):
         fri = max(fri, cfg.crit_fri)
     if smoke:
         fri = max(fri, 85.0)
 
-    # 단계 판정(FRI + 하드 조건)
-    both_strong = g_h2 >= 0.5 and g_voc >= 0.5
-    if fri >= cfg.crit_fri or smoke or \
-       (h2v is not None and h2v >= cfg.h2.alarm and vocv is not None and vocv >= cfg.voc.alarm):
+    # 단계 판정(FRI + 하드 조건): 두 종 이상 강하게 오르면 위험, 두 종 이상 임계 초과면 극한
+    both_strong = gs[1][0] >= 0.5
+    if fri >= cfg.crit_fri or smoke or sum(over) >= 2:
         stage = "critical"
     elif fri >= cfg.open_fri or both_strong:
         stage = "danger"
@@ -207,8 +216,16 @@ def assess(signals: dict, cfg: FireConfig | None = None) -> FireAssessment:
         reasons.append(f"VOC 평소대비 급등 z={t_voc['z']}")
     if t_voc["level"] > 0.3:
         reasons.append(f"VOC {vocv}ppm(경고선 접근)")
-    if co > 0:
-        reasons.append("H2·VOC 동반 상승 — 열폭주 서명")
+    if t_co["rise"] > 0.3:
+        reasons.append(f"CO 상승 {t_co['slope_per_min']}ppm/분")
+    if t_co["anom"] > 0.3:
+        reasons.append(f"CO 평소대비 급등 z={t_co['z']}")
+    if t_co["level"] > 0.3:
+        reasons.append(f"CO {cov}ppm(경고선 접근)")
+    if pair > 0:
+        names = [n for g, n in gs if g >= 0.3]
+        order = [n for n in ("H2", "VOC", "CO") if n in names]      # 표기 순서 고정(H2·VOC·CO)
+        reasons.append(f"{'·'.join(order)} 동반 상승 — 열폭주 서명")
     if temp_term > 0.3:
         reasons.append(f"온도 급상승 {round(temp_sp,1)}°C/분")
     if smoke:
@@ -219,10 +236,10 @@ def assess(signals: dict, cfg: FireConfig | None = None) -> FireAssessment:
         reasons.append("정상 범위")
 
     return FireAssessment(fri=round(fri, 1), stage=stage, reasons=reasons,
-                          terms={"h2": t_h2, "voc": t_voc,
+                          terms={"h2": t_h2, "voc": t_voc, "co": t_co,
                                  "temp_slope_per_min": round(temp_sp, 2),
                                  "temp_term": round(temp_term, 2),
-                                 "co_boost": round(co, 3), "confirm": round(conf, 3)})
+                                 "pair_boost": round(pair, 3), "confirm": round(conf, 3)})
 
 
 # ── 벤트 컨트롤러 (히스테리시스·단계적 자동) ────────────────

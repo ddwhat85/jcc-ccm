@@ -106,6 +106,7 @@ state_file = "/opt/jcc-ccm/predict_state.json"
 [predict.roles]
 h2 = "h2_lel"
 # voc = "voc_ppm"
+# co = "co_ppm"                   # CO(일산화탄소) — 있으면 화재 지수에 세 번째 가스로 합류
 # ambient = "cabinet_temp"
 # humidity = "cabinet_humidity"
 # current = "main_current"

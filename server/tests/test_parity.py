@@ -43,6 +43,8 @@ def fixtures() -> dict:
     flat = [(E + i * 2, 0.4) for i in range(30)]
     voc_ramp = [(E + i * 2, 30 + i * 25) for i in range(30)]
     temp_up = [(E + i * 2, 27 + i * 0.2) for i in range(30)]
+    co_ramp = [(E + i * 2, 3 + i * 4) for i in range(30)]
+    co_base = [3 + 0.5 * ((i * 3) % 5 - 2) for i in range(30)]
     c_norm = [(E + i * 2, 15, 27 + 0.2 * (i % 2), 27) for i in range(20)]
     c_trend = [(E + i * 2, 12, 27 + 0.05 * i * 2, 27) for i in range(24)]
     d_norm = [(E + i * 6, 25.0, 45.0, 25.0) for i in range(20)]
@@ -62,6 +64,15 @@ def fixtures() -> dict:
             {"h2": {"value": 0.4, "series": flat, "baseline": noisy}, "voc": {}, "temp": {}, "smoke": True},
             {"h2": {"value": 12, "series": ramp, "baseline": noisy}, "voc": {"value": 300}, "temp": {},
              "smoke": False, "current_abnormal": True},
+            # CO(세 번째 가스)
+            {"h2": {"value": 12, "series": ramp, "baseline": noisy},
+             "co": {"value": 120, "series": co_ramp, "baseline": co_base}},
+            {"co": {"value": 90, "series": co_ramp, "baseline": co_base}},
+            {"h2": {"value": 12, "series": ramp, "baseline": noisy},
+             "voc": {"value": 400, "series": voc_ramp, "baseline": [30 + (i % 3) for i in range(30)]},
+             "co": {"value": 120, "series": co_ramp, "baseline": co_base}},
+            {"co": {"value": 250, "series": [(t, 250) for t, _ in flat], "baseline": co_base}},
+            {"h2": {"value": 30, "series": flat, "baseline": noisy}, "co": {"value": 250}},
         ],
         "contact": [[15, 27.1, 27, c_norm], [15, 50, 27, c_norm], [15, 35, 27, c_norm],
                     [12, 27 + 0.05 * 46, 27, c_trend], [1.0, 40, 25, c_norm], [3, 63, 25, c_norm]],

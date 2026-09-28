@@ -80,6 +80,16 @@ PROFILES = [
                    # 화재 예지(FireConfig.voc)와 동일 기준: 경고 200 / 위험 1000 ppm
                    "alarm_min": 0, "alarm_warn": 200, "alarm_max": 1000}],
     },
+    {
+        # ⚠ 모델 미확정 — 범용 CO 트랜스미터(전기화학식, 4~20mA/Modbus) 자리. 실기 선정 후
+        #   제조사·품번·레지스터를 채워 확정 프로파일로 바꾼다.
+        "ident": "GENERIC-CO", "brand": "미정", "product": "CO(일산화탄소) 가스 트랜스미터 — 모델 미확정",
+        "part_no": "", "manual": "전기화학식 CO 센서(0~1000ppm). 리튬셀 열폭주 오프가스·절연물 탄화의 "
+                  "서명. H2·VOC와 동반 상승하면 열폭주 전조. 센서 수명(보통 2~3년) 주기 교체.",
+        "emits": [{"key": "co_ppm", "name": "CO 농도", "unit": "ppm", "kind": "co",
+                   # 화재 예지(FireConfig.co)와 동일 기준: 경고 50 / 위험 200 ppm
+                   "alarm_min": 0, "alarm_warn": 50, "alarm_max": 200}],
+    },
 ]
 
 PROFILE_BY_IDENT = {p["ident"]: p for p in PROFILES}

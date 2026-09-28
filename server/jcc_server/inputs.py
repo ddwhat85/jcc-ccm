@@ -19,7 +19,8 @@
 """
 from __future__ import annotations
 
-ROLES = ("h2", "voc", "current", "contact_temp", "ambient", "humidity", "smoke")
+ROLES = ("h2", "voc", "co", "current", "contact_temp", "ambient", "humidity", "smoke")
+GASES = ("h2", "voc", "co")     # 화재 징조 가스(없는 가스는 빠진다)
 
 WARMUP = 6          # 판정에 필요한 최소 유효 표본 수
 STALE_MIN = 15.0    # '끊김' 한계의 하한(초) — 실제 한계는 max(이 값, 보고간격 중앙값×4)
@@ -92,6 +93,7 @@ def roles_from_kinds(ccms: list) -> dict:
     return {
         "h2": find(lambda s: s.get("kind") == "h2"),
         "voc": find(lambda s: s.get("kind") == "voc"),
+        "co": find(lambda s: s.get("kind") == "co"),
         "current": find(lambda s: s.get("kind") == "current"),
         "contact_temp": find(lambda s: "ncontact" in key(s)),
         "ambient": find(lambda s: s.get("kind") == "temp" and "ncontact" not in key(s)),
@@ -122,7 +124,7 @@ def build_panel_inputs(roles: dict, series, now: float) -> dict:
         return [v for _, v in ser(role, 150)[:-SLOPE_N]]
 
     inputs: dict = {}
-    for gas in ("h2", "voc"):
+    for gas in GASES:
         if r[gas]:
             inputs[gas] = {"value": val(gas), "series": ser(gas, SLOPE_N), "baseline": base(gas)}
     if r["ambient"]:
@@ -150,7 +152,7 @@ def build_panel_inputs(roles: dict, series, now: float) -> dict:
         inputs["dew"] = {"temp": val("ambient"), "rh": val("humidity"), "surface": surf, "history": dhist}
 
     pending: dict = {}
-    for algo, need in (("fire", ("h2", "voc")),
+    for algo, need in (("fire", GASES),
                        ("contact", ("current", "contact_temp", "ambient")),
                        ("dew", ("ambient", "humidity"))):
         pairs = [r[x] for x in need if r[x]]
@@ -165,5 +167,5 @@ def build_panel_inputs(roles: dict, series, now: float) -> dict:
     if "temp" in inputs and readiness(series, [r["ambient"]], now) is not None:
         inputs.pop("temp")
 
-    reps = {"fire": r["h2"] or r["voc"], "contact": r["contact_temp"], "dew": r["humidity"]}
+    reps = {"fire": r["h2"] or r["voc"] or r["co"], "contact": r["contact_temp"], "dew": r["humidity"]}
     return {"inputs": inputs, "pending": pending, "reps": reps}

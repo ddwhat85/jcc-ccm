@@ -63,4 +63,49 @@ ck("복구 유지 후 벤트 닫힘", r3 is None and r4=="close" and not vc.open
 # 수동 우선
 vc.set_manual(True); ck("수동시 자동보류", vc.step(90,"critical",t+20) is None and vc.open)
 
+# ── CO(세 번째 가스) ──
+# 8) CO 센서가 없으면 예전 H2·VOC 두 가스 식과 결과가 완전히 같다(무작위 1000건)
+import random
+from jcc_server.fire_risk import _gas_score, clamp01
+def old_fri(sig, c):
+    h2, voc = sig.get("h2") or {}, sig.get("voc") or {}
+    gh, _ = _gas_score(h2.get("value"), h2.get("series"), h2.get("baseline"), c.h2, c)
+    gv, _ = _gas_score(voc.get("value"), voc.get("series"), voc.get("baseline"), c.voc, c)
+    co = 0.20 * min(gh, gv) if (gh >= 0.3 and gv >= 0.3) else 0.0
+    f = 100.0 * clamp01(0.38 * gh + 0.38 * gv + co)
+    if (h2.get("value") or 0) >= c.h2.alarm or (voc.get("value") or 0) >= c.voc.alarm:
+        f = max(f, c.crit_fri)
+    return round(f, 1)
+rng = random.Random(7); same = 0
+for _ in range(1000):
+    h, v = rng.uniform(0, 30), rng.uniform(0, 1200)
+    sig = {"h2": {"value": h, "series": lin(rng.uniform(0, h), h), "baseline": noisy(rng.uniform(0.2, 3))},
+           "voc": {"value": v, "series": lin(rng.uniform(0, v), v), "baseline": noisy(rng.uniform(20, 80))}}
+    same += assess(sig, cfg).fri == old_fri(sig, cfg)
+ck("CO 없으면 예전 식과 동일(1000/1000)", same == 1000, f"{same}/1000")
+
+# 9) H2 + CO 동반 상승(VOC 센서 없음) → danger, 근거에 H2·CO
+a = assess({"h2": {"value": 12, "series": lin(1, 12), "baseline": noisy(0.6)},
+            "co": {"value": 120, "series": lin(5, 120), "baseline": noisy(4)}}, cfg)
+ck("H2·CO 동반=danger↑", a.stage in ("danger", "critical"), f"fri={a.fri} {a.reasons}")
+ck("근거: H2·CO 동반 상승", any("H2·CO 동반" in r for r in a.reasons), str(a.reasons))
+
+# 10) CO 단독 급상승(절연물 탄화 등) → 적어도 주의, 동반 아님
+a = assess({"co": {"value": 90, "series": lin(3, 90), "baseline": noisy(3)}}, cfg)
+ck("CO 단독 급상승=watch", a.stage == "watch" and not any("동반" in r for r in a.reasons),
+   f"fri={a.fri} stage={a.stage} {a.reasons}")
+
+# 11) CO 위험선 초과 → 하드 하한, 두 가스 위험선 초과 → critical
+a = assess({"co": {"value": 250, "series": flat(250), "baseline": noisy(4)}}, cfg)
+ck("CO 위험선 초과 → FRI≥80", a.fri >= 80, f"fri={a.fri}")
+a = assess({"h2": {"value": 30, "series": flat(30), "baseline": noisy(1)},
+            "co": {"value": 250, "series": flat(250), "baseline": noisy(4)}}, cfg)
+ck("두 가스 위험선 초과 → critical", a.stage == "critical", a.stage)
+
+# 12) 세 가스 모두 오르면 근거에 셋 다
+a = assess({"h2": {"value": 12, "series": lin(1, 12), "baseline": noisy(0.6)},
+            "voc": {"value": 400, "series": lin(30, 400), "baseline": noisy(30)},
+            "co": {"value": 120, "series": lin(5, 120), "baseline": noisy(4)}}, cfg)
+ck("세 가스 동반 표기", any("H2·VOC·CO 동반" in r for r in a.reasons), str(a.reasons))
+
 print("\nFAILS:", F if F else "NONE"); sys.exit(1 if F else 0)

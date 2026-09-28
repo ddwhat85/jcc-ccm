@@ -925,7 +925,7 @@ class Storage:
         gases = []
         for dev, slist in disc.items():
             for s in slist:
-                if s.get("kind") in ("h2", "voc"):
+                if s.get("kind") in ("h2", "voc", "co"):
                     lim = (sets.get((dev, s["sensor_key"])) or {}).get("alarm_max")
                     lim = lim if lim is not None else s.get("alarm_max")
                     if lim is not None:

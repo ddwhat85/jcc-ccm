@@ -105,8 +105,8 @@ class EdgePredictor:
                 h.append((r.timestamp, r.value, r.ok))
 
     def _last_gas_ts(self) -> float | None:
-        """H2·VOC 중 가장 최근 유효 표본 시각(없으면 None)."""
-        ts = [s[-1][0] for role in ("h2", "voc") if role in self._roles
+        """가스(H2·VOC·CO) 중 가장 최근 유효 표본 시각(없으면 None)."""
+        ts = [s[-1][0] for role in ("h2", "voc", "co") if role in self._roles
               for s in [self._series(*self._roles[role], self.HISTORY)] if s]
         return max(ts) if ts else None
 
