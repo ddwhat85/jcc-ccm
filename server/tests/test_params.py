@@ -34,7 +34,7 @@ def run():
     print("=== 파라미터 레지스트리 ===")
     d = P.defaults()
     check("기본값 = 코드 설정 기본값", d == P.from_cfgs(FireConfig(), ContactCfg(), DewCfg()))
-    check("손잡이 37개", len(P.PARAMS) == 37, str(len(P.PARAMS)))
+    check("손잡이 38개", len(P.PARAMS) == 38, str(len(P.PARAMS)))
     check("키 중복 없음", len({p["key"] for p in P.PARAMS}) == len(P.PARAMS))
     check("기본값 통과", P.validate(d) is None, str(P.validate(d)))
     bad_range = [p["key"] for p in P.PARAMS

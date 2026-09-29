@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .fire_risk import FireConfig, VentController, assess as assess_fire
 from .contact_heat import ContactBaseline, ContactCfg, assess_contact
@@ -74,6 +74,7 @@ class _PanelState:
     vent: VentController
     dew: DewActuator
     contact: ContactBaseline      # 접점 발열 기준(정상 기간 학습 → 고정). 저장·복원 대상
+    over_since: dict = field(default_factory=dict)   # 가스별 경보치 초과 시작 시각(지속 판정)
 
 
 class Predictor:
@@ -203,6 +204,15 @@ class Predictor:
             "smoke": bool(inputs.get("smoke")),
             "current_abnormal": contact.stage == "danger" and "contact" not in pending,
         }
+        # 경보치 초과가 얼마나 이어졌나(가스별) — 순간 튐(스프레이)은 강제 '극한'에서 뺀다
+        held = {}
+        for g in ("h2", "voc", "co"):
+            v = sig[g].get("value")
+            if "fire" not in pending and v is not None and v >= getattr(self.fire_cfg, g).alarm:
+                held[g] = now - st.over_since.setdefault(g, now)
+            else:
+                st.over_since.pop(g, None)
+        sig["over_held"] = held
         fire = assess_fire(sig, self.fire_cfg)
         vent_action = None
         if self.autovent and "fire" not in pending:

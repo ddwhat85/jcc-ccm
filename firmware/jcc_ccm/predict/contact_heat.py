@@ -24,7 +24,7 @@ from .fire_risk import slope_per_min
 class ContactCfg:
     i_min: float = 2.0          # 이 전류(A) 미만은 발열 미미 → 학습·판정 제외
     res_warn: float = 5.0       # 잔차(°C) 주의
-    res_alarm: float = 12.0     # 잔차(°C) 위험(접촉저항 급증)
+    res_alarm: float = 11.0     # 잔차(°C) 위험(접촉저항 급증). 12→11: 볼트 이완 시나리오를 10분 안에 잡게(2026-09-29)
     t_abs_alarm: float = 60.0   # 접점 절대온도(°C) 위험(하드)
     rise_warn: float = 0.3      # 잔차 상승(°C/분) 주의(열화 추세)
     k_default: float = 0.03     # 기본 k(ΔT=k·I²); 학습 전/부족 시

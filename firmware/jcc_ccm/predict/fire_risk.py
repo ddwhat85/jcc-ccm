@@ -62,13 +62,17 @@ def slope_per_min(series: list[tuple[float, float]]) -> float:
     return slope_per_sec * 60.0              # 분당
 
 
+MIN_BASELINE = 30   # '평소'로 인정할 최소 표본 수. 6~7개로는 MAD가 우연히 작아 z가 부풀려져
+                    # CCM 재시작 3분쯤 헛 '주의'가 떴다(튜닝 시나리오 재생에서 발견).
+
+
 def robust_z(value: float, baseline: list[float]) -> float:
     """평소 분포(baseline) 대비 현재값의 로버스트 z (중앙값·MAD 기반).
 
-    이상치에 강하다. 표본이 적으면 0.0. MAD=0이면 표준편차로 대체.
+    이상치에 강하다. 표본이 MIN_BASELINE 미만이면 0.0. MAD=0이면 표준편차로 대체.
     """
     vals = [v for v in baseline if v is not None]
-    if len(vals) < 6 or value is None:
+    if len(vals) < MIN_BASELINE or value is None:
         return 0.0
     s = sorted(vals)
     m = len(s)
@@ -115,6 +119,7 @@ class FireConfig:
     close_fri: float = 20.0         # 벤트 닫힘(복구, 히스테리시스)
     crit_fri: float = 80.0          # 극한
     watch_fri: float = 30.0
+    over_hold: float = 60.0         # 가스가 경보치를 이만큼(초) 계속 넘어야 강제 '극한'(스프레이 등 순간 튐 배제)
 
     @classmethod
     def from_env(cls) -> "FireConfig":
@@ -183,9 +188,14 @@ def assess(signals: dict, cfg: FireConfig | None = None) -> FireAssessment:
     fri = 100.0 * clamp01(cfg.w_h2 * g_h2 + cfg.w_voc * g_voc + cfg.w_co * g_co + pair
                           + cfg.w_temp * temp_term + conf)
 
-    # 안전 하한: 어느 가스든 이미 위험 임계 초과거나 연기면 FRI를 강제로 끌어올린다
+    # 안전 하한: 어느 가스든 경보치를 over_hold초 이상 계속 넘었거나 연기면 FRI를 강제로 끌어올린다.
+    # over_held = {가스: 경보치 초과가 이어진 초} — Predictor가 주기마다 넘긴다. 없으면(단발 호출)
+    # 초과를 곧바로 지속으로 본다(예전 동작).
     h2v, vocv, cov = h2.get("value"), voc.get("value"), cog.get("value")
-    over = [v is not None and v >= g.alarm for v, g in ((h2v, cfg.h2), (vocv, cfg.voc), (cov, cfg.co))]
+    held = signals.get("over_held")
+    over_now = [v is not None and v >= g.alarm for v, g in ((h2v, cfg.h2), (vocv, cfg.voc), (cov, cfg.co))]
+    over = [o and (held is None or (held.get(n) or 0.0) >= cfg.over_hold)
+            for o, n in zip(over_now, ("h2", "voc", "co"))]
     if any(over):
         fri = max(fri, cfg.crit_fri)
     if smoke:
@@ -226,6 +236,9 @@ def assess(signals: dict, cfg: FireConfig | None = None) -> FireAssessment:
         names = [n for g, n in gs if g >= 0.3]
         order = [n for n in ("H2", "VOC", "CO") if n in names]      # 표기 순서 고정(H2·VOC·CO)
         reasons.append(f"{'·'.join(order)} 동반 상승 — 열폭주 서명")
+    for o, s, n in zip(over_now, over, ("H2", "VOC", "CO")):
+        if o and not s:
+            reasons.append(f"{n} 경보치 초과 {int((held or {}).get(n.lower()) or 0)}초 — 지속 확인 중")
     if temp_term > 0.3:
         reasons.append(f"온도 급상승 {round(temp_sp,1)}°C/분")
     if smoke:

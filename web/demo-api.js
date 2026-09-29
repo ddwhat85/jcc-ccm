@@ -505,7 +505,7 @@
     return (num / den) * 60;
   }
   function robustZ(value, baseline) {
-    const vals = baseline.filter(v => v != null); if (vals.length < 6 || value == null) return 0;
+    const vals = baseline.filter(v => v != null); if (vals.length < 30 || value == null) return 0;   // fire_risk.MIN_BASELINE
     // 참 중앙값(짝수면 가운데 둘의 평균) — fire_risk.robust_z와 동일
     const median = a => { const s = a.slice().sort((p, q) => p - q), m = s.length;
       return m % 2 ? s[(m - 1) / 2] : (s[m / 2 - 1] + s[m / 2]) / 2; };
@@ -517,7 +517,7 @@
   const FCFG = { h2: { warn: 10, alarm: 25, rw: 3, ra: 10 }, voc: { warn: 200, alarm: 1000, rw: 100, ra: 400 },
     co: { warn: 50, alarm: 200, rw: 20, ra: 80 },
     tRw: 1, tRa: 5, wH2: 0.38, wVoc: 0.38, wCo: 0.32, wTemp: 0.10, pair: 0.20, conf: 0.15, zLo: 3, zHi: 6,
-    openFri: 55, closeFri: 20, critFri: 80, watchFri: 30 };
+    openFri: 55, closeFri: 20, critFri: 80, watchFri: 30, overHold: 60 };
   function gasScore(value, series, baseline, g) {
     const lvl = ramp(value == null ? 0 : value, g.warn, g.alarm);
     const sp = slopePerMin(series || []), rise = ramp(sp, g.rw, g.ra);
@@ -537,7 +537,10 @@
     const conf = (smoke || curAb) ? FCFG.conf : 0;
     let fri = 100 * clamp01(FCFG.wH2 * H.g + FCFG.wVoc * V.g + FCFG.wCo * C.g + pair + FCFG.wTemp * tTerm + conf);
     const h2v = h2.value, vocv = voc.value, cov = cog.value;
-    const over = [[h2v, FCFG.h2], [vocv, FCFG.voc], [cov, FCFG.co]].map(([v, g]) => v != null && v >= g.alarm);
+    // 경보치 초과가 overHold초 이어져야 강제 '극한'(없으면 곧바로 지속으로 봄 — fire_risk.assess와 동일)
+    const held = sig.over_held;
+    const overNow = [[h2v, FCFG.h2], [vocv, FCFG.voc], [cov, FCFG.co]].map(([v, g]) => v != null && v >= g.alarm);
+    const over = overNow.map((o, i) => o && (held == null || (held[["h2", "voc", "co"][i]] || 0) >= FCFG.overHold));
     if (over.some(Boolean)) fri = Math.max(fri, FCFG.critFri);
     if (smoke) fri = Math.max(fri, 85);
     const bothStrong = second >= 0.5;
@@ -557,6 +560,7 @@
     if (C.anom > 0.3) R.push(`CO 평소대비 급등 z=${Math.round(C.z * 100) / 100}`);
     if (C.lvl > 0.3) R.push(`CO ${cov}ppm(경고선 접근)`);
     if (pair > 0) R.push([["H2", H.g], ["VOC", V.g], ["CO", C.g]].filter(x => x[1] >= 0.3).map(x => x[0]).join("·") + " 동반 상승 — 열폭주 서명");
+    overNow.forEach((o, i) => { if (o && !over[i]) R.push(`${["H2", "VOC", "CO"][i]} 경보치 초과 ${Math.floor((held || {})[["h2", "voc", "co"][i]] || 0)}초 — 지속 확인 중`); });
     if (tTerm > 0.3) R.push(`온도 급상승 ${Math.round(tsp * 10) / 10}°C/분`);
     if (smoke) R.push("열연기 감지");
     if (curAb) R.push("전류 이상");
@@ -565,7 +569,7 @@
   }
   // 기준 학습: 운영 기본은 300표본·30분(contact_heat.ContactCfg). 시연 화면은 몇 분 안에
   // 학습 완료를 보여주려고 짧게 둔다(로직은 동일, 숫자만 다름).
-  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 12, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1,
+  const CCFG = { iMin: 2, resWarn: 5, resAlarm: 11, tAbs: 60, riseWarn: 0.3, kDef: 0.03, kMin: 0, kMax: 1,
                  learnSamples: 45, learnSpan: 60, tauDays: 7 };
   function fitK(samples) {
     let num = 0, den = 0;
@@ -651,7 +655,7 @@
   function predState(panel) {
     let s = PRED.panels[panel];
     if (!s) s = PRED.panels[panel] = { ventOpen: false, ventManual: false, ventBelow: null,
-      heater: false, fan: false, dewManual: false, dewCalm: null, last: null,
+      heater: false, fan: false, dewManual: false, dewCalm: null, last: null, overSince: {},
       contact: new ContactBaseline() };
     return s;
   }
@@ -799,6 +803,13 @@
       `접점 발열 기준 학습 완료 — 이제 서서히 풀리는 접점도 감시 (k=${Math.round(bl.k * 1e5) / 1e5})`, "system");
     const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, co: inputs.co || {}, temp: inputs.temp || {},
       smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
+    const held = {};   // 가스별 경보치 초과 지속(초) — predict.assess_panel과 동일
+    ["h2", "voc", "co"].forEach(g => {
+      const v = sig[g].value;
+      if (!pending.fire && v != null && v >= FCFG[g].alarm) { if (s.overSince[g] == null) s.overSince[g] = t; held[g] = t - s.overSince[g]; }
+      else delete s.overSince[g];
+    });
+    sig.over_held = held;
     const fire = assessFire(sig);
     // 보류 중이면 액추에이터 상태 유지(안전측: 가스 데이터가 끊겼다고 열린 벤트를 닫지 않음)
     const vAct = (PRED.autovent && !pending.fire) ? ventStep(s, fire.fri, fire.stage, t) : null;

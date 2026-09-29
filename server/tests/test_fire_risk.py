@@ -8,7 +8,7 @@ def lin(start, end, secs=60, n=13, t0=1000.0):
     return [(t0 + secs*i/(n-1), start + (end-start)*i/(n-1)) for i in range(n)]
 def flat(val, secs=60, n=13, t0=1000.0):
     return [(t0 + secs*i/(n-1), val) for i in range(n)]
-def noisy(base, n=16):
+def noisy(base, n=40):
     import random; r=random.Random(1); return [round(base*(1+r.uniform(-0.15,0.15))+r.uniform(-0.05,0.05),3) for _ in range(n)]
 
 F=[]
@@ -46,7 +46,7 @@ a=assess({"h2":{"value":40,"series":flat(40),"baseline":noisy(2)},
 ck("가스초과+연기=critical", a.stage=="critical" and a.fri>=80, f"fri={a.fri}")
 
 # 6) 베이스라인 이상탐지: 평소 5 근처인데 갑자기 50 → z 큼
-z=robust_z(50, [5,5.2,4.8,5,5.1,4.9,5,5.3,4.7,5])
+z=robust_z(50, [5,5.2,4.8,5,5.1,4.9,5,5.3,4.7,5]*3)
 ck("robust_z 급등 감지", z>6, f"z={round(z,1)}")
 
 # 7) 기울기: 60초에 12 상승 → 12/분

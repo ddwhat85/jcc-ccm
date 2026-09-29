@@ -25,7 +25,7 @@ def check(name, cond, detail=""):
         _fails.append(name)
 
 
-def noisy(base, n=24, amp=0.05):
+def noisy(base, n=40, amp=0.05):
     return [base * (1 + amp * (1 if i % 2 else -1) * (0.5 + (i % 4) / 4.0)) for i in range(n)]
 
 
