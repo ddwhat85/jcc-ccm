@@ -12,6 +12,7 @@ Vercel에서 이 저장소를 가져와 Root Directory를 web 으로 지정하�
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -63,6 +64,20 @@ def main() -> int:
     html = html.replace('<script src="predict-core.js"></script>',
                         f'<script src="predict-core.js{core_ver}"></script>', 1)
 
+    # 튜닝 콘솔 데이터(손잡이 레지스트리·시나리오)는 파이썬 정본에서 뽑아 싣는다 — 데모엔 서버가 없으므로.
+    sys.path.insert(0, os.path.join(ROOT, "server"))
+    from jcc_server.params import registry_view
+    from jcc_server.scenarios import export_all
+    tuning_js = ("/* tools/build_web.py 가 생성 — 직접 고치지 마세요(server/jcc_server/params.py·scenarios.py가 원본). */\n"
+                 "window.JCC_TUNING_DATA = "
+                 + json.dumps({"params": registry_view(), "scenarios": export_all()},
+                              ensure_ascii=False, separators=(",", ":")) + ";\n")
+    with open(os.path.join(OUT, "tuning-data.js"), "w", encoding="utf-8") as fh:
+        fh.write(tuning_js)
+    tuning_ver = "?v=" + hashlib.sha1(tuning_js.encode("utf-8")).hexdigest()[:8]
+    html = html.replace(f'<script src="demo-api.js{ver}"></script>',
+                        f'<script src="tuning-data.js{tuning_ver}"></script>\n<script src="demo-api.js{ver}"></script>', 1)
+
     with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(html)
 
@@ -87,6 +102,8 @@ def main() -> int:
     # 치환값은 함수로 넘긴다 — 문자열로 넘기면 JS 안의 역슬래시가 re 이스케이프로 해석된다.
     body_only = re.sub(r'<script src="predict-core\.js[^"]*"></script>',
                        lambda _m: "<script>\n" + core_js + "\n</script>", body_only, count=1)
+    body_only = re.sub(r'<script src="tuning-data\.js[^"]*"></script>',
+                       lambda _m: "<script>\n" + tuning_js + "\n</script>", body_only, count=1)
     if os.path.isfile(api_path):
         with open(api_path, "r", encoding="utf-8") as fh:
             api_src = fh.read()

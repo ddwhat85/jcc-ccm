@@ -820,6 +820,58 @@
       sensors, problems: problems.slice(0, 8) };
   }
 
+  // ── 튜닝 콘솔 (데모: 서버 대신 브라우저가 같은 관문을 돈다 — 판정 코어는 predict-core.js 한 벌) ──
+  // 손잡이 목록·시나리오는 빌드 때 파이썬 정본에서 뽑아 tuning-data.js(window.JCC_TUNING_DATA)로 싣는다.
+  const TUNING = { history: [] };
+  const tuneData = () => window.JCC_TUNING_DATA || null;
+  function tuneDefaultsDemo() { return Object.fromEntries(tuneData().params.params.map(q => [q.key, q.default])); }
+  function tuneActiveDemo() {
+    return TUNING.history[0] || { version: 0, params: tuneDefaultsDemo(), created_at: null, author: "", note: "코드 기본값", kind: "default", scorecard: null };
+  }
+  function tuneValidateDemo(prm) {   // params.validate와 같은 규칙
+    if (!prm || typeof prm !== "object" || Array.isArray(prm)) return "설정 형식 오류 — 키:값 묶음이 아님";
+    const reg = tuneData().params, keys = new Set(reg.params.map(q => q.key));
+    const unknown = Object.keys(prm).filter(k => !keys.has(k));
+    if (unknown.length) return `모르는 키: ${unknown.slice(0, 3).join(", ")}`;
+    for (const q of reg.params) {
+      if (!(q.key in prm)) return `값 빠짐: ${q.key}`;
+      const v = prm[q.key];
+      if (typeof v !== "number" || !isFinite(v)) return `${q.label}(${q.key}) 값이 숫자가 아님`;
+      if (v < q.hard[0] || v > q.hard[1]) return `${q.label} ${v}${q.unit} — 절대 한계 ${q.hard[0]}~${q.hard[1]} 밖`;
+    }
+    const lab = k => reg.params.find(q => q.key === k).label;
+    for (const [a, , b] of reg.relations) if (!(prm[a] < prm[b])) return `${lab(a)}(${prm[a]}) < ${lab(b)}(${prm[b]}) 이어야 함`;
+    return null;
+  }
+  function tuneGateDemo(action, body) {
+    if (!tuneData()) return [{ error: "튜닝 데이터가 없습니다" }, 503];
+    let prm = body.params, note = String(body.note || "").slice(0, 200);
+    if (action === "rollback") {
+      const v = body.version;
+      const t = v === "default" || v === 0 ? { version: 0, params: tuneDefaultsDemo() } : TUNING.history.find(h => h.version === v);
+      if (!t) return [{ error: "없는 설정 버전입니다" }, 400];
+      prm = t.params; note = note || (t.version === 0 ? "코드 기본값으로" : `v${t.version}로`);
+    }
+    const why = tuneValidateDemo(prm);
+    if (why) return [{ error: why }, 400];
+    const card = JCCPredict.scorecard(tuneData().scenarios, prm); delete card.runs;
+    if (action === "evaluate") return [{ scorecard: card }, 200];
+    if (card.missed) {
+      logEvent("", "", "tuning_reject", `예지 기준 적용 거부 — 사고 ${card.missed}건 놓침 (데모)`, "user");
+      return [{ error: `사고 시나리오 ${card.missed}건을 놓쳐 적용할 수 없습니다`, scorecard: card }, 409];
+    }
+    const cur = tuneActiveDemo().version;
+    if (Number.isInteger(body.base_version) && body.base_version !== cur)
+      return [{ error: "그 사이 다른 설정이 먼저 적용됐습니다 — 새 설정을 확인하세요", active: tuneActiveDemo() }, 409];
+    const ver = cur + 1, kind = action === "rollback" ? "rollback" : "apply";
+    TUNING.history.unshift({ version: ver, params: Object.assign({}, prm), created_at: now(), author: "데모", note, kind,
+      scorecard: { caught: card.caught, missed: card.missed, false_alarms: card.false_alarms } });
+    PREDICTOR.reconfigure(prm);                       // 데모 판넬의 실시간 판정에도 바로 반영
+    logEvent("", "", kind === "rollback" ? "tuning_rollback" : "tuning_apply",
+      `예지 기준 v${ver} ${kind === "rollback" ? "되돌림" : "적용"}${note ? " — " + note : ""} (데모)`, "user");
+    return [{ ok: true, version: ver, scorecard: card }, 200];
+  }
+
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   const J = (obj, status) => new Response(JSON.stringify(obj), {
@@ -863,6 +915,15 @@
         return Promise.resolve(J({ available: true, enabled: HEAL.enabled, l1_enabled: HEAL.l1, l2_enabled: HEAL.l2 }));
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
+      if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
+      if (p === "/api/tuning/scenarios") return Promise.resolve(tuneData() ? J({ scenarios: tuneData().scenarios }) : J({ error: "튜닝 데이터 없음" }, 503));
+      if (p === "/api/tuning/config" && method === "GET") {
+        if (!tuneData()) return Promise.resolve(J({ error: "튜닝 데이터 없음" }, 503));
+        const hist = TUNING.history.slice(0, 20).map(h => { const c = Object.assign({}, h); delete c.params; return c; });
+        return Promise.resolve(J({ active: tuneActiveDemo(), history: hist, edge: {}, defaults: tuneDefaultsDemo() }));
+      }
+      const mt = p.match(/^\/api\/tuning\/(evaluate|apply|rollback)$/);
+      if (mt && method === "POST") { const [obj, st] = tuneGateDemo(mt[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/healthcheck") return Promise.resolve(J(diagnoseAll()));
       if (p === "/api/report") return Promise.resolve(J(buildReport(parseFloat(qs.get("days") || "7"))));
       if (p === "/api/events") {
