@@ -31,6 +31,20 @@ from jcc_server.fire_risk import FireConfig
 from jcc_server.dewpoint import DewCfg
 
 PANEL_SCN = ("cable_overheat", "contact_jump", "night_chill", "spray", "sensor_glitch")
+N_RANDOM = 20
+
+
+def _random_params(n: int) -> list:
+    """시드 고정 무작위 설정 n개 — 각 손잡이를 화면 범위에서 균등 추출, 관계 위반이면 다시 뽑는다."""
+    import random
+    from jcc_server import params as P
+    rng = random.Random(20260929)
+    out = []
+    while len(out) < n:
+        d = {p["key"]: round(rng.uniform(p["ui"][0], p["ui"][1]), 3) for p in P.PARAMS}
+        if P.validate(d) is None:
+            out.append(d)
+    return out
 
 _fails = []
 
@@ -89,6 +103,7 @@ def fixtures() -> dict:
         "baseline": [_drift_seq(20, 300.0), _drift_seq(0.2, 60.0)],
         "incidents": _incident_cases(),
         "panel": [S.build(n) for n in PANEL_SCN],
+        "tuning": {"scenarios": S.export_all(), "params": [_defaults()] + _random_params(N_RANDOM)},
         "contact_ref": [[15, 27 + 0.03 * 225 + 7, 27, c_norm, 0.03], [15, 27 + 0.03 * 225 + 13, 27, c_norm, 0.03],
                         [15, 27.3, 27, c_norm, 0.0]],
     }
@@ -146,10 +161,21 @@ def python_results(fx: dict) -> dict:
         "contact_ref": [{"stage": r.stage, "residual": r.residual}
                         for r in (assess_contact(i, t, a, h, k_ref=k) for i, t, a, h, k in fx["contact_ref"])],
         "panel": [_py_panel(s) for s in fx["panel"]],
+        "tuning": [_py_card(p) for p in fx["tuning"]["params"]],
         "incidents": [[[x["cause"], x["primary"], sorted(x["alarms"]), x["severity"], x["acked"]]
                        for x in group_alarms(c["alarms"], {tuple(k.split(":", 1)): v for k, v in c["sensors"].items()},
                                              c["panels"])] for c in fx["incidents"]],
     }
+
+
+def _py_card(params) -> dict:
+    from jcc_server import tuning_eval as TE
+    return TE.scorecard(params)
+
+
+def _defaults() -> dict:
+    from jcc_server import params as P
+    return P.defaults()
 
 
 def _py_panel(scn) -> list:
@@ -256,6 +282,23 @@ def run():
                 bad.append(i)
         detail = f"{len(p)}틱" + (f", 첫 불일치 틱 {bad[0]}: py={p[bad[0]]} js={j[bad[0]]}" if bad else "")
         check(f"판넬 통합 한 틱씩: {name}", len(p) == len(j) and not bad, detail)
+
+    diffs = []
+    for i, (p, j) in enumerate(zip(py["tuning"], js["tuning"]["cards"])):
+        for k in ("caught", "missed", "false_alarms", "watch_in_traps"):
+            if p[k] != j[k]:
+                diffs.append(f"설정#{i} {k} py={p[k]} js={j[k]}")
+        if not close(p["lead_worst"], j["lead_worst"], 0.11):
+            diffs.append(f"설정#{i} lead_worst py={p['lead_worst']} js={j['lead_worst']}")
+        for n, pv in p["per"].items():
+            jv = j["per"][n]
+            if pv["ok"] != jv["ok"] or pv["first"] != jv["first"] or pv["watch_hits"] != jv["watch_hits"]                     or not close(pv["lead_min"], jv["lead_min"], 0.11):
+                diffs.append(f"설정#{i} {n} py={pv} js={jv}")
+    check(f"튜닝 성적표: 기본값 + 무작위 {N_RANDOM}개 × 시나리오 11편", not diffs,
+          (diffs[0] if diffs else "") + f" (불일치 {len(diffs)}건)")
+    missed_any = sum(1 for c in py["tuning"][1:] if c["missed"])
+    check("무작위 설정 중 일부는 사고를 놓침(관문이 할 일이 있음)", missed_any > 0, f"{missed_any}/{N_RANDOM}")
+    print(f"      JS 재생 시간(Node): 기본값 11편 {js['tuning']['ms_default']}ms, 전체 {js['tuning']['ms_total']}ms")
 
     print()
     if _fails:

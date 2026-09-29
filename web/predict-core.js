@@ -60,20 +60,23 @@
   function cfgFromParams(params) { return applyParams(defaultCfg(), params || {}); }
 
   // ── 화재 (fire_risk.assess) ─────────────────────────────
-  function gasScore(value, series, baseline, g, c) {
-    const lvl = ramp(value == null ? 0 : value, g.warn, g.alarm);
-    const sp = slopePerMin(series || []), rise = ramp(sp, g.rise_warn, g.rise_alarm);
-    const z = robustZ(value, baseline || []), anom = ramp(z, c.z_lo, c.z_hi);
-    return { g: Math.max(lvl, rise, anom), lvl, sp, rise, z, anom };
+  // 설정과 무관한 특징(값·기울기·평소대비 z·온도 기울기). 튜닝 재생은 이것을 시나리오당 한 번만 계산해 둔다.
+  function fireFeatures(sig) {
+    const f = x => ({ value: x.value, sp: slopePerMin(x.series || []), z: robustZ(x.value, x.baseline || []) });
+    return { h2: f(sig.h2 || {}), voc: f(sig.voc || {}), co: f(sig.co || {}), tsp: slopePerMin((sig.temp || {}).series || []) };
+  }
+  function gasScore(F, g, c) {
+    const lvl = ramp(F.value == null ? 0 : F.value, g.warn, g.alarm);
+    const rise = ramp(F.sp, g.rise_warn, g.rise_alarm), anom = ramp(F.z, c.z_lo, c.z_hi);
+    return { g: Math.max(lvl, rise, anom), lvl, sp: F.sp, rise, z: F.z, anom };
   }
   function assessFire(sig, c) {
     c = c || defaultCfg().fire;
-    const h2 = sig.h2 || {}, voc = sig.voc || {}, cog = sig.co || {}, temp = sig.temp || {};
+    const h2 = sig.h2 || {}, voc = sig.voc || {}, cog = sig.co || {};
     const smoke = !!sig.smoke, curAb = !!sig.current_abnormal;
-    const H = gasScore(h2.value, h2.series, h2.baseline, c.h2, c);
-    const V = gasScore(voc.value, voc.series, voc.baseline, c.voc, c);
-    const C = gasScore(cog.value, cog.series, cog.baseline, c.co, c);
-    const tsp = slopePerMin(temp.series || []), tTerm = ramp(tsp, c.temp_rise_warn, c.temp_rise_alarm);
+    const F = sig._feat || fireFeatures(sig);
+    const H = gasScore(F.h2, c.h2, c), V = gasScore(F.voc, c.voc, c), C = gasScore(F.co, c.co, c);
+    const tsp = F.tsp, tTerm = ramp(tsp, c.temp_rise_warn, c.temp_rise_alarm);
     const second = [H.g, V.g, C.g].sort((a, b) => b - a)[1];
     const pair = second >= 0.3 ? c.pair_boost * second : 0;
     const conf = (smoke || curAb) ? c.conf_boost : 0;
@@ -333,7 +336,7 @@
         else bl.skip(hist[hist.length - 1][0]);
       }
       const sig = { h2: inputs.h2 || {}, voc: inputs.voc || {}, co: inputs.co || {}, temp: inputs.temp || {},
-        smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact };
+        smoke: !!inputs.smoke, current_abnormal: contact.stage === "danger" && !pending.contact, _feat: inputs._fireFeat };
       const held = {};
       for (const g of GASES) {
         const v = sig[g].value;
@@ -366,10 +369,96 @@
     }
   }
 
+  // ── 튜닝 재생·성적표 (tuning_eval.py) ─────────────────
+  const WATCH = ["fire_watch", "contact_watch", "dew_watch"];
+  function flags(res, pending) {
+    const f = res.fire, c = res.contact, d = res.dew, out = {};
+    if (!pending.fire) { out.fire_watch = ["watch", "danger", "critical"].includes(f.stage); out.fire_danger = f.stage === "danger" || f.stage === "critical"; }
+    out.vent_open = !!f.vent.open;
+    if (!pending.contact) { out.contact_watch = c.stage === "watch" || c.stage === "danger"; out.contact_danger = c.stage === "danger"; }
+    if (!pending.dew) { out.dew_watch = d.stage === "watch" || d.stage === "danger"; out.dew_danger = d.stage === "danger"; }
+    out.fan = !!d.fan; out.heater = !!d.heater;
+    return out;
+  }
+  function metric(scn, res) {
+    return scn.algo === "fire" ? res.fire.fri : scn.algo === "contact" ? res.contact.residual : res.dew.margin;
+  }
+  // 설정과 무관한 부분(입력 조립·화재 특징)을 시나리오당 한 번만 — 손잡이를 돌릴 땐 판정만 다시 돈다
+  const PREP = new WeakMap();
+  function prepare(scn) {
+    if (PREP.has(scn)) return PREP.get(scn);
+    const data = scn.roles, roles = {};
+    Object.keys(data).forEach(r => { roles[r] = ["sim", r]; });
+    let now = 0;
+    const series = (dev, key, n) => { const a = data[key]; let lo = 0, hi = a.length;
+      while (lo < hi) { const m = (lo + hi) >> 1; if (a[m][0] <= now) lo = m + 1; else hi = m; }
+      return a.slice(Math.max(0, lo - n), lo); };
+    const ticks = [];
+    for (let k = 0; ; k++) {
+      const t = scn.t0 + k * scn.step; if (t > scn.t_end) break;
+      now = t;
+      const asm = buildPanelInputs(roles, series, t), inp = asm.inputs;
+      if (!Object.keys(inp).length) { ticks.push({ t, inputs: null }); continue; }
+      inp._fireFeat = fireFeatures({ h2: inp.h2 || {}, voc: inp.voc || {}, co: inp.co || {}, temp: inp.temp || {} });
+      for (const g of GASES) if (inp[g]) inp[g] = { value: inp[g].value };     // 시계열은 특징에 담겼으니 버린다(메모리)
+      if (inp.temp) inp.temp = { value: inp.temp.value };
+      ticks.push({ t, inputs: inp, pending: asm.pending });
+    }
+    PREP.set(scn, ticks);
+    return ticks;
+  }
+  // 시나리오 한 편 재생 → {events:[{t, what}], trace:[[t, 지표|null]]}
+  function replay(scn, params) {
+    const P = new Predictor(cfgFromParams(params)); P.autovent = true;
+    const events = [], trace = [], state = {};
+    for (const tk of prepare(scn)) {
+      const t = tk.t;
+      if (!tk.inputs) { trace.push([t, null]); continue; }
+      const res = P.assessPanel("sim", t, tk.inputs, tk.pending);
+      const fl = flags(res, tk.pending);
+      for (const what in fl) { if (fl[what] && !state[what]) events.push({ t, what }); state[what] = fl[what]; }
+      trace.push([t, metric(scn, res)]);
+    }
+    return { events, trace };
+  }
+  // 사고: 사건 시작 뒤 need 중 하나가 기준 시각 전에 → 잡음. 함정: forbid 하나라도 → 오경보.
+  function judge(scn, run) {
+    const ev = run.events, exp = scn.expect;
+    const watchHits = ev.filter(e => WATCH.includes(e.what)).length;
+    if (scn.kind === "accident") {
+      const hits = ev.filter(e => exp.need.includes(e.what) && e.t >= scn.t_start).map(e => e.t);
+      const first = hits.length ? Math.min.apply(null, hits) : null;
+      const ok = first != null && first < scn.t_ref;
+      const lead = ok ? r1((scn.t_ref - first) / 60) : null;
+      const why = ok ? `${scn.ref_label} ${lead}분 전에 잡음` : first == null ? "끝까지 못 잡음"
+        : `${scn.ref_label} ${r1((first - scn.t_ref) / 60)}분 뒤에야 잡음`;
+      return { ok, first, lead_min: lead, why, watch_hits: watchHits };
+    }
+    const bad = ev.filter(e => exp.forbid.includes(e.what));
+    const first = bad.length ? bad[0].t : null;
+    return { ok: !bad.length, first, lead_min: null,
+      why: bad.length ? `오경보: ${bad[0].what} (${r1((first - scn.t0) / 60)}분)` : "오경보 없음", watch_hits: watchHits };
+  }
+  // scenarios = scenarios.export_all() 형식 목록
+  function scorecard(scenarios, params) {
+    const per = {}, runs = {};
+    for (const scn of scenarios) {
+      const run = replay(scn, params);
+      runs[scn.name] = run;
+      per[scn.name] = Object.assign(judge(scn, run), { kind: scn.kind, known: scn.known || "" });
+    }
+    const vals = Object.values(per), acc = vals.filter(v => v.kind === "accident"), traps = vals.filter(v => v.kind === "trap");
+    const leads = acc.filter(v => v.ok).map(v => v.lead_min);
+    return { caught: acc.filter(v => v.ok).length, missed: acc.filter(v => !v.ok).length,
+      false_alarms: traps.filter(v => !v.ok).length, watch_in_traps: traps.reduce((a, v) => a + v.watch_hits, 0),
+      lead_worst: leads.length ? Math.min.apply(null, leads) : null, per, runs };
+  }
+
   root.JCCPredict = {
     ramp, clamp01, slopePerMin, robustZ, dewPoint, MIN_BASELINE,
     defaultCfg, applyParams, cfgFromParams,
     assessFire, assessContact, assessDew, fitK, ContactBaseline, VentController, DewActuator,
     despike, asof, currentValue, readiness, buildPanelInputs, Predictor,
+    fireFeatures, prepare, replay, judge, scorecard,
   };
 })(typeof globalThis !== "undefined" ? globalThis : this);

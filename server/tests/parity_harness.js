@@ -50,6 +50,11 @@ const out = {
   contact_ref: fx.contact_ref.map(([i, t, a, h, k]) => { const r = C.assessContact(i, t, a, h, null, k, null);
     return { stage: r.stage, residual: r.residual }; }),
   panel: fx.panel.map(panelRun),
+  // 튜닝 성적표: 같은 시나리오·설정으로 사건·판정이 파이썬과 같은지(runs는 크기 때문에 뺀다)
+  tuning: (() => { const t0 = Date.now(); const out = fx.tuning.params.map(p => {
+    const sc = C.scorecard(fx.tuning.scenarios, p); delete sc.runs; return sc; });
+    return { cards: out, ms_default: (() => { const a = Date.now(); C.scorecard(fx.tuning.scenarios, fx.tuning.params[0]); return Date.now() - a; })(),
+      ms_total: Date.now() - t0 }; })(),
   incidents: fx.incidents.map(c => C.groupAlarms(c.alarms, c.sensors, c.panels)
     .map(x => [x.cause, x.primary, x.alarms.slice().sort((a, b) => a - b), x.severity, x.acked])),
 };
