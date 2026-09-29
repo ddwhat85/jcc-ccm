@@ -52,7 +52,17 @@ def main() -> int:
             + f'<script src="demo-api.js{ver}"></script>\n'
             + html[idx:])
 
+    # 판정 코어(JS)는 서버 원본을 그대로 복사한다. 화면 원본에 이미 데모 백엔드보다 앞에
+    # <script src="predict-core.js">가 있으므로 캐시버스팅 쿼리만 붙인다.
     os.makedirs(OUT, exist_ok=True)
+    core_src = os.path.join(ROOT, "server", "static", "predict-core.js")
+    shutil.copy2(core_src, os.path.join(OUT, "predict-core.js"))
+    with open(core_src, "r", encoding="utf-8") as fh:
+        core_js = fh.read()
+    core_ver = "?v=" + hashlib.sha1(core_js.encode("utf-8")).hexdigest()[:8]
+    html = html.replace('<script src="predict-core.js"></script>',
+                        f'<script src="predict-core.js{core_ver}"></script>', 1)
+
     with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(html)
 
@@ -74,12 +84,15 @@ def main() -> int:
     body_only = body_only.replace(BANNER, "", 1).lstrip()
     # 아티팩트/호스팅 불확실성 제거: demo-api.js를 외부 참조 대신 통째로 인라인한다
     # (별도 파일·쿼리스트링 처리에 의존하지 않는 자기완결형 페이지).
+    # 치환값은 함수로 넘긴다 — 문자열로 넘기면 JS 안의 역슬래시가 re 이스케이프로 해석된다.
+    body_only = re.sub(r'<script src="predict-core\.js[^"]*"></script>',
+                       lambda _m: "<script>\n" + core_js + "\n</script>", body_only, count=1)
     if os.path.isfile(api_path):
         with open(api_path, "r", encoding="utf-8") as fh:
             api_src = fh.read()
         body_only = re.sub(
             r'<script src="demo-api\.js[^"]*"></script>',
-            "<script>\n" + api_src + "\n</script>",
+            lambda _m: "<script>\n" + api_src + "\n</script>",
             body_only, count=1)
     # 인코딩 선언은 반드시 남긴다 — 위에서 <meta>를 전부 지웠으므로 charset을 다시 넣는다.
     # (호스트가 UTF-8 charset을 안 붙여주는 환경에서 한글이 깨지는 것을 막는다.)

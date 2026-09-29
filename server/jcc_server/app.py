@@ -132,12 +132,15 @@ class Handler(BaseHTTPRequestHandler):
         # 로그인 게이트: 비번이 걸려 있고 미인증이면 데이터 API는 전부 차단.
         # 열어두는 것: 화면 껍데기(/ — 터미널 로그인이 그 안에 있다), 이미지, 상태 확인,
         # 인증 상태 조회. 화면 껍데기엔 현장 데이터가 없다(데이터는 모두 API로만 온다).
-        if (_DASH_PW and not self._authed() and path not in ("/", "/index.html", "/health", "/api/auth/status")
+        if (_DASH_PW and not self._authed() and path not in ("/", "/index.html", "/predict-core.js", "/health",
+                                                             "/api/auth/status")
                 and not path.startswith(("/img/", "/ota/"))):   # /ota/는 기기 키(Bearer)로 따로 막는다
             return self._json({"error": "unauthorized"}, 401)
 
         if path in ("/", "/index.html"):
             return self._serve_dashboard()
+        if path == "/predict-core.js":          # 판정 코어(JS) — 화면 코드일 뿐 현장 데이터는 없다
+            return self._serve_static_js("predict-core.js")
         if path == "/health":
             return self._json({"ok": True, "ts": time.time()})
         if path == "/api/devices":
@@ -659,6 +662,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(out)
 
     # ── 대시보드 ────────────────────────────────────────────
+    def _serve_static_js(self, name: str) -> None:
+        try:
+            with open(os.path.join(_STATIC_DIR, name), "r", encoding="utf-8") as fh:
+                src = fh.read()
+        except OSError:
+            return self._json({"error": "not found"}, 404)
+        self._text(src, 200, "application/javascript; charset=utf-8")
+
     def _serve_dashboard(self) -> None:
         index = os.path.join(_STATIC_DIR, "index.html")
         try:

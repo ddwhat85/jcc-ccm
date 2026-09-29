@@ -18,11 +18,19 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 DEMO_API = os.path.join(os.path.dirname(os.path.dirname(HERE)), "web", "demo-api.js")
+CORE_JS = os.path.join(os.path.dirname(HERE), "static", "predict-core.js")
 
 from jcc_server.fire_risk import assess, robust_z, slope_per_min
 from jcc_server.contact_heat import ContactBaseline, ContactCfg, assess_contact
 from jcc_server.dewpoint import assess_dewpoint
 from jcc_server.incidents import group_alarms
+from jcc_server import scenarios as S
+from jcc_server.inputs import build_panel_inputs
+from jcc_server.predict import Predictor
+from jcc_server.fire_risk import FireConfig
+from jcc_server.dewpoint import DewCfg
+
+PANEL_SCN = ("cable_overheat", "contact_jump", "night_chill", "spray", "sensor_glitch")
 
 _fails = []
 
@@ -80,6 +88,7 @@ def fixtures() -> dict:
                 [25.0, 50.0, 25.0, d_far], [25.0, 88.0, 25.0, d_norm], [25.0, 70.0, 20.6, d_norm]],
         "baseline": [_drift_seq(20, 300.0), _drift_seq(0.2, 60.0)],
         "incidents": _incident_cases(),
+        "panel": [S.build(n) for n in PANEL_SCN],
         "contact_ref": [[15, 27 + 0.03 * 225 + 7, 27, c_norm, 0.03], [15, 27 + 0.03 * 225 + 13, 27, c_norm, 0.03],
                         [15, 27.3, 27, c_norm, 0.0]],
     }
@@ -136,10 +145,40 @@ def python_results(fx: dict) -> dict:
         "baseline": [_py_baseline(seq) for seq in fx["baseline"]],
         "contact_ref": [{"stage": r.stage, "residual": r.residual}
                         for r in (assess_contact(i, t, a, h, k_ref=k) for i, t, a, h, k in fx["contact_ref"])],
+        "panel": [_py_panel(s) for s in fx["panel"]],
         "incidents": [[[x["cause"], x["primary"], sorted(x["alarms"]), x["severity"], x["acked"]]
                        for x in group_alarms(c["alarms"], {tuple(k.split(":", 1)): v for k, v in c["sensors"].items()},
                                              c["panels"])] for c in fx["incidents"]],
     }
+
+
+def _py_panel(scn) -> list:
+    """판넬 통합 한 틱씩(입력 조립 → Predictor) — parity_harness.panelRun과 같은 흐름."""
+    import bisect
+    pr = Predictor(FireConfig(), ContactCfg(), DewCfg())
+    data = scn["roles"]
+    tss = {r: [p[0] for p in v] for r, v in data.items()}
+    roles = {r: ("sim", r) for r in data}
+    now = [0.0]
+
+    def series(_d, key, n):
+        i = bisect.bisect_right(tss[key], now[0])
+        return [(p[0], p[1]) for p in data[key][max(0, i - n):i]]
+
+    out, k = [], 0
+    while scn["t0"] + k * scn["step"] <= scn["t_end"]:
+        t = scn["t0"] + k * scn["step"]
+        k += 1
+        now[0] = t
+        asm = build_panel_inputs(roles, series, t)
+        if not asm["inputs"]:
+            out.append(None)
+            continue
+        r = pr.assess_panel("sim", t, asm["inputs"], asm["pending"])
+        out.append([r["fire"]["stage"], r["fire"]["fri"], r["fire"]["vent"]["open"], r["contact"]["stage"],
+                    r["contact"]["residual"], r["dew"]["stage"], r["dew"]["margin"], r["dew"]["heater"],
+                    r["dew"]["fan"], r["contact"]["baseline"]["status"]])
+    return out
 
 
 def _py_baseline(seq) -> dict:
@@ -171,7 +210,7 @@ def run():
     try:
         with open(path, "w", encoding="utf-8") as fh:
             json.dump(fx, fh)
-        proc = subprocess.run([node, os.path.join(HERE, "parity_harness.js"), DEMO_API, path],
+        proc = subprocess.run([node, os.path.join(HERE, "parity_harness.js"), CORE_JS, DEMO_API, path],
                               capture_output=True, text=True, encoding="utf-8")
     finally:
         os.unlink(path)
@@ -203,6 +242,20 @@ def run():
     for i, (p, j) in enumerate(zip(py["contact_ref"], js["contact_ref"])):
         check(f"접점(기준 k) #{i}", p["stage"] == j["stage"] and close(p["residual"], j["residual"], 0.11),
               f"py={p} js={j}")
+
+    for name, p, j in zip(PANEL_SCN, py["panel"], js["panel"]):
+        bad = []
+        for i, (a, b) in enumerate(zip(p, j)):
+            if a is None or b is None:
+                if a != b:
+                    bad.append(i)
+                continue
+            same = (a[0] == b[0] and a[2:4] == b[2:4] and a[5] == b[5] and a[7:] == b[7:]
+                    and close(a[1], b[1], 0.11) and close(a[4], b[4], 0.11) and close(a[6], b[6], 0.11))
+            if not same:
+                bad.append(i)
+        detail = f"{len(p)}틱" + (f", 첫 불일치 틱 {bad[0]}: py={p[bad[0]]} js={j[bad[0]]}" if bad else "")
+        check(f"판넬 통합 한 틱씩: {name}", len(p) == len(j) and not bad, detail)
 
     print()
     if _fails:
