@@ -18,7 +18,7 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "server", "jcc_server")
 DST = os.path.join(ROOT, "firmware", "jcc_ccm", "predict")
-FILES = ("fire_risk.py", "contact_heat.py", "dewpoint.py", "inputs.py", "predict.py")
+FILES = ("fire_risk.py", "contact_heat.py", "dewpoint.py", "inputs.py", "predict.py", "params.py")
 
 
 def differing() -> list[str]:
