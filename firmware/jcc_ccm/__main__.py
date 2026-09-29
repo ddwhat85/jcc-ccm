@@ -53,8 +53,7 @@ def main(argv: list[str] | None = None) -> int:
         return run_simulation(cfg, args.scenario)
 
     from .agent import Agent
-    Agent(cfg).run()
-    return 0
+    return Agent(cfg).run() or 0      # 75 = OTA로 새 버전 전환 → systemd가 런처로 다시 띄움
 
 
 if __name__ == "__main__":

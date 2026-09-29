@@ -107,6 +107,14 @@ class PredictConfig:
 
 
 @dataclass
+class OtaConfig:
+    """원격 업데이트. 켜면 서버가 제안한 새 버전을 JCC 공개키로 서명 확인 후 설치한다."""
+    enabled: bool = False
+    public_key: str = ""                # JCC OTA 공개키(64자리 hex) — tools/ota_keygen.py가 출력
+    base_dir: str = "/opt/jcc-ccm"      # releases/·current·ota/ 가 놓이는 곳(런처와 같아야 함)
+
+
+@dataclass
 class ActuatorConfig:
     """출력(릴레이). 벤트·히터·팬 각 1개."""
     kind: str                     # "vent" | "heater" | "fan"
@@ -152,6 +160,7 @@ class Config:
     log_file: str = ""
     predict: PredictConfig = field(default_factory=PredictConfig)
     actuators: list[ActuatorConfig] = field(default_factory=list)
+    ota: OtaConfig = field(default_factory=OtaConfig)
 
     def validate(self) -> None:
         if self.interval_seconds <= 0:
@@ -186,6 +195,15 @@ class Config:
             raise ConfigError(f"actuators: 같은 종류가 중복됩니다: {sorted(dup_k)}")
         for a in self.actuators:
             a.validate()
+        if self.ota.enabled:
+            try:
+                ok = len(bytes.fromhex(self.ota.public_key)) == 32
+            except ValueError:
+                ok = False
+            if not ok:
+                raise ConfigError("ota.public_key는 64자리 hex(Ed25519 공개키)여야 합니다 — tools/ota_keygen.py 출력값")
+            if self.transport_kind != "http":
+                raise ConfigError("OTA는 현재 HTTP 전송에서만 동작합니다(transport.kind = \"http\").")
         if self.actuators and not self.predict.enabled:
             raise ConfigError("actuators가 있는데 predict.enabled=false 입니다 — 출력을 쓰려면 predict를 켜세요.")
 
@@ -213,6 +231,7 @@ def load(path: str) -> Config:
     modbus_raw = raw.get("modbus", {})
     logging_raw = raw.get("logging", {})
     predict_raw = raw.get("predict", {})
+    ota_raw = raw.get("ota", {})
 
     sensors = [
         SensorConfig(
@@ -283,6 +302,11 @@ def load(path: str) -> Config:
             )
             for a in raw.get("actuators", [])
         ],
+        ota=OtaConfig(
+            enabled=bool(ota_raw.get("enabled", False)),
+            public_key=str(ota_raw.get("public_key", "")).strip(),
+            base_dir=str(ota_raw.get("base_dir", "/opt/jcc-ccm")),
+        ),
     )
     cfg.validate()
     return cfg

@@ -10,8 +10,9 @@ Wants=network-online.target
 Type=simple
 User=sshu
 WorkingDirectory=/opt/jcc-ccm
-ExecStart=/usr/bin/python3 -m jcc_ccm --config /opt/jcc-ccm/config.toml
-Environment=PYTHONPATH=/opt/jcc-ccm
+# 런처가 OTA 시험 부팅·자동 롤백을 처리한 뒤 해당 버전의 에이전트를 실행한다
+ExecStart=/usr/bin/python3 /opt/jcc-ccm/launcher.py --config /opt/jcc-ccm/config.toml
+Environment=JCC_BASE=/opt/jcc-ccm
 Environment=PYTHONUNBUFFERED=1
 # 죽으면 되살린다 — 현장 무인 운용 대비
 Restart=always

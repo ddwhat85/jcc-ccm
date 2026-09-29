@@ -167,6 +167,8 @@ class Storage:
         self._edge: dict = {}           # device_id -> 최신 엣지 보고(CCM이 직접 판정·구동한 결과)
         self._edge_cmds: dict = {}      # device_id -> [대기 중인 출력 명령] (텔레메트리 응답으로 전달)
         self._edge_lock = threading.Lock()
+        self._fw: dict = {}             # device_id -> 마지막 보고된 펌웨어 버전
+        self._ota_seen: set = set()     # 기록한 OTA 사건(제안·시험·롤백) — 같은 걸 매번 로그하지 않게
         self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
         self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
         with self._lock:
@@ -1409,6 +1411,38 @@ class Storage:
         via = f" → 현장 {', '.join(owners)} 전송 대기" if owners else ""
         self.log_event(panel, "", "baseline", f"접점 발열 기준 재학습 시작(정비 후){via}", source="user")
         return {"ok": True, "panel": panel, "edge_devices": owners}
+
+    # ── 원격 업데이트(OTA) 기록 ──────────────────────────────
+    def note_firmware(self, device_id: str, fw, ota) -> None:
+        """CCM이 보고한 펌웨어 버전·OTA 상태를 기억하고, 바뀐 순간만 이벤트로 남긴다."""
+        if not device_id or not fw:
+            return
+        fw = str(fw)[:32]
+        old = self._fw.get(device_id)
+        self._fw[device_id] = fw
+        if old and old != fw:
+            self.log_event(device_id, "", "firmware", f"펌웨어 {old} → {fw}", source="edge")
+        if not isinstance(ota, dict):
+            return
+        if ota.get("state") == "trial" and ("trial", device_id, fw) not in self._ota_seen:
+            self._ota_seen.add(("trial", device_id, fw))
+            self.log_event(device_id, "", "ota_trial", f"OTA 시험 부팅 중: {fw} — 전송이 안정되면 확정",
+                           source="edge")
+        rb = ota.get("rolled_back")
+        if isinstance(rb, dict) and ("rb", device_id, rb.get("at")) not in self._ota_seen:
+            self._ota_seen.add(("rb", device_id, rb.get("at")))
+            self.log_event(device_id, "", "ota_rollback",
+                           f"OTA 자동 롤백: {rb.get('version')} → {rb.get('to') or '최초 설치본'} "
+                           f"({rb.get('reason', '')}) — 이 버전은 다시 받지 않음", source="edge")
+
+    def note_ota_offer(self, device_id: str, version: str) -> None:
+        if ("offer", device_id, version) in self._ota_seen:
+            return
+        self._ota_seen.add(("offer", device_id, version))
+        self.log_event(device_id, "", "ota_offer", f"OTA 새 버전 제안: {version}", source="system")
+
+    def firmware_of(self, device_id: str):
+        return self._fw.get(device_id)
 
     # ── 엣지(현장 CCM 자율 판정) 연동 ────────────────────────
     EDGE_FRESH = 120.0     # 이보다 오래된 엣지 보고는 '현재 상태'로 쓰지 않는다

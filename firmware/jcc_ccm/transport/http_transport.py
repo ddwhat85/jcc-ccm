@@ -19,6 +19,7 @@ class HttpTransport:
         self._cfg = cfg
         self._h = cfg.http
         self._cmds: list[dict] = []
+        self._ota = None      # 서버가 제안한 새 펌웨어(manifest) — OtaManager가 검증·설치
 
     def connect(self) -> None:
         # HTTP는 세션 유지가 필요 없다. 매 전송이 독립적.
@@ -36,7 +37,10 @@ class HttpTransport:
                 if ok:
                     # 응답에 실려 온 명령(대시보드 수동 조작) — 보고 주기마다 받아가는 하향 채널
                     try:
-                        self._cmds.extend(parse_commands(json.loads(resp.read().decode("utf-8") or "{}")))
+                        obj = json.loads(resp.read().decode("utf-8") or "{}")
+                        self._cmds.extend(parse_commands(obj))
+                        if isinstance(obj, dict) and isinstance(obj.get("ota"), dict):
+                            self._ota = obj["ota"]
                     except (ValueError, UnicodeDecodeError):
                         pass
                 return ok
@@ -47,6 +51,10 @@ class HttpTransport:
 
     def take_commands(self) -> list[dict]:
         out, self._cmds = self._cmds, []
+        return out
+
+    def take_ota(self):
+        out, self._ota = self._ota, None
         return out
 
     def close(self) -> None:

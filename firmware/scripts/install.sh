@@ -15,6 +15,10 @@ SERVICE=/etc/systemd/system/jcc-ccm.service
 echo "[1/5] /opt/jcc-ccm 준비"
 sudo mkdir -p "$APP_DIR"
 sudo cp -r jcc_ccm "$APP_DIR/"
+# 고정 런처(OTA로 교체되지 않음): 시험 부팅 관리·자동 롤백
+sudo cp scripts/launcher.py "$APP_DIR/launcher.py"
+sudo mkdir -p "$APP_DIR/releases" "$APP_DIR/ota"
+sudo chown -R sshu "$APP_DIR/releases" "$APP_DIR/ota" 2>/dev/null || true
 
 echo "[2/5] 설정 파일"
 if [ ! -f "$APP_DIR/config.toml" ]; then

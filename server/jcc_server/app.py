@@ -24,6 +24,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
+from .ota_server import bundle_path, offer_for
 from .storage import Storage
 
 _STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static")
@@ -132,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
         # 열어두는 것: 화면 껍데기(/ — 터미널 로그인이 그 안에 있다), 이미지, 상태 확인,
         # 인증 상태 조회. 화면 껍데기엔 현장 데이터가 없다(데이터는 모두 API로만 온다).
         if (_DASH_PW and not self._authed() and path not in ("/", "/index.html", "/health", "/api/auth/status")
-                and not path.startswith("/img/")):
+                and not path.startswith(("/img/", "/ota/"))):   # /ota/는 기기 키(Bearer)로 따로 막는다
             return self._json({"error": "unauthorized"}, 401)
 
         if path in ("/", "/index.html"):
@@ -181,6 +182,8 @@ class Handler(BaseHTTPRequestHandler):
                 limit = 50
             return self._json({"events": self.storage.list_events(dev, key, limit)})
 
+        if path.startswith("/ota/"):
+            return self._serve_ota(path[len("/ota/"):])
         if path.startswith("/img/"):
             return self._serve_image(path[len("/img/"):])
 
@@ -279,6 +282,13 @@ class Handler(BaseHTTPRequestHandler):
             cmds = self.storage.take_edge_commands(dev)
             if cmds:
                 resp["commands"] = cmds
+            # 원격 업데이트: 펌웨어 버전·시험 부팅·롤백 기록, 배포 대상이면 새 버전 제안
+            fw = payload.get("fw")
+            self.storage.note_firmware(dev, fw, payload.get("ota"))
+            offer = offer_for(dev, fw)
+            if offer:
+                resp["ota"] = offer
+                self.storage.note_ota_offer(dev, offer["version"])
         except Exception:  # noqa: BLE001 - 엣지 연동 오류가 수집 응답을 깨면 안 된다
             pass
         return self._json(resp)
@@ -557,6 +567,25 @@ class Handler(BaseHTTPRequestHandler):
     # ── 이미지 (제품 사진·로고) ──────────────────────────────
     _IMG_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                   ".webp": "image/webp", ".gif": "image/gif", ".svg": "image/svg+xml"}
+
+    def _serve_ota(self, name: str) -> None:
+        """CCM이 받아갈 OTA 번들. 대시보드 로그인이 아니라 기기 키(Bearer)로 막는다.
+        번들 자체는 비밀이 아니다 — 위조는 CCM의 서명 검증이 막는다."""
+        if _API_KEY and self.headers.get("Authorization", "") != f"Bearer {_API_KEY}":
+            return self._json({"error": "unauthorized"}, 401)
+        p = bundle_path(unquote(name))
+        if not p:
+            return self._json({"error": "not found"}, 404)
+        try:
+            with open(p, "rb") as fh:
+                blob = fh.read()
+        except OSError:
+            return self._json({"error": "읽기 실패"}, 500)
+        self.send_response(200)
+        self.send_header("Content-Type", "application/gzip")
+        self.send_header("Content-Length", str(len(blob)))
+        self.end_headers()
+        self.wfile.write(blob)
 
     def _serve_image(self, name: str) -> None:
         """static/img/ 안의 이미지를 내보낸다(제품 사진, 회사 로고).

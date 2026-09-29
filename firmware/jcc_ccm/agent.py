@@ -11,6 +11,7 @@ import logging
 import signal
 import time
 
+from . import __version__
 from .config import Config
 from .edge import build_edge
 from .sensors import build_drivers, Reading
@@ -31,6 +32,12 @@ class Agent:
         self._stop = False
         # 엣지 예지(config [predict]) — 서버·회선과 무관하게 이 CCM이 직접 벤트·히터·팬을 몬다
         self._edge = build_edge(cfg)
+        # 원격 업데이트(config [ota]) — 서명 확인·안전 설치·시험 부팅(롤백은 런처)
+        self._ota = None
+        if cfg.ota.enabled:
+            from .ota import OtaManager
+            self._ota = OtaManager(cfg)
+        self._restart = False
 
     # ── 수명주기 ──────────────────────────────────────────────
     def _install_signals(self) -> None:
@@ -58,7 +65,8 @@ class Agent:
             self._sleep(max(0.0, self._cfg.interval_seconds - elapsed))
 
         self._transport.close()
-        log.info("에이전트 종료.")
+        log.info("에이전트 종료%s.", " — OTA 재시작" if getattr(self, "_restart", False) else "")
+        return 75 if getattr(self, "_restart", False) else 0
 
     def _sleep(self, seconds: float) -> None:
         # 종료 신호에 빠르게 반응하도록 잘게 나눠 잔다.
@@ -90,8 +98,28 @@ class Agent:
                 log.exception("엣지 예지 오류(수집은 계속): %s", exc)
 
         self._enqueue(payload)
-        self._flush()
+        sent = self._flush()
         self._apply_commands()
+        self._handle_ota(sent)
+
+    def _handle_ota(self, sent: int) -> None:
+        """전송 성공을 OTA 시험 부팅 확정에 반영하고, 서버의 새 버전 제안을 처리한다."""
+        ota = getattr(self, "_ota", None)
+        if ota is None:
+            return
+        try:
+            for _ in range(sent or 0):
+                ota.note_send_ok()
+            if ota.trial_expired():
+                log.error("OTA 시험 기한 초과 — 재시작해 런처가 이전 버전으로 되돌립니다")
+                self._restart = self._stop = True
+                return
+            take = getattr(self._transport, "take_ota", None)
+            offer = take() if take else None
+            if offer and ota.handle_offer(offer):
+                self._restart = self._stop = True
+        except Exception as exc:  # noqa: BLE001 - 업데이트 오류로 수집이 멈추면 안 된다
+            log.exception("OTA 처리 오류(수집은 계속): %s", exc)
 
     def _apply_commands(self) -> None:
         """서버가 내려보낸 수동 조작 명령을 엣지 출력에 반영한다(다음 보고에 결과가 실린다)."""
@@ -112,7 +140,9 @@ class Agent:
             "panel": self._cfg.panel,
             "panel_name": self._cfg.panel_name,
             "ts": round(time.time(), 3),
+            "fw": __version__,
             "readings": [r.as_dict() for r in readings],
+            **({"ota": self._ota.status()} if getattr(self, "_ota", None) else {}),
         }
 
     # ── 전송 큐 (오프라인 내구성) ──────────────────────────────
@@ -135,3 +165,4 @@ class Agent:
             log.info("전송 %d건 완료, 대기 %d건.", sent, len(self._queue))
         elif self._queue:
             log.warning("전송 실패, 대기 %d건 보관 중.", len(self._queue))
+        return sent
