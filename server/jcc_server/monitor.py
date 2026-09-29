@@ -28,6 +28,7 @@ def start(storage, interval: float = 10) -> None:
 
     from .predict import Predictor
     storage.predictor = Predictor()     # 예지보전 엔진(화재·접점발열·결로) — set_actuator에서 사용
+    storage.load_active_tuning()        # 튜닝 콘솔에서 적용한 기준(있으면) — 재시작해도 유지
 
     keep_readings = float(os.environ.get("JCC_KEEP_READING_DAYS") or 14)
     keep_events = float(os.environ.get("JCC_KEEP_EVENT_DAYS") or 90)

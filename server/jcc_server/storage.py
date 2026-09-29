@@ -110,6 +110,16 @@ CREATE TABLE IF NOT EXISTS pred_state (
     state      TEXT,
     updated_at REAL
 );
+-- 예지 기준 설정 버전(튜닝 콘솔). 적용·되돌리기마다 새 버전 — 가장 큰 버전이 활성. v0 = 코드 기본값(행 없음).
+CREATE TABLE IF NOT EXISTS tuning_config (
+    version    INTEGER PRIMARY KEY,
+    params     TEXT,
+    created_at REAL,
+    author     TEXT,
+    note       TEXT,
+    kind       TEXT,
+    scorecard  TEXT
+);
 """
 
 # 구버전 DB에 없던 컬럼을 채운다(있으면 조용히 무시).
@@ -171,6 +181,7 @@ class Storage:
         self._ota_seen: set = set()     # 기록한 OTA 사건(제안·시험·롤백) — 같은 걸 매번 로그하지 않게
         self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
         self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
+        self._tuning_edge: dict = {}    # device_id -> CCM이 보고한 설정 적용 상태
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -1411,6 +1422,105 @@ class Storage:
         via = f" → 현장 {', '.join(owners)} 전송 대기" if owners else ""
         self.log_event(panel, "", "baseline", f"접점 발열 기준 재학습 시작(정비 후){via}", source="user")
         return {"ok": True, "panel": panel, "edge_devices": owners}
+
+    # ── 예지 기준 설정 버전(튜닝 콘솔) ───────────────────────
+    def _tuning_row(self, row) -> dict:
+        return {"version": row["version"], "params": json.loads(row["params"]),
+                "created_at": row["created_at"], "author": row["author"] or "", "note": row["note"] or "",
+                "kind": row["kind"] or "", "scorecard": json.loads(row["scorecard"]) if row["scorecard"] else None}
+
+    def _tuning_default(self) -> dict:
+        from .params import defaults
+        return {"version": 0, "params": defaults(), "created_at": None, "author": "", "note": "코드 기본값",
+                "kind": "default", "scorecard": None}
+
+    def tuning_active(self) -> dict:
+        """지금 쓰는 설정(가장 큰 버전). 한 번도 바꾼 적 없으면 v0 = 코드 기본값."""
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM tuning_config ORDER BY version DESC LIMIT 1").fetchone()
+        return self._tuning_row(row) if row else self._tuning_default()
+
+    def tuning_get(self, version: int):
+        if version == 0:
+            return self._tuning_default()
+        with self._lock:
+            row = self._conn.execute("SELECT * FROM tuning_config WHERE version=?", (version,)).fetchone()
+        return self._tuning_row(row) if row else None
+
+    def tuning_history(self, limit: int = 20) -> list:
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM tuning_config ORDER BY version DESC LIMIT ?",
+                                      (int(limit),)).fetchall()
+        out = [self._tuning_row(r) for r in rows]
+        for r in out:
+            r.pop("params", None)            # 이력 목록엔 값 묶음까지는 안 싣는다(되돌리기는 버전으로)
+        return out
+
+    def tuning_activate(self, params: dict, author: str, note: str, scorecard: dict, kind: str,
+                        base_version: int | None = None):
+        """새 설정 버전을 저장하고 서버 예지 엔진에 즉시 반영한다(판넬 상태는 유지).
+        base_version이 주어졌는데 그 사이 누가 먼저 바꿨으면 None(충돌) — 확인과 저장을 한 락 안에서."""
+        card = {k: v for k, v in (scorecard or {}).items() if k != "per"}
+        card["per"] = {n: {"ok": v["ok"], "why": v["why"]} for n, v in (scorecard or {}).get("per", {}).items()}
+        with self._lock:
+            row = self._conn.execute("SELECT MAX(version) AS v FROM tuning_config").fetchone()
+            cur = row["v"] or 0
+            if base_version is not None and base_version != cur:
+                return None
+            ver = cur + 1
+            self._conn.execute(
+                "INSERT INTO tuning_config (version, params, created_at, author, note, kind, scorecard) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (ver, json.dumps(params), time.time(), author, note[:200], kind, json.dumps(card)))
+            self._conn.commit()
+        if self.predictor is not None:
+            self.predictor.reconfigure(params)
+        what = "되돌림" if kind == "rollback" else "적용"
+        self.log_event("", "", "tuning_rollback" if kind == "rollback" else "tuning_apply",
+                       f"예지 기준 v{ver} {what}" + (f" — {note}" if note else "") + f" ({author})", source="user")
+        return ver
+
+    def load_active_tuning(self) -> int:
+        """시작 시 활성 설정을 예지 엔진에 싣는다(재시작해도 적용한 기준 유지). 반환: 활성 버전."""
+        act = self.tuning_active()
+        if act["version"] and self.predictor is not None:
+            self.predictor.reconfigure(act["params"])
+        return act["version"]
+
+    def note_tuning(self, device_id: str, rep) -> None:
+        """CCM이 보고한 설정 적용 상태 {version, last:{version, status, error}}를 기억하고,
+        적용·거부가 바뀐 순간만 이벤트로 남긴다. 형식이 틀리면 조용히 버린다."""
+        if not device_id or not isinstance(rep, dict):
+            return
+        last = rep.get("last") if isinstance(rep.get("last"), dict) else {}
+        cur = {"version": rep.get("version"), "last_version": last.get("version"),
+               "status": str(last.get("status") or ""), "error": str(last.get("error") or "")[:200],
+               "ts": time.time()}
+        prev = self._tuning_edge.get(device_id) or {}
+        self._tuning_edge[device_id] = cur
+        if (prev.get("last_version"), prev.get("status")) == (cur["last_version"], cur["status"]) or not cur["status"]:
+            return
+        if cur["status"] == "ok":
+            self.log_event(device_id, "", "tuning_edge", f"현장 CCM 예지 기준 v{cur['last_version']} 적용",
+                           source="edge")
+        else:
+            self.log_event(device_id, "", "tuning_edge",
+                           f"현장 CCM이 예지 기준 v{cur['last_version']} 거부 — {cur['error']} (이전 기준 유지)",
+                           source="edge")
+
+    def tuning_offer_for(self, device_id: str, rep):
+        """이 CCM에 내려보낼 설정. 이미 같은 버전이거나, 이 버전을 이미 거부했으면 None."""
+        act = self.tuning_active()
+        have = rep.get("version") if isinstance(rep, dict) else None
+        if (have or 0) == act["version"]:
+            return None
+        st = self._tuning_edge.get(device_id) or {}
+        if st.get("last_version") == act["version"] and st.get("status") == "rejected":
+            return None
+        return {"version": act["version"], "params": act["params"]}
+
+    def tuning_edge_status(self) -> dict:
+        return {dev: dict(v) for dev, v in self._tuning_edge.items()}
 
     # ── 원격 업데이트(OTA) 기록 ──────────────────────────────
     def note_firmware(self, device_id: str, fw, ota) -> None:

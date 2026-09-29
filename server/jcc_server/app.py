@@ -35,6 +35,17 @@ _FIRMWARE_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "firmware")
 
 
+_SCN_CACHE: list = []
+
+
+def _scenarios_json() -> str:
+    """튜닝 시나리오 전체(JSON, 수백 KB). 결정적이라 한 번 만들어 둔다."""
+    if not _SCN_CACHE:
+        from .scenarios import export_all
+        _SCN_CACHE.append(json.dumps({"scenarios": export_all()}, ensure_ascii=False, separators=(",", ":")))
+    return _SCN_CACHE[0]
+
+
 def _run_discovery() -> dict:
     if _FIRMWARE_DIR not in sys.path:
         sys.path.insert(0, _FIRMWARE_DIR)
@@ -185,6 +196,15 @@ class Handler(BaseHTTPRequestHandler):
                 limit = 50
             return self._json({"events": self.storage.list_events(dev, key, limit)})
 
+        if path == "/api/tuning/params":
+            from .params import registry_view
+            return self._json(registry_view())
+        if path == "/api/tuning/scenarios":
+            return self._text(_scenarios_json(), 200, "application/json; charset=utf-8")
+        if path == "/api/tuning/config":
+            from .params import defaults
+            return self._json({"active": self.storage.tuning_active(), "history": self.storage.tuning_history(),
+                               "edge": self.storage.tuning_edge_status(), "defaults": defaults()})
         if path.startswith("/ota/"):
             return self._serve_ota(path[len("/ota/"):])
         if path.startswith("/img/"):
@@ -245,6 +265,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._set_heal_config()
         if parsed.path == "/api/predict/actuator":
             return self._set_actuator()
+        if parsed.path in ("/api/tuning/evaluate", "/api/tuning/apply", "/api/tuning/rollback"):
+            return self._tuning(parsed.path.rsplit("/", 1)[1])
         if parsed.path == "/api/predict/baseline":
             length = int(self.headers.get("Content-Length", 0) or 0)
             try:
@@ -292,9 +314,66 @@ class Handler(BaseHTTPRequestHandler):
             if offer:
                 resp["ota"] = offer
                 self.storage.note_ota_offer(dev, offer["version"])
+            # 예지 기준 설정: CCM의 적용 상태 기록, 옛 버전이면 활성 설정을 내려보냄(CCM이 한계 검증 후 적용)
+            self.storage.note_tuning(dev, payload.get("tuning"))
+            tun = self.storage.tuning_offer_for(dev, payload.get("tuning"))
+            if tun:
+                resp["tuning"] = tun
         except Exception:  # noqa: BLE001 - 엣지 연동 오류가 수집 응답을 깨면 안 된다
             pass
         return self._json(resp)
+
+    # ── 튜닝 콘솔: 평가·적용·되돌리기 (관문은 서버가 쥔다) ──────
+    TUNING_TIMEOUT = 10.0
+
+    def _tuning(self, action: str) -> None:
+        """evaluate: 저장 없이 파이썬 정본 성적표 / apply: 새 설정 / rollback: 예전 버전(또는 기본값).
+        apply·rollback은 같은 관문 — 형식·절대 한계·관계 검사 → 전 시나리오 재검증 → 놓친 사고 0건만."""
+        from . import params as P
+        from .tuning_eval import scorecard
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 200_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(body, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        note = str(body.get("note") or "")[:200]
+        if action == "rollback":
+            v = body.get("version")
+            ok_v = v == "default" or (isinstance(v, int) and not isinstance(v, bool))
+            target = self.storage.tuning_get(0 if v == "default" else v) if ok_v else None
+            if target is None:
+                return self._json({"error": "없는 설정 버전입니다"}, 400)
+            params = target["params"]
+            note = note or ("코드 기본값으로" if target["version"] == 0 else f"v{target['version']}로")
+        else:
+            params = body.get("params")
+        why = P.validate(params)
+        if why:
+            return self._json({"error": why}, 400)
+        t0 = time.time()
+        card = scorecard(params)
+        if time.time() - t0 > self.TUNING_TIMEOUT:
+            return self._json({"error": "평가 시간 초과 — 적용하지 않았습니다"}, 503)
+        if action == "evaluate":
+            return self._json({"scorecard": card})
+        author = _DASH_USER if _DASH_PW else "local"
+        if card["missed"]:
+            missed = [n for n, r in card["per"].items() if r["kind"] == "accident" and not r["ok"]]
+            self.storage.log_event("", "", "tuning_reject",
+                                   f"예지 기준 적용 거부 — 사고 {card['missed']}건 놓침({', '.join(missed)}) ({author})",
+                                   source="user")
+            return self._json({"error": f"사고 시나리오 {card['missed']}건을 놓쳐 적용할 수 없습니다",
+                               "scorecard": card}, 409)
+        base = body.get("base_version")
+        base = base if isinstance(base, int) and not isinstance(base, bool) else None
+        ver = self.storage.tuning_activate(params, author, note, card,
+                                           "rollback" if action == "rollback" else "apply", base_version=base)
+        if ver is None:
+            return self._json({"error": "그 사이 다른 설정이 먼저 적용됐습니다 — 새 설정을 확인하세요",
+                               "active": self.storage.tuning_active()}, 409)
+        return self._json({"ok": True, "version": ver, "scorecard": card})
 
     # ── 자동 탐색 (AI 자동연결) ──────────────────────────────
     def _discover(self) -> None:

@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from .fire_risk import FireConfig, VentController, assess as assess_fire
 from .contact_heat import ContactBaseline, ContactCfg, assess_contact
 from .dewpoint import DewCfg, assess_dewpoint
+from .params import apply_to as apply_params, from_cfgs as params_of
 
 
 class DewActuator:
@@ -96,6 +97,15 @@ class Predictor:
                              contact=ContactBaseline(self.contact_cfg))
             self._panels[panel] = st
         return st
+
+    # ── 원격 설정(튜닝) ───────────────────────────────────────
+    def reconfigure(self, params: dict) -> None:
+        """기준값만 바꾼다. 설정 객체를 제자리로 고치므로 판넬별 벤트 컨트롤러·접점 학습 기준이
+        같은 객체를 보고 있어 상태(열린 벤트·학습된 k)는 그대로 유지된다. validate() 통과 값만 넘길 것."""
+        apply_params(self.fire_cfg, self.contact_cfg, self.dew_cfg, params)
+
+    def params(self) -> dict:
+        return params_of(self.fire_cfg, self.contact_cfg, self.dew_cfg)
 
     # ── 학습 상태 저장·복원 (재시작해도 기준 유지) ────────────
     def export_state(self, panel: str) -> dict:
