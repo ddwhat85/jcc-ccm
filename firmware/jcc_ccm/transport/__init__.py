@@ -42,6 +42,15 @@ def parse_commands(obj) -> list[dict]:
     return out
 
 
+def parse_tuning(obj):
+    """서버 응답/MQTT 메시지에서 예지 기준 설정 {version, params}만 골라낸다(없거나 모양이 틀리면 None).
+    값 검증(절대 한계·관계)은 받는 쪽(EdgePredictor.apply_tuning)이 한다."""
+    t = obj.get("tuning") if isinstance(obj, dict) else None
+    if isinstance(t, dict) and "version" in t and isinstance(t.get("params"), dict):
+        return t
+    return None
+
+
 def build_transport(cfg: Config) -> Transport:
     if cfg.transport_kind == "mqtt":
         from .mqtt_transport import MqttTransport

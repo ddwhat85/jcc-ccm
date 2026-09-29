@@ -101,6 +101,8 @@ autovent = true                   # false면 판정·보고만(벤트 자동 개
 failsafe_after_seconds = 60       # 가스 센서가 이만큼 끊기면 벤트 fail-safe
 # 접점 발열 기준(설치 초기 정상 기간에 학습) 저장 파일. 재부팅해도 기준이 유지돼야
 # 그동안 서서히 풀린 접점이 '새 정상'으로 흡수되지 않는다. 접점 정비 후엔 대시보드에서 재학습.
+# 같은 폴더의 tuning.json 에는 튜닝 콘솔에서 내려온 예지 기준(검증 통과분)이 저장된다.
+# 서버 설정이 절대 한계(펌웨어 params.py — 서명된 OTA로만 바뀜) 밖이면 CCM이 거부하고 이전 기준을 쓴다.
 state_file = "/opt/jcc-ccm/predict_state.json"
 
 [predict.roles]

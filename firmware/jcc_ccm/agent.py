@@ -94,12 +94,14 @@ class Agent:
             try:
                 edge.observe(readings)
                 payload["edge"] = edge.step()
+                payload["tuning"] = edge.tuning_report()
             except Exception as exc:  # noqa: BLE001 - 예지 오류로 수집이 멈추면 안 된다
                 log.exception("엣지 예지 오류(수집은 계속): %s", exc)
 
         self._enqueue(payload)
         sent = self._flush()
         self._apply_commands()
+        self._apply_tuning()
         self._handle_ota(sent)
 
     def _handle_ota(self, sent: int) -> None:
@@ -132,6 +134,19 @@ class Agent:
                 edge.apply_command(cmd)
         except Exception as exc:  # noqa: BLE001
             log.exception("원격 명령 처리 오류: %s", exc)
+
+    def _apply_tuning(self) -> None:
+        """서버가 내려보낸 예지 기준 설정을 엣지에 넘긴다(검증·적용은 엣지가). 결과는 다음 보고에."""
+        edge = getattr(self, "_edge", None)
+        take = getattr(self._transport, "take_tuning", None)
+        if edge is None or take is None:
+            return
+        try:
+            msg = take()
+            if msg:
+                edge.apply_tuning(msg)
+        except Exception as exc:  # noqa: BLE001 - 설정 오류로 수집이 멈추면 안 된다
+            log.exception("원격 설정 처리 오류: %s", exc)
 
     def _build_payload(self, readings: list[Reading]) -> dict:
         return {

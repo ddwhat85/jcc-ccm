@@ -182,6 +182,27 @@ def run():
         r = api("/api/predict/actuator", {"panel": "panel-01", "actuator": "heater", "action": "on"})
         check("CCM에 없는 출력은 라우팅 안 함", r.get("edge_devices") == [], str(r.get("edge_devices")))
 
+        # 튜닝 콘솔 적용 → 텔레메트리 응답으로 CCM에 → CCM이 한계 검증 후 적용 → 다음 보고로 서버에 기록
+        from jcc_server import params as SP
+        newp = dict(SP.defaults(), **{"dew.rh_high": 84.0})
+        r = api("/api/tuning/apply", {"params": newp, "base_version": 0, "note": "종단 시험"})
+        check("서버 적용 → v1", r.get("version") == 1, str(r)[:120])
+        tick(2)                                   # 1번째 응답에 설정이 실려 오고, 2번째 보고에 결과
+        tr = agent._edge.tuning_report()
+        check("CCM이 받은 기준을 적용", agent._edge._pred.dew_cfg.rh_high == 84.0 and tr["version"] == 1, str(tr))
+        es = api("/api/tuning/config")["edge"].get("ccm-edge", {})
+        check("서버에 CCM 적용 상태(v1 ok)", es.get("last_version") == 1 and es.get("status") == "ok", str(es))
+        # 서버가 뚫려 관문을 우회해 한계 밖 설정을 밀어 넣는 상황 → CCM이 거부하고 이전 기준 유지
+        st.tuning_activate(dict(newp, **{"fire.open_fri": 95.0}), "침입자", "관문 우회", {}, "apply")
+        tick(2)
+        check("한계 밖 설정은 CCM이 거부(v1 유지)", agent._edge._pred.fire_cfg.open_fri == 55.0
+              and agent._edge.tuning_report()["version"] == 1, str(agent._edge.tuning_report()))
+        es = api("/api/tuning/config")["edge"].get("ccm-edge", {})
+        check("서버에 CCM 거부 기록(사유)", es.get("status") == "rejected" and "한계" in es.get("error", ""), str(es))
+        tick(1)
+        check("거부한 버전은 다시 안 내려옴", agent._transport.take_tuning() is None)
+        st.predictor.reconfigure(newp)             # 이하 시험을 위해 서버 엔진은 정상 기준으로
+
         # 자동 복귀 후 서버를 끊어도(회선 두절) CCM은 스스로 판정해 벤트를 연다
         api("/api/predict/actuator", {"panel": "panel-01", "actuator": "vent", "action": "auto"})
         tick(1)

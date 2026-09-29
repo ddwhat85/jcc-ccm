@@ -27,6 +27,7 @@ import time
 from .actuators import on_word
 from .config import Config
 from .predict import Predictor, build_panel_inputs
+from .predict.params import validate as validate_params
 
 log = logging.getLogger("jcc_ccm.edge")
 
@@ -57,7 +58,14 @@ class EdgePredictor:
         self._state_file = cfg.predict.state_file
         self._saved_at = 0.0
         self._state_warned = False
+        # 원격 예지 기준 설정(튜닝 콘솔) — 적용한 버전·마지막 시도 결과. 학습 상태 파일 옆에 저장
+        self._tuning_file = (os.path.join(os.path.dirname(self._state_file) or ".", "tuning.json")
+                             if self._state_file else "")
+        self._tuning_ver = 0
+        self._tuning_last: dict | None = None
+        self._probation = None     # (이전 값, 이전 버전) — 새 설정의 첫 판정이 성공하면 확정·저장
         self._load_state()
+        self._load_tuning()
 
     # ── 학습 상태(접점 발열 기준) — 재부팅해도 유지 ───────────
     SAVE_EVERY = 300.0     # 초. eMMC 쓰기를 줄이려 평소엔 5분에 한 번, 기준 확정·재학습은 즉시
@@ -97,6 +105,82 @@ class EdgePredictor:
                 self._state_warned = True
                 log.warning("예지 학습 상태 저장 실패(메모리로만 유지): %s", exc)
 
+    # ── 원격 예지 기준 설정 ────────────────────────────────────
+    def _load_tuning(self) -> None:
+        """재부팅 후 마지막으로 적용한 설정을 되살린다. 손상·한계 밖이면 무시하고 코드 기본값."""
+        if not self._tuning_file:
+            return
+        try:
+            with open(self._tuning_file, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except FileNotFoundError:
+            return
+        except (OSError, ValueError) as exc:
+            log.warning("예지 기준 설정 파일을 못 읽음(기본값 사용): %s", exc)
+            return
+        ver = data.get("version") if isinstance(data, dict) else None
+        why = validate_params(data.get("params")) if isinstance(data, dict) else "형식 오류"
+        if why or not isinstance(ver, int) or isinstance(ver, bool):
+            log.warning("저장된 예지 기준 설정 무시(기본값 사용): %s", why or "버전 오류")
+            return
+        self._pred.reconfigure(data["params"])
+        self._tuning_ver = ver
+        log.info("예지 기준 설정 v%d 복원", ver)
+
+    def _save_tuning(self) -> None:
+        if not self._tuning_file:
+            return
+        tmp = self._tuning_file + ".tmp"
+        try:   # 원자적 교체
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump({"version": self._tuning_ver, "params": self._pred.params()}, fh)
+            os.replace(tmp, self._tuning_file)
+        except OSError as exc:
+            log.warning("예지 기준 설정 저장 실패(재부팅 전까지만 유지): %s", exc)
+
+    def apply_tuning(self, msg) -> dict:
+        """서버가 내려보낸 {version, params}. 절대 한계·관계를 통과해야만 적용한다(서버가 뚫려도
+        감지를 끌 수 없게). 거부하면 이전 설정 유지. 반환 = 이번 시도 결과(다음 보고에 실린다)."""
+        ver = msg.get("version") if isinstance(msg, dict) else None
+        if not isinstance(ver, int) or isinstance(ver, bool):
+            why = "형식 오류 — 버전 없음"
+        else:
+            why = validate_params(msg.get("params"))
+        if why:
+            self._tuning_last = {"version": ver if isinstance(ver, int) and not isinstance(ver, bool) else None,
+                                 "status": "rejected", "error": why}
+            log.warning("원격 예지 기준 거부(이전 기준 유지): %s", why)
+            return dict(self._tuning_last)
+        self._probation = (self._pred.params(), self._tuning_ver)
+        self._pred.reconfigure(msg["params"])
+        self._tuning_ver = ver
+        self._tuning_last = {"version": ver, "status": "ok"}
+        log.info("원격 예지 기준 v%d 적용(첫 판정 뒤 저장)", ver)
+        return dict(self._tuning_last)
+
+    def tuning_report(self) -> dict:
+        return {"version": self._tuning_ver, "last": dict(self._tuning_last) if self._tuning_last else None}
+
+    def _assess(self, now: float, inputs: dict, pend: dict) -> dict:
+        """판정. 새 설정의 첫 판정에서 예외가 나면 이전 설정으로 되돌리고 다시 판정한다."""
+        try:
+            res = self._pred.assess_panel(self._panel, now, inputs, pend)
+        except Exception as exc:  # noqa: BLE001
+            if self._probation is None:
+                raise
+            prev, prev_ver = self._probation
+            self._probation = None
+            bad = self._tuning_ver
+            self._pred.reconfigure(prev)
+            self._tuning_ver = prev_ver
+            self._tuning_last = {"version": bad, "status": "rejected", "error": f"첫 판정 오류로 되돌림: {exc}"}
+            log.error("예지 기준 v%d 첫 판정 오류 — v%d로 되돌림: %s", bad, prev_ver, exc)
+            return self._pred.assess_panel(self._panel, now, inputs, pend)
+        if self._probation is not None:
+            self._probation = None
+            self._save_tuning()
+        return res
+
     # ── 입력 ──────────────────────────────────────────────
     def observe(self, readings) -> None:
         for r in readings:
@@ -122,7 +206,7 @@ class EdgePredictor:
         now = self._clock() if now is None else now
         asm = build_panel_inputs(self._roles, self._series, now)
         pend = asm["pending"]
-        res = self._pred.assess_panel(self._panel, now, asm["inputs"], pend)
+        res = self._assess(now, asm["inputs"], pend)
         self._pending, self._res = pend, res
 
         # fail-safe: 가스 입력이 오래 끊기면(센서 사망·배선 탈락) 벤트를 안전측으로
