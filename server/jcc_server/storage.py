@@ -182,6 +182,7 @@ class Storage:
         self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
         self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
         self._tuning_edge: dict = {}    # device_id -> CCM이 보고한 설정 적용 상태
+        from .accounts import Accounts
         with self._lock:
             self._conn.executescript(_SCHEMA)
             for stmt in _MIGRATIONS:
@@ -190,6 +191,7 @@ class Storage:
                 except sqlite3.OperationalError:
                     pass  # 이미 있는 컬럼
             self._conn.commit()
+        self.accounts = Accounts(self._conn, self._lock)   # 계정·세션·고객사·판넬 배정(같은 DB)
         self._rehydrate_state()
 
     def _rehydrate_state(self) -> None:
