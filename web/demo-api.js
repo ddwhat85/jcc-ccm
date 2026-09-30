@@ -598,7 +598,8 @@
       ["fire", (r, b) => panelOf(b) === panelOf(r) && (
         (["h2", "voc", "co"].indexOf(kindOf(b)) >= 0 && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0) ||
         (kindOf(b) === "temp" && !(b.sensor_key || "").includes("ncontact") && ["anomaly", "drift", "alarm_warn", "alarm"].indexOf(b.kind) >= 0) ||
-        (kindOf(b) === "smoke" && b.kind === "alarm"))],
+        (kindOf(b) === "smoke" && b.kind === "alarm") ||
+        (b.kind === "actuator_fault" && b.sensor_key === "vent"))],   // 화재 중 벤트 고장(incidents.py와 동일)
       ["contact", (r, b) => b.device_id === r.device_id && b.sensor_key === r.sensor_key && ["alarm", "alarm_warn", "anomaly", "drift"].indexOf(b.kind) >= 0],
       ["dew", (r, b) => panelOf(b) === panelOf(r) && kindOf(b) === "humidity" && ["alarm", "alarm_warn", "anomaly", "drift", "stuck"].indexOf(b.kind) >= 0],
     ];

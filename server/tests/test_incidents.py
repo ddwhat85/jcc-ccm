@@ -65,6 +65,17 @@ def run():
     check("화재 징조는 CCM 두절에 삼켜지지 않음", incident_of(inc, f2["id"])["cause"] == "fire"
           and incident_of(inc, sil["id"])["cause"] == "ccm")
 
+    # 2-1) 화재 중 벤트 작동 실패 — 원인은 화재, 문제는 벤트: 화재 사건 안에 묶인다
+    f3 = A("ccm-2661", "h2_lel", "fire", "crit", 0)
+    vf = A("ccm-2661", "vent", "actuator_fault", "crit", 45)
+    hf = A("ccm-2661", "heater", "actuator_fault", "crit", 50)
+    vf_other = A("ccm-9001", "vent", "actuator_fault", "crit", 60)
+    inc = group_alarms([f3, vf, hf, vf_other], SENSORS, PANELS)
+    check("화재 중 벤트 작동 실패는 화재 사건에", vf["id"] in incident_of(inc, f3["id"])["alarms"])
+    check("히터 작동 실패는 화재에 묶지 않음", incident_of(inc, hf["id"])["cause"] == "sensor")
+    check("화재 없는 판넬의 벤트 실패는 따로(위험)", incident_of(inc, vf_other["id"])["cause"] == "sensor"
+          and incident_of(inc, vf_other["id"])["severity"] == "crit")
+
     # 3) CCM 두절: 이후 생긴 그 CCM 경보는 결과, 두절 한참 전 경보는 별개
     sil3 = A("ccm-2663", "", "silent", "crit", 0)
     after = A("ccm-2663", "vibration", "stuck", "warn", 200)

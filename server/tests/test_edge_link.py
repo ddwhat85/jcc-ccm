@@ -80,6 +80,8 @@ current = "main_current"
 contact_temp = "ncontact_temp"
 [[actuators]]
 kind = "vent"
+feedback = "switch"
+travel_seconds = 6
 [[actuators]]
 kind = "fan"
 """
@@ -174,13 +176,31 @@ def run():
         check("CCM이 명령대로 벤트 닫음(위험 중이어도 사람 우선)", vent.state is False, f"writes={vent.writes[-3:]}")
         tick(1, h2_lel=15, voc_ppm=590)
         e = st.edge_state()["ccm-edge"]
-        check("보고에 수동 모드 반영", e["actuators"]["vent"] == {"on": False, "mode": "manual"}, str(e["actuators"]["vent"]))
+        ev_ = e["actuators"]["vent"]
+        check("보고에 수동 모드 반영", (ev_["on"], ev_["mode"]) == (False, "manual"), str(ev_))
         evs = [x["detail"] for x in api("/api/events?limit=50")["events"] if x["etype"] == "edge_actuate"]
         check("서버 이벤트: 현장 수동 반영", any("현장 수동 반영: 벤트 닫힘" in d for d in evs), evs[0] if evs else "")
 
         # 서버에 없는 출력(히터)은 이 CCM으로 보내지 않는다
         r = api("/api/predict/actuator", {"panel": "panel-01", "actuator": "heater", "action": "on"})
         check("CCM에 없는 출력은 라우팅 안 함", r.get("edge_devices") == [], str(r.get("edge_devices")))
+
+        # 벤트가 닫힌 채 걸림 → CCM이 재시도 후 '작동 실패' → 서버 위험 경보 → 고치면 스스로 해소
+        vent.sim_stuck = False
+        api("/api/predict/actuator", {"panel": "panel-01", "actuator": "vent", "action": "open"})
+        tick(14)                                   # 28초 > 작동 6초 × (1 + 재시도 2)
+        e = st.edge_state()["ccm-edge"]["actuators"]["vent"]
+        check("CCM이 벤트 작동 실패 확정(사유)", e.get("confirm") == "fault" and "실제 닫힘" in (e.get("fault") or ""), str(e))
+        al = [a for a in api("/api/alarms")["alarms"] if a["kind"] == "actuator_fault"]
+        check("서버 위험 경보: 벤트 작동 실패", len(al) == 1 and al[0]["severity"] == "crit" and al[0]["sensor_key"] == "vent",
+              str(al)[:160])
+        vent.sim_stuck = None                      # 현장에서 고침
+        tick(18)                                   # 36초 ≥ 평소 되읽기 30초
+        al = [a for a in api("/api/alarms")["alarms"] if a["kind"] == "actuator_fault"]
+        check("고치면 작동 실패 경보 자동 해소", not al and st.edge_state()["ccm-edge"]["actuators"]["vent"]["confirm"] == "ok",
+              str(st.edge_state()["ccm-edge"]["actuators"]["vent"]))
+        evs = [x["etype"] for x in api("/api/events?limit=80")["events"]]
+        check("작동 실패·해소 이벤트", "actuator_fault" in evs and "actuator_fault_clear" in evs)
 
         # 튜닝 콘솔 적용 → 텔레메트리 응답으로 CCM에 → CCM이 한계 검증 후 적용 → 다음 보고로 서버에 기록
         from jcc_server import params as SP

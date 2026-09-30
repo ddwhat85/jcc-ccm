@@ -677,7 +677,8 @@ class Storage:
     # ── 활성 경보 생명주기 (발생·확인·해제·상향) ────────────
     _SEVERITY = {"alarm": "crit", "silent": "crit", "anomaly": "warn",
                  "stuck": "warn", "drift": "warn", "alarm_warn": "warn",
-                 "fire": "crit", "contact": "crit", "dew": "warn"}
+                 "fire": "crit", "contact": "crit", "dew": "warn",
+                 "actuator_fault": "crit"}      # 벤트·히터·팬이 명령대로 안 움직임(현장 CCM 확인)
 
     def _open_alarm(self, cur, dev, key, kind, detail, now) -> None:
         """열린(미해제) 경보가 없으면 새로 연다. (락을 쥔 호출자의 cursor를 받는다)"""
@@ -1569,9 +1570,17 @@ class Storage:
         with self._edge_lock:
             self._edge[device_id] = state
         label = {"vent": "벤트", "heater": "히터", "fan": "팬"}
+        self._note_actuator_confirm(device_id, state.get("actuators"), label)
         n = 0
         for a in acts[:50]:
             if not isinstance(a, dict) or a.get("actuator") not in label:
+                continue
+            if "event" in a:        # 작동 확인 사건(재시도·릴레이 복구·위치 바뀜) — 작동 실패는 경보로 따로
+                if a.get("event") != "fault":
+                    self.log_event(device_id, a["actuator"], "edge_actuate",
+                                   f"현장 {label[a['actuator']]} 작동 확인: {str(a.get('text', ''))[:160]}",
+                                   source="edge")
+                    n += 1
                 continue
             kind, on = a["actuator"], bool(a.get("on"))
             word = {"vent": ("개방", "닫힘")}.get(kind, ("가동", "정지"))[0 if on else 1]
@@ -1583,6 +1592,28 @@ class Storage:
                            source="edge")
             n += 1
         return n
+
+    def _note_actuator_confirm(self, device_id: str, acts, label: dict) -> None:
+        """CCM이 보고한 출력 작동 확인 상태의 전이로 '작동 실패' 경보를 열고 닫는다.
+        작동 중·확인 불가(통신)는 경보 상태를 바꾸지 않는다 — 고장으로도, 해소로도 단정하지 않는다."""
+        if not isinstance(acts, dict):
+            return
+        for kind, a in acts.items():
+            if kind not in label or not isinstance(a, dict):
+                continue
+            conf = a.get("confirm")
+            if conf not in ("fault", "ok"):
+                continue
+            with self._lock:
+                open_ = self._conn.execute(
+                    "SELECT 1 FROM alarms WHERE device_id=? AND sensor_key=? AND kind='actuator_fault' "
+                    "AND cleared_at IS NULL", (device_id, kind)).fetchone() is not None
+            if conf == "fault" and not open_:
+                self.raise_alarm(device_id, kind, "actuator_fault",
+                                 f"{label[kind]} 작동 실패 — {str(a.get('fault') or '명령과 실제가 다름')[:160]}")
+            elif conf == "ok" and open_:
+                self.clear_alarm(device_id, kind, "actuator_fault", "actuator_fault_clear",
+                                 f"{label[kind]} 작동 정상 확인 — 작동 실패 해소")
 
     def edge_state(self) -> dict:
         """{device_id: 최신 엣지 보고 + age}. 오래된 보고는 뺀다."""

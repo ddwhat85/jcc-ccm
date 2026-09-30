@@ -126,6 +126,9 @@ def _incident_cases() -> list:
         (15, "ccm-2", "rh", "dew", "warn", 900, 0), (16, "ccm-3", "rh", "stuck", "warn", 950, 0),
         (17, "ccm-2", "rh", "alarm", "crit", 920, 1), (18, "ccm-2", "door", "drift", "warn", 30, 0),
         (19, "ccm-4", "smoke", "stuck", "warn", 95, 0),       # 연기 센서 고장류는 화재에 안 묶임
+        (20, "ccm-2", "vent", "actuator_fault", "crit", 60, 0),   # 화재 중 벤트 고장 → 화재 사건
+        (21, "ccm-9", "vent", "actuator_fault", "crit", 70, 0),   # 다른 판넬 → 따로
+        (22, "ccm-2", "heater", "actuator_fault", "crit", 80, 0),  # 히터 → 화재 아님
     ]
     alarms = [{"id": i, "device_id": d, "sensor_key": k, "kind": kd, "severity": sv, "raised_at": E + dt,
                "acked_at": (E + dt + 1) if ak else None, "detail": f"{d}:{k} {kd}"}
