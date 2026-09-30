@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import Protocol
 
 from .config import ActuatorConfig, ModbusBusConfig
@@ -29,21 +30,58 @@ class Actuator(Protocol):
     state: bool | None       # 마지막으로 '성공적으로' 쓴 상태(모르면 None)
 
     def set(self, on: bool) -> bool: ...
+    def read_state(self) -> bool | None:
+        """릴레이(코일)를 되읽은 논리 상태. 읽을 수 없으면 None."""
+    def read_position(self) -> bool | None:
+        """위치 스위치: 열림(켜짐)=True. 읽을 수 없으면 None."""
 
 
 class LogActuator:
-    """실기 출력 없이 로그만 남긴다 — 시운전(배선 전), 시뮬레이션용."""
+    """실기 출력 없이 로그만 남긴다 — 시운전(배선 전), 시뮬레이션용.
+
+    작동 확인을 시험할 수 있게 가상의 릴레이·구동기를 흉내 낸다(고장 주입):
+      sim_stuck     : None=정상, True/False = 구동기가 그 위치에 걸림(명령과 무관)
+      sim_delay     : 명령 후 실제 위치가 따라오기까지 걸리는 초
+      sim_read_fail : 읽기(통신) 실패
+      sim_coil_reset(): 릴레이 모듈 재부팅 — 코일이 풀림(꺼짐)
+    """
 
     def __init__(self, cfg: ActuatorConfig):
         self.kind = cfg.kind
         self.state: bool | None = None
         self.writes: list[bool] = []
+        self.clock = time.time
+        self.sim_stuck: bool | None = None
+        self.sim_delay = 0.0
+        self.sim_read_fail = False
+        self._coil: bool | None = None
+        self._coil_at = 0.0
+        self._phys_prev: bool | None = None
 
     def set(self, on: bool) -> bool:
         self.writes.append(bool(on))
+        self._phys_prev = self._physical()
+        self._coil, self._coil_at = bool(on), self.clock()
         self.state = bool(on)
         log.info("[출력·로그] %s → %s", self.kind, on_word(self.kind, on))
         return True
+
+    def sim_coil_reset(self) -> None:
+        self._phys_prev = self._physical()
+        self._coil, self._coil_at = False, self.clock()
+
+    def _physical(self) -> bool | None:
+        if self.sim_stuck is not None:
+            return self.sim_stuck
+        if self._coil is None:
+            return None
+        return self._coil if self.clock() - self._coil_at >= self.sim_delay else self._phys_prev
+
+    def read_state(self) -> bool | None:
+        return None if self.sim_read_fail else self._coil
+
+    def read_position(self) -> bool | None:
+        return None if self.sim_read_fail else self._physical()
 
 
 class ModbusCoilActuator:
@@ -70,6 +108,26 @@ class ModbusCoilActuator:
         log.info("[출력] %s → %s (slave %d, coil %d)", self.kind, on_word(self.kind, on),
                  self._cfg.modbus_slave, self._cfg.modbus_coil)
         return True
+
+    def read_state(self) -> bool | None:
+        try:
+            v = self._bus.read_bits(self._cfg.modbus_slave, self._cfg.modbus_coil, "coil")
+        except Exception as exc:  # noqa: BLE001 - 통신 문제는 '모름'(고장으로 단정하지 않는다)
+            log.debug("%s 코일 되읽기 실패: %s", self.kind, exc)
+            return None
+        return (not v) if self._cfg.invert else v
+
+    def read_position(self) -> bool | None:
+        c = self._cfg
+        if c.feedback_input < 0:
+            return None
+        slave = c.feedback_slave if c.feedback_slave >= 0 else c.modbus_slave
+        try:
+            v = self._bus.read_bits(slave, c.feedback_input, "discrete")
+        except Exception as exc:  # noqa: BLE001
+            log.debug("%s 위치 스위치 읽기 실패: %s", self.kind, exc)
+            return None
+        return (not v) if c.feedback_invert else v
 
 
 def build_actuators(cfgs: list[ActuatorConfig], bus_cfg: ModbusBusConfig,

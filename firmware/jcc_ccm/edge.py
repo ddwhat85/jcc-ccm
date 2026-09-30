@@ -26,6 +26,7 @@ import time
 
 from .actuators import on_word
 from .config import Config
+from .guard import ActuatorGuard
 from .predict import Predictor, build_panel_inputs
 from .predict.params import validate as validate_params
 
@@ -48,6 +49,14 @@ class EdgePredictor:
         self._pred = Predictor()
         self._pred.autovent = cfg.predict.autovent
         self._acts = actuators
+        # 출력마다 작동 확인 가드(명령대로 됐나 되읽기·재시도·작동 실패)
+        acfg = {a.kind: a for a in cfg.actuators}
+        self._guards = {}
+        for kind, act in actuators.items():
+            if kind in acfg:
+                if hasattr(act, "sim_stuck"):
+                    act.clock = clock            # 가상 릴레이도 같은 시계로(시험·시뮬레이션)
+                self._guards[kind] = ActuatorGuard(act, acfg[kind], clock)
         self._vent_failsafe = next((a.failsafe for a in cfg.actuators if a.kind == "vent"), "open")
         self._clock = clock
         self._lost_since: float | None = None
@@ -226,6 +235,7 @@ class EdgePredictor:
                     self._pred.failsafe_vent(self._panel)
 
         self._drive(now)
+        self._check_outputs(now)
         ev = (res.get("contact") or {}).get("baseline_event")
         if ev == "ready":
             log.info("접점 발열 기준 학습 완료 — 서서히 풀리는 접점도 감시")
@@ -260,11 +270,20 @@ class EdgePredictor:
                 continue
             synced = act.state is None and not want[kind]   # 기동 후 첫 동기화(꺼짐 확인)
             ok = act.set(want[kind])
+            if ok and kind in self._guards:
+                self._guards[kind].commanded(want[kind], now)
             why = self._why(kind, want[kind], mode, synced, now)
             self._actions.append({"actuator": kind, "on": want[kind], "mode": mode if not failsafe else "failsafe",
                                   "why": why, "ok": bool(ok), "ts": round(now, 3)})
             lvl = logging.WARNING if (want[kind] and kind == "vent") or not ok else logging.INFO
             log.log(lvl, "%s %s — %s%s", kind, on_word(kind, want[kind]), why, "" if ok else " (쓰기 실패, 재시도)")
+
+    def _check_outputs(self, now: float) -> None:
+        """출력이 명령대로 됐는지 되읽는다. 바뀐 순간의 사건만 보고(작동 실패·복구 등)."""
+        for kind, g in self._guards.items():
+            for e in g.tick(now):
+                self._actions.append({"actuator": kind, "event": e["kind"], "text": e["text"],
+                                      "level": e["level"], "ts": round(now, 3)})
 
     # ── 서버에서 내려온 명령(대시보드 수동 조작) ──────────────
     def apply_command(self, cmd: dict, now: float | None = None) -> bool:
@@ -299,6 +318,9 @@ class EdgePredictor:
             if kind == "vent" and self._failsafe and self._vent_failsafe == "open" and mode != "manual":
                 mode = "failsafe"
             acts[kind] = {"on": act.state, "mode": mode}
+            g = self._guards.get(kind)
+            if g is not None:
+                acts[kind].update(confirm=g.status, position=g.position, fault=g.fault)
         contact = algo("contact", "residual")
         bl = (r.get("contact") or {}).get("baseline")
         if bl:

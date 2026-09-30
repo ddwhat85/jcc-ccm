@@ -123,9 +123,26 @@ class ActuatorConfig:
     modbus_coil: int = 0          # modbus_coil: 코일 번호
     invert: bool = False          # 켜짐=코일 OFF 로 배선했을 때(NC 접점 등)
     failsafe: str = ""            # 가스 입력 장시간 끊김 시: vent="open"(기본)/"hold"
+    # 작동 확인(피드백) — 명령대로 됐는지 되읽는다. ""=드라이버 기본(modbus_coil→coil, log→none)
+    feedback: str = ""            # "none" | "coil"(릴레이 되읽기) | "switch"(위치 스위치 = 실제 열림 확인)
+    feedback_slave: int = -1     # switch: 스위치가 물린 모듈 슬레이브(-1 = 릴레이와 같은 모듈)
+    feedback_input: int = -1     # switch: 입력(discrete input) 번호
+    feedback_invert: bool = False  # switch: 열림일 때 입력이 꺼지는 배선
+    travel_seconds: float = 0.0  # 명령 후 이 시간 안에 맞아야 함(0 = 벤트 30초, 히터·팬 3초)
+    retries: int = 2              # 안 맞으면 다시 써 보는 횟수 → 그래도 안 되면 '작동 실패'
+    check_every: float = 30.0     # 평소 되읽기 주기(초) — 모듈 재부팅으로 풀린 릴레이 감지
 
     _KINDS = ("vent", "heater", "fan")
     _DRIVERS = ("modbus_coil", "log")
+    _FEEDBACK = ("", "none", "coil", "switch")
+
+    def feedback_mode(self) -> str:
+        if self.feedback:
+            return self.feedback
+        return "coil" if self.driver == "modbus_coil" else "none"
+
+    def travel(self) -> float:
+        return float(self.travel_seconds) if self.travel_seconds > 0 else (30.0 if self.kind == "vent" else 3.0)
 
     def validate(self) -> None:
         if self.kind not in self._KINDS:
@@ -141,6 +158,16 @@ class ActuatorConfig:
                 raise ConfigError("actuator 'vent': failsafe는 open 또는 hold 여야 합니다.")
         elif self.failsafe not in ("", "hold"):
             raise ConfigError(f"actuator '{self.kind}': failsafe는 hold만 지원합니다(비워두면 hold).")
+        if self.feedback not in self._FEEDBACK:
+            raise ConfigError(f"actuator '{self.kind}': feedback은 none·coil·switch 중 하나여야 합니다.")
+        if self.feedback == "switch" and self.driver == "modbus_coil" and self.feedback_input < 0:
+            raise ConfigError(f"actuator '{self.kind}': feedback switch면 feedback_input(입력 번호)을 지정하세요.")
+        if not 0 <= self.travel_seconds <= 600:
+            raise ConfigError(f"actuator '{self.kind}': travel_seconds는 0~600초여야 합니다.")
+        if not 0 <= self.retries <= 5:
+            raise ConfigError(f"actuator '{self.kind}': retries는 0~5회여야 합니다.")
+        if not 5 <= self.check_every <= 600:
+            raise ConfigError(f"actuator '{self.kind}': check_every는 5~600초여야 합니다.")
 
 
 @dataclass
@@ -299,6 +326,13 @@ def load(path: str) -> Config:
                 modbus_coil=int(a.get("modbus_coil", 0)),
                 invert=bool(a.get("invert", False)),
                 failsafe=str(a.get("failsafe", "")),
+                feedback=str(a.get("feedback", "")),
+                feedback_slave=int(a.get("feedback_slave", -1)),
+                feedback_input=int(a.get("feedback_input", -1)),
+                feedback_invert=bool(a.get("feedback_invert", False)),
+                travel_seconds=float(a.get("travel_seconds", 0)),
+                retries=int(a.get("retries", 2)),
+                check_every=float(a.get("check_every", 30)),
             )
             for a in raw.get("actuators", [])
         ],

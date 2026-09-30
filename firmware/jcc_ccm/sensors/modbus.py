@@ -88,6 +88,27 @@ class ModbusBus:
                     self._client = None
                 raise
 
+    def read_bits(self, slave: int, address: int, kind: str) -> bool:
+        """코일(FC01, 릴레이 출력 되읽기) 또는 입력(FC02, 위치 스위치) 1개를 읽는다. 실패 시 예외."""
+        with self._lock:
+            try:
+                client = self._ensure_client()
+                if kind == "discrete":
+                    rr = client.read_discrete_inputs(address=address, count=1, slave=slave)
+                else:
+                    rr = client.read_coils(address=address, count=1, slave=slave)
+                if rr.isError():
+                    raise IOError(f"Modbus 읽기 오류 slave={slave} addr={address}: {rr}")
+                return bool(rr.bits[0])
+            except Exception:
+                if self._client is not None:
+                    try:
+                        self._client.close()
+                    except Exception:  # noqa: BLE001
+                        pass
+                    self._client = None
+                raise
+
     def close(self) -> None:
         with self._lock:
             if self._client is not None:

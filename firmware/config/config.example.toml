@@ -125,6 +125,15 @@ h2 = "h2_lel"
 # modbus_coil = 0                 # 코일(채널) 번호
 # invert = false                  # 켜짐=코일 OFF로 배선했으면 true
 # failsafe = "open"               # 벤트: open(기본) | hold
+# ── 작동 확인: 명령대로 됐는지 되읽고, 안 되면 다시 시도, 끝내 안 되면 '작동 실패' 위험 경보 ──
+# 권장 구성: 보조접점(위치 스위치) 달린 댐퍼 구동기 + 입력 단자 있는 Modbus 릴레이 모듈 → switch
+# feedback = "switch"             # none | coil(릴레이 되읽기, modbus_coil 기본) | switch(실제 열림 확인)
+# feedback_input = 0              # switch: 위치 스위치가 물린 모듈 입력 번호
+# feedback_slave = -1             # switch: 스위치 모듈 주소(-1 = 릴레이와 같은 모듈)
+# feedback_invert = false         # switch: 열림일 때 입력이 꺼지는 배선이면 true
+# travel_seconds = 30             # 명령 후 이 시간 안에 맞아야 함(0 = 벤트 30·히터/팬 3)
+# retries = 2                     # 안 맞으면 다시 써 보는 횟수
+# check_every = 30                # 평소 되읽기 주기(모듈 재부팅으로 풀린 릴레이 감지)
 
 [modbus]
 # RS485 포트 설정 (CCM의 CAN/RS485 RJ45). 실기에서 장치 경로 확인 후 조정.

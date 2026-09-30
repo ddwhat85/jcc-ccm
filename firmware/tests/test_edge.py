@@ -256,7 +256,8 @@ def test_manual_command_overrides_and_returns_to_auto():
     assert rig.edge.apply_command({"actuator": "vent", "action": "open"}, now=rig.t + 1)
     assert rig.acts()["vent"].state is True
     rep = rig.cycle(_noisy(0))
-    assert rep["actuators"]["vent"] == {"on": True, "mode": "manual"}   # 정상이어도 사람 우선
+    v = rep["actuators"]["vent"]
+    assert (v["on"], v["mode"]) == (True, "manual"), v                 # 정상이어도 사람 우선
     rig.edge.apply_command({"actuator": "vent", "action": "auto"}, now=rig.t + 1)
     for i in range(40):
         rig.cycle(_noisy(i))
