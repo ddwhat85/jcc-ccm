@@ -105,6 +105,8 @@ ROUTES = [
     ("POST", "/api/notify/test", "admin"), ("POST", "/api/panel/name", "admin"),
     ("POST", "/api/predict/baseline", "admin"),
     ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z/]+", "admin"),
+    ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
+    ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -309,6 +311,12 @@ class Handler(BaseHTTPRequestHandler):
             keys = None if sc is None else (sc["devices"] | sc["panels"])
             return self._json({"events": self.storage.list_events(dev, key, limit, devices=keys)})
 
+        if path == "/api/commission/check":
+            from .commission import check_panel
+            rep = check_panel(self.storage, (parse_qs(parsed.query).get("panel") or [""])[0])
+            return self._json(rep) if rep else self._json({"error": "없는 판넬입니다"}, 404)
+        if path == "/api/commission/reports":
+            return self._json({"reports": self.storage.list_commission_reports(None if sc is None else sc["panels"])})
         if path == "/api/admin/accounts":
             ac = self.storage.accounts
             owner = ac.panel_owner_map()
@@ -368,6 +376,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._change_password()
         if parsed.path.startswith("/api/admin/"):
             return self._admin(parsed.path[len("/api/admin/"):])
+        if parsed.path.startswith("/api/commission/"):
+            return self._commission(parsed.path[len("/api/commission/"):])
         if parsed.path == "/api/discover":
             return self._discover()
         if parsed.path == "/api/channel":
@@ -944,6 +954,31 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         return self._json({"error": "없는 관리 작업입니다"}, 404)
+
+    def _commission(self, action: str) -> None:
+        """설치 점검: 출력 시험 시작·완료 기록(JCC 관리자 — 권한 표에서 걸렀다)."""
+        from .commission import check_panel, start_output_test
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 100_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        panel, me = str(b.get("panel", "")), self._user()["username"]
+        if action == "output_test":
+            err = start_output_test(self.storage, panel, str(b.get("actuator", "")), me)
+            return self._json({"error": err}, 400) if err else self._json({"ok": True})
+        if action == "complete":
+            rep = check_panel(self.storage, panel)
+            if rep is None:
+                return self._json({"error": "없는 판넬입니다"}, 404)
+            rep["note"] = str(b.get("note", ""))[:500]
+            rep["by"] = me
+            verdict = {"pass": "합격", "warn": "조건부 합격", "wait": "미완료 항목 있음", "fail": "불합격"}[rep["overall"]]
+            rid = self.storage.add_commission_report(panel, me, rep["overall"], rep)
+            self.storage.log_event(panel, "", "commission", f"설치 점검 완료 기록: {rep['panel_name']} — {verdict} ({me})",
+                                   source="user")
+            return self._json({"ok": True, "id": rid, "overall": rep["overall"], "verdict": verdict})
+        return self._json({"error": "없는 작업입니다"}, 404)
 
     def _change_password(self) -> None:
         """{old, new} — 본인 비번 변경. 성공하면 모든 세션이 끊기므로 다시 로그인한다."""

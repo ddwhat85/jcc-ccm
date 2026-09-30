@@ -110,6 +110,15 @@ CREATE TABLE IF NOT EXISTS pred_state (
     state      TEXT,
     updated_at REAL
 );
+-- 시운전(설치 점검) 기록 — 판넬별, 고객도 자기 판넬 것은 본다(설치 품질 증빙)
+CREATE TABLE IF NOT EXISTS commission_reports (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    panel      TEXT,
+    ts         REAL,
+    by         TEXT,
+    overall    TEXT,
+    report     TEXT
+);
 -- 예지 기준 설정 버전(튜닝 콘솔). 적용·되돌리기마다 새 버전 — 가장 큰 버전이 활성. v0 = 코드 기본값(행 없음).
 CREATE TABLE IF NOT EXISTS tuning_config (
     version    INTEGER PRIMARY KEY,
@@ -182,6 +191,7 @@ class Storage:
         self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
         self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
         self._tuning_edge: dict = {}    # device_id -> CCM이 보고한 설정 적용 상태
+        self.ctests: dict = {}          # panel -> {출력: 설치 시험 상태} (commission.py가 진행)
         from .accounts import Accounts
         with self._lock:
             self._conn.executescript(_SCHEMA)
@@ -698,6 +708,28 @@ class Storage:
             return self.accounts.receivers_for(cid) if cid is not None else []
         except Exception:  # noqa: BLE001 - 알림 대상 조회 실패가 알림 자체를 막으면 안 된다
             return []
+
+    def add_commission_report(self, panel: str, by: str, overall: str, report: dict) -> int:
+        with self._lock:
+            cur = self._conn.execute("INSERT INTO commission_reports (panel, ts, by, overall, report) VALUES (?, ?, ?, ?, ?)",
+                                     (panel, time.time(), by, overall, json.dumps(report, ensure_ascii=False)))
+            self._conn.commit()
+            return cur.lastrowid
+
+    def list_commission_reports(self, panels=None, limit: int = 50) -> list:
+        """시운전 기록(최신순). panels를 주면 그 판넬 것만(고객 계정)."""
+        q, args = "SELECT * FROM commission_reports", []
+        if panels is not None:
+            ps = sorted(panels)
+            if not ps:
+                return []
+            q += " WHERE panel IN (" + ",".join("?" * len(ps)) + ")"
+            args = ps
+        q += " ORDER BY ts DESC LIMIT ?"
+        with self._lock:
+            rows = self._conn.execute(q, (*args, int(limit))).fetchall()
+        return [dict(id=r["id"], panel=r["panel"], ts=r["ts"], by=r["by"], overall=r["overall"],
+                     report=json.loads(r["report"] or "{}")) for r in rows]
 
     def get_alarm(self, alarm_id: int):
         with self._lock:

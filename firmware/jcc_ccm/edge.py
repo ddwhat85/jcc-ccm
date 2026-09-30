@@ -328,7 +328,8 @@ class EdgePredictor:
         out = {"v": 1, "ts": round(now, 3), "panel": self._panel,
                "fire": algo("fire", "fri"), "contact": contact,
                "dew": algo("dew", "margin"), "actuators": acts,
-               "failsafe": self._failsafe, "actions": self._actions}
+               "failsafe": self._failsafe, "actions": self._actions,
+               "roles": {role: key for role, (_dev, key) in self._roles.items()}}   # 설치 점검: 설정 역할 대조
         self._actions = []
         return out
 
