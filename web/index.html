@@ -3119,6 +3119,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-09-30T09:10", status:"done", cat:"diag", name:"예지 튜닝 콘솔 — 기준값을 돌리면 결과가 바로 보이고, 놓치면 적용 불가",
+   sensors:"화재·접점·결로 예지 기준 38개 · 서버 · 현장 CCM",
+   summary:"음악 프로그램처럼 손잡이(기준값)를 돌리면 사고·함정 시나리오 11편이 즉시 다시 재생돼 '언제 잡는지·오경보가 나는지'를 지금 값과 겹쳐 보여준다. 사고를 하나라도 놓치는 값은 서버가 적용을 거부하고, 통과한 값만 버전으로 저장돼 현장 CCM까지 내려간다.",
+   method:"파라미터 레지스트리(params.py: 기본·화면 범위·절대 한계·관계 규칙, 펌웨어 사본은 서명된 OTA로만 바뀜) · 시나리오 11편(사고 6: 케이블 과열·CO 탄화·접점 풀림 3주·볼트 이완·장마 결로·야간 급냉 / 함정 5: 스프레이·용접·모터 기동·여름 한낮·센서 튐, 시드 고정) · 평가기가 실제 판정 경로(입력 조립→Predictor)로 한 틱씩 재생 · 브라우저 미리보기는 predict-core.js(데모·실서버·튜닝 공통 JS 코어 한 벌), 설정 무관 계산을 미리 해 손잡이당 약 0.1초 · 파이썬↔JS 기본값+무작위 20개 설정 성적표 일치 · 적용: 서버 재검증(놓친 사고 0건)·버전 충돌 차단·되돌리기, CCM은 절대 한계 검증 후 적용·저장·보고(관문 우회 설정도 CCM이 거부) · 첫 재생에서 발견·수정: 볼트 이완 1.8분 늦음→접점 위험 11°C, 스프레이 오경보→경보치 초과 60초 지속(over_hold), 재시작 3분 헛 '주의'→평소값 최소 30개 · 용접 오경보는 알려진 한계(가스만으론 구분 불가)",
+   next:"실센서 기록을 시나리오로 추가해 문헌값 기준을 교정 · 판넬별 기준(야외·클린룸) 필요 시 확장"},
   {ts:"2026-09-29T09:30", status:"done", cat:"heal", name:"원격 업데이트(OTA) — 서명 확인·시험 부팅·자동 롤백",
    sensors:"CCM 펌웨어 전체",
    summary:"현장에 가지 않고 CCM 펌웨어를 새 버전으로 바꾼다. JCC가 서명한 번들만 설치하고, 새 버전이 제대로 돌지 않으면 스스로 이전 버전으로 되돌린다. 서버가 뚫려도 가짜 펌웨어는 들어가지 않는다.",
@@ -3162,7 +3167,7 @@ const ALGORITHMS = [
   {ts:"2026-09-23T18:10", status:"done", cat:"elec", name:"접점·커넥터 발열 예지",
    sensors:"전류(CT20A) · 접점온도(비접촉) · 함내온도",
    summary:"전류 대비 접점 온도의 상관을 학습해, 같은 전류에서 초과 발열(잔차)이 커지거나 서서히 오르면 접촉저항 증가(접점 풀림·부식=열화)로 판정한다. 판넬 화재 1위 원인인 접점 발열을 화염 전에 잡는다.",
-   method:"정상 구간에서 ΔT≈k·I² 최소제곱 학습(부하 2A 미만 제외) · 잔차=측정ΔT−k·I² · 절대 60°C 또는 잔차 12°C=위험 · 잔차 5°C 또는 추세 0.3°C/분=주의 · 잔차 분당기울기로 열화 추세 예지 · contact_heat.py 테스트 7/7",
+   method:"정상 구간에서 ΔT≈k·I² 최소제곱 학습(부하 2A 미만 제외) · 잔차=측정ΔT−k·I² · 절대 60°C 또는 잔차 11°C=위험(2026-09-30 12→11: 튜닝 시나리오 '볼트 이완'을 10분 안에 잡게) · 잔차 5°C 또는 추세 0.3°C/분=주의 · 잔차 분당기울기로 열화 추세 예지 · contact_heat.py 테스트 7/7",
    next:"통합 완료(예지 카드·접점온도 노드 경보) · 기준 학습 고정 완료(위 항목)"},
   {ts:"2026-09-23T18:00", status:"done", cat:"env", name:"결로(이슬점) 예지 → 히터·팬",
    sensors:"함내 온도 · 습도 · 표면온도(선택)",
@@ -3391,13 +3396,14 @@ function tuneDraw(cv, scn, big){
   path(ra, tuneCss("--ink-3"), 1);
   path(rb, tuneCss("--accent"), big ? 2 : 1.5);
   // B의 사건 표시(위험·작동은 빨강, 주의·팬은 노랑)
-  const seen = new Set();
+  const seen = new Set(); let lastLabelX = -1e9;
   for (const e of rb.events){
     const hot = TUNE_HOT.has(e.what), cx = x(e.t);
     g.fillStyle = hot ? tuneCss("--crit") : tuneCss("--warn");
     g.beginPath(); g.moveTo(cx - 3.5, H - 1); g.lineTo(cx + 3.5, H - 1); g.lineTo(cx, H - 6); g.fill();
-    if (big && hot && !seen.has(e.what) && seen.size < 3){
-      seen.add(e.what); g.textAlign = "center"; g.fillText(TUNE_EVT[e.what] || e.what, Math.max(20, Math.min(W - 20, cx)), H - 12);
+    if (big && hot && !seen.has(e.what) && seen.size < 3 && cx - lastLabelX > 34){   // 같은 순간의 사건은 이름 하나만
+      seen.add(e.what); lastLabelX = cx;
+      g.textAlign = "center"; g.fillText(TUNE_EVT[e.what] || e.what, Math.max(20, Math.min(W - 20, cx)), H - 12);
     }
   }
   if (big){ g.fillStyle = tuneCss("--ink-3"); g.textAlign = "right"; g.fillText(tuneDur(scn.t_end - scn.t0), W - padR, padT - 8); }
