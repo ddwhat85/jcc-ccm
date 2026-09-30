@@ -904,6 +904,78 @@
     return [{ ok: true, version: ver, scorecard: card }, 200];
   }
 
+  // ── 설치 점검 (데모: commission.py와 같은 규칙, 출력 시험은 현장 CCM 대신 시간으로 흉내) ──
+  const CM = { tests: {}, reports: [], seq: 1 };
+  const CM_ADVICE = { "연결 상태": "CCM 전원·이더넷 케이블·서버 주소(config.toml [transport]) 확인",
+    "센서 응답": "응답 없는 센서의 전원·RS485 배선(A/B 극성)·Modbus 주소 확인", "채널 상태": "꺼진 채널이 있음 — 편집 → 꺼진 센서 모두 켜기",
+    "데이터 수신": "센서 전원·RS485 배선(A/B 극성)·Modbus 주소·통신속도 확인", "값 유효성": "읽기 오류 — 배선·주소·통신속도(9600/19200) 확인",
+    "측정 범위": "값이 경보 범위 밖 — 실제 이상인지 먼저 확인, 아니면 센서 위치·교정 확인", "변동성": "값이 멈춤 — 센서 동결·단선 의심, 센서 전원 재투입",
+    "추세": "값이 한쪽으로 계속 이동 — 교정 필요 여부 확인", "장치 식별": "추정 장치 — 실제 모델명을 확인해 프로파일 확정" };
+  const cmWorst = items => { const st = items.map(i => i.status); for (const s of ["fail", "wait", "warn"]) if (st.includes(s)) return s; return st.length && st.includes("pass") ? "pass" : (st.length ? "skip" : "pass"); };
+  const cmItem = (target, status, detail, advice) => ({ target, status, detail, advice: advice || "" });
+  function cmFromDiag(rep, target) {
+    const checks = (rep.checks || []).filter(c => c.name !== "이상탐지");
+    const bad = checks.find(c => c.status === "fail") || checks.find(c => c.status === "warn");
+    return bad ? cmItem(target, bad.status, `${bad.name}: ${bad.detail}`, CM_ADVICE[bad.name]) : cmItem(target, "pass", checks.slice(0, 2).map(c => c.detail).join(" · ") || "정상");
+  }
+  function cmCheck(panel) {
+    const p = panelList().find(x => x.panel === panel); if (!p) return null;
+    const t = now(), steps = [];
+    let items = p.ccms.map(d => cmFromDiag(diagnose(d.device_id, "", true), `CCM ${d.device_id}`));
+    items.push(cmItem("현장 예지", "pass", "데모 — 브라우저가 현장 CCM 판정을 흉내 냄"));
+    steps.push({ key: "connect", title: "연결", status: cmWorst(items), items });
+    items = [];
+    p.ccms.forEach(d => d.latest.forEach(s => {
+      const target = `${s.name || s.sensor_key} (${d.device_id})`;
+      let it = cmFromDiag(diagnose(d.device_id, s.sensor_key, true), target);
+      const n = (S.readings[K(d.device_id, s.sensor_key)] || []).length;
+      if (it.status !== "fail" && n < 6 && s.enabled) it = cmItem(target, "wait", `관찰 중 — 값 ${n}/6개 수신(약 30초 기다림)`);
+      items.push(it);
+    }));
+    steps.push({ key: "sensors", title: "센서", status: cmWorst(items), items });
+    const r = panelRoles(), W = { h2: "수소", voc: "VOC", co: "CO", current: "전류", contact_temp: "접점온도", ambient: "함내온도", humidity: "습도" };
+    const gases = ["h2", "voc", "co"].filter(g => r[g]);
+    items = [cmItem("화재 징조 예지", gases.length ? "pass" : "warn", gases.length ? "가능 — " + gases.map(g => W[g]).join("·") : "불가 — 가스 센서(H2·VOC·CO) 없음")];
+    [["접점 발열 예지", ["current", "contact_temp", "ambient"]], ["결로 예지", ["ambient", "humidity"]]].forEach(([title, need]) => {
+      const miss = need.filter(x => !r[x]).map(x => W[x]);
+      items.push(cmItem(title, miss.length ? "warn" : "pass", miss.length ? `불가 — ${miss.join(", ")} 없음` : "가능 — " + need.map(x => W[x]).join("·")));
+    });
+    steps.push({ key: "roles", title: "예지 역할", status: cmWorst(items), items });
+    items = [["vent", "벤트"], ["fan", "팬"]].map(([k, nm]) => {
+      const x = (CM.tests[panel] || {})[k];
+      if (!x) return cmItem(nm, "wait", "데모 — 시험 전", "판넬 앞에서 [시험]을 누르세요 — 실제로 켜졌다 꺼집니다");
+      const age = t - x.t0;
+      if (age < 3) return cmItem(nm, "wait", `${nm} 켜기 명령을 보냄 — 현장 CCM 확인 기다리는 중`);
+      if (age < 6) return cmItem(nm, "wait", `${nm} 켜짐 확인 — 끄기 명령을 보냄`);
+      return k === "vent" ? cmItem(nm, "pass", "개방·닫힘 모두 실제 작동 확인")
+        : cmItem(nm, "warn", "가동·정지 명령 반영됨(릴레이만 확인)", "위치 스위치가 없어 실제 움직임은 모름 — 눈으로 확인하고, 보조접점 달린 구동기 권장");
+    });
+    steps.push({ key: "outputs", title: "출력 시험", status: cmWorst(items), items });
+    const sts = steps.map(s => s.status);
+    const overall = sts.includes("fail") ? "fail" : sts.includes("wait") ? "wait" : sts.includes("warn") ? "warn" : "pass";
+    return { panel, panel_name: p.panel_name, ts: t, overall, steps };
+  }
+  function cmPost(action, b) {
+    const panel = String(b.panel || "");
+    if (action === "output_test") {
+      if (["vent", "fan"].indexOf(b.actuator) < 0) return [{ error: "이 판넬엔 그 출력을 쥔 현장 CCM이 없습니다" }, 400];
+      const cur = (CM.tests[panel] || {})[b.actuator];
+      if (cur && now() - cur.t0 < 6) return [{ error: "이미 시험 중입니다" }, 400];
+      (CM.tests[panel] = CM.tests[panel] || {})[b.actuator] = { t0: now() };
+      logEvent(panel, "", "actuator", `${b.actuator === "vent" ? "벤트" : "팬"} 설치 시험 (데모)`, "user");
+      return [{ ok: true }, 200];
+    }
+    if (action === "complete") {
+      const rep = cmCheck(panel); if (!rep) return [{ error: "없는 판넬입니다" }, 404];
+      rep.note = String(b.note || "").slice(0, 500); rep.by = "데모";
+      const verdict = { pass: "합격", warn: "조건부 합격", wait: "미완료 항목 있음", fail: "불합격" }[rep.overall];
+      const id = CM.seq++; CM.reports.unshift({ id, panel, ts: now(), by: "데모", overall: rep.overall, report: rep });
+      logEvent(panel, "", "commission", `설치 점검 완료 기록: ${rep.panel_name} — ${verdict} (데모)`, "user");
+      return [{ ok: true, id, overall: rep.overall, verdict }, 200];
+    }
+    return [{ error: "없는 작업입니다" }, 404];
+  }
+
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
   const ACC = { customers: [], owner: {}, receivers: {}, users: [], seq: 1 };
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
@@ -984,6 +1056,10 @@
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/commission/check") { const r = cmCheck(qs.get("panel") || ""); return Promise.resolve(r ? J(r) : J({ error: "없는 판넬입니다" }, 404)); }
+      if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
+      const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
+      if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
       const ma = p.match(/^\/api\/admin\/([a-z/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));

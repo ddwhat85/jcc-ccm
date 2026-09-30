@@ -693,6 +693,52 @@
   .algo-tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .algo-tab.on b{color:#fff}
 
+  /* ── 설치 점검(시운전) — 휴대폰 우선 ── */
+  .cmsn-shell{background:var(--surface);border-radius:10px;box-shadow:0 24px 64px rgba(0,0,0,.38);color:var(--ink);
+    width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 32px);display:flex;flex-direction:column;overflow:hidden}
+  .cmsn-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+  .cmsn-head h3{margin:0;font:700 15px var(--sans)}
+  .cmsn-head select{font:600 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);
+    border-radius:6px;padding:6px 8px;max-width:100%}
+  .cmsn-x{margin-left:auto;display:grid;place-items:center;width:32px;height:32px;border:0;border-radius:6px;background:none;
+    color:var(--ink-3);cursor:pointer}
+  .cmsn-x:hover{background:var(--surface-2);color:var(--ink)}
+  .cmsn-body{overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+  .cmsn-overall{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:8px;font:700 14px var(--sans);flex:none}
+  .cmsn-overall small{font:500 12px var(--sans);color:var(--ink-2)}
+  .cmsn-overall.pass{background:var(--ok-soft);color:var(--ok)} .cmsn-overall.warn{background:var(--warn-soft);color:var(--warn)}
+  .cmsn-overall.fail{background:var(--crit-soft);color:var(--crit)} .cmsn-overall.wait{background:var(--surface-2);color:var(--ink)}
+  .cmsn-step{border:1px solid var(--rule);border-radius:8px;overflow:hidden;flex:none}   /* 스크롤 영역에서 눌려 잘리지 않게 */
+  .cmsn-step h4{display:flex;align-items:center;gap:8px;margin:0;padding:10px 12px;font:700 13px var(--sans);background:var(--canvas)}
+  .cmsn-step h4 .n{font:700 11px var(--mono);color:var(--ink-3)}
+  .cmsn-chip{margin-left:auto;font:700 11px var(--sans);padding:2px 9px;border-radius:10px;white-space:nowrap}
+  .cmsn-chip.pass{background:var(--ok-soft);color:var(--ok)} .cmsn-chip.warn{background:var(--warn-soft);color:var(--warn)}
+  .cmsn-chip.fail{background:var(--crit-soft);color:var(--crit)} .cmsn-chip.wait,.cmsn-chip.skip{background:var(--surface-2);color:var(--ink-2)}
+  .cmsn-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:9px 12px;border-top:1px solid var(--rule-2);font-size:12.5px}
+  .cmsn-item .t{font-weight:600}
+  .cmsn-item .d{grid-column:1/2;color:var(--ink-2);line-height:1.45;overflow-wrap:anywhere}
+  .cmsn-item .a{grid-column:1/-1;color:var(--ink);background:var(--warn-soft);border-radius:5px;padding:5px 8px;margin-top:3px;line-height:1.45}
+  .cmsn-item.fail .a{background:var(--crit-soft)}
+  .cmsn-item .s{grid-row:1/3;grid-column:2;align-self:start}
+  .cmsn-btn{font:600 12.5px var(--sans);border-radius:6px;padding:7px 13px;cursor:pointer;border:1px solid var(--rule);
+    background:var(--surface);color:var(--ink);white-space:nowrap;min-height:36px}
+  .cmsn-btn:hover{border-color:var(--ink-3)}
+  .cmsn-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .cmsn-btn.armed{background:var(--warn);border-color:var(--warn);color:#111}
+  .cmsn-btn:focus-visible,.cmsn-x:focus-visible,.cmsn-head select:focus-visible,.cmsn-note:focus-visible,.cmsn-rep:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .cmsn-foot{display:flex;gap:8px;align-items:center;padding:11px 16px;border-top:1px solid var(--rule);flex-wrap:wrap}
+  .cmsn-note{flex:1 1 200px;font:500 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:8px 10px}
+  .cmsn-msg{flex-basis:100%;min-height:16px;font:600 12px var(--sans);color:var(--ink-2)}
+  .cmsn-msg.bad{color:var(--crit)} .cmsn-msg.ok{color:var(--ok)}
+  .cmsn-rep{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--rule);
+    border-radius:8px;background:none;color:inherit;font:inherit;cursor:pointer}
+  .cmsn-rep:hover{background:var(--canvas)}
+  .cmsn-rep small{grid-column:1/2;color:var(--ink-3);font-size:11.5px}
+  .cmsn-rep .cmsn-chip{grid-row:1/3;grid-column:2;align-self:center}
+  #cmsn-doc h2{margin:0 0 4px;font:700 18px var(--sans)}
+  #cmsn-doc .meta{color:var(--ink-2);font-size:12.5px;margin-bottom:12px}
+  @media (max-width:640px){.cmsn-shell{width:100vw;max-height:100vh;height:100vh;border-radius:0}}
+
   /* ── 계정: 등급별 표시 · 비번 변경 · 계정 관리 ── */
   body:not([data-acct="admin"]) .jcc-admin{display:none!important}   /* JCC 전용 기능은 고객 화면에서 숨김 */
   body:not([data-acctdb="1"]) .acct-db{display:none!important}       /* DB 계정에만 '내 비번 변경' */
@@ -865,6 +911,13 @@
     #report-overlay{position:absolute;inset:0;background:#fff;display:block!important}
     .rp-modal{box-shadow:none;max-height:none;width:100%}
     .rp-range,.rp-print,#rp-close{display:none!important}
+  }
+  /* 설치 보고서 인쇄(보고서를 연 경우 그것만 찍는다) */
+  @media print{
+    body.cmsn-printing *{visibility:hidden}
+    body.cmsn-printing #cmsn-doc,body.cmsn-printing #cmsn-doc *{visibility:visible}
+    body.cmsn-printing #cmsn-doc{position:absolute;inset:0;background:#fff;color:#111;padding:24px}
+    body.cmsn-printing .cmsn-noprint{display:none!important}
   }
   /* 자가치유 표시기 — 스스로 복구한 횟수(오늘). 켜졌는지·방금 일했는지 항상 보임 */
   .mb-heal{display:inline-flex;align-items:center;gap:5px;font:600 12px var(--mono);color:var(--ink-2);
@@ -1121,6 +1174,8 @@
         <button class="mb-item jcc-admin" id="btn-algo">알고리즘 내역</button>
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
+        <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
+        <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
         <div class="mb-div jcc-admin"></div>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
       </div>
@@ -1243,6 +1298,35 @@
         <span class="algo-sum" id="algo-sum"></span><button id="algo-close">×</button></div>
       <div id="algo-body"></div>
     </div>
+  </div>
+
+  <!-- 설치 점검(시운전) — JCC 설치 기사 -->
+  <div class="overlay" id="cmsn-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="cmsn-title">
+      
+        <h3 id="cmsn-title">설치 점검</h3>
+        <select id="cmsn-panel" aria-label="점검할 판넬"></select>
+        <button class="cmsn-x" id="cmsn-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      
+      <div class="cmsn-body" id="cmsn-body" aria-live="polite"></div>
+      <footer class="cmsn-foot">
+        <input class="cmsn-note" id="cmsn-note" maxlength="500" placeholder="메모 (교체 필요 부품·특이사항)" aria-label="메모">
+        <button class="cmsn-btn primary" id="cmsn-complete">완료 기록</button>
+        <div class="cmsn-msg" id="cmsn-msg" aria-live="polite"></div>
+      </footer>
+    </section>
+  </div>
+
+  <!-- 설치 보고서(모든 계정 — 자기 판넬) -->
+  <div class="overlay" id="cmsn-rep-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="cmsn-rep-title">
+      
+        <h3 id="cmsn-rep-title">설치 보고서</h3>
+        <button class="cmsn-btn cmsn-noprint" id="cmsn-print" hidden>인쇄·PDF</button>
+        <button class="cmsn-x" id="cmsn-rep-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      
+      <div class="cmsn-body" id="cmsn-rep-body"></div>
+    </section>
   </div>
 
   <!-- 내 비번 변경(임시 비번이면 강제) -->
@@ -2690,6 +2774,78 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     return [{ ok: true, version: ver, scorecard: card }, 200];
   }
 
+  // ── 설치 점검 (데모: commission.py와 같은 규칙, 출력 시험은 현장 CCM 대신 시간으로 흉내) ──
+  const CM = { tests: {}, reports: [], seq: 1 };
+  const CM_ADVICE = { "연결 상태": "CCM 전원·이더넷 케이블·서버 주소(config.toml [transport]) 확인",
+    "센서 응답": "응답 없는 센서의 전원·RS485 배선(A/B 극성)·Modbus 주소 확인", "채널 상태": "꺼진 채널이 있음 — 편집 → 꺼진 센서 모두 켜기",
+    "데이터 수신": "센서 전원·RS485 배선(A/B 극성)·Modbus 주소·통신속도 확인", "값 유효성": "읽기 오류 — 배선·주소·통신속도(9600/19200) 확인",
+    "측정 범위": "값이 경보 범위 밖 — 실제 이상인지 먼저 확인, 아니면 센서 위치·교정 확인", "변동성": "값이 멈춤 — 센서 동결·단선 의심, 센서 전원 재투입",
+    "추세": "값이 한쪽으로 계속 이동 — 교정 필요 여부 확인", "장치 식별": "추정 장치 — 실제 모델명을 확인해 프로파일 확정" };
+  const cmWorst = items => { const st = items.map(i => i.status); for (const s of ["fail", "wait", "warn"]) if (st.includes(s)) return s; return st.length && st.includes("pass") ? "pass" : (st.length ? "skip" : "pass"); };
+  const cmItem = (target, status, detail, advice) => ({ target, status, detail, advice: advice || "" });
+  function cmFromDiag(rep, target) {
+    const checks = (rep.checks || []).filter(c => c.name !== "이상탐지");
+    const bad = checks.find(c => c.status === "fail") || checks.find(c => c.status === "warn");
+    return bad ? cmItem(target, bad.status, `${bad.name}: ${bad.detail}`, CM_ADVICE[bad.name]) : cmItem(target, "pass", checks.slice(0, 2).map(c => c.detail).join(" · ") || "정상");
+  }
+  function cmCheck(panel) {
+    const p = panelList().find(x => x.panel === panel); if (!p) return null;
+    const t = now(), steps = [];
+    let items = p.ccms.map(d => cmFromDiag(diagnose(d.device_id, "", true), `CCM ${d.device_id}`));
+    items.push(cmItem("현장 예지", "pass", "데모 — 브라우저가 현장 CCM 판정을 흉내 냄"));
+    steps.push({ key: "connect", title: "연결", status: cmWorst(items), items });
+    items = [];
+    p.ccms.forEach(d => d.latest.forEach(s => {
+      const target = `${s.name || s.sensor_key} (${d.device_id})`;
+      let it = cmFromDiag(diagnose(d.device_id, s.sensor_key, true), target);
+      const n = (S.readings[K(d.device_id, s.sensor_key)] || []).length;
+      if (it.status !== "fail" && n < 6 && s.enabled) it = cmItem(target, "wait", `관찰 중 — 값 ${n}/6개 수신(약 30초 기다림)`);
+      items.push(it);
+    }));
+    steps.push({ key: "sensors", title: "센서", status: cmWorst(items), items });
+    const r = panelRoles(), W = { h2: "수소", voc: "VOC", co: "CO", current: "전류", contact_temp: "접점온도", ambient: "함내온도", humidity: "습도" };
+    const gases = ["h2", "voc", "co"].filter(g => r[g]);
+    items = [cmItem("화재 징조 예지", gases.length ? "pass" : "warn", gases.length ? "가능 — " + gases.map(g => W[g]).join("·") : "불가 — 가스 센서(H2·VOC·CO) 없음")];
+    [["접점 발열 예지", ["current", "contact_temp", "ambient"]], ["결로 예지", ["ambient", "humidity"]]].forEach(([title, need]) => {
+      const miss = need.filter(x => !r[x]).map(x => W[x]);
+      items.push(cmItem(title, miss.length ? "warn" : "pass", miss.length ? `불가 — ${miss.join(", ")} 없음` : "가능 — " + need.map(x => W[x]).join("·")));
+    });
+    steps.push({ key: "roles", title: "예지 역할", status: cmWorst(items), items });
+    items = [["vent", "벤트"], ["fan", "팬"]].map(([k, nm]) => {
+      const x = (CM.tests[panel] || {})[k];
+      if (!x) return cmItem(nm, "wait", "데모 — 시험 전", "판넬 앞에서 [시험]을 누르세요 — 실제로 켜졌다 꺼집니다");
+      const age = t - x.t0;
+      if (age < 3) return cmItem(nm, "wait", `${nm} 켜기 명령을 보냄 — 현장 CCM 확인 기다리는 중`);
+      if (age < 6) return cmItem(nm, "wait", `${nm} 켜짐 확인 — 끄기 명령을 보냄`);
+      return k === "vent" ? cmItem(nm, "pass", "개방·닫힘 모두 실제 작동 확인")
+        : cmItem(nm, "warn", "가동·정지 명령 반영됨(릴레이만 확인)", "위치 스위치가 없어 실제 움직임은 모름 — 눈으로 확인하고, 보조접점 달린 구동기 권장");
+    });
+    steps.push({ key: "outputs", title: "출력 시험", status: cmWorst(items), items });
+    const sts = steps.map(s => s.status);
+    const overall = sts.includes("fail") ? "fail" : sts.includes("wait") ? "wait" : sts.includes("warn") ? "warn" : "pass";
+    return { panel, panel_name: p.panel_name, ts: t, overall, steps };
+  }
+  function cmPost(action, b) {
+    const panel = String(b.panel || "");
+    if (action === "output_test") {
+      if (["vent", "fan"].indexOf(b.actuator) < 0) return [{ error: "이 판넬엔 그 출력을 쥔 현장 CCM이 없습니다" }, 400];
+      const cur = (CM.tests[panel] || {})[b.actuator];
+      if (cur && now() - cur.t0 < 6) return [{ error: "이미 시험 중입니다" }, 400];
+      (CM.tests[panel] = CM.tests[panel] || {})[b.actuator] = { t0: now() };
+      logEvent(panel, "", "actuator", `${b.actuator === "vent" ? "벤트" : "팬"} 설치 시험 (데모)`, "user");
+      return [{ ok: true }, 200];
+    }
+    if (action === "complete") {
+      const rep = cmCheck(panel); if (!rep) return [{ error: "없는 판넬입니다" }, 404];
+      rep.note = String(b.note || "").slice(0, 500); rep.by = "데모";
+      const verdict = { pass: "합격", warn: "조건부 합격", wait: "미완료 항목 있음", fail: "불합격" }[rep.overall];
+      const id = CM.seq++; CM.reports.unshift({ id, panel, ts: now(), by: "데모", overall: rep.overall, report: rep });
+      logEvent(panel, "", "commission", `설치 점검 완료 기록: ${rep.panel_name} — ${verdict} (데모)`, "user");
+      return [{ ok: true, id, overall: rep.overall, verdict }, 200];
+    }
+    return [{ error: "없는 작업입니다" }, 404];
+  }
+
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
   const ACC = { customers: [], owner: {}, receivers: {}, users: [], seq: 1 };
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
@@ -2770,6 +2926,10 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/commission/check") { const r = cmCheck(qs.get("panel") || ""); return Promise.resolve(r ? J(r) : J({ error: "없는 판넬입니다" }, 404)); }
+      if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
+      const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
+      if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
       const ma = p.match(/^\/api\/admin\/([a-z/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
@@ -4796,6 +4956,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-10-01T08:10", status:"done", cat:"diag", name:"현장 설치 점검(시운전) 마법사",
+   sensors:"판넬의 CCM·센서 전체 · 벤트·히터·팬",
+   summary:"설치 기사가 휴대폰으로 판넬 하나를 골라 연결 → 센서 → 예지 역할 → 출력 시험 순서로 확인하고, 문제마다 '할 일'을 안내받은 뒤 결과를 시운전 기록으로 남긴다. 고객도 자기 판넬의 설치 보고서를 볼 수 있다.",
+   method:"기존 진단 재사용(설치 때 무의미한 평소값 이상탐지 제외, 값 6개 전엔 '관찰 중') · 진단 항목별 할 일(RS485 극성·Modbus 주소·통신속도 등) · 예지 역할: 화재·접점·결로 가능 여부 + CCM 설정 역할과 서버 판단 대조(CCM 보고에 roles) · 출력 시험 상태기계: 켜기→작동 확인→끄기→확인, 작동 실패·시간 초과·확인 장치 없음 구분, 끝나면 항상 자동 복귀, 누르기 전 판넬 앞 확인(두 번 누름) · 완료 기록(합격/조건부/미완료/불합격)·인쇄 · 종단(실제 HTTP + 가상 CCM): 벤트 합격 → 걸림 주입 불합격 → 기록 → 고객 범위",
+   next:"실기 첫 설치에서 점검 순서·할 일 문구 다듬기"},
   {ts:"2026-09-30T12:40", status:"done", cat:"diag", name:"고객사별 계정 분리 — 자기 판넬만, 등급별 권한",
    sensors:"대시보드 전체 · 알림",
    summary:"고객사 → 판넬 배정과 계정 등급(JCC 관리자·고객 담당자·보기 전용)으로, 고객은 자기 고객사 판넬만 보고 담당자만 경보 확인·수동 조작을 한다. 계정은 JCC만 발급하고, 경보 알림은 그 판넬 고객사 번호와 JCC 운영 번호로 간다.",
@@ -4935,6 +5100,110 @@ function openAlgo(){
 $("#btn-algo").onclick = openAlgo;
 $("#algo-close").onclick = ()=> $("#algo-overlay").classList.remove("open");
 $("#algo-overlay").onclick = e=>{ if(e.target===$("#algo-overlay")) $("#algo-overlay").classList.remove("open"); };
+
+// ── 설치 점검(시운전) ─────────────────────────────────────
+// 판정은 서버(commission.py). 화면은 단계 카드·할 일·출력 [시험]·완료 기록. 시험은 실제 설비가 움직이므로 두 번 눌러 확인.
+const CMSN = { timer:0, armed:null, last:null };
+const CMSN_ST = {pass:"정상", warn:"주의", fail:"실패", wait:"대기", skip:"해당 없음"};
+const CMSN_ALL = {pass:["합격","모든 항목 정상"], warn:["조건부 합격","주의 항목을 고객에게 안내"],
+  fail:["불합격","실패 항목을 고친 뒤 다시 점검"], wait:["점검 중","관찰·시험이 남아 있음"]};
+const CMSN_ACT = {"벤트":"vent", "히터":"heater", "팬":"fan"};
+// 기록(보고서)에선 '점검 중' 대신 서버 판정 문구 그대로
+const CMSN_REP = Object.assign({}, CMSN_ALL, {wait:["미완료 항목 있음","관찰·시험이 남은 채 기록됨"]});
+const cmsnEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function cmsnSteps(rep, live){
+  return rep.steps.map((st, i) => `<div class="cmsn-step"><h4><span class="n">${i + 1}</span>${cmsnEsc(st.title)}` +
+    `<span class="cmsn-chip ${st.status}">${CMSN_ST[st.status]}</span></h4>` +
+    st.items.map(it => {
+      const act = live && st.key === "outputs" ? CMSN_ACT[it.target] : null;
+      const testing = act && it.status === "wait" && !/시험 전/.test(it.detail);
+      const fresh = act && it.status === "wait" && !testing;           // 아직 시험 전
+      const btn = act && !testing ? `<button class="cmsn-btn" data-test="${act}">${fresh ? "시험" : "다시 시험"}</button>` : "";
+      const chip = fresh ? "" : `<span class="cmsn-chip ${it.status}">${testing ? "시험 중" : CMSN_ST[it.status]}</span>`;
+      return `<div class="cmsn-item ${it.status}"><span class="t">${cmsnEsc(it.target)}</span>` +
+        `<span class="s">${chip}${btn ? " " + btn : ""}</span>` +
+        `<span class="d">${cmsnEsc(it.detail)}</span>` + (it.advice ? `<span class="a">할 일 — ${cmsnEsc(it.advice)}</span>` : "") + `</div>`;
+    }).join("") + `</div>`).join("");
+}
+async function cmsnRefresh(){
+  const panel = $("#cmsn-panel").value; if (!panel) return;
+  let rep;
+  try { const r = await fetch("/api/commission/check?panel=" + encodeURIComponent(panel), {cache:"no-store"});
+    rep = await r.json(); if (!r.ok) throw new Error(rep.error || r.status);
+  } catch(e){ $("#cmsn-body").innerHTML = `<p class="acct-note">점검 정보를 불러오지 못했습니다 (${cmsnEsc(e.message)})</p>`; return; }
+  CMSN.last = rep;
+  const [w, sub] = CMSN_ALL[rep.overall];
+  $("#cmsn-body").innerHTML = `<div class="cmsn-overall ${rep.overall}">${w}<small>${sub}</small></div>` + cmsnSteps(rep, true);
+  $("#cmsn-body").querySelectorAll("[data-test]").forEach(b => b.onclick = () => cmsnTest(b));
+}
+async function cmsnTest(btn){
+  const act = btn.dataset.test;
+  if (CMSN.armed !== act){                     // 실제 설비가 움직인다 — 사람이 판넬 앞에 있는지 한 번 더
+    CMSN.armed = act; btn.classList.add("armed"); btn.textContent = "판넬 앞 확인 — 한 번 더";
+    setTimeout(() => { if (CMSN.armed === act){ CMSN.armed = null; btn.classList.remove("armed"); btn.textContent = "시험"; } }, 5000);
+    return;
+  }
+  CMSN.armed = null;
+  try { const r = await fetch("/api/commission/output_test", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({panel: $("#cmsn-panel").value, actuator: act})});
+    const j = await r.json().catch(() => ({}));
+    cmsnMsg(r.ok ? "시험 중 — 켜졌다가 확인되면 꺼지고, 끝나면 자동으로 돌아갑니다" : (j.error || `시작 못 함 (${r.status})`), !r.ok);
+  } catch(_){ cmsnMsg("서버에 닿지 못했습니다", true); }
+  cmsnRefresh();
+}
+function cmsnMsg(t, bad){ const m = $("#cmsn-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function openCommission(){
+  $("#cmsn-overlay").classList.add("open"); cmsnMsg("");
+  try { const d = await fetch("/api/panels", {cache:"no-store"}).then(r => r.json());
+    const cur = $("#cmsn-panel").value;
+    $("#cmsn-panel").innerHTML = (d.panels || []).map(p => `<option value="${cmsnEsc(p.panel)}">${cmsnEsc(p.panel_name || p.panel)}</option>`).join("");
+    if (cur) $("#cmsn-panel").value = cur;
+  } catch(_){}
+  if (!$("#cmsn-panel").value){ $("#cmsn-body").innerHTML = `<p class="acct-note">연결된 판넬이 없습니다. CCM을 켜고 AI 자동연결로 탐색하세요.</p>`; return; }
+  cmsnRefresh(); clearInterval(CMSN.timer); CMSN.timer = setInterval(cmsnRefresh, 2000);
+}
+function closeCommission(){ $("#cmsn-overlay").classList.remove("open"); clearInterval(CMSN.timer); }
+$("#btn-commission").onclick = openCommission;
+$("#cmsn-close").onclick = closeCommission;
+$("#cmsn-panel").onchange = () => { cmsnMsg(""); cmsnRefresh(); };
+$("#cmsn-complete").onclick = async () => {
+  try { const r = await fetch("/api/commission/complete", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({panel: $("#cmsn-panel").value, note: $("#cmsn-note").value.trim()})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ cmsnMsg(j.error || `기록 못 함 (${r.status})`, true); return; }
+    $("#cmsn-note").value = ""; cmsnMsg(`완료 기록 #${j.id} — ${j.verdict}. 도구 → 설치 보고서에서 인쇄할 수 있습니다`);
+  } catch(_){ cmsnMsg("서버에 닿지 못했습니다 — 기록되지 않았습니다", true); }
+};
+
+async function openCmsnReports(){
+  $("#cmsn-rep-overlay").classList.add("open"); $("#cmsn-print").hidden = true;
+  const body = $("#cmsn-rep-body");
+  let reps = [];
+  try { reps = (await fetch("/api/commission/reports", {cache:"no-store"}).then(r => r.json())).reports || []; } catch(_){}
+  const when = t => new Date(t * 1000).toLocaleString("ko-KR", {hour12:false});
+  body.innerHTML = reps.length ? reps.map((r, i) => `<button class="cmsn-rep" data-i="${i}">${cmsnEsc(r.report.panel_name || r.panel)}` +
+      `<span class="cmsn-chip ${r.overall}">${CMSN_REP[r.overall][0]}</span><small>${when(r.ts)} · ${cmsnEsc(r.by)}</small></button>`).join("")
+    : `<p class="acct-note">아직 설치 점검 기록이 없습니다.</p>`;
+  body.querySelectorAll(".cmsn-rep").forEach(b => b.onclick = () => {
+    const r = reps[Number(b.dataset.i)], rep = r.report, [w, sub] = CMSN_REP[r.overall];
+    body.innerHTML = `<div id="cmsn-doc"><h2>설치 점검 보고서 — ${cmsnEsc(rep.panel_name || r.panel)}</h2>` +
+      `<div class="meta">${when(r.ts)} · 점검 ${cmsnEsc(r.by)} · 판넬 ${cmsnEsc(r.panel)}</div>` +
+      `<div class="cmsn-overall ${r.overall}">${w}<small>${sub}</small></div>` +
+      (rep.note ? `<p class="acct-note"><b>메모</b> ${cmsnEsc(rep.note)}</p>` : "") + cmsnSteps(rep, false) +
+      `<p class="acct-note cmsn-noprint"><button class="cmsn-btn" id="cmsn-back">목록으로</button></p></div>`;
+    $("#cmsn-print").hidden = false;
+    $("#cmsn-back").onclick = openCmsnReports;
+  });
+}
+$("#btn-cmsn-reports").onclick = openCmsnReports;
+$("#cmsn-rep-close").onclick = () => $("#cmsn-rep-overlay").classList.remove("open");
+$("#cmsn-print").onclick = () => { document.body.classList.add("cmsn-printing"); window.print(); };
+window.addEventListener("afterprint", () => document.body.classList.remove("cmsn-printing"));
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if ($("#cmsn-overlay").classList.contains("open")) closeCommission();
+  if ($("#cmsn-rep-overlay").classList.contains("open")) $("#cmsn-rep-overlay").classList.remove("open");
+});
 
 // ── 계정: 등급별 화면 · 내 비번 변경 · 계정 관리 ─────────────
 // 권한은 서버가 쥔다(권한 표). 화면은 등급에 맞춰 메뉴를 숨길 뿐 — 숨긴 걸 눌러도 서버가 403.
