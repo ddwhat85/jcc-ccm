@@ -130,6 +130,10 @@ class Accounts:
         return [r["number"] for r in rows]
 
     # ── 계정 ───────────────────────────────────────────────
+    def has_users(self) -> bool:
+        with self._lock:
+            return self._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
+
     def _user_view(self, r) -> dict:
         name = None
         if r["customer_id"] is not None:

@@ -659,7 +659,7 @@ class Storage:
             self._conn.commit()
 
     def list_events(self, device_id: str = "", sensor_key: str = "",
-                    limit: int = 50) -> list[dict]:
+                    limit: int = 50, devices=None) -> list[dict]:
         """최근 이벤트(최신순). device_id/sensor_key로 좁힐 수 있다.
         sensor_key를 주면 그 센서의 이벤트 + 소속 CCM 단위 이벤트도 함께 본다."""
         limit = max(1, min(limit, 500))
@@ -669,12 +669,28 @@ class Storage:
             cond.append("device_id = ?"); args.append(device_id)
         if sensor_key:
             cond.append("sensor_key = ?"); args.append(sensor_key)
+        if devices is not None:                      # 고객 계정: 자기 판넬의 기기·판넬 이벤트만
+            frag, fargs = self._in_devices(devices)
+            cond.append(frag); args.extend(fargs)
         if cond:
             q += " WHERE " + " AND ".join(cond)
         q += " ORDER BY ts DESC LIMIT ?"; args.append(limit)
         with self._lock:
             rows = self._conn.execute(q, args).fetchall()
         return [dict(r) for r in rows]
+
+    @staticmethod
+    def _in_devices(devices) -> tuple:
+        """SQL 조건 'device_id IN (...)'(빈 집합이면 아무것도 안 맞게)."""
+        devs = sorted(devices)
+        if not devs:
+            return "0", []
+        return "device_id IN (" + ",".join("?" * len(devs)) + ")", devs
+
+    def get_alarm(self, alarm_id: int):
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM alarms WHERE id=?", (alarm_id,)).fetchone()
+        return dict(r) if r else None
 
     # ── 활성 경보 생명주기 (발생·확인·해제·상향) ────────────
     _SEVERITY = {"alarm": "crit", "silent": "crit", "anomaly": "warn",
@@ -929,15 +945,18 @@ class Storage:
                    "fire": "화재 징조", "contact": "접점 발열", "dew": "결로"}
     PREVENT_WINDOW = 1800.0    # 화재 징조 감지 후 이 시간(초) 안에 가스가 위험선에 닿았는지 본다
 
-    def _predict_report(self, since: float, ev: dict) -> dict:
+    def _predict_report(self, since: float, ev: dict, devices=None) -> dict:
         """예지보전 성과: 먼저 잡은 화재 징조, 위험선 도달 전에 끝난 건수, 선행 시간, 조치 횟수."""
+        frag, fa = ("1", []) if devices is None else self._in_devices(devices)
         with self._lock:
             fires = self._conn.execute(
-                "SELECT ts FROM events WHERE etype='fire' AND ts >= ? ORDER BY ts", (since,)).fetchall()
+                f"SELECT ts FROM events WHERE etype='fire' AND ts >= ? AND {frag} ORDER BY ts", (since, *fa)).fetchall()
             edge_rows = self._conn.execute(
-                "SELECT detail FROM events WHERE etype='edge_actuate' AND ts >= ?", (since,)).fetchall()
+                f"SELECT detail FROM events WHERE etype='edge_actuate' AND ts >= ? AND {frag}", (since, *fa)).fetchall()
         # 가스 센서와 유효 위험선(사용자 설정 > 프로파일)
         disc, sets = self._discovered_map(), self._settings_map()
+        if devices is not None:
+            disc = {d: v for d, v in disc.items() if d in devices}
         gases = []
         for dev, slist in disc.items():
             for s in slist:
@@ -980,7 +999,7 @@ class Storage:
             "manual": ev.get("actuator", 0),
         }
 
-    def build_report(self, days: float = 7) -> dict:
+    def build_report(self, days: float = 7, devices=None) -> dict:
         """지정 기간의 운영 리포트를 만든다.
 
         가동 현황·경보 요약·**자가치유 성과**·센서별 값 통계(min/avg/max)·문제
@@ -989,22 +1008,26 @@ class Storage:
         now = time.time()
         days = max(1 / 24, float(days))               # 최소 1시간
         since = now - days * 86400
+        # 고객 계정이면 그 고객사 기기만(devices=None이면 전체 — JCC 관리자)
+        frag, fa = ("1", []) if devices is None else self._in_devices(devices)
         with self._lock:
             ev_rows = self._conn.execute(
-                "SELECT etype, COUNT(*) c FROM events WHERE ts >= ? GROUP BY etype",
-                (since,)).fetchall()
+                f"SELECT etype, COUNT(*) c FROM events WHERE ts >= ? AND {frag} GROUP BY etype",
+                (since, *fa)).fetchall()
             rd_rows = self._conn.execute(
                 "SELECT device_id, sensor_key, COUNT(*) n, MIN(value) mn, AVG(value) av, "
                 "MAX(value) mx FROM readings WHERE ts >= ? AND ok = 1 AND value IS NOT NULL "
-                "GROUP BY device_id, sensor_key", (since,)).fetchall()
+                f"AND {frag} GROUP BY device_id, sensor_key", (since, *fa)).fetchall()
             prob_rows = self._conn.execute(
                 "SELECT device_id, sensor_key, etype, COUNT(*) c FROM events WHERE ts >= ? "
                 "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly','fire','contact','dew') "
-                "GROUP BY device_id, sensor_key, etype", (since,)).fetchall()
-            dev_rows = self._conn.execute("SELECT device_id, last_seen FROM devices").fetchall()
+                f"AND {frag} GROUP BY device_id, sensor_key, etype", (since, *fa)).fetchall()
+            dev_rows = self._conn.execute(f"SELECT device_id, last_seen FROM devices WHERE {frag}", fa).fetchall()
 
         ev = {r["etype"]: r["c"] for r in ev_rows}
         disc = self._discovered_map()                 # 락 밖(자체 락 사용)
+        if devices is not None:
+            disc = {d: v for d, v in disc.items() if d in devices}
         name_unit = {(dev, s["sensor_key"]): (s.get("name") or s["sensor_key"], s.get("unit") or "")
                      for dev, slist in disc.items() for s in slist}
 
@@ -1059,7 +1082,7 @@ class Storage:
                     "l2_restart": ev.get("heal2_restart", 0), "l2_ok": l2ok, "l2_giveup": l2gu,
                     "auto_fixed": auto_fixed, "success_rate": success_rate,
                 },
-                "predict": self._predict_report(since, ev),
+                "predict": self._predict_report(since, ev, devices),
             },
             "sensors": sensors, "problems": problems[:8],
         }
@@ -1370,7 +1393,7 @@ class Storage:
             out.append(res)
         return out
 
-    def set_actuator(self, panel: str, actuator: str, action: str) -> dict:
+    def set_actuator(self, panel: str, actuator: str, action: str, by: str = "") -> dict:
         """벤트/히터/팬 수동 조작(사람 우선). predictor가 없으면 실패.
 
         그 출력을 현장 CCM(엣지)이 직접 쥐고 있으면 명령을 대기열에 넣어 다음 텔레메트리
@@ -1388,7 +1411,7 @@ class Storage:
             for dev in owners:
                 self._edge_cmds.setdefault(dev, []).append({"actuator": actuator, "action": action, "ts": now})
         via = f" → 현장 {', '.join(owners)} 전송 대기" if owners else ""
-        self.log_event(panel, "", "actuator", f"{label} 수동 {act}{via}", source="user")
+        self.log_event(panel, "", "actuator", f"{label} 수동 {act}{via}" + (f" ({by})" if by else ""), source="user")
         return {"ok": True, "panel": panel, "actuators": view, "edge_devices": owners}
 
     # ── 예지 학습 상태(접점 발열 기준) 저장·복원·재학습 ─────────

@@ -78,6 +78,49 @@ def _session_token() -> str:
                     hashlib.sha256).hexdigest()
 
 
+# ── 권한 표(단일 정책) ────────────────────────────────────────
+# 모든 경로를 여기서 분류한다. **표에 없는 경로는 거부(403)** — 새 API를 만들고 분류를 잊으면
+# 고객에게 새는 대신 막힌다(test_scope가 코드의 모든 경로가 표에 있는지 검사).
+#   public : 로그인 불필요(화면 껍데기·상태·로그인)       device : 기기 키로 따로 인증(텔레메트리·OTA)
+#   self   : 로그인만(비번 변경 전이어도)                read   : 모든 등급, 응답을 계정 범위로 거름
+#   operate: JCC 관리자·고객 담당자(대상이 범위 안일 때)  admin  : JCC 관리자만
+ROUTES = [
+    ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/predict-core.js", "public"),
+    ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
+    ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"),
+    ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
+    ("POST", "/api/me/password", "self"),
+    ("GET", "/api/devices", "read"), ("GET", "/api/panels", "read"), ("GET", "/api/alarms", "read"),
+    ("GET", "/api/incidents", "read"), ("GET", "/api/report", "read"), ("GET", "/api/predict", "read"),
+    ("GET", "/api/events", "read"), ("GET", r"/api/devices/[^/]+/history", "read"),
+    ("POST", "/api/alarm/ack", "operate"), ("POST", "/api/predict/actuator", "operate"),
+    ("GET", "/api/notify/status", "admin"), ("GET", "/api/healthcheck", "admin"), ("GET", "/api/heal/config", "admin"),
+    ("POST", "/api/heal/config", "admin"), ("GET", "/api/tuning/params", "admin"),
+    ("GET", "/api/tuning/scenarios", "admin"), ("GET", "/api/tuning/config", "admin"),
+    ("POST", "/api/tuning/evaluate", "admin"), ("POST", "/api/tuning/apply", "admin"),
+    ("POST", "/api/tuning/rollback", "admin"), ("POST", "/api/discover", "admin"),
+    ("POST", "/api/discover/report", "admin"), ("POST", "/api/channel", "admin"),
+    ("POST", "/api/channels/enable-all", "admin"), ("POST", "/api/setting", "admin"),
+    ("POST", "/api/device/command", "admin"), ("POST", "/api/diagnose", "admin"),
+    ("POST", "/api/notify/test", "admin"), ("POST", "/api/panel/name", "admin"),
+    ("POST", "/api/predict/baseline", "admin"),
+    ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z/]+", "admin"),
+]
+_ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
+             for m, p, pol in ROUTES]
+
+
+def route_policy(method: str, path: str):
+    """이 요청의 정책. 표에 없으면 None(= 거부)."""
+    for m, rx, pol in _ROUTE_RE:
+        if m == method and rx.match(path):
+            return pol
+    return None
+
+
+_ROLE_OK = {"read": ("admin", "manager", "viewer"), "operate": ("admin", "manager"), "admin": ("admin",)}
+
+
 def _login_locked(ip: str, now: float) -> float:
     """잠겨 있으면 남은 초, 아니면 0."""
     with _login_lock:
@@ -129,24 +172,85 @@ class Handler(BaseHTTPRequestHandler):
                 out[k] = v
         return out
 
+    _ENV_ADMIN = None   # 환경변수 비상 admin(요청마다 새로 만들지 않게)
+
+    def _auth_on(self) -> bool:
+        """인증이 켜졌나: 환경변수 비번이 있거나 DB 계정이 하나라도 있으면. 둘 다 없으면 개발 모드(전부 허용)."""
+        return bool(_DASH_PW) or self.storage.accounts.has_users()
+
+    def _user(self):
+        """이 요청의 사용자(없으면 None). {id, username, role, customer_id, customer, must_change}."""
+        if hasattr(self, "_u_cache"):
+            return self._u_cache
+        u = None
+        if not self._auth_on():
+            u = {"id": 0, "username": "local", "role": "admin", "customer_id": None, "customer": None,
+                 "must_change": False, "env": True}
+        else:
+            tok = self._cookies().get("jcc_session", "")
+            if _DASH_PW and hmac.compare_digest(tok, _session_token()):
+                u = {"id": 0, "username": _DASH_USER, "role": "admin", "customer_id": None, "customer": None,
+                     "must_change": False, "env": True}
+            elif tok:
+                u = self.storage.accounts.session_user(tok)
+        self._u_cache = u
+        return u
+
     def _authed(self) -> bool:
-        """비밀번호가 설정돼 있지 않으면 항상 통과. 설정돼 있으면 세션 쿠키 검사."""
-        if not _DASH_PW:
+        return self._user() is not None
+
+    def _gate(self, method: str, path: str) -> bool:
+        """권한 표로 요청을 거른다. 통과면 True, 막았으면 응답을 이미 보냈으므로 False."""
+        self.__dict__.pop("_u_cache", None)          # 연결 재사용 시 이전 요청의 사용자·범위를 쓰지 않게
+        self.__dict__.pop("_scope_cache", None)
+        pol = route_policy(method, path)
+        if pol is None:
+            self._json({"error": "허용되지 않은 경로입니다"}, 403)
+            return False
+        if pol in ("public", "device"):
             return True
-        return hmac.compare_digest(self._cookies().get("jcc_session", ""), _session_token())
+        u = self._user()
+        if u is None:
+            self._json({"error": "unauthorized"}, 401)
+            return False
+        if pol == "self":
+            return True
+        if u.get("must_change"):
+            self._json({"error": "임시 비번입니다 — 먼저 비번을 바꾸세요", "must_change": True}, 403)
+            return False
+        if u["role"] not in _ROLE_OK[pol]:
+            self._json({"error": "이 계정 등급으로는 할 수 없는 작업입니다"}, 403)
+            return False
+        return True
+
+    def _scope(self):
+        """고객 계정이 볼 수 있는 것: {"devices": set, "panels": set}. JCC 관리자는 None(전부)."""
+        if hasattr(self, "_scope_cache"):
+            return self._scope_cache
+        u = self._user()
+        sc = None
+        if u is not None and u["role"] != "admin":
+            owner = self.storage.accounts.panel_owner_map()
+            panels = {p for p, c in owner.items() if c == u["customer_id"]}
+            devs = {d["device_id"] for d in self.storage.list_devices() if (d.get("panel") or d["device_id"]) in panels}
+            sc = {"devices": devs, "panels": panels}
+        self._scope_cache = sc
+        return sc
+
+    def _in_scope(self, key: str) -> bool:
+        sc = self._scope()
+        return sc is None or key in sc["devices"] or key in sc["panels"]
 
     # ── GET ────────────────────────────────────────────────
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
 
-        # 로그인 게이트: 비번이 걸려 있고 미인증이면 데이터 API는 전부 차단.
-        # 열어두는 것: 화면 껍데기(/ — 터미널 로그인이 그 안에 있다), 이미지, 상태 확인,
-        # 인증 상태 조회. 화면 껍데기엔 현장 데이터가 없다(데이터는 모두 API로만 온다).
-        if (_DASH_PW and not self._authed() and path not in ("/", "/index.html", "/predict-core.js", "/health",
-                                                             "/api/auth/status")
-                and not path.startswith(("/img/", "/ota/"))):   # /ota/는 기기 키(Bearer)로 따로 막는다
-            return self._json({"error": "unauthorized"}, 401)
+        # 권한 표(ROUTES)로 거른다. 화면 껍데기(/ — 터미널 로그인이 그 안에 있다)·이미지·상태는 공개,
+        # 데이터는 로그인 + 등급, 고객 계정은 아래에서 자기 고객사 판넬만 돌려준다.
+        if not self._gate("GET", path):
+            return
+        sc = self._scope()
 
         if path in ("/", "/index.html"):
             return self._serve_dashboard()
@@ -155,13 +259,16 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/health":
             return self._json({"ok": True, "ts": time.time()})
         if path == "/api/devices":
-            return self._json({"devices": self.storage.list_devices()})
+            return self._json({"devices": [d for d in self.storage.list_devices()
+                                           if sc is None or d["device_id"] in sc["devices"]]})
         if path == "/api/panels":
-            return self._json({"panels": self.storage.list_panels()})
-        if path == "/api/alarms":
-            return self._json({"alarms": self.storage.list_active_alarms()})
-        if path == "/api/incidents":
-            al = self.storage.list_active_alarms()
+            return self._json({"panels": [p for p in self.storage.list_panels()
+                                          if sc is None or p["panel"] in sc["panels"]]})
+        if path in ("/api/alarms", "/api/incidents"):
+            al = [a for a in self.storage.list_active_alarms()
+                  if sc is None or a.get("device_id") in sc["devices"] or a.get("device_id") in sc["panels"]]
+            if path == "/api/alarms":
+                return self._json({"alarms": al})
             return self._json({"incidents": self.storage.list_incidents(al), "alarms": al})
         if path == "/api/healthcheck":
             rep = self.storage.diagnose_all()
@@ -176,13 +283,17 @@ class Handler(BaseHTTPRequestHandler):
                 days = float((q.get("days") or ["7"])[0])
             except ValueError:
                 days = 7
-            return self._json(self.storage.build_report(days))
+            return self._json(self.storage.build_report(days, devices=None if sc is None else sc["devices"]))
         if path == "/api/heal/config":
             return self._json(self._heal_config())
         if path == "/api/predict":
-            return self._json({"panels": self.storage.predict_state()})
+            return self._json({"panels": [p for p in self.storage.predict_state()
+                                          if sc is None or p.get("panel") in sc["panels"]]})
         if path == "/api/auth/status":
-            return self._json({"enabled": bool(_DASH_PW), "authed": self._authed()})
+            u = self._user()
+            pub = None if u is None else {k: u[k] for k in ("username", "role", "customer", "must_change")}
+            return self._json({"enabled": self._auth_on(), "authed": u is not None, "user": pub,
+                               "role": u["role"] if u else None, "customer": u["customer"] if u else None})
         if path == "/api/notify/status":
             from .notify import configured_channels
             return self._json({"channels": configured_channels()})
@@ -194,7 +305,8 @@ class Handler(BaseHTTPRequestHandler):
                 limit = int((q.get("limit") or ["50"])[0])
             except ValueError:
                 limit = 50
-            return self._json({"events": self.storage.list_events(dev, key, limit)})
+            keys = None if sc is None else (sc["devices"] | sc["panels"])
+            return self._json({"events": self.storage.list_events(dev, key, limit, devices=keys)})
 
         if path == "/api/tuning/params":
             from .params import registry_view
@@ -213,6 +325,8 @@ class Handler(BaseHTTPRequestHandler):
         m = re.fullmatch(r"/api/devices/([^/]+)/history", path)
         if m:
             device_id = m.group(1)
+            if not self._in_scope(device_id):
+                return self._json({"error": "이 계정 범위 밖의 기기입니다"}, 403)
             q = parse_qs(parsed.query)
             sensor = (q.get("sensor") or [""])[0]
             if not sensor:
@@ -237,9 +351,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._login()
         if parsed.path == "/api/logout":
             return self._logout()
-        # 그 밖의 대시보드 API는 로그인 필요(장비 텔레메트리는 Bearer 키로 따로 인증).
-        if _DASH_PW and not self._authed() and parsed.path != "/v1/telemetry":
-            return self._json({"error": "unauthorized"}, 401)
+        # 그 밖은 권한 표로(장비 텔레메트리는 Bearer 키로 따로 인증)
+        if not self._gate("POST", parsed.path):
+            return
+        if parsed.path == "/api/me/password":
+            return self._change_password()
         if parsed.path == "/api/discover":
             return self._discover()
         if parsed.path == "/api/channel":
@@ -450,7 +566,9 @@ class Handler(BaseHTTPRequestHandler):
         if actuator not in ("vent", "heater", "fan") or \
            action not in ("open", "close", "on", "off", "auto"):
             return self._json({"error": "actuator/action 값이 올바르지 않습니다"}, 400)
-        return self._json(self.storage.set_actuator(panel, actuator, action))
+        if not self._in_scope(panel):
+            return self._json({"error": "이 계정 범위 밖의 판넬입니다"}, 403)
+        return self._json(self.storage.set_actuator(panel, actuator, action, by=self._user()["username"]))
 
     # ── 판넬 이름 변경 ───────────────────────────────────────
     def _panel_name(self) -> None:
@@ -627,7 +745,10 @@ class Handler(BaseHTTPRequestHandler):
             alarm_id = int(body.get("alarm_id"))
         except (TypeError, ValueError):
             return self._json({"error": "alarm_id가 필요합니다"}, 400)
-        ok = self.storage.ack_alarm(alarm_id, str(body.get("by") or "operator"))
+        al = self.storage.get_alarm(alarm_id)
+        if al is None or not self._in_scope(al.get("device_id") or ""):
+            return self._json({"error": "이 계정 범위 밖의 경보입니다"}, 403)
+        ok = self.storage.ack_alarm(alarm_id, self._user()["username"])
         return self._json({"ok": ok, "alarm_id": alarm_id})
 
     # ── 알림 테스트 발송 ─────────────────────────────────────
@@ -704,7 +825,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(raw.decode("utf-8")) if raw else {}
         except (ValueError, UnicodeDecodeError):
             body = {}
-        if not _DASH_PW:                       # 인증 비활성 상태면 그냥 통과
+        if not self._auth_on():                # 인증 비활성(개발 모드)이면 그냥 통과
             return self._json({"ok": True, "auth": False})
         ip, now = self.client_address[0], time.time()
         wait = _login_locked(ip, now)
@@ -712,16 +833,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": f"로그인 시도가 너무 많습니다 — {int(wait) + 1}초 뒤 다시 시도하세요",
                                "retry_after": int(wait) + 1}, 429)
         user, pw = str(body.get("user", "")), str(body.get("password", ""))
-        # 아이디·비번 둘 다 항상 비교(어느 쪽이 틀렸는지 시간 차로도 새지 않게), 메시지도 하나
-        ok_user = hmac.compare_digest(user.encode("utf-8"), _DASH_USER.encode("utf-8"))
-        ok_pw = hmac.compare_digest(pw.encode("utf-8"), _DASH_PW.encode("utf-8"))
-        _login_record(ip, ok_user and ok_pw, now)
-        if not (ok_user and ok_pw):
+        # 비상 admin(환경변수): 아이디·비번 둘 다 항상 비교(시간 차로도 어느 쪽이 틀렸는지 새지 않게)
+        env_ok = (bool(_DASH_PW) and hmac.compare_digest(user.encode("utf-8"), _DASH_USER.encode("utf-8"))
+                  and hmac.compare_digest(pw.encode("utf-8"), _DASH_PW.encode("utf-8")))
+        acct = None if env_ok else self.storage.accounts.authenticate(user, pw)
+        _login_record(ip, bool(env_ok or acct), now)
+        if not (env_ok or acct):
             left = LOGIN_MAX_FAILS - len(_login_fails.get(ip, []))
             return self._json({"error": "아이디 또는 비밀번호가 올바르지 않습니다"
                                         + (f" (남은 시도 {left}회)" if 0 < left <= 2 else "")}, 401)
-        tok = _session_token()
-        out = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
+        if env_ok:
+            tok = _session_token()
+            pub = {"username": _DASH_USER, "role": "admin", "customer": None, "must_change": False}
+        else:
+            tok = self.storage.accounts.new_session(acct["id"])
+            pub = {k: acct[k] for k in ("username", "role", "customer", "must_change")}
+        out = json.dumps({"ok": True, "user": pub}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         # 7일 유지. HttpOnly로 JS 접근 차단, SameSite=Lax로 CSRF 완화.
@@ -732,6 +859,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(out)
 
     def _logout(self) -> None:
+        tok = self._cookies().get("jcc_session", "")
+        if tok and len(tok) == 64:
+            self.storage.accounts.end_session(tok)     # 서버 세션도 지운다(쿠키만 지우면 토큰은 살아 있음)
         out = json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -739,6 +869,22 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(out)))
         self.end_headers()
         self.wfile.write(out)
+
+    def _change_password(self) -> None:
+        """{old, new} — 본인 비번 변경. 성공하면 모든 세션이 끊기므로 다시 로그인한다."""
+        u = self._user()
+        if u.get("env"):
+            return self._json({"error": "비상 관리자 계정의 비번은 서버 환경변수에서 바꿉니다"}, 400)
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 10000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        why = self.storage.accounts.change_password(u["id"], str(body.get("old", "")), body.get("new"))
+        if why:
+            return self._json({"error": why}, 400)
+        self.storage.log_event("", "", "account", f"{u['username']} 비번 변경", source="user")
+        return self._json({"ok": True, "relogin": True})
 
     # ── 대시보드 ────────────────────────────────────────────
     def _serve_static_js(self, name: str) -> None:

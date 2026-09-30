@@ -60,7 +60,7 @@ def run():
         check("미로그인 데이터 API는 401", s == 401)
         s, body = call("/api/auth/status")
         j = json.loads(body)
-        check("인증 상태: 켜짐·미로그인", j == {"enabled": True, "authed": False}, body)
+        check("인증 상태: 켜짐·미로그인", j["enabled"] is True and j["authed"] is False and j.get("user") is None, body)
         check("상태 확인·이미지 경로는 열림", call("/health")[0] == 200)
 
         s, body = call("/api/login", {"user": "ops", "password": "wrong"})
