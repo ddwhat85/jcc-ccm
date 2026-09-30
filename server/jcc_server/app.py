@@ -308,6 +308,15 @@ class Handler(BaseHTTPRequestHandler):
             keys = None if sc is None else (sc["devices"] | sc["panels"])
             return self._json({"events": self.storage.list_events(dev, key, limit, devices=keys)})
 
+        if path == "/api/admin/accounts":
+            ac = self.storage.accounts
+            owner = ac.panel_owner_map()
+            custs = [dict(c, panels=sorted(p for p, o in owner.items() if o == c["id"]),
+                          receivers=ac.receivers_for(c["id"])) for c in ac.list_customers()]
+            panels = [{"panel": p["panel"], "panel_name": p["panel_name"], "customer_id": owner.get(p["panel"]),
+                       "online": p["online"]} for p in self.storage.list_panels()]
+            return self._json({"customers": custs, "users": ac.list_users(), "panels": panels,
+                               "env_admin": bool(_DASH_PW) and _DASH_USER})
         if path == "/api/tuning/params":
             from .params import registry_view
             return self._json(registry_view())
@@ -356,6 +365,8 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/me/password":
             return self._change_password()
+        if parsed.path.startswith("/api/admin/"):
+            return self._admin(parsed.path[len("/api/admin/"):])
         if parsed.path == "/api/discover":
             return self._discover()
         if parsed.path == "/api/channel":
@@ -869,6 +880,69 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(out)))
         self.end_headers()
         self.wfile.write(out)
+
+    def _admin(self, action: str) -> None:
+        """계정 관리(JCC 관리자만 — 권한 표에서 이미 걸렀다). 비번·토큰은 기록에 남기지 않는다."""
+        ac, me = self.storage.accounts, self._user()
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 100_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+
+        def audit(text):
+            self.storage.log_event("", "", "account", f"{text} ({me['username']})", source="user")
+
+        def as_id(v):
+            return v if isinstance(v, int) and not isinstance(v, bool) else None
+        try:
+            if action == "customer":
+                cid = ac.create_customer(str(b.get("name", "")))
+                audit(f"고객사 추가: {b.get('name')}")
+                return self._json({"ok": True, "id": cid})
+            if action == "panel":
+                panel, cid = str(b.get("panel", "")), b.get("customer_id")
+                if not panel or (cid is not None and (as_id(cid) is None or not ac.customer_exists(cid))):
+                    return self._json({"error": "판넬과 고객사를 확인하세요"}, 400)
+                ac.assign_panel(panel, cid)
+                audit(f"판넬 {panel} → " + ("배정 해제(JCC만)" if cid is None else f"고객사 #{cid}"))
+                return self._json({"ok": True})
+            if action == "receivers":
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid) or not isinstance(b.get("numbers"), list):
+                    return self._json({"error": "고객사와 번호 목록이 필요합니다"}, 400)
+                nums = ac.set_receivers(cid, b["numbers"])
+                audit(f"고객사 #{cid} 알림 번호 {len(nums)}개")
+                return self._json({"ok": True, "numbers": nums})
+            if action == "user":
+                cid = b.get("customer_id")
+                if cid is not None and as_id(cid) is None:
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                if bool(_DASH_PW) and str(b.get("username", "")).strip() == _DASH_USER:
+                    return self._json({"error": "비상 관리자와 같은 아이디는 쓸 수 없습니다"}, 400)
+                uid, temp = ac.create_user(str(b.get("username", "")), str(b.get("role", "")), cid)
+                audit(f"계정 추가: {b.get('username')} ({b.get('role')})")
+                return self._json({"ok": True, "id": uid, "temp_password": temp})   # 이번 한 번만 보여 준다
+            uid = as_id(b.get("user_id"))
+            target = ac.get_user(uid) if uid is not None else None
+            if target is None:
+                return self._json({"error": "없는 계정입니다"}, 400)
+            if action == "user/reset":
+                temp = ac.reset_password(uid)
+                audit(f"비번 초기화: {target['username']}")
+                return self._json({"ok": True, "temp_password": temp})
+            if action == "user/disable":
+                if uid == me.get("id") and not me.get("env"):
+                    return self._json({"error": "자기 계정은 끌 수 없습니다"}, 400)
+                off = bool(b.get("disabled"))
+                ac.set_disabled(uid, off)
+                audit(f"계정 {'끔' if off else '켬'}: {target['username']}")
+                return self._json({"ok": True})
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json({"error": "없는 관리 작업입니다"}, 404)
 
     def _change_password(self) -> None:
         """{old, new} — 본인 비번 변경. 성공하면 모든 세션이 끊기므로 다시 로그인한다."""
