@@ -65,7 +65,7 @@ def start(storage, interval: float = 10) -> None:
                     notified.add(a["id"])
                     if not first_pass and a.get("severity") == "crit" and a.get("kind") not in heal_kinds:
                         if should_notify(a["id"], incidents, sent):
-                            dispatch(a, "발생")
+                            dispatch(a, "발생", storage.receivers_for_device(a.get("device_id") or ""))
                             sent.add(a["id"])
                 first_pass = False
 
@@ -77,7 +77,7 @@ def start(storage, interval: float = 10) -> None:
                     if key in esc_sent:
                         continue
                     esc_sent.add(key)
-                    dispatch(a, "상향")
+                    dispatch(a, "상향", storage.receivers_for_device(a.get("device_id") or ""))
                 now = time.time()
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리
                     last_prune = now

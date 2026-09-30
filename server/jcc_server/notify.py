@@ -93,10 +93,19 @@ def send_webhook(text: str) -> dict:
         return {"channel": "webhook", "ok": False, "error": str(exc)[:160]}
 
 
-def send_sms(text: str) -> dict:
+def _merge(extra) -> list[str]:
+    """JCC 운영 번호(환경변수) + 고객사 번호, 순서 유지·중복 제거."""
+    out: list[str] = []
+    for n in _receivers() + list(extra or []):
+        if n and n not in out:
+            out.append(n)
+    return out
+
+
+def send_sms(text: str, rcv: list | None = None) -> dict:
     """문자 발송. 90바이트 초과면 자동으로 LMS(장문)로 보낸다."""
     key, user, sender = _env("JCC_ALIGO_KEY"), _env("JCC_ALIGO_USER"), _env("JCC_ALIGO_SENDER")
-    rcv = _receivers()
+    rcv = _receivers() if rcv is None else rcv
     if not (key and user and sender and rcv):
         return {"channel": "sms", "skipped": True}
     long_msg = len(text.encode("euc-kr", "replace")) > 90
@@ -123,11 +132,11 @@ def _alimtalk_token(key: str, user: str) -> str | None:
     return None
 
 
-def send_alimtalk(text: str) -> dict:
+def send_alimtalk(text: str, rcv: list | None = None) -> dict:
     """카카오 알림톡. 실패하면 알리고가 같은 요청에서 문자로 대체발송(failover)."""
     key, user, sender = _env("JCC_ALIGO_KEY"), _env("JCC_ALIGO_USER"), _env("JCC_ALIGO_SENDER")
     senderkey, tpl = _env("JCC_ALIGO_SENDERKEY"), _env("JCC_ALIGO_TPL")
-    rcv = _receivers()
+    rcv = _receivers() if rcv is None else rcv
     if not (key and user and sender and senderkey and tpl and rcv):
         return {"channel": "alimtalk", "skipped": True}
     token = _alimtalk_token(key, user)
@@ -154,8 +163,10 @@ def send_alimtalk(text: str) -> dict:
 
 
 # ── 통합 발송 ──────────────────────────────────────────────
-def dispatch(alarm: dict, reason: str = "발생") -> list[dict]:
+def dispatch(alarm: dict, reason: str = "발생", extra_receivers=None) -> list[dict]:
     """경보 하나를 설정된 모든 채널로 보낸다. 실패해도 예외를 밖으로 던지지 않는다.
+
+    받는 사람 = JCC 운영 번호(환경변수) + extra_receivers(경보가 난 판넬 고객사의 번호).
 
     알림톡이 설정돼 있으면 알림톡(+실패 시 문자 대체)만 보내고, 문자 설정만 있으면
     문자로 보낸다. 같은 내용이 두 번 가지 않게 한다.
@@ -164,10 +175,11 @@ def dispatch(alarm: dict, reason: str = "발생") -> list[dict]:
     if reason and reason != "발생":
         text = f"[{reason}] " + text
     out: list[dict] = []
-    at = send_alimtalk(text)
+    rcv = _merge(extra_receivers)
+    at = send_alimtalk(text, rcv)
     out.append(at)
     if at.get("skipped"):          # 알림톡 미설정이면 문자로
-        out.append(send_sms(text))
+        out.append(send_sms(text, rcv))
     out.append(send_webhook(text))
     return [r for r in out if not r.get("skipped")]
 

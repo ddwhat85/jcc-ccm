@@ -687,6 +687,18 @@ class Storage:
             return "0", []
         return "device_id IN (" + ",".join("?" * len(devs)) + ")", devs
 
+    def receivers_for_device(self, device_id: str) -> list:
+        """경보가 난 기기(또는 판넬) → 판넬 → 고객사의 알림 번호. 미배정이면 빈 목록(JCC 운영 번호만)."""
+        try:
+            owner = self.accounts.panel_owner_map()
+            with self._lock:
+                r = self._conn.execute("SELECT panel FROM devices WHERE device_id=?", (device_id,)).fetchone()
+            panel = (r["panel"] if r and r["panel"] else None) or device_id
+            cid = owner.get(panel)
+            return self.accounts.receivers_for(cid) if cid is not None else []
+        except Exception:  # noqa: BLE001 - 알림 대상 조회 실패가 알림 자체를 막으면 안 된다
+            return []
+
     def get_alarm(self, alarm_id: int):
         with self._lock:
             r = self._conn.execute("SELECT * FROM alarms WHERE id=?", (alarm_id,)).fetchone()
