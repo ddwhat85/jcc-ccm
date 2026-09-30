@@ -114,7 +114,7 @@
     seq: 1, t0: Date.now() / 1000, started: false,
   };
   const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn",
-                fire: "crit", contact: "crit", dew: "warn" };
+                fire: "crit", contact: "crit", dew: "warn", actuator_fault: "crit" };
   const now = () => Date.now() / 1000;
   const K = (d, k) => d + ":" + k;
 
@@ -552,6 +552,31 @@
     if (d.action === "heater_fan") logEvent(rh2, "", "dew_actuate", "결로 위험 → 히터·팬 가동", "system");
     else if (d.action === "fan") logEvent(rh2, "", "dew_actuate", "습도 상승 → 팬 가동", "system");
     else if (d.action === "off") logEvent(rh2, "", "dew_actuate", "결로 위험 해소 → 히터·팬 정지", "system");
+    tickVentGuard(t);
+  }
+  // 시연: 벤트 고장(걸림) — 화재 징조로 벤트를 열라는데 댐퍼가 닫힌 채 걸린 상황.
+  // 현장 CCM의 작동 확인(guard.py)을 흉내 낸다: 작동 시간이 지나도 안 열리면 '작동 실패' 위험 경보.
+  const STUCK = { until: 0, since: null, fault: false, dev: "" };
+  const STUCK_TRAVEL = 12;          // 시연용으로 짧게(운영 기본 30초 × 재시도)
+  function tickVentGuard(t) {
+    if (!STUCK.until) return;
+    const want = PREDICTOR.actuators("panel-01").vent.open, active = t < STUCK.until;
+    STUCK.dev = ((panelRoles().h2) || [""])[0] || STUCK.dev;
+    if (active && want) {
+      if (STUCK.since == null) STUCK.since = t;
+      if (!STUCK.fault && t - STUCK.since >= STUCK_TRAVEL) {
+        STUCK.fault = true;
+        const d = "벤트 작동 실패 — 명령 개방·실제 닫힘 — 구동기 걸림·배선·전원 확인";
+        openAlarm(STUCK.dev, "vent", "actuator_fault", d); logEvent(STUCK.dev, "vent", "actuator_fault", d, "system");
+      }
+      return;
+    }
+    STUCK.since = null;
+    if (STUCK.fault && !active) {
+      STUCK.fault = false; closeAlarm(STUCK.dev, "vent", "actuator_fault");
+      logEvent(STUCK.dev, "vent", "actuator_fault_clear", "벤트 작동 정상 확인 — 작동 실패 해소", "system");
+    }
+    if (!active && !STUCK.fault) STUCK.until = 0;
   }
   function predView() {
     const last = PRED_LAST["panel-01"];
@@ -560,6 +585,12 @@
     const a = PREDICTOR.actuators("panel-01");
     v.fire.vent = a.vent;
     v.dew.heater = a.heater.on; v.dew.fan = a.fan.on; v.dew.mode = a.heater.mode;
+    if (STUCK.until) {                // 벤트 고장 시연 중: 현장 CCM이 확인한 것처럼 보고
+      const conf = STUCK.fault ? "fault" : (a.vent.open && STUCK.since != null ? "moving" : "ok");
+      v.edge = { [STUCK.dev || "ccm-demo"]: { age: 0, failsafe: false, actuators: { vent: {
+        on: a.vent.open, mode: a.vent.mode, confirm: conf, position: STUCK.fault || conf === "moving" ? "closed" : (a.vent.open ? "open" : "closed"),
+        fault: STUCK.fault ? "명령 개방·실제 닫힘 — 구동기 걸림·배선·전원 확인" : "" } } } };
+    }
     return [v];
   }
   function setActuator(panel, actuator, action) {
@@ -1022,10 +1053,15 @@
   setInterval(tickFeed, 2000);
   setInterval(tickMonitor, 8000);
   setInterval(tickPredict, 4000);   // 예지보전: 화재·접점발열·결로 + 액추에이터
-  // 시연용: 콘솔에서 JCC_DEMO.episode("fire"|"contact"|"dew") 로 에피소드를 바로 시작한다.
+  // 시연용: 콘솔에서 JCC_DEMO.episode("fire"|"contact"|"dew"|"vent_stuck") 로 에피소드를 바로 시작한다.
   window.JCC_DEMO = {
     episode(kind) {
-      if (["fire", "contact", "dew"].indexOf(kind) < 0) return "fire | contact | dew 중 하나";
+      if (kind === "vent_stuck") {    // 화재 징조 + 벤트가 닫힌 채 걸림
+        const w = now(); EPI.kind = "fire"; EPI.t0 = w; EPI.until = w + EPI_DUR;
+        STUCK.until = w + EPI_DUR; STUCK.since = null;
+        return `시연: 화재 징조 중 벤트 걸림 (${EPI_DUR}초)`;
+      }
+      if (["fire", "contact", "dew"].indexOf(kind) < 0) return "fire | contact | dew | vent_stuck 중 하나";
       const w = now(); EPI.kind = kind; EPI.t0 = w; EPI.until = w + EPI_DUR;
       return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
     },

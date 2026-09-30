@@ -406,6 +406,12 @@
   .pdm-a.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
   .pdm-a.on .as{color:var(--accent)}
   .pdm-a.manual .am{color:var(--warn)}
+  /* 작동 확인(현장 CCM이 되읽은 결과) — 확인됨·작동 중·작동 실패·확인 불가 */
+  .pdm-a .ac{font:600 9.5px var(--sans);color:var(--ink-3);margin-top:1px}
+  .pdm-a .ac:empty{display:none}
+  .pdm-a .ac.ok{color:var(--ok)} .pdm-a .ac.moving{color:var(--ink-2)} .pdm-a .ac.unknown{color:var(--warn)}
+  .pdm-a.fault{border-color:var(--crit);background:var(--crit-soft)}
+  .pdm-a.fault .ac{color:var(--crit);font-weight:700}
   .pdm-empty{font-size:11px;color:var(--ink-3);padding:6px 2px 2px}
   .pdm-edge{margin-top:8px;font:600 10.5px/1.45 var(--mono);color:var(--ink-3)}
   .pdm-edge:empty{display:none}
@@ -1227,7 +1233,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=047a4205"></script>
+<script src="demo-api.js?v=3e799e19"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -1928,7 +1934,7 @@ function renderPred(){
       `</div><div class="pdm-why" id="pdm-why"></div><div class="pdm-act">`+
       [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
-        `<span class="as">—</span><span class="am">자동</span></button>`).join("")+
+        `<span class="as">—</span><span class="am">자동</span><span class="ac"></span></button>`).join("")+
       `</div><div class="pdm-edge" id="pdm-edge"></div>`+
       `<button class="pdm-relearn" id="pdm-relearn" hidden>접점 기준 재학습</button>`;
     box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
@@ -2006,7 +2012,7 @@ function pdmActs(p){
   for(const [dev, e] of Object.entries(p.edge||{})){
     for(const [k, a] of Object.entries(e.actuators||{})){
       if(acts[k] && a && a.on !== null && a.on !== undefined)
-        acts[k] = {on:!!a.on, mode:a.mode||"auto", site:dev};
+        acts[k] = {on:!!a.on, mode:a.mode||"auto", site:dev, confirm:a.confirm||"", fault:a.fault||""};
     }
   }
   return acts;
@@ -2023,7 +2029,12 @@ function pdmPaintActs(box, acts){
     const m = a.mode==="failsafe" ? "fail-safe" : a.mode==="manual" ? "수동" : "자동";
     b.querySelector(".am").textContent = a.site ? `현장·${m}` : m;
     b.classList.toggle("manual", a.mode==="manual" || a.mode==="failsafe");
-    b.title = (a.site ? `현장 CCM ${a.site}이 직접 구동 중 · ` : "")
+    // 작동 확인: 현장 CCM이 명령 뒤 실제 상태를 되읽은 결과(확인 안 하는 출력은 비움)
+    const cw = {ok:"확인됨", moving:"작동 중", fault:"작동 실패", unknown:"확인 불가"}[a.confirm] || "";
+    const ac = b.querySelector(".ac"); ac.textContent = cw; ac.className = "ac " + (a.confirm||"");
+    b.classList.toggle("fault", a.confirm === "fault");
+    b.title = (a.confirm === "fault" ? `작동 실패 — ${a.fault}\n` : a.confirm === "unknown" ? "현장 CCM이 상태를 읽지 못함(통신) · " : "")
+            + (a.site ? `현장 CCM ${a.site}이 직접 구동 중 · ` : "")
             + (a.mode==="manual" ? "클릭: 수동 켬 → 수동 끔 → 자동 복귀" : "클릭: 수동 조작으로 전환");
   }
 }
@@ -2456,6 +2467,8 @@ const EVENT_META = {
   tuning_rollback:{label:"예지 기준 되돌림", dot:"info", ic:"↩"},
   tuning_reject:{label:"예지 기준 거부", dot:"warn", ic:"⚙"},
   tuning_edge: {label:"현장 CCM 기준",  dot:"info", ic:"⚙"},
+  actuator_fault:{label:"출력 작동 실패", dot:"crit", ic:"⚠"},
+  actuator_fault_clear:{label:"출력 작동 정상", dot:"ok", ic:"✓"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
@@ -2463,7 +2476,7 @@ const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","si
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
   "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline","firmware","ota_offer","ota_trial","ota_rollback",
-  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge"]);
+  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -3119,6 +3132,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-09-30T10:20", status:"done", cat:"heal", name:"출력 작동 확인 — 벤트가 정말 열렸는가",
+   sensors:"벤트·히터·팬 릴레이(코일 되읽기) · 벤트 위치 스위치(보조접점, 선택)",
+   summary:"릴레이에 '열어라'를 쓰기만 하던 것을, 명령 뒤 실제 상태를 되읽어 확인한다. 안 맞으면 스스로 다시 해 보고, 끝내 안 되면 '작동 실패' 위험 경보로 알린다. 릴레이 고착·배선 탈락·모듈 재부팅·댐퍼 걸림을 화면이 '벤트 개방'이라고 속이지 않게.",
+   method:"CCM 출력마다 ActuatorGuard · 확인 방식 none/coil(Modbus FC01 되읽기)/switch(FC02 위치 스위치 = 실제 열림) · 작동 시간(벤트 30초) 안에 맞아야 함 → 재시도 2회 → 작동 실패(사유: 명령 개방·실제 닫힘) · 평소 30초마다 되읽기: 모듈 재부팅으로 풀린 릴레이 재기록, 명령 없이 바뀐 위치 알림·재구동 · 통신 실패는 고장으로 단정하지 않음(확인 불가) · 고장 중 재쓰기는 30초에 한 번(구동기 혹사 금지) · 서버: 확인 상태 전이로 actuator_fault 위험 경보 열고 닫음(알림 경로 그대로), 화재 중 벤트 고장은 화재 사건에 묶음 · 가상 릴레이 고장 주입 단위 10건 + 실제 HTTP 종단(걸림→경보→수리→해소)",
+   next:"실기 릴레이 모듈의 입력 단자·주소 확정 · 보조접점 달린 댐퍼 구동기 선정(견적 권장 구성)"},
   {ts:"2026-09-30T09:10", status:"done", cat:"diag", name:"예지 튜닝 콘솔 — 기준값을 돌리면 결과가 바로 보이고, 놓치면 적용 불가",
    sensors:"화재·접점·결로 예지 기준 38개 · 서버 · 현장 CCM",
    summary:"음악 프로그램처럼 손잡이(기준값)를 돌리면 사고·함정 시나리오 11편이 즉시 다시 재생돼 '언제 잡는지·오경보가 나는지'를 지금 값과 겹쳐 보여준다. 사고를 하나라도 놓치는 값은 서버가 적용을 거부하고, 통과한 값만 버전으로 저장돼 현장 CCM까지 내려간다.",
