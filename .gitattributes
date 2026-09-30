@@ -1,3 +1,5 @@
 # CCM(리눅스)에 그대로 복사되는 파일 — 윈도우 체크아웃에서도 LF 유지
 firmware/** text=auto eol=lf
 tools/*.py text eol=lf
+# 서버 코어는 펌웨어 사본과 바이트 동일해야 하고(sync_edge_core --check), 서버도 리눅스(Render)에서 돈다
+server/** text=auto eol=lf
