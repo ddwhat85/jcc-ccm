@@ -291,7 +291,8 @@ class Handler(BaseHTTPRequestHandler):
                                           if sc is None or p.get("panel") in sc["panels"]]})
         if path == "/api/auth/status":
             u = self._user()
-            pub = None if u is None else {k: u[k] for k in ("username", "role", "customer", "must_change")}
+            pub = None if u is None else dict({k: u[k] for k in ("username", "role", "customer", "must_change")},
+                                               env=bool(u.get("env")))
             return self._json({"enabled": self._auth_on(), "authed": u is not None, "user": pub,
                                "role": u["role"] if u else None, "customer": u["customer"] if u else None})
         if path == "/api/notify/status":
@@ -855,10 +856,10 @@ class Handler(BaseHTTPRequestHandler):
                                         + (f" (남은 시도 {left}회)" if 0 < left <= 2 else "")}, 401)
         if env_ok:
             tok = _session_token()
-            pub = {"username": _DASH_USER, "role": "admin", "customer": None, "must_change": False}
+            pub = {"username": _DASH_USER, "role": "admin", "customer": None, "must_change": False, "env": True}
         else:
             tok = self.storage.accounts.new_session(acct["id"])
-            pub = {k: acct[k] for k in ("username", "role", "customer", "must_change")}
+            pub = dict({k: acct[k] for k in ("username", "role", "customer", "must_change")}, env=False)
         out = json.dumps({"ok": True, "user": pub}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")

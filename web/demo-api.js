@@ -904,6 +904,42 @@
     return [{ ok: true, version: ver, scorecard: card }, 200];
   }
 
+  // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
+  const ACC = { customers: [], owner: {}, receivers: {}, users: [], seq: 1 };
+  function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
+    for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
+  function accView() {
+    return { customers: ACC.customers.map(c => Object.assign({}, c, {
+        panels: Object.keys(ACC.owner).filter(p => ACC.owner[p] === c.id).sort(), receivers: ACC.receivers[c.id] || [] })),
+      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false,
+      panels: panelList().map(p => ({ panel: p.panel, panel_name: p.panel_name, customer_id: ACC.owner[p.panel] ?? null, online: p.online })) };
+  }
+  function accAdmin(action, b) {
+    const cust = id => ACC.customers.find(c => c.id === id);
+    if (action === "customer") { const name = String(b.name || "").trim(); if (!name) return [{ error: "고객사 이름이 필요합니다" }, 400];
+      const c = { id: ACC.seq++, name, created_at: now() }; ACC.customers.push(c); logEvent("", "", "account", `고객사 추가: ${name} (데모)`, "user");
+      return [{ ok: true, id: c.id }, 200]; }
+    if (action === "panel") { if (b.customer_id != null && !cust(b.customer_id)) return [{ error: "판넬과 고객사를 확인하세요" }, 400];
+      if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
+    if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
+      const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
+      ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
+    if (action === "user") { const name = String(b.username || "").trim();
+      if (!/^[A-Za-z0-9._@-]{3,40}$/.test(name)) return [{ error: "아이디는 3~40자 영문·숫자·._@- 만 됩니다" }, 400];
+      if (ACC.users.some(u => u.username === name)) return [{ error: "이미 있는 아이디입니다" }, 400];
+      if (["admin", "manager", "viewer"].indexOf(b.role) < 0) return [{ error: "등급을 확인하세요" }, 400];
+      if (b.role !== "admin" && !cust(b.customer_id)) return [{ error: "고객 계정은 고객사를 지정해야 합니다" }, 400];
+      const u = { id: ACC.seq++, username: name, role: b.role, customer_id: b.role === "admin" ? null : b.customer_id,
+        customer: b.role === "admin" ? null : cust(b.customer_id).name, must_change: true, disabled: false };
+      ACC.users.push(u); logEvent("", "", "account", `계정 추가: ${name} (${b.role}) (데모)`, "user");
+      return [{ ok: true, id: u.id, temp_password: accTemp() }, 200]; }
+    const u = ACC.users.find(x => x.id === b.user_id);
+    if (!u) return [{ error: "없는 계정입니다" }, 400];
+    if (action === "user/reset") { u.must_change = true; return [{ ok: true, temp_password: accTemp() }, 200]; }
+    if (action === "user/disable") { u.disabled = !!b.disabled; return [{ ok: true }, 200]; }
+    return [{ error: "없는 관리 작업입니다" }, 404];
+  }
+
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   const J = (obj, status) => new Response(JSON.stringify(obj), {
@@ -947,6 +983,9 @@
         return Promise.resolve(J({ available: true, enabled: HEAL.enabled, l1_enabled: HEAL.l1, l2_enabled: HEAL.l2 }));
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
+      if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      const ma = p.match(/^\/api\/admin\/([a-z/]+)$/);
+      if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
       if (p === "/api/tuning/scenarios") return Promise.resolve(tuneData() ? J({ scenarios: tuneData().scenarios }) : J({ error: "튜닝 데이터 없음" }, 503));
       if (p === "/api/tuning/config" && method === "GET") {

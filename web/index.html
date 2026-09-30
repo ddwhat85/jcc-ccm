@@ -699,6 +699,58 @@
   .algo-tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .algo-tab.on b{color:#fff}
 
+  /* ── 계정: 등급별 표시 · 비번 변경 · 계정 관리 ── */
+  body:not([data-acct="admin"]) .jcc-admin{display:none!important}   /* JCC 전용 기능은 고객 화면에서 숨김 */
+  body:not([data-acctdb="1"]) .acct-db{display:none!important}       /* DB 계정에만 '내 비번 변경' */
+  .acct-who{font:600 11.5px var(--sans);color:var(--ink-2);margin-right:10px;white-space:nowrap}
+  .acct-who b{color:var(--ink)}
+  .acct-pw{width:min(380px,92vw);display:flex;flex-direction:column;gap:10px}
+  .acct-note{margin:0;font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+  .acct-note.force{color:var(--warn);font-weight:600}
+  .acct-f{display:flex;flex-direction:column;gap:4px;font:600 11.5px var(--sans);color:var(--ink-2)}
+  .acct-f input,.acct-f select,.acct-add input,.acct-add select,.acct-rcv{font:500 13px var(--sans);color:var(--ink);
+    background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:7px 9px;min-width:0}
+  .acct-f input:focus-visible,.acct-add input:focus-visible,.acct-add select:focus-visible,.acct-rcv:focus-visible,
+  .acct-btn:focus-visible,.acct-cust:focus-visible,.acct-panel input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .acct-msg{min-height:18px;font:600 12px var(--sans);color:var(--ink-2)}
+  .acct-msg.bad{color:var(--crit)} .acct-msg.ok{color:var(--ok)}
+  .acct-actions{display:flex;justify-content:flex-end;gap:8px}
+  .acct-btn{font:600 12px var(--sans);border-radius:6px;padding:6px 12px;cursor:pointer;border:1px solid var(--rule);
+    background:var(--surface);color:var(--ink);white-space:nowrap}
+  .acct-btn:hover{border-color:var(--ink-3)}
+  .acct-btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .acct-btn.warn{color:var(--warn)} .acct-btn.armed{background:var(--warn);border-color:var(--warn);color:#111}
+  .acct-modal{width:min(900px,95vw);max-height:88vh;display:flex;flex-direction:column}
+  .acct-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:16px;min-height:0;flex:1;overflow:hidden}
+  .acct-side{display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--rule);padding-right:14px;min-height:0}
+  .acct-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+  .acct-cust{text-align:left;font:600 12.5px var(--sans);color:var(--ink-2);background:none;border:1px solid transparent;
+    border-radius:6px;padding:7px 9px;cursor:pointer}
+  .acct-cust small{display:block;font:500 10.5px var(--sans);color:var(--ink-3);margin-top:1px}
+  .acct-cust:hover{background:var(--canvas)}
+  .acct-cust[aria-current="true"]{background:var(--canvas);border-color:var(--rule);color:var(--ink)}
+  .acct-add{display:flex;gap:6px}
+  .acct-add input{flex:1}
+  .acct-main{overflow-y:auto;display:flex;flex-direction:column;gap:18px;padding-right:4px}
+  .acct-main h4{margin:0 0 8px;font:700 12.5px var(--sans);color:var(--ink)}
+  .acct-main h4 span{font-weight:500;color:var(--ink-3);margin-left:6px}
+  .acct-panels{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px}
+  .acct-panel{display:flex;align-items:flex-start;gap:8px;font-size:12px;padding:7px 9px;border:1px solid var(--rule);border-radius:6px}
+  .acct-panel small{display:block;color:var(--ink-3);font-size:10.5px;margin-top:2px}
+  .acct-panel.other{opacity:.72}
+  .acct-rcv{width:100%;min-height:62px;resize:vertical;font-family:var(--mono)}
+  .acct-users{width:100%;border-collapse:collapse;font-size:12px}
+  .acct-users th{text-align:left;font:600 11px var(--sans);color:var(--ink-3);padding:4px 6px;border-bottom:1px solid var(--rule)}
+  .acct-users td{padding:6px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
+  .acct-users td.u{font:600 12px var(--mono)}
+  .acct-users .off{color:var(--ink-3)}
+  .acct-users td.act{text-align:right;white-space:nowrap}
+  .acct-users td.act .acct-btn{padding:4px 9px;font-size:11px}
+  .acct-temp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:6px;background:var(--warn-soft);
+    color:var(--ink);font-size:12.5px}
+  .acct-temp code{font:700 15px var(--mono);letter-spacing:.04em;background:var(--surface);padding:3px 8px;border-radius:4px;user-select:all}
+  @media (max-width:720px){.acct-grid{grid-template-columns:1fr;overflow:auto}.acct-side{border-right:0;padding-right:0}}
+
   /* ── 예지 튜닝 콘솔 (DAW 비유: 시나리오 = 트랙, 손잡이 = 페이더, 성적표 = 미터) ── */
   .tune-shell{background:var(--surface);border-radius:10px;box-shadow:0 24px 64px rgba(0,0,0,.38);
               width:min(1320px,calc(100vw - 32px));height:calc(100vh - 32px);display:grid;
@@ -1034,11 +1086,12 @@
         <button class="mb-item" id="btn-open">열기</button>
         <button class="mb-item" id="btn-save">저장<span class="sc">⌘S</span></button>
         <button class="mb-item" id="btn-saveas">다른 이름으로 저장…</button>
+        <button class="mb-item acct-db" id="btn-mypw">내 비번 변경</button>
         <button class="mb-item" id="btn-logout">로그아웃</button>
       </div>
     </div>
 
-    <div class="mb-menu" data-menu="edit">
+    <div class="mb-menu jcc-admin" data-menu="edit">
       <button class="mb-title">편집</button>
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-delete">노드·연결 삭제<span class="sc">⌫</span></button>
@@ -1047,7 +1100,7 @@
       </div>
     </div>
 
-    <div class="mb-menu" data-menu="add">
+    <div class="mb-menu jcc-admin" data-menu="add">
       <button class="mb-title">추가</button>
       <div class="mb-dd" hidden>
         <div class="mb-label">소스</div>
@@ -1071,14 +1124,16 @@
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
         <button class="mb-item" id="btn-report">이력 리포트</button>
-        <button class="mb-item" id="btn-algo">알고리즘 내역</button>
-        <button class="mb-item" id="btn-tune">예지 튜닝 콘솔</button>
-        <div class="mb-div"></div>
-        <button class="mb-item" id="btn-notify-test">알림 테스트 발송</button>
+        <button class="mb-item jcc-admin" id="btn-algo">알고리즘 내역</button>
+        <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
+        <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
+        <div class="mb-div jcc-admin"></div>
+        <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
       </div>
     </div>
 
     <div class="mb-right">
+      <span class="acct-who" id="acct-who"></span>
       <span class="mb-status" id="status"></span>
       <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
       <button class="mb-theme" id="btn-sound" title="위험 경보 소리 알림 켜기/끄기">🔇</button>
@@ -1119,12 +1174,12 @@
         <button class="dock-fit" id="btn-fit" title="모든 노드를 한 화면에 맞춤 ↔ 100%">⤢ 전체 보기</button></div>
       <div class="ticker" id="ticker"></div>
     </div>
-    <div class="dock-ctrl">
-      <div class="dc-actions">
+    <div class="dock-ctrl jcc-admin">
+      <div class="dc-actions jcc-admin">
         <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
         <button class="mb-check" id="btn-health">🩺 전체 점검</button>
       </div>
-      <div class="dc-heal">
+      <div class="dc-heal jcc-admin">
         <div class="dch-row">
           <span class="dch-title">🔧 자가복구</span>
           <label class="sw" title="자가치유 전체 켜기/끄기"><input type="checkbox" id="heal-master" checked><span class="sl"></span></label>
@@ -1196,6 +1251,37 @@
     </div>
   </div>
 
+  <!-- 내 비번 변경(임시 비번이면 강제) -->
+  <div class="overlay" id="acct-pw-overlay">
+    <form class="modal acct-pw" id="acct-pw-form" role="dialog" aria-modal="true" aria-labelledby="acct-pw-title">
+      <div class="modal-head"><h3 id="acct-pw-title">비번 변경</h3><button type="button" id="acct-pw-close" aria-label="닫기">×</button></div>
+      <p class="acct-note" id="acct-pw-note"></p>
+      <label class="acct-f">지금 비번<input type="password" id="acct-pw-old" autocomplete="current-password" required></label>
+      <label class="acct-f">새 비번 (10자 이상)<input type="password" id="acct-pw-new" autocomplete="new-password" minlength="10" required></label>
+      <label class="acct-f">새 비번 확인<input type="password" id="acct-pw-new2" autocomplete="new-password" minlength="10" required></label>
+      <div class="acct-msg" id="acct-pw-msg" aria-live="polite"></div>
+      <div class="acct-actions"><button type="submit" class="acct-btn primary" id="acct-pw-save">바꾸기</button></div>
+    </form>
+  </div>
+
+  <!-- 계정 관리 (JCC 관리자) -->
+  <div class="overlay" id="acct-overlay">
+    <section class="modal acct-modal" role="dialog" aria-modal="true" aria-labelledby="acct-title">
+      <div class="modal-head"><h3 id="acct-title">계정 관리</h3><button type="button" id="acct-close" aria-label="닫기">×</button></div>
+      <div class="acct-grid">
+        <nav class="acct-side" aria-label="고객사">
+          <div class="acct-list" id="acct-custs"></div>
+          <form class="acct-add" id="acct-cust-form">
+            <input id="acct-cust-name" maxlength="80" placeholder="새 고객사 이름" aria-label="새 고객사 이름">
+            <button class="acct-btn" type="submit">추가</button>
+          </form>
+        </nav>
+        <div class="acct-main" id="acct-main"></div>
+      </div>
+      <div class="acct-msg" id="acct-msg" aria-live="polite"></div>
+    </section>
+  </div>
+
   <!-- 예지 튜닝 콘솔 -->
   <div class="overlay" id="tune-overlay">
     <section class="tune-shell" role="dialog" aria-modal="true" aria-labelledby="tune-title">
@@ -1233,7 +1319,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=3e799e19"></script>
+<script src="demo-api.js?v=7cb90513"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -1936,7 +2022,7 @@ function renderPred(){
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
         `<span class="as">—</span><span class="am">자동</span><span class="ac"></span></button>`).join("")+
       `</div><div class="pdm-edge" id="pdm-edge"></div>`+
-      `<button class="pdm-relearn" id="pdm-relearn" hidden>접점 기준 재학습</button>`;
+      `<button class="pdm-relearn jcc-admin" id="pdm-relearn" hidden>접점 기준 재학습</button>`;
     box.querySelectorAll("[data-pdm]").forEach(el=> el.onclick = ()=>{ const id = pdmRep(el.dataset.pdm); if(id) highlightNode(id); });
     box.querySelectorAll("[data-act]").forEach(b=> b.onclick = ()=> pdmToggle(b.dataset.act));
     // 접점 정비·교체 뒤 기준 재학습 — 학습한 기준을 버리는 조작이라 두 번 눌러야 실행
@@ -2053,6 +2139,7 @@ function pdmPaintEdge(box, p){
 // 클릭 순환: 자동 → 수동 켬 → 수동 끔 → 자동 (사람 조작이 자동보다 우선)
 function pdmToggle(act){
   const p = lastPred; if(!p) return;
+  if(document.body.dataset.acct === "viewer"){ setStatus("보기 전용 계정은 조작할 수 없습니다"); return; }
   const cur = pdmActs(p)[act];
   const action = cur.mode!=="manual" ? (act==="vent" ? "open" : "on")
                : cur.on ? (act==="vent" ? "close" : "off")
@@ -3267,6 +3354,153 @@ $("#btn-algo").onclick = openAlgo;
 $("#algo-close").onclick = ()=> $("#algo-overlay").classList.remove("open");
 $("#algo-overlay").onclick = e=>{ if(e.target===$("#algo-overlay")) $("#algo-overlay").classList.remove("open"); };
 
+// ── 계정: 등급별 화면 · 내 비번 변경 · 계정 관리 ─────────────
+// 권한은 서버가 쥔다(권한 표). 화면은 등급에 맞춰 메뉴를 숨길 뿐 — 숨긴 걸 눌러도 서버가 403.
+const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 전용"};
+const acctEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function applyAcct(u){
+  window.__jccUser = u || null;
+  document.body.dataset.acct = u ? u.role : "admin";
+  document.body.dataset.acctdb = u && !u.env ? "1" : "0";
+  const w = $("#acct-who");
+  if (w) w.innerHTML = u && !u.env ? `<b>${acctEsc(u.username)}</b> · ${acctEsc(u.customer || "JCC")} ${acctEsc(ROLE_WORD[u.role] || "")}` : "";
+}
+function openPw(force){
+  const ov = $("#acct-pw-overlay"); ov.classList.add("open"); ov.dataset.force = force ? "1" : "";
+  $("#acct-pw-close").hidden = !!force;
+  const note = $("#acct-pw-note");
+  note.textContent = force ? "임시 비번으로 로그인했습니다. 계속하려면 새 비번을 정해 주세요." : "비번을 바꾸면 다른 기기에서도 모두 로그아웃됩니다.";
+  note.className = "acct-note" + (force ? " force" : "");
+  ["#acct-pw-old","#acct-pw-new","#acct-pw-new2"].forEach(id => { $(id).value = ""; });
+  $("#acct-pw-msg").textContent = ""; $("#acct-pw-msg").className = "acct-msg";
+  setTimeout(() => $("#acct-pw-old").focus(), 50);
+}
+$("#btn-mypw").onclick = () => openPw(false);
+$("#acct-pw-close").onclick = () => $("#acct-pw-overlay").classList.remove("open");
+$("#acct-pw-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const msg = $("#acct-pw-msg"), nw = $("#acct-pw-new").value;
+  if (nw !== $("#acct-pw-new2").value){ msg.className = "acct-msg bad"; msg.textContent = "새 비번 두 칸이 서로 다릅니다"; return; }
+  const btn = $("#acct-pw-save"); btn.disabled = true;
+  try {
+    const r = await fetch("/api/me/password", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({old: $("#acct-pw-old").value, new: nw})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ msg.className = "acct-msg bad"; msg.textContent = j.error || `바꾸지 못했습니다 (${r.status})`; btn.disabled = false; return; }
+    msg.className = "acct-msg ok"; msg.textContent = "바뀌었습니다 — 새 비번으로 다시 로그인하세요";
+    setTimeout(() => { try{ sessionStorage.removeItem("jcc-booted"); }catch(_){} location.reload(); }, 1400);
+  } catch(_){ msg.className = "acct-msg bad"; msg.textContent = "서버에 닿지 못했습니다 — 다시 시도하세요"; btn.disabled = false; }
+});
+
+const ACCT = { data:null, sel:"jcc", armed:null };
+async function acctLoad(){
+  try {
+    const r = await fetch("/api/admin/accounts", {cache:"no-store"});
+    if (!r.ok) throw new Error(r.status);
+    ACCT.data = await r.json();
+  } catch(e){ acctMsg(`계정 정보를 불러오지 못했습니다 (${e.message})`, true); return; }
+  if (ACCT.sel !== "jcc" && !ACCT.data.customers.some(c => c.id === ACCT.sel)) ACCT.sel = "jcc";
+  acctRender();
+}
+function acctMsg(t, bad){ const m = $("#acct-msg"); m.textContent = t || ""; m.className = "acct-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function acctPost(path, body){
+  const r = await fetch("/api/admin/" + path, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `요청 실패 (${r.status})`);
+  return j;
+}
+function acctRender(){
+  const d = ACCT.data, users = d.users;
+  const admins = users.filter(u => u.role === "admin");
+  $("#acct-custs").innerHTML =
+    `<button class="acct-cust" data-sel="jcc" aria-current="${ACCT.sel === "jcc"}">JCC 관리자<small>계정 ${admins.length + (d.env_admin ? 1 : 0)}</small></button>` +
+    d.customers.map(c => `<button class="acct-cust" data-sel="${c.id}" aria-current="${ACCT.sel === c.id}">${acctEsc(c.name)}` +
+      `<small>판넬 ${c.panels.length} · 계정 ${users.filter(u => u.customer_id === c.id).length}</small></button>`).join("");
+  $("#acct-custs").querySelectorAll(".acct-cust").forEach(b => b.onclick = () => {
+    ACCT.sel = b.dataset.sel === "jcc" ? "jcc" : Number(b.dataset.sel); acctMsg(""); acctRender(); });
+  const main = $("#acct-main");
+  const table = list => list.length ? `<table class="acct-users"><thead><tr><th>아이디</th><th>등급</th><th>상태</th><th></th></tr></thead><tbody>` +
+    list.map(u => `<tr><td class="u">${acctEsc(u.username)}</td><td>${ROLE_WORD[u.role]}</td>` +
+      `<td class="${u.disabled ? "off" : ""}">${u.disabled ? "꺼짐" : u.must_change ? "임시 비번(첫 로그인 전)" : "사용 중"}</td>` +
+      `<td class="act"><button class="acct-btn" data-reset="${u.id}">비번 초기화</button> ` +
+      `<button class="acct-btn warn" data-dis="${u.id}" data-off="${u.disabled ? 0 : 1}">${u.disabled ? "켜기" : "끄기"}</button></td></tr>`).join("") +
+    `</tbody></table>` : `<p class="acct-note">아직 계정이 없습니다.</p>`;
+  if (ACCT.sel === "jcc"){
+    main.innerHTML = `<div><h4>JCC 관리자 계정<span>모든 판넬·기능</span></h4>${table(admins)}` +
+      (d.env_admin ? `<p class="acct-note">비상 계정 <b>${acctEsc(d.env_admin)}</b> — 서버 환경변수로 관리합니다(여기서 바꿀 수 없음).</p>` : "") + `</div>` +
+      `<form class="acct-add" id="acct-user-form"><input id="acct-user-name" maxlength="40" placeholder="새 관리자 아이디" aria-label="새 관리자 아이디">` +
+      `<input type="hidden" id="acct-user-role" value="admin"><button class="acct-btn primary" type="submit">관리자 추가</button></form><div id="acct-temp"></div>`;
+  } else {
+    const c = d.customers.find(x => x.id === ACCT.sel);
+    const own = {}; d.customers.forEach(x => { own[x.id] = x.name; });
+    main.innerHTML =
+      `<div><h4>판넬 배정<span>체크한 판넬만 이 고객사 계정에 보입니다</span></h4><div class="acct-panels">` +
+      (d.panels.length ? d.panels.map(p => {
+        const mine = p.customer_id === c.id, other = p.customer_id != null && !mine;
+        return `<label class="acct-panel${other ? " other" : ""}"><input type="checkbox" data-panel="${acctEsc(p.panel)}" ${mine ? "checked" : ""}>` +
+          `<span>${acctEsc(p.panel_name || p.panel)}<small>${acctEsc(p.panel)} · ${mine ? "이 고객사" : other ? "다른 고객사: " + acctEsc(own[p.customer_id] || "") : "배정 없음(JCC만)"}</small></span></label>`;
+      }).join("") : `<p class="acct-note">아직 연결된 판넬이 없습니다. CCM이 데이터를 보내면 여기에 나타납니다.</p>`) + `</div></div>` +
+      `<div><h4>알림 받을 번호<span>한 줄에 하나 — 이 고객사 판넬 경보를 JCC 운영 번호와 함께 받습니다</span></h4>` +
+      `<textarea class="acct-rcv" id="acct-rcv" aria-label="알림 받을 번호">${acctEsc(c.receivers.join("\n"))}</textarea>` +
+      `<div class="acct-actions"><button class="acct-btn" id="acct-rcv-save">번호 저장</button></div></div>` +
+      `<div><h4>계정<span>담당자: 경보 확인·수동 조작 · 보기 전용: 화면·리포트만</span></h4>${table(users.filter(u => u.customer_id === c.id))}</div>` +
+      `<form class="acct-add" id="acct-user-form"><input id="acct-user-name" maxlength="40" placeholder="새 아이디 (예: kim.a)" aria-label="새 아이디">` +
+      `<select id="acct-user-role" aria-label="등급"><option value="manager">담당자</option><option value="viewer">보기 전용</option></select>` +
+      `<button class="acct-btn primary" type="submit">계정 추가</button></form><div id="acct-temp"></div>`;
+    main.querySelectorAll("input[data-panel]").forEach(cb => cb.onchange = async () => {
+      try { await acctPost("panel", {panel: cb.dataset.panel, customer_id: cb.checked ? c.id : null});
+        acctMsg(cb.checked ? `${cb.dataset.panel} → ${c.name}` : `${cb.dataset.panel} 배정 해제(JCC만 봄)`); await acctLoad();
+      } catch(e){ acctMsg(e.message, true); cb.checked = !cb.checked; }
+    });
+    $("#acct-rcv-save").onclick = async () => {
+      try { const j = await acctPost("receivers", {customer_id: c.id, numbers: $("#acct-rcv").value.split(/[\n,]/)});
+        acctMsg(`알림 번호 ${j.numbers.length}개 저장`); await acctLoad();
+      } catch(e){ acctMsg(e.message, true); }
+    };
+  }
+  $("#acct-user-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("#acct-user-name").value.trim(), role = $("#acct-user-role").value;
+    try { const j = await acctPost("user", {username: name, role, customer_id: ACCT.sel === "jcc" ? null : ACCT.sel});
+      await acctLoad(); acctShowTemp(name, j.temp_password, "새 계정");
+    } catch(err){ acctMsg(err.message, true); }
+  });
+  main.querySelectorAll("[data-reset]").forEach(b => b.onclick = async () => {
+    const id = Number(b.dataset.reset), u = users.find(x => x.id === id);
+    if (ACCT.armed !== "r" + id){ ACCT.armed = "r" + id; b.classList.add("armed"); b.textContent = "한 번 더";
+      setTimeout(() => { if (ACCT.armed === "r" + id){ ACCT.armed = null; b.classList.remove("armed"); b.textContent = "비번 초기화"; } }, 4000); return; }
+    ACCT.armed = null;
+    try { const j = await acctPost("user/reset", {user_id: id}); await acctLoad(); acctShowTemp(u.username, j.temp_password, "비번 초기화");
+    } catch(e){ acctMsg(e.message, true); }
+  });
+  main.querySelectorAll("[data-dis]").forEach(b => b.onclick = async () => {
+    try { await acctPost("user/disable", {user_id: Number(b.dataset.dis), disabled: b.dataset.off === "1"});
+      acctMsg(b.dataset.off === "1" ? "계정을 껐습니다 — 그 사용자는 바로 로그아웃됩니다" : "계정을 켰습니다"); await acctLoad();
+    } catch(e){ acctMsg(e.message, true); }
+  });
+}
+function acctShowTemp(name, pw, what){
+  const box = $("#acct-temp"); if (!box) return;
+  box.innerHTML = `<div class="acct-temp" role="status">${acctEsc(what)} <b>${acctEsc(name)}</b> 임시 비번 <code>${acctEsc(pw)}</code>` +
+    `<button class="acct-btn" id="acct-copy">복사</button><span>지금만 보입니다 — 담당자에게 전달하세요. 첫 로그인 때 바꾸게 됩니다.</span></div>`;
+  $("#acct-copy").onclick = () => { try { navigator.clipboard.writeText(pw); acctMsg("임시 비번을 복사했습니다"); } catch(_){ acctMsg("복사가 막혀 있습니다 — 직접 적어 주세요", true); } };
+  acctMsg("");
+}
+$("#acct-cust-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const name = $("#acct-cust-name").value.trim(); if (!name){ acctMsg("고객사 이름을 입력하세요", true); return; }
+  try { const j = await acctPost("customer", {name}); $("#acct-cust-name").value = ""; ACCT.sel = j.id; acctMsg(`${name} 추가됨 — 판넬을 배정하세요`); await acctLoad();
+  } catch(err){ acctMsg(err.message, true); }
+});
+$("#btn-accounts").onclick = () => { $("#acct-overlay").classList.add("open"); acctMsg(""); acctLoad(); };
+$("#acct-close").onclick = () => $("#acct-overlay").classList.remove("open");
+$("#acct-overlay").onclick = e => { if (e.target === $("#acct-overlay")) $("#acct-overlay").classList.remove("open"); };
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  if ($("#acct-overlay").classList.contains("open")) $("#acct-overlay").classList.remove("open");
+  if ($("#acct-pw-overlay").classList.contains("open") && !$("#acct-pw-overlay").dataset.force) $("#acct-pw-overlay").classList.remove("open");
+});
+
 // ── 예지 튜닝 콘솔 ─────────────────────────────────────
 // 손잡이(B)를 돌리면 브라우저가 시나리오 11편을 판정 코어(predict-core.js)로 다시 재생해 A(지금 적용된 값)와
 // 겹쳐 보여준다. 적용은 서버가 파이썬 정본으로 다시 검증해 '놓친 사고 0건'일 때만 받아준다(관문은 서버).
@@ -3946,15 +4180,17 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
   if(booted) boot.hidden = true;              // 세션 중이면 일단 가리고, 서버 확인 후 결정
   function afterLogin(){                      // 로그인 전에 비어 있던 화면을 바로 채운다
     window.__jccLocked = false;
+    if(window.__jccUser && window.__jccUser.must_change){ openPw(true); return; }   // 임시 비번 → 먼저 변경
     try{ refresh(); loadAlarms(); loadPredict(); loadTicker(); }catch(e){}
   }
   fetch("/api/auth/status",{cache:"no-store"}).then(r=>r.json()).then(s=>{
     AUTH = {enabled:!!s.enabled, authed:!!s.authed};
+    applyAcct(s.enabled ? s.user : null);     // 등급별 메뉴(인증 꺼진 데모·개발은 관리자 화면)
     if(AUTH.enabled){ const h=boot.querySelector(".boot-hint"); if(h) h.remove(); }   // 데모 계정 안내 숨김
     else afterLogin();                        // 데모·개발 서버: 데이터는 바로(로그인은 시연용)
     if(AUTH.enabled ? AUTH.authed : booted){ boot.remove(); if(AUTH.enabled) afterLogin(); }
     else boot.hidden = false;                 // 쿠키 만료·미로그인 → 로그인 필요
-  }).catch(()=>{ afterLogin(); if(booted) boot.remove(); else boot.hidden = false; });
+  }).catch(()=>{ applyAcct(null); afterLogin(); if(booted) boot.remove(); else boot.hidden = false; });
   const wan=document.getElementById("blink-wan"), lan=document.getElementById("blink-lan");
   const btn=document.getElementById("boot-login"), msg=document.getElementById("boot-msg");
   const idEl=document.getElementById("boot-id"), pwEl=document.getElementById("boot-pw");
@@ -4016,7 +4252,7 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
       fetch("/api/login",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({user:id, password:pw})})
         .then(async r=>{ const j = await r.json().catch(()=>({}));
-          if(r.ok){ runHack(); return; }
+          if(r.ok){ applyAcct(j.user || null); runHack(); return; }
           reArm(); pwEl.value=""; pwEl.focus();
           msg.textContent = ">> ERR: " + (j.error || "로그인에 실패했습니다"); })
         .catch(()=>{ reArm(); msg.textContent=">> ERR: 서버에 연결할 수 없습니다"; });
