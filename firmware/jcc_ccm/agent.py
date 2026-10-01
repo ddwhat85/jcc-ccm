@@ -26,7 +26,10 @@ _MAX_QUEUE = 2000
 class Agent:
     def __init__(self, cfg: Config):
         self._cfg = cfg
-        self._drivers = build_drivers(cfg.sensors, cfg.modbus)
+        # 수동 센서(대시보드에서 직접 지정 → 서버가 내려보냄). 설정 파일 센서 + 이것으로 드라이버를 만든다
+        from .manual import ManualSensors, manual_path
+        self._manual = ManualSensors(manual_path(cfg), {s.key for s in cfg.sensors})
+        self._drivers = build_drivers(cfg.sensors + self._manual.configs(), cfg.modbus)
         self._transport = build_transport(cfg)
         self._queue: collections.deque[dict] = collections.deque(maxlen=_MAX_QUEUE)
         self._stop = False
@@ -102,6 +105,7 @@ class Agent:
         sent = self._flush()
         self._apply_commands()
         self._apply_tuning()
+        self._apply_sensor_config()
         self._handle_ota(sent)
 
     def _handle_ota(self, sent: int) -> None:
@@ -148,6 +152,19 @@ class Agent:
         except Exception as exc:  # noqa: BLE001 - 설정 오류로 수집이 멈추면 안 된다
             log.exception("원격 설정 처리 오류: %s", exc)
 
+    def _apply_sensor_config(self) -> None:
+        """서버가 내려보낸 수동 센서 목록을 검사·적용하고 드라이버를 다시 만든다(결과는 다음 보고에)."""
+        manual = getattr(self, "_manual", None)
+        take = getattr(self._transport, "take_sensor_config", None)
+        if manual is None or take is None:
+            return
+        try:
+            msg = take()
+            if msg and manual.apply(msg):
+                self._drivers = build_drivers(self._cfg.sensors + manual.configs(), self._cfg.modbus)
+        except Exception as exc:  # noqa: BLE001 - 설정 오류로 수집이 멈추면 안 된다
+            log.exception("수동 센서 설정 처리 오류: %s", exc)
+
     def _build_payload(self, readings: list[Reading]) -> dict:
         return {
             "device_id": self._cfg.device_id,
@@ -158,6 +175,7 @@ class Agent:
             "fw": __version__,
             "readings": [r.as_dict() for r in readings],
             **({"ota": self._ota.status()} if getattr(self, "_ota", None) else {}),
+            **({"sensor_config": self._manual.report()} if getattr(self, "_manual", None) else {}),
         }
 
     # ── 전송 큐 (오프라인 내구성) ──────────────────────────────

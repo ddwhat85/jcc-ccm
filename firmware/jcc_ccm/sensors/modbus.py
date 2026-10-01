@@ -118,8 +118,39 @@ class ModbusBus:
                     self._client = None
 
 
+class ModbusTcpBus(ModbusBus):
+    """이더넷 Modbus 장비(Modbus TCP). 읽기·재연결 규칙은 RS485 버스와 같고 연결만 다르다."""
+
+    def __init__(self, host: str, port: int = 502, timeout: float = 1.0):
+        super().__init__(ModbusBusConfig(port=f"{host}:{port}", timeout_seconds=timeout))
+        self._host, self._port = host, int(port)
+
+    def _ensure_client(self):
+        if self._client is not None:
+            return self._client
+        from pymodbus.client import ModbusTcpClient
+        client = ModbusTcpClient(host=self._host, port=self._port, timeout=self._cfg.timeout_seconds)
+        if not client.connect():
+            try:
+                client.close()
+            except Exception:  # noqa: BLE001
+                pass
+            raise IOError(f"Modbus TCP 연결 실패: {self._host}:{self._port}")
+        self._client = client
+        return self._client
+
+
 # RS485 포트는 하나다 — 센서 읽기와 릴레이 쓰기가 같은 버스(같은 락)를 써야 충돌하지 않는다.
 _BUSES: dict = {}
+
+
+def shared_tcp_bus(host: str, port: int = 502, timeout: float = 1.0) -> ModbusTcpBus:
+    """IP:포트별로 연결 하나(같은 장비의 여러 채널이 연결을 나눠 쓴다)."""
+    k = f"tcp:{host}:{port}"
+    bus = _BUSES.get(k)
+    if bus is None:
+        bus = _BUSES[k] = ModbusTcpBus(host, port, timeout)
+    return bus
 
 
 def shared_bus(cfg: ModbusBusConfig) -> ModbusBus:

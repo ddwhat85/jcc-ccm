@@ -11,7 +11,7 @@ import urllib.request
 import urllib.error
 
 from ..config import Config
-from . import parse_commands, parse_tuning
+from . import parse_commands, parse_sensor_config, parse_tuning
 
 
 class HttpTransport:
@@ -21,6 +21,7 @@ class HttpTransport:
         self._cmds: list[dict] = []
         self._ota = None      # 서버가 제안한 새 펌웨어(manifest) — OtaManager가 검증·설치
         self._tuning = None   # 서버가 내려보낸 예지 기준 설정 — EdgePredictor가 검증·적용
+        self._sensor_cfg = None   # 서버가 내려보낸 수동 센서 설정 — ManualSensors가 검증·적용
 
     def connect(self) -> None:
         # HTTP는 세션 유지가 필요 없다. 매 전송이 독립적.
@@ -43,6 +44,7 @@ class HttpTransport:
                         if isinstance(obj, dict) and isinstance(obj.get("ota"), dict):
                             self._ota = obj["ota"]
                         self._tuning = parse_tuning(obj) or self._tuning
+                        self._sensor_cfg = parse_sensor_config(obj) or self._sensor_cfg
                     except (ValueError, UnicodeDecodeError):
                         pass
                 return ok
@@ -61,6 +63,10 @@ class HttpTransport:
 
     def take_tuning(self):
         out, self._tuning = self._tuning, None
+        return out
+
+    def take_sensor_config(self):
+        out, self._sensor_cfg = self._sensor_cfg, None
         return out
 
     def close(self) -> None:

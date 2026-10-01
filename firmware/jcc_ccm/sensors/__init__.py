@@ -79,4 +79,10 @@ def build_drivers(
         for s in modbus_sensors:
             drivers.append(ModbusDriver(s, bus))
 
+    for s in sensors:                  # 이더넷 Modbus 장비 — IP:포트별 연결
+        if s.enabled and s.driver == "modbus_tcp":
+            from .modbus import ModbusDriver, shared_tcp_bus
+            drivers.append(ModbusDriver(s, shared_tcp_bus(s.modbus_host, s.modbus_port,
+                                                          modbus_bus.timeout_seconds)))
+
     return drivers

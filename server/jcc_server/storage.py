@@ -129,6 +129,20 @@ CREATE TABLE IF NOT EXISTS commission_reports (
     report     TEXT
 );
 -- 예지 기준 설정 버전(튜닝 콘솔). 적용·되돌리기마다 새 버전 — 가장 큰 버전이 활성. v0 = 코드 기본값(행 없음).
+-- 수동 센서(자동 탐색에 안 잡혀 사람이 직접 지정) — CCM별 목록·버전. 서버가 CCM에 내려보내 적용시킨다
+CREATE TABLE IF NOT EXISTS manual_sensors (
+    device_id  TEXT,
+    key        TEXT,
+    spec       TEXT,
+    meta       TEXT,
+    created_at REAL,
+    by         TEXT,
+    PRIMARY KEY (device_id, key)
+);
+CREATE TABLE IF NOT EXISTS manual_version (
+    device_id TEXT PRIMARY KEY,
+    version   INTEGER
+);
 CREATE TABLE IF NOT EXISTS tuning_config (
     version    INTEGER PRIMARY KEY,
     params     TEXT,
@@ -200,6 +214,7 @@ class Storage:
         self._pred_loaded: set = set()  # 학습 상태를 DB에서 불러온 판넬
         self._pred_saved: dict = {}     # panel -> 마지막 저장 시각(쓰기 줄이기)
         self._tuning_edge: dict = {}    # device_id -> CCM이 보고한 설정 적용 상태
+        self._manual_edge: dict = {}    # device_id -> CCM이 보고한 수동 센서 적용 상태
         self.ctests: dict = {}          # panel -> {출력: 설치 시험 상태} (commission.py가 진행)
         from .accounts import Accounts
         with self._lock:
@@ -378,6 +393,9 @@ class Storage:
                          s.get("photo", "")),
                     )
                     n += 1
+                # 다시 탐색해도 사람이 직접 지정한 센서는 인벤토리에 남긴다
+                from .manual_sensors import inventory_insert
+                inventory_insert(cur, dev, now)
             self._conn.commit()
         return n
 

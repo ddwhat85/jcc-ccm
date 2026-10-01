@@ -174,7 +174,7 @@
             address: raw.address != null ? raw.address : null, enabled: true }));
         }
       }
-      S.discovered[c.device_id] = out;
+      S.discovered[c.device_id] = out.concat(MANUAL.list.filter(m => m.device_id === c.device_id).map(manualNode));   // 다시 찾아도 직접 지정 센서 유지
       if (S.lastSeen[c.device_id] == null) S.lastSeen[c.device_id] = 0;
     }
     S.started = true;
@@ -347,6 +347,7 @@
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;
         const sk = K(dev, s.key);
+        if (s.pendingUntil && wall < s.pendingUntil) continue;   // 직접 지정 센서: CCM 반영 전엔 값 없음
         // 자가치유(L1)가 이 채널을 재시작했으면 진행 중이던 일시 장애(침묵·고착·이상)를 해제
         if (healAt[sk]) { delete healAt[sk]; delete drop[sk]; delete stuckU[sk]; delete anomU[sk]; }
         if (wall < (drop[sk] || 0)) continue;                 // 침묵 구간
@@ -976,6 +977,70 @@
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── 노드 추가: 센서 직접 지정 (데모: 서버 manual_sensors.py와 같은 모양·검사, CCM 반영은 5초 뒤로 흉내) ──
+  const MANUAL = { list: [], ver: {} };
+  const DT = ["uint16", "int16", "uint32", "int32", "float32"];
+  function manualClean(sp) {
+    if (!sp || typeof sp !== "object") throw new Error("센서 지정은 객체여야 합니다");
+    const key = String(sp.key || "").trim(), tcp = sp.driver === "modbus_tcp";
+    if (!/^[a-z0-9_]{2,40}$/.test(key)) throw new Error("센서 키는 영문 소문자·숫자·_ 2~40자여야 합니다");
+    if (!["modbus", "modbus_tcp"].includes(sp.driver)) throw new Error("연결 방식은 RS485 또는 Modbus TCP여야 합니다");
+    const int = (v, lo, hi, w) => { if (!Number.isInteger(v) || v < lo || v > hi) throw new Error(`${w}는 ${lo}~${hi} 사이여야 합니다`); return v; };
+    const num = (v, w) => { if (typeof v !== "number" || !isFinite(v) || Math.abs(v) > 1e6) throw new Error(`${w}는 ±1,000,000 안의 숫자여야 합니다`); return v; };
+    const out = { key, name: String(sp.name || "").trim().slice(0, 40) || key, unit: String(sp.unit || "").trim().slice(0, 12), driver: sp.driver,
+      slave: int(sp.slave, tcp ? 0 : 1, tcp ? 255 : 247, tcp ? "유닛 ID" : "Modbus 주소"), register: int(sp.register ?? 0, 0, 65535, "레지스터 번호"),
+      type: sp.type || "input", datatype: sp.datatype || "uint16", scale: num(sp.scale ?? 1, "배율"), offset: num(sp.offset ?? 0, "보정값") };
+    if (out.scale === 0) throw new Error("배율은 0일 수 없습니다");
+    if (!["input", "holding"].includes(out.type)) throw new Error("레지스터 종류는 input 또는 holding이어야 합니다");
+    if (!DT.includes(out.datatype)) throw new Error(`형식은 ${DT.join(", ")} 중 하나여야 합니다`);
+    if (tcp) { const h = String(sp.host || "").trim();
+      if (!/^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/.test(h) || h.includes("..")) throw new Error("IP 주소(또는 호스트 이름)가 올바르지 않습니다");
+      out.host = h; out.port = int(sp.port ?? 502, 1, 65535, "포트"); }
+    return out;
+  }
+  function manualNode(m) {
+    const sp = m.spec, mt = m.meta || {};
+    return { key: sp.key, name: sp.name, unit: sp.unit, kind: mt.kind || "", brand: mt.brand || "", product: mt.product || "",
+      part_no: mt.part_no || "", manual: mt.manual || "", photo: mt.photo || "", relays: [],
+      alarm_min: mt.alarm_min ?? null, alarm_max: mt.alarm_max ?? null, alarm_warn: mt.alarm_warn ?? null,
+      source: sp.driver, confidence: "수동", address: sp.driver === "modbus" ? sp.slave : `${sp.host}:${sp.port}#${sp.slave}`,
+      enabled: true, pendingUntil: m.applyAt };
+  }
+  function manualPost(b) {
+    const dev = String(b.device_id || "");
+    if (b.action === "add") {
+      if (!S.discovered[dev]) return [{ error: "없는 CCM입니다" }, 400];
+      let sp; try { sp = manualClean(b.spec); } catch (e) { return [{ error: e.message }, 400]; }
+      if (S.discovered[dev].some(x => x.key === sp.key)) return [{ error: `이 CCM에 이미 '${sp.key}' 센서가 있습니다 — 다른 키를 쓰세요` }, 400];
+      if (MANUAL.list.filter(m => m.device_id === dev).length >= 16) return [{ error: "CCM 하나에 수동 센서는 16개까지입니다" }, 400];
+      const v = MANUAL.ver[dev] = (MANUAL.ver[dev] || 0) + 1;
+      const m = { device_id: dev, spec: sp, meta: b.meta || {}, created_at: now(), by: "데모", applyAt: now() + 5 };
+      MANUAL.list.push(m);
+      if (sp.driver === "modbus") S.discovered[dev] = S.discovered[dev].filter(x => !(x.confidence === "추정" && x.address === sp.slave));
+      S.discovered[dev].push(manualNode(m));
+      logEvent(dev, sp.key, "manual_sensor", `센서 직접 지정: ${sp.name} (${sp.driver === "modbus" ? "RS485 주소 " + sp.slave : "Modbus TCP " + sp.host + ":" + sp.port}) — CCM 반영 대기 v${v} (데모)`, "user");
+      return [{ ok: true, sensor: Object.assign({}, sp, { version: v }) }, 200];
+    }
+    if (b.action === "remove") {
+      const i = MANUAL.list.findIndex(m => m.device_id === dev && m.spec.key === b.key);
+      if (i < 0) return [{ error: "없는 수동 센서입니다" }, 404];
+      MANUAL.list.splice(i, 1); S.discovered[dev] = (S.discovered[dev] || []).filter(x => x.key !== b.key);
+      MANUAL.ver[dev] = (MANUAL.ver[dev] || 0) + 1;
+      logEvent(dev, b.key, "manual_sensor", `직접 지정한 센서 삭제: ${b.key} (데모)`, "user");
+      return [{ ok: true }, 200];
+    }
+    return [{ error: "action은 add 또는 remove" }, 400];
+  }
+  function manualStatus() {
+    return MANUAL.list.map(m => ({ device_id: m.device_id, key: m.spec.key, spec: m.spec, meta: m.meta, created_at: m.created_at,
+      by: m.by, status: now() >= m.applyAt ? "applied" : "pending", reason: "" }));
+  }
+  function profileList() {
+    return Object.keys(PROFILES).filter(k => !k.startsWith("TURCK-CCM")).map(k => { const p = PROFILES[k];
+      return { ident: k, brand: p.brand, product: p.product, part_no: p.part_no || "", manual: p.manual || "", photo: p.photo || "",
+        emits: p.emits.map(e => ({ key: e.key, name: e.name, unit: e.unit, kind: e.kind, alarm_min: e.alarm_min, alarm_warn: e.alarm_warn, alarm_max: e.alarm_max })) }; });
+  }
+
   // ── 남은 여유 (데모: 지난 21일 하루 대표값을 시연용으로 합성 — 실서버는 rul.py가 실제 기록으로 같은 계산) ──
   function rulEstimate(vals, thr, dir) {           // rul.estimate와 같은 규칙(Theil–Sen, 25~75 백분위)
     const sg = dir === "down" ? -1 : 1, pts = vals.slice(-30).map((v, i) => [i, v * sg]), n = pts.length;
@@ -1178,6 +1243,9 @@
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
+      if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
+      if (p === "/api/sensor/manual" && method === "GET") return Promise.resolve(J({ sensors: manualStatus() }));
+      if (p === "/api/sensor/manual" && method === "POST") { const [obj, st] = manualPost(body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);
         return new Promise(res => setTimeout(() => res(J(obj, st)), 900)); }   // 생각하는 동안의 기다림도 시연
       if (p === "/api/monthly") { const q = qs.get("customer_id");

@@ -18,7 +18,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "server", "jcc_server")
 DST = os.path.join(ROOT, "firmware", "jcc_ccm", "predict")
-FILES = ("fire_risk.py", "contact_heat.py", "dewpoint.py", "inputs.py", "predict.py", "params.py")
+FILES = ("fire_risk.py", "contact_heat.py", "dewpoint.py", "inputs.py", "predict.py", "params.py",
+         "sensor_spec.py")   # 수동 센서 지정 규격(서버·CCM 같은 검사)
 
 
 def differing() -> list[str]:

@@ -785,6 +785,41 @@
   .mrep-ai p{margin:0;font-size:14px;line-height:1.7;max-width:68ch}
   @media (max-width:640px){.mrep-table .opt{display:none}}
 
+  /* ── 노드 추가(장비 검색 · 센서 직접 지정) — 설치 점검과 같은 셸 ── */
+  .nadd-sec{flex:none;display:flex;flex-direction:column;gap:10px}
+  .nadd-sec+.nadd-sec{border-top:1px solid var(--rule);padding-top:14px}
+  .nadd-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .nadd-h h4{margin:0;font:700 14px var(--sans)}
+  .nadd-h .acct-note{flex:1 1 220px}
+  .nadd-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+  .nadd-dev{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .nadd-dev>div{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--canvas);font:600 12.5px var(--sans);flex-wrap:wrap}
+  .nadd-dev>div small{font:500 11.5px var(--sans);color:var(--ink-3)}
+  .nadd-dot{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
+  .nadd-dot.on{background:var(--ok)}
+  .nadd-s{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;padding:7px 10px;border-top:1px solid var(--rule-2);font-size:12.5px;align-items:center}
+  .nadd-s small{grid-column:1/2;color:var(--ink-3);font-size:11.5px;overflow-wrap:anywhere}
+  .nadd-s>.nadd-act{grid-row:1/3;grid-column:2;display:flex;gap:6px;align-items:center}
+  .nadd-chip{font:700 10.5px var(--sans);padding:2px 8px;border-radius:10px;white-space:nowrap;background:var(--surface-2);color:var(--ink-2)}
+  .nadd-chip.new{background:var(--accent-soft);color:var(--accent)}
+  .nadd-chip.guess{background:var(--warn-soft);color:var(--warn)}
+  .nadd-chip.ok{background:var(--ok-soft);color:var(--ok)}
+  .nadd-chip.bad{background:var(--crit-soft);color:var(--crit)}
+  .nadd-form{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px 12px}
+  .nadd-form .acct-f{min-width:0}
+  .nadd-form .acct-f input,.nadd-form .acct-f select{width:100%;min-width:0}
+  .nadd-form .w2{grid-column:span 2} .nadd-form .w4{grid-column:1/-1}
+  .nadd-form [hidden]{display:none}
+  .nadd-seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+  .nadd-seg button{font:600 12.5px var(--sans);padding:7px 14px;border:0;background:var(--surface);color:var(--ink-2);cursor:pointer;min-height:34px}
+  .nadd-seg button+button{border-left:1px solid var(--rule)}
+  .nadd-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .nadd-seg button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  .nadd-sub{grid-column:1/-1;margin:2px 0 -4px;font:700 11px var(--sans);color:var(--ink-3)}
+  .nadd-go{grid-column:1/-1;display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .nadd-go .acct-note{flex:1 1 200px}
+  @media (max-width:640px){.nadd-form{grid-template-columns:repeat(2,minmax(0,1fr))}.nadd-form .w2{grid-column:1/-1}}
+
   /* ── AI에게 물어보기(설치 점검과 같은 셸) ── */
   body[data-ai="off"]:not([data-acct="admin"]) .aiq-gate{display:none!important}   /* 고객사 스위치 꺼짐 → 메뉴 없음 */
   body:not([data-ai="on"]) .aiq-alarm{display:none!important}
@@ -1234,24 +1269,8 @@
       </div>
     </div>
 
-    <div class="mb-menu jcc-admin" data-menu="add">
-      <button class="mb-title">추가</button>
-      <div class="mb-dd" hidden>
-        <div class="mb-label">소스</div>
-        <button class="mb-item" data-add="sensor"><i style="background:var(--port-sensor)"></i>센서</button>
-        <button class="mb-item" data-add="ccm"><i style="background:var(--port-data)"></i>CCM 게이트웨이</button>
-        <div class="mb-div"></div>
-        <div class="mb-label">구성 · 로직</div>
-        <button class="mb-item" data-add="panel"><i style="background:var(--port-agg)"></i>판넬 그룹</button>
-        <button class="mb-item" data-add="threshold"><i style="background:var(--warn)"></i>임계값 경보</button>
-        <button class="mb-item" data-add="aggregate"><i style="background:var(--port-agg)"></i>상태 집계</button>
-        <div class="mb-div"></div>
-        <div class="mb-label">출력</div>
-        <button class="mb-item" data-add="server"><i style="background:var(--accent)"></i>JCC 클라우드</button>
-        <button class="mb-item" data-add="notify"><i style="background:var(--crit)"></i>알림 (메일·SMS)</button>
-        <button class="mb-item" data-add="store"><i style="background:var(--ink-3)"></i>데이터 저장</button>
-      </div>
-    </div>
+    <!-- 노드 추가: 장비 검색 + 검색에 안 잡히는 센서 직접 지정(팝업). 예전 '추가' 메뉴의 그림용 노드는 뺐다 -->
+    <button class="mb-title jcc-admin" id="btn-addnode">노드 추가</button>
 
     <div class="mb-menu" data-menu="tools">
       <button class="mb-title">도구</button>
@@ -1406,6 +1425,52 @@
     </section>
   </div>
 
+  <!-- 노드 추가: ① 장비 검색 ② 검색에 안 잡히면 센서 직접 지정(서버가 CCM에 내려보내 적용) — JCC 관리자 -->
+  <div class="overlay" id="nadd-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="nadd-title">
+      <header class="cmsn-head">
+        <h3 id="nadd-title">노드 추가</h3>
+        <button class="cmsn-x" id="nadd-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="cmsn-body">
+        <section class="nadd-sec">
+          <div class="nadd-h"><h4>① 장비 검색</h4><p class="acct-note" id="nadd-sum">CCM과 그 버스에 물린 센서를 찾습니다.</p>
+            <button class="cmsn-btn primary" id="nadd-scan">검색</button></div>
+          <ul class="nadd-list" id="nadd-list"></ul>
+        </section>
+        <section class="nadd-sec">
+          <div class="nadd-h"><h4>② 검색에 안 잡히면 — 센서 직접 지정</h4></div>
+          <p class="acct-note">제품을 고르면 이름·단위·경보값이 채워집니다. Modbus 레지스터는 제품 설명서의 값을 넣으세요. 저장하면 다음 보고 때 CCM이 받아 적용합니다.</p>
+          <form class="nadd-form" id="nadd-form" novalidate>
+            <label class="acct-f w2">CCM<select id="nadd-dev" required></select></label>
+            <div class="acct-f w2">연결 방식<div class="nadd-seg" role="group" aria-label="연결 방식">
+              <button type="button" data-drv="modbus" aria-pressed="true">RS485</button><button type="button" data-drv="modbus_tcp" aria-pressed="false">Modbus TCP</button></div></div>
+            <label class="acct-f w4">제품<select id="nadd-prod"></select></label>
+            <label class="acct-f w2">이름<input id="nadd-name" maxlength="40" placeholder="예: 수소 농도(2번)"></label>
+            <label class="acct-f">단위<input id="nadd-unit" maxlength="12" placeholder="%LEL"></label>
+            <label class="acct-f">키<input id="nadd-key" maxlength="40" placeholder="h2_2" autocapitalize="off" spellcheck="false"></label>
+            <p class="nadd-sub">통신</p>
+            <label class="acct-f nadd-tcp w2" hidden>IP 주소<input id="nadd-host" inputmode="decimal" placeholder="192.168.0.50" autocapitalize="off" spellcheck="false"></label>
+            <label class="acct-f nadd-tcp" hidden>포트<input id="nadd-port" type="number" min="1" max="65535" value="502"></label>
+            <label class="acct-f"><span id="nadd-slave-l">Modbus 주소</span><input id="nadd-slave" type="number" min="0" max="255" placeholder="1~247"></label>
+            <label class="acct-f">레지스터<input id="nadd-reg" type="number" min="0" max="65535" value="0"></label>
+            <label class="acct-f">종류<select id="nadd-type"><option value="input">input (FC04)</option><option value="holding">holding (FC03)</option></select></label>
+            <label class="acct-f">형식<select id="nadd-dt"><option>uint16</option><option>int16</option><option>uint32</option><option>int32</option><option>float32</option></select></label>
+            <label class="acct-f">배율<input id="nadd-scale" type="number" step="any" value="1"></label>
+            <label class="acct-f">보정값<input id="nadd-off" type="number" step="any" value="0"></label>
+            <p class="nadd-sub">경보 기준(비우면 없음)</p>
+            <label class="acct-f">경고<input id="nadd-warn" type="number" step="any"></label>
+            <label class="acct-f">위험(상한)<input id="nadd-max" type="number" step="any"></label>
+            <label class="acct-f">하한<input id="nadd-min" type="number" step="any"></label>
+            <div class="nadd-go"><p class="acct-note">값 = 원값 × 배율 + 보정값</p><button class="cmsn-btn primary" type="submit">센서 추가</button></div>
+          </form>
+          <div id="nadd-manual"></div>
+        </section>
+      </div>
+      <footer class="cmsn-foot"><div class="cmsn-msg" id="nadd-msg" aria-live="polite"></div></footer>
+    </section>
+  </div>
+
   <!-- AI에게 물어보기(고객사 스위치가 켜진 계정 — 자기 판넬 기록만) -->
   <div class="overlay" id="aiq-overlay">
     <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="aiq-title">
@@ -1521,7 +1586,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=bc2fdd35"></script>
+<script src="demo-api.js?v=eeaf6795"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -2784,6 +2849,7 @@ const EVENT_META = {
   actuator_fault_clear:{label:"출력 작동 정상", dot:"ok", ic:"✓"},
   ai_ask:      {label:"AI 질문",       dot:"info", ic:"?"},
   rul_warn:    {label:"남은 여유 2주 이내", dot:"warn", ic:"⏳"},
+  manual_sensor:{label:"센서 직접 지정", dot:"info", ic:"+"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
@@ -2791,7 +2857,7 @@ const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","si
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
   "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline","firmware","ota_offer","ota_trial","ota_rollback",
-  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear","ai_ask","rul_warn"]);
+  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear","ai_ask","rul_warn","manual_sensor"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -3447,6 +3513,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-10-01T19:00", status:"done", cat:"diag", name:"노드 추가 — 장비 검색 + 센서 직접 지정",
+   sensors:"CCM에 물린 RS485 Modbus 센서 · 이더넷 Modbus TCP 장비",
+   summary:"상단 '노드 추가' 하나로 정리했다. 팝업에서 [검색]을 누르면 CCM과 센서를 다시 찾아 새로 잡힌 것·추정만 된 것을 구분해 보여 주고, 자동 식별이 안 되는 센서는 제품·주소·레지스터를 직접 지정한다. 서버가 CCM에 내려보내면 CCM이 같은 규칙으로 검사해 적용하고 결과(적용됨/거부 이유)를 돌려준다.",
+   method:"규격 검사 한 벌(sensor_spec.py — 서버 정본, CCM 사본은 sync_edge_core로만): 키·주소(RTU 1~247, TCP 유닛 0~255)·레지스터 0~65535·형식·배율·IP·포트 · CCM별 최대 16개 · 버전 올림 → 텔레메트리 응답으로 전체 목록 하향 → CCM 적용·파일 저장(재부팅 유지) → 보고에 결과 · 다시 탐색해도 수동 센서 유지 · Modbus TCP 읽기 추가(IP:포트별 연결 공유) · 운영 서버의 검색은 가상 탐색 대신 CCM이 보고한 장비 요약(가짜 장비가 섞이지 않게) · 삭제는 두 번 눌러야 · 시험: 실제 펌웨어 코드로 서버 왕복",
+   next:"실기 CCM에서 RS485·TCP 장비 각각 직접 지정해 값 확인, 자주 쓰는 제품의 레지스터 맵을 프로파일에 추가"},
   {ts:"2026-10-01T17:40", status:"done", cat:"diag", name:"AI 월간 해설 — 리포트 첫머리 요약",
    sensors:"월간 리포트 수치(AI가 켜진 고객사)",
    summary:"월간 리포트를 발행할 때 그 달 수치만 보고 AI가 3~5문장 요약을 써서 맨 위에 붙인다. 무엇을 먼저 잡았고 무엇이 자동 처리됐는지, 다음 달 가장 중요한 권고 하나. 리포트에 없는 숫자가 하나라도 나오면 해설을 버리고 리포트만 발행한다.",
@@ -3805,6 +3876,139 @@ $("#mrep-issue").onclick = async () => {
 $("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing"); window.print(); };
 window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
+
+// ── 노드 추가: ① 장비 검색 ② 검색에 안 잡히면 센서 직접 지정 ─────────────
+// 실제 장비는 CCM이 보고하면 저절로 노드가 된다. 여기서는 (1) 다시 찾고 무엇이 새로 잡혔는지 보여 주고,
+// (2) 자동 식별이 안 되는 센서를 사람이 지정한다 → 서버가 규격 검사 후 CCM에 내려보내 적용(manual_sensors.py).
+const NADD = { devs: [], profiles: [], before: null, drv: "modbus", disarm: null };
+const naddEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function naddMsg(t, bad){ const m = $("#nadd-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+const naddSig = devs => new Set(devs.flatMap(d => [d.device_id, ...(d.latest || []).map(s => d.device_id + ":" + s.sensor_key)]));
+async function naddLoad(){
+  const [d, m] = await Promise.all([
+    fetch("/api/devices", {cache:"no-store"}).then(r => r.json()).catch(() => ({})),
+    fetch("/api/sensor/manual", {cache:"no-store"}).then(r => r.ok ? r.json() : {}).catch(() => ({}))]);
+  NADD.devs = d.devices || []; NADD.manual = m.sensors || [];
+}
+function naddPaint(){
+  const now = Date.now() / 1000, prev = NADD.before, list = $("#nadd-list");
+  if (!NADD.devs.length){ list.innerHTML = `<li class="acct-note">아직 보고한 CCM이 없습니다. CCM 전원·네트워크와 서버 주소·기기 키 설정을 확인하세요.</li>`; }
+  else list.innerHTML = NADD.devs.map(d => {
+    const fresh = prev ? !prev.has(d.device_id) : now - (d.first_seen || 0) < 86400;
+    const all = d.latest || [], isNewS = s => prev && !prev.has(d.device_id + ":" + s.sensor_key);
+    // 손볼 것만 펼친다: 추정·직접 지정, 그리고 원래 있던 CCM에 새로 붙은 센서. 나머지는 장비 줄에 개수로
+    const shown = all.filter(s => s.confidence === "추정" || s.confidence === "수동" || (isNewS(s) && !fresh));
+    const rest = all.length - shown.length;
+    const sens = shown.map(s => {
+      const isNew = isNewS(s), guess = s.confidence === "추정", man = s.confidence === "수동";
+      const where = s.address != null && s.address !== "" ? (man && String(s.address).includes(":") ? `TCP ${s.address}` : `Modbus #${s.address}`) : (s.source || "");
+      return `<li class="nadd-s"><span>${naddEsc(s.name || s.sensor_key)}</span><small>${naddEsc(s.sensor_key)} · ${naddEsc(where)}${s.product ? " · " + naddEsc(s.product) : ""}</small>` +
+        `<span class="nadd-act">${isNew ? `<span class="nadd-chip new">새로 찾음</span>` : ""}` +
+        (guess ? `<span class="nadd-chip guess">추정</span><button class="cmsn-btn" type="button" data-fix="${naddEsc(d.device_id)}" data-addr="${naddEsc(s.address ?? "")}">직접 지정</button>`
+               : man ? `<span class="nadd-chip">직접 지정</span>` : "") + `</span></li>`;
+    }).join("");
+    return `<li class="nadd-dev"><div><span class="nadd-dot${d.online ? " on" : ""}"></span>${naddEsc(d.device_id)}` +
+      `<small>${naddEsc(d.panel_name || d.panel || "")} · ${d.online ? "연결됨" : "연결 끊김"} · 센서 ${all.length}개` +
+      (rest && shown.length ? ` (식별된 ${rest}개 생략)` : rest ? " 모두 식별됨" : "") + `</small>` +
+      (fresh ? `<span class="nadd-chip new">${prev ? "새로 찾음" : "최근 연결"}</span>` : "") + `</div>` +
+      (sens ? `<ul class="nadd-list">${sens}</ul>` : "") + `</li>`;
+  }).join("");
+  list.querySelectorAll("[data-fix]").forEach(b => b.onclick = () => {
+    $("#nadd-dev").value = b.dataset.fix; naddDrv("modbus");
+    $("#nadd-slave").value = b.dataset.addr || ""; $("#nadd-prod").value = "";
+    $("#nadd-name").focus(); naddMsg("추정 장비의 주소를 채웠습니다 — 제품과 레지스터를 지정하세요");
+  });
+  const cur = $("#nadd-dev").value;
+  $("#nadd-dev").innerHTML = NADD.devs.length ? NADD.devs.map(d => `<option value="${naddEsc(d.device_id)}">${naddEsc(d.device_id)} · ${naddEsc(d.panel_name || d.panel || "")}${d.online ? "" : " (끊김)"}</option>`).join("")
+    : `<option value="">보고한 CCM 없음</option>`;
+  if (cur && NADD.devs.some(d => d.device_id === cur)) $("#nadd-dev").value = cur;
+  const st = {applied:["ok","적용됨"], pending:["","CCM 반영 대기"], rejected:["bad","CCM 거부"]};
+  $("#nadd-manual").innerHTML = (NADD.manual || []).length ? `<h4 style="margin:6px 0 6px;font:700 13px var(--sans)">직접 지정한 센서</h4><ul class="nadd-list">` +
+    NADD.manual.map(m => { const sp = m.spec, [c, w] = st[m.status] || ["", m.status];
+      const how = sp.driver === "modbus" ? `RS485 #${sp.slave}` : `TCP ${sp.host}:${sp.port} 유닛 ${sp.slave}`;
+      return `<li class="nadd-dev"><div class="nadd-s" style="border:0"><span>${naddEsc(sp.name)}</span>` +
+        `<small>${naddEsc(m.device_id)} · ${naddEsc(sp.key)} · ${naddEsc(how)} · 레지스터 ${sp.register} ${naddEsc(sp.type)} ${naddEsc(sp.datatype)}${m.reason ? " — " + naddEsc(m.reason) : ""}</small>` +
+        `<span class="nadd-act"><span class="nadd-chip ${c}">${w}</span><button class="cmsn-btn" type="button" data-del="${naddEsc(m.device_id)}|${naddEsc(sp.key)}">삭제</button></span></div></li>`; }).join("") + `</ul>` : "";
+  $("#nadd-manual").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!b.classList.contains("armed")){ b.classList.add("armed"); b.textContent = "한 번 더 누르면 삭제";
+      clearTimeout(NADD.disarm); NADD.disarm = setTimeout(() => { b.classList.remove("armed"); b.textContent = "삭제"; }, 4000); return; }
+    const [dev, key] = b.dataset.del.split("|");
+    const r = await fetch("/api/sensor/manual", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({action:"remove", device_id: dev, key})}).catch(() => null);
+    if (!r || !r.ok){ naddMsg("삭제하지 못했습니다", true); return; }
+    naddMsg(`${key} 삭제 — 다음 보고 때 CCM에서도 빠집니다`); topoSig = ""; refresh(); await naddLoad(); naddPaint();
+  });
+}
+function naddDrv(drv){
+  NADD.drv = drv;
+  document.querySelectorAll(".nadd-seg [data-drv]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.drv === drv)));
+  document.querySelectorAll(".nadd-tcp").forEach(el => el.hidden = drv !== "modbus_tcp");
+  $("#nadd-slave-l").textContent = drv === "modbus" ? "Modbus 주소" : "유닛 ID";
+  $("#nadd-slave").placeholder = drv === "modbus" ? "1~247" : "보통 1";
+}
+function naddProd(){
+  const v = $("#nadd-prod").value; if (!v) return;
+  const [ident, ek] = v.split("|"), p = NADD.profiles.find(x => x.ident === ident), e = p && p.emits.find(x => x.key === ek);
+  if (!e) return;
+  $("#nadd-name").value = e.name; $("#nadd-unit").value = e.unit || "";
+  const used = new Set(NADD.devs.filter(d => d.device_id === $("#nadd-dev").value).flatMap(d => (d.latest || []).map(s => s.sensor_key)));
+  let k = e.key, i = 2; while (used.has(k)) k = `${e.key}_${i++}`;
+  $("#nadd-key").value = k;
+  $("#nadd-warn").value = e.alarm_warn ?? ""; $("#nadd-max").value = e.alarm_max ?? ""; $("#nadd-min").value = e.alarm_min ?? "";
+}
+async function openAddNode(){
+  $("#nadd-overlay").classList.add("open"); naddMsg("");
+  if (!NADD.profiles.length){
+    try { NADD.profiles = (await fetch("/api/sensor/profiles", {cache:"no-store"}).then(r => r.json())).profiles || []; } catch(_){}
+    $("#nadd-prod").innerHTML = `<option value="">직접 입력</option>` + NADD.profiles.map(p => p.emits.map(e =>
+      `<option value="${naddEsc(p.ident)}|${naddEsc(e.key)}">${naddEsc(p.brand)} ${naddEsc(p.product)} — ${naddEsc(e.name)}</option>`).join("")).join("");
+  }
+  NADD.before = null; await naddLoad(); naddPaint();
+}
+$("#btn-addnode").onclick = openAddNode;
+$("#nadd-close").onclick = () => $("#nadd-overlay").classList.remove("open");
+document.querySelectorAll(".nadd-seg [data-drv]").forEach(b => b.onclick = () => naddDrv(b.dataset.drv));
+$("#nadd-prod").onchange = naddProd;
+$("#nadd-scan").onclick = async () => {
+  const b = $("#nadd-scan"); if (b.disabled) return;
+  b.disabled = true; b.textContent = "검색 중…"; naddMsg("");
+  NADD.before = naddSig(NADD.devs);
+  try {
+    const d = await fetch("/api/discover", {method:"POST"}).then(r => r.json());
+    if (d.error) throw new Error(d.error);
+    await naddLoad(); naddPaint(); topoSig = ""; refresh();
+    const added = [...naddSig(NADD.devs)].filter(k => !NADD.before.has(k)), nd = added.filter(k => !k.includes(":")).length;
+    $("#nadd-sum").textContent = (d.mode === "live" ? "각 CCM이 보고한 장비입니다. " : "") +
+      `CCM ${d.ccms}대 · 센서 ${d.sensors}개 (식별 ${d.identified} · 추정 ${d.inferred})` +
+      (added.length ? ` · 새로 찾음: ${nd ? `CCM ${nd}대 · ` : ""}센서 ${added.length - nd}개` : " · 새로 찾은 것 없음");
+    if (d.inferred) naddMsg(`추정 ${d.inferred}개는 제품을 알 수 없어 값 범위로 짐작한 것입니다 — '직접 지정'으로 정확히 맞추세요`);
+  } catch(e){ naddMsg("검색 실패: " + e.message, true); }
+  finally { b.disabled = false; b.textContent = "검색"; }
+};
+$("#nadd-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const n = id => { const v = $(id).value.trim(); return v === "" ? null : Number(v); };
+  const dev = $("#nadd-dev").value;
+  if (!dev){ naddMsg("CCM을 고르세요", true); return; }
+  const spec = { key: $("#nadd-key").value.trim(), name: $("#nadd-name").value.trim(), unit: $("#nadd-unit").value.trim(),
+    driver: NADD.drv, slave: n("#nadd-slave"), register: n("#nadd-reg") ?? 0, type: $("#nadd-type").value,
+    datatype: $("#nadd-dt").value, scale: n("#nadd-scale") ?? 1, offset: n("#nadd-off") ?? 0 };
+  if (NADD.drv === "modbus_tcp"){ spec.host = $("#nadd-host").value.trim(); spec.port = n("#nadd-port") ?? 502; }
+  if (spec.slave == null){ naddMsg(NADD.drv === "modbus" ? "Modbus 주소를 넣으세요" : "유닛 ID를 넣으세요(보통 1)", true); return; }
+  const [ident, ek] = ($("#nadd-prod").value || "|").split("|"), p = NADD.profiles.find(x => x.ident === ident), em = p && p.emits.find(x => x.key === ek);
+  const meta = { kind: em ? em.kind : "", brand: p ? p.brand : "", product: p ? p.product : "", part_no: p ? p.part_no : "",
+    manual: p ? p.manual : "", photo: p ? p.photo : "", alarm_warn: n("#nadd-warn"), alarm_max: n("#nadd-max"), alarm_min: n("#nadd-min") };
+  try {
+    const r = await fetch("/api/sensor/manual", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({action:"add", device_id: dev, spec, meta})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ naddMsg(j.error || `추가하지 못했습니다 (${r.status})`, true); return; }
+    naddMsg(`${j.sensor.name} 추가 — 노드가 생겼고, 다음 보고 때 CCM(${dev})이 받아 적용합니다`);
+    ["#nadd-key","#nadd-name","#nadd-slave"].forEach(id => $(id).value = "");
+    topoSig = ""; refresh(); await naddLoad(); naddPaint();
+  } catch(_){ naddMsg("서버에 닿지 못했습니다", true); }
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#nadd-overlay").classList.contains("open")) $("#nadd-overlay").classList.remove("open"); });
 
 // ── AI에게 물어보기 ─────────────────────────────────────
 // 서버 ai.py가 실제 기록(경보·활동 기록·센서 추세)만 조회해 답한다. 화면은 답 + AI가 살펴본 기록(근거).

@@ -51,6 +51,16 @@ def parse_tuning(obj):
     return None
 
 
+def parse_sensor_config(obj):
+    """서버 응답/MQTT 메시지에서 수동 센서 설정 {version, sensors:[...]}만 골라낸다(없거나 틀리면 None).
+    각 센서 값 검사는 받는 쪽(ManualSensors.apply)이 한다."""
+    t = obj.get("sensor_config") if isinstance(obj, dict) else None
+    if (isinstance(t, dict) and isinstance(t.get("version"), int) and not isinstance(t.get("version"), bool)
+            and isinstance(t.get("sensors"), list)):
+        return t
+    return None
+
+
 def build_transport(cfg: Config) -> Transport:
     if cfg.transport_kind == "mqtt":
         from .mqtt_transport import MqttTransport

@@ -47,6 +47,18 @@ def _scenarios_json() -> str:
     return _SCN_CACHE[0]
 
 
+def _profiles() -> list:
+    """노드 추가(직접 지정)의 제품 목록 — 자동 탐색이 쓰는 프로파일 지식 베이스 그대로."""
+    if _FIRMWARE_DIR not in sys.path:
+        sys.path.insert(0, _FIRMWARE_DIR)
+    from jcc_ccm.discovery.profiles import PROFILES
+    keep = ("key", "name", "unit", "kind", "alarm_min", "alarm_warn", "alarm_max")
+    return [{"ident": p["ident"], "brand": p.get("brand", ""), "product": p.get("product", ""),
+             "part_no": p.get("part_no", ""), "manual": p.get("manual", ""), "photo": p.get("photo", ""),
+             "emits": [{k: e.get(k) for k in keep} for e in p.get("emits", [])]}
+            for p in PROFILES if not p["ident"].startswith("TURCK-CCM")]     # CCM 내장 센서는 직접 지정 대상 아님
+
+
 def _run_discovery() -> dict:
     if _FIRMWARE_DIR not in sys.path:
         sys.path.insert(0, _FIRMWARE_DIR)
@@ -114,6 +126,8 @@ ROUTES = [
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
+    ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
+    ("GET", "/api/sensor/profiles", "admin"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -272,6 +286,28 @@ class Handler(BaseHTTPRequestHandler):
         return {"panels": set(self._scope()["panels"]) & every, "customer_id": u["customer_id"],
                 "blocked": "", "excluded": 0}
 
+    def _manual_sensor(self) -> None:
+        """{action:"add", device_id, spec, meta?} | {action:"remove", device_id, key} — JCC 관리자만."""
+        from . import manual_sensors
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 20_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        dev, me = str(b.get("device_id", "")), self._user()["username"]
+        try:
+            if b.get("action") == "add":
+                meta = b.get("meta") if isinstance(b.get("meta"), dict) else {}
+                return self._json({"ok": True, "sensor": manual_sensors.add(self.storage, dev, b.get("spec"), meta, me)})
+            if b.get("action") == "remove":
+                ok = manual_sensors.remove(self.storage, dev, str(b.get("key", "")), me)
+                return self._json({"ok": True}) if ok else self._json({"error": "없는 수동 센서입니다"}, 404)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json({"error": "action은 add 또는 remove"}, 400)
+
     def _ai_status(self) -> None:
         from .ai import MODEL
         a, sc = self.storage.ai, self._ai_scope()
@@ -389,6 +425,11 @@ class Handler(BaseHTTPRequestHandler):
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/sensor/manual":
+            from .manual_sensors import status_list
+            return self._json({"sensors": status_list(self.storage, (parse_qs(parsed.query).get("device_id") or [""])[0])})
+        if path == "/api/sensor/profiles":
+            return self._json({"profiles": _profiles()})
         if path == "/api/rul":
             from .rul import panel_view
             return self._json({"panels": panel_view(self.storage, None if sc is None else sc["panels"])})
@@ -477,6 +518,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "report": rep}) if rep else self._json({"error": "없는 고객사입니다"}, 400)
         if parsed.path == "/api/ai/ask":
             return self._ai_ask()
+        if parsed.path == "/api/sensor/manual":
+            return self._manual_sensor()
         if parsed.path.startswith("/api/commission/"):
             return self._commission(parsed.path[len("/api/commission/"):])
         if parsed.path == "/api/discover":
@@ -557,6 +600,12 @@ class Handler(BaseHTTPRequestHandler):
             tun = self.storage.tuning_offer_for(dev, payload.get("tuning"))
             if tun:
                 resp["tuning"] = tun
+            # 수동 센서(노드 추가에서 직접 지정): CCM 적용 결과 기록, 옛 버전이면 목록을 내려보냄
+            from . import manual_sensors
+            manual_sensors.note_report(self.storage, dev, payload.get("sensor_config"))
+            mo = manual_sensors.offer_for(self.storage, dev, payload.get("sensor_config"))
+            if mo:
+                resp["sensor_config"] = mo
         except Exception:  # noqa: BLE001 - 엣지 연동 오류가 수집 응답을 깨면 안 된다
             pass
         return self._json(resp)
@@ -620,6 +669,13 @@ class Handler(BaseHTTPRequestHandler):
         실기에서는 각 CCM이 자기 버스를 스캔해 결과를 올린다. 여기(시뮬레이션)에서는
         서버가 같은 펌웨어 코드(jcc_ccm.discovery)를 VirtualBus로 실행한다.
         """
+        if _REQUIRE_AUTH and not os.environ.get("JCC_DEMO"):
+            # 운영 서버: 가상 버스를 돌리면 가짜 장비가 실데이터에 섞인다. 실제 CCM이 보고한 인벤토리를 요약만 한다.
+            devs = self.storage.list_devices()
+            sens = [s for d in devs for s in d.get("latest") or []]
+            inferred = sum(1 for s in sens if s.get("confidence") == "추정")
+            return self._json({"ok": True, "mode": "live", "panel_name": "", "ccms": len(devs),
+                               "sensors": len(sens), "identified": len(sens) - inferred, "inferred": inferred})
         try:
             result = _run_discovery()
         except Exception as exc:  # noqa: BLE001

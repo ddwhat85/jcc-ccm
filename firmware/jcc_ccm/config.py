@@ -36,8 +36,11 @@ class SensorConfig:
     modbus_datatype: str = "uint16"
     scale: float = 1.0
     offset: float = 0.0
+    # modbus_tcp 전용(이더넷 Modbus 장비)
+    modbus_host: str = ""
+    modbus_port: int = 502
 
-    _VALID_DRIVERS = ("ambient", "distance", "modbus")
+    _VALID_DRIVERS = ("ambient", "distance", "modbus", "modbus_tcp")
 
     def validate(self) -> None:
         if not self.key:
@@ -60,6 +63,13 @@ class SensorConfig:
                 raise ConfigError(
                     f"센서 '{self.key}': modbus_slave 주소를 1 이상으로 지정하세요."
                 )
+        if self.driver == "modbus_tcp":
+            if not self.modbus_host:
+                raise ConfigError(f"센서 '{self.key}': modbus_tcp는 modbus_host(IP)가 필요합니다.")
+            if self.modbus_type not in ("input", "holding"):
+                raise ConfigError(f"센서 '{self.key}': modbus_type은 input/holding 이어야 합니다.")
+            if not 1 <= int(self.modbus_port) <= 65535:
+                raise ConfigError(f"센서 '{self.key}': modbus_port는 1~65535여야 합니다.")
 
 
 @dataclass
@@ -274,6 +284,8 @@ def load(path: str) -> Config:
             modbus_datatype=s.get("modbus_datatype", "uint16"),
             scale=float(s.get("scale", 1.0)),
             offset=float(s.get("offset", 0.0)),
+            modbus_host=str(s.get("modbus_host", "")),
+            modbus_port=int(s.get("modbus_port", 502)),
         )
         for s in raw.get("sensors", [])
     ]

@@ -9,7 +9,7 @@ import json
 import threading
 
 from ..config import Config
-from . import parse_commands, parse_tuning
+from . import parse_commands, parse_sensor_config, parse_tuning
 
 # 하향 명령 토픽(대시보드 수동 조작 → 이 CCM). 브로커 쪽에서 서버가 발행한다.
 CMD_TOPIC = "jcc/ccm/{device_id}/cmd"
@@ -26,6 +26,7 @@ class MqttTransport:
         self._cmds: list[dict] = []
         self._cmd_lock = threading.Lock()   # paho 콜백 스레드 ↔ 에이전트 루프
         self._tuning = None                 # 하향 예지 기준 설정(같은 cmd 토픽)
+        self._sensor_cfg = None             # 하향 수동 센서 설정(같은 cmd 토픽)
 
     def connect(self) -> None:
         from paho.mqtt import client as mqtt
@@ -53,11 +54,13 @@ class MqttTransport:
                 obj = json.loads(msg.payload.decode("utf-8"))
             except (ValueError, UnicodeDecodeError):
                 return
-            cmds, tun = parse_commands(obj), parse_tuning(obj)
+            cmds, tun, scfg = parse_commands(obj), parse_tuning(obj), parse_sensor_config(obj)
             with self._cmd_lock:
                 self._cmds.extend(cmds)
                 if tun:
                     self._tuning = tun
+                if scfg:
+                    self._sensor_cfg = scfg
 
         self._client.on_connect = _on_connect
         self._client.on_disconnect = _on_disconnect
@@ -89,6 +92,11 @@ class MqttTransport:
     def take_tuning(self):
         with self._cmd_lock:
             out, self._tuning = self._tuning, None
+        return out
+
+    def take_sensor_config(self):
+        with self._cmd_lock:
+            out, self._sensor_cfg = self._sensor_cfg, None
         return out
 
     def close(self) -> None:
