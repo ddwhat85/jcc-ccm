@@ -70,9 +70,11 @@ services:
       # 질문할 때 그 고객사 판넬 기록이 Anthropic으로 전송되므로 계약·동의 확인 후).
       - key: ANTHROPIC_API_KEY
         sync: false
-      # 고객사(및 JCC)별 월 질문 수 한도 — 비용 상한
+      # 월 질문 수 한도 — 비용 폭주 방지용 안전장치. 고객사별 / JCC 직원 전체
       - key: JCC_AI_MONTHLY_LIMIT
         value: "200"
+      - key: JCC_AI_STAFF_LIMIT
+        value: "1000"
       # ── 알림 채널(선택) ─────────────────────────────────
       # 값을 넣으면 그 채널로 경보가 발송된다. 비워두면 발송 안 함.
       # Render 대시보드 → Environment 에서 직접 넣는다(키는 코드에 넣지 말 것).

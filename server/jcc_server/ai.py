@@ -20,7 +20,9 @@ import time
 from datetime import datetime, timedelta, timezone
 
 MODEL = os.environ.get("JCC_AI_MODEL", "claude-opus-5-5")
-MONTHLY_LIMIT = int(os.environ.get("JCC_AI_MONTHLY_LIMIT", "200") or 200)   # 고객사(및 JCC)별 월 질문 수
+MONTHLY_LIMIT = int(os.environ.get("JCC_AI_MONTHLY_LIMIT", "200") or 200)   # 고객사별 월 질문 수(고객 계정·월간 해설)
+# JCC 직원(관리자) 몫 — 점검 업무용이라 넉넉히. 한도는 비용 폭주를 막는 안전장치일 뿐이다.
+STAFF_LIMIT = int(os.environ.get("JCC_AI_STAFF_LIMIT", "1000") or 1000)
 MAX_ROUNDS = 6            # 도구 왕복 상한(한 질문이 끝없이 도는 것 방지)
 MAX_TOKENS = 4000
 MAX_QUESTION = 1000
@@ -167,7 +169,8 @@ class Assistant:
                 "SELECT questions, input_tokens, output_tokens, cache_read_tokens FROM ai_usage "
                 "WHERE customer_id=? AND period=?", (customer_id, period)).fetchone()
         d = dict(r) if r else {"questions": 0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0}
-        return dict(d, period=period, limit=MONTHLY_LIMIT, remaining=max(0, MONTHLY_LIMIT - d["questions"]))
+        lim = STAFF_LIMIT if customer_id == 0 else MONTHLY_LIMIT
+        return dict(d, period=period, limit=lim, remaining=max(0, lim - d["questions"]))
 
     def _record(self, customer_id: int, u: dict) -> None:
         with self.storage._lock:
@@ -190,8 +193,9 @@ class Assistant:
             raise AIError("질문을 입력하세요", 400)
         if len(question) > MAX_QUESTION:
             raise AIError(f"질문은 {MAX_QUESTION}자 이내로 써 주세요", 400)
-        if self.usage(customer_id)["remaining"] <= 0:
-            raise AIError(f"이번 달 AI 질문 한도({MONTHLY_LIMIT}회)를 다 썼습니다", 429)
+        u = self.usage(customer_id)
+        if u["remaining"] <= 0:
+            raise AIError(f"이번 달 AI 질문 한도({u['limit']}회)를 다 썼습니다", 429)
 
         tools = _Tools(self.storage, set(allowed_panels))
         messages = []

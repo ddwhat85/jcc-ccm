@@ -255,7 +255,8 @@ def run():
         s, j = m("/api/ai/status")
         check("상태에 사용량·한도", j["usage"]["questions"] == 2 and j["usage"]["remaining"] == 0, str(j["usage"]))
         s, j = adm("/api/ai/status")
-        check("관리자 사용량은 JCC 몫(고객과 따로 셈)", j["usage"]["questions"] >= 6, str(j["usage"]))
+        check("관리자 사용량은 JCC 몫(고객과 따로 셈, 직원 한도)", j["usage"]["questions"] >= 6
+              and j["usage"]["limit"] == aimod.STAFF_LIMIT and j["usage"]["remaining"] > 0, str(j["usage"]))
         aimod.MONTHLY_LIMIT = 200
         s, j = adm("/api/ai/ask", {"question": "x" * 2000})
         check("긴 질문 400", s == 400)
