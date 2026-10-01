@@ -111,7 +111,7 @@
     poweredOff: {},   // dev -> true  (전원 끄기 명령을 받은 CCM은 값을 안 올린다)
     alarmState: {},   // "dev:key" -> ok|warn|alarm
     liveState: {},    // 키 -> up|down|stuck|drift|anomaly
-    seq: 1, t0: Date.now() / 1000, started: false,
+    seq: 1, eseq: 1, t0: Date.now() / 1000, started: false,
   };
   const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn",
                 fire: "crit", contact: "crit", dew: "warn", actuator_fault: "crit" };
@@ -119,7 +119,7 @@
   const K = (d, k) => d + ":" + k;
 
   function logEvent(dev, key, etype, detail, source) {
-    S.events.unshift({ ts: now(), device_id: dev || "", sensor_key: key || "", etype, detail, source: source || "system" });
+    S.events.unshift({ id: S.eseq++, ts: now(), device_id: dev || "", sensor_key: key || "", etype, detail, source: source || "system" });
     if (S.events.length > 800) S.events.length = 800;
   }
   function openAlarm(dev, key, kind, detail) {
@@ -976,8 +976,50 @@
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── AI에게 물어보기 (데모: 실제 AI 호출 없음 — 시연 데이터를 요약한 예시 답. 실서버는 ai.py가 Claude로 답한다) ──
+  const AIDEMO = { used: 0, limit: 200 };
+  function aiDemoStatus() {
+    const on = ACC.owner[SIM.panel] == null || (ACC.customers.find(c => c.id === ACC.owner[SIM.panel]) || {}).ai_enabled;
+    return { available: true, reason: "", enabled: true, blocked: "", panels: on ? 1 : 0, excluded_panels: on ? 0 : 1,
+      model: "데모(실제 AI 아님)", usage: { questions: AIDEMO.used, limit: AIDEMO.limit, remaining: AIDEMO.limit - AIDEMO.used } };
+  }
+  function aiDemoAsk(q) {
+    q = String(q || "").trim();
+    if (!q) return [{ error: "질문을 입력하세요" }, 400];
+    if (q.length > 1000) return [{ error: "질문은 1000자 이내로 써 주세요" }, 400];
+    if (!aiDemoStatus().panels) return [{ answer: "", note: "이 고객사는 AI가 꺼져 있어 판넬 기록을 보내지 않았습니다(계정 관리에서 켜기).",
+      evidence: [], model: "데모", usage: {}, remaining: AIDEMO.limit - AIDEMO.used }, 200];
+    AIDEMO.used++;
+    const t = now(), hm = ts => { const d = new Date(ts * 1000); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+    const evidence = [], cite = (ref, kind, label, ts) => { if (!evidence.some(e => e.ref === ref))
+      evidence.push({ ref, kind, label: String(label || "").slice(0, 200), ts, panel: SIM.panel, cited: true }); return `[${ref}]`; };
+    const name = S.panelNames[SIM.panel] || SIM.panel_name;
+    const pv = predView()[0], lines = [];
+    const am = q.match(/경보#(\d+)/), one = am && S.alarms.find(a => a.id === +am[1]);
+    if (one) {
+      lines.push(`${hm(one.raised_at)}에 ${name}에서 경보가 났습니다: ${one.detail || one.kind} ${cite("경보#" + one.id, "alarm", one.detail || one.kind, one.raised_at)}`);
+      lines.push(one.cleared_at ? `${hm(one.cleared_at)}에 정상으로 돌아왔습니다.` : "아직 해제되지 않았습니다.");
+    } else {
+      const al = S.alarms.filter(a => a.raised_at >= t - 7 * 86400).sort((a, b) => b.raised_at - a.raised_at);
+      lines.push((al.length ? `최근 7일 동안 ${name}에서 경보가 ${al.length}건 났습니다.` : `최근 7일 동안 ${name}에 경보가 없었습니다.`) +
+        ` ${cite("경보 이력:7일", "alarm", `최근 7일 경보 ${al.length}건`, t)}`);
+      al.slice(0, 4).forEach(a => lines.push(`- ${hm(a.raised_at)} ${a.detail || a.kind}${a.cleared_at ? " (해제됨)" : " (아직 열림)"} ${cite("경보#" + a.id, "alarm", a.detail || a.kind, a.raised_at)}`));
+    }
+    const acts = S.events.filter(e => /^(vent_open|vent_close|vent_hold|dew_actuate|actuator_fault)$/.test(e.etype)).slice(0, 3);
+    if (acts.length) { lines.push("", "자동 조치 기록:");
+      acts.forEach(e => lines.push(`- ${hm(e.ts)} ${e.detail} ${cite("기록#" + e.id, "event", e.detail, e.ts)}`)); }
+    if (pv) {
+      const f = pv.fire || {}, c = pv.contact || {}, d = pv.dew || {};
+      lines.push("", `지금 판정: 화재 ${f.stage || "-"}(FRI ${f.fri ?? "-"}), 접점 ${c.stage || "-"}, 결로 ${d.stage || "-"} ${cite("상태:" + SIM.panel, "status", name + " 지금 상태", t)}`);
+      if (f.stage && f.stage !== "normal" && (f.reasons || []).length) lines.push(`화재 판정 근거: ${f.reasons.slice(0, 2).join(" · ")}`);
+    }
+    lines.push("", "현장에서는 경보가 아직 열려 있다면 해당 센서 주변과 벤트 동작을 눈으로 확인해 주세요.");
+    return [{ answer: lines.join("\n"), note: "데모 답변입니다 — 실제 AI가 아니라 시연 기록을 요약한 예시입니다. 운영 서버에서는 Claude가 기록을 직접 조회해 답합니다.",
+      evidence, model: "데모", usage: {}, remaining: AIDEMO.limit - AIDEMO.used }, 200];
+  }
+
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true }], owner: {}, receivers: {}, users: [], seq: 2 };
   ACC.owner[SIM.panel] = 1;                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
@@ -996,6 +1038,8 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "ai") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
       const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
       ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
@@ -1083,6 +1127,9 @@
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
+      if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);
+        return new Promise(res => setTimeout(() => res(J(obj, st)), 900)); }   // 생각하는 동안의 기다림도 시연
       if (p === "/api/monthly") { const q = qs.get("customer_id");
         return Promise.resolve(J({ reports: MONTHLY.filter(r => !q || String(r.customer_id) === q) })); }
       if (p === "/api/monthly/issue" && method === "POST") {
@@ -1094,7 +1141,7 @@
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
       if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
-      const ma = p.match(/^\/api\/admin\/([a-z/]+)$/);
+      const ma = p.match(/^\/api\/admin\/([a-z_/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
       if (p === "/api/tuning/scenarios") return Promise.resolve(tuneData() ? J({ scenarios: tuneData().scenarios }) : J({ error: "튜닝 데이터 없음" }, 503));

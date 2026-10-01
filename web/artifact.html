@@ -738,6 +738,8 @@
   #cmsn-doc h2{margin:0 0 4px;font:700 18px var(--sans)}
   #cmsn-doc .meta{color:var(--ink-2);font-size:12.5px;margin-bottom:12px}
   @media (max-width:640px){.cmsn-shell{width:100vw;max-height:100vh;height:100vh;border-radius:0}}
+  /* 휴대폰: 윗줄 메뉴가 화면보다 넓어 페이지 폭이 늘어나도, 전체 화면 창은 보이는 화면(왼쪽)에 붙인다 */
+  @media (max-width:640px){.overlay:has(> .cmsn-shell){justify-content:flex-start;align-items:flex-start}}
 
   /* ── 월간 리포트 문서(설치 점검과 같은 셸·버튼을 쓰고 문서 부분만) ── */
   .mrep-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -761,6 +763,40 @@
   .mrep-list{margin:0;padding-left:18px;font-size:13px;line-height:1.6}
   .mrep-foot{color:var(--ink-3);font-size:11.5px}
   @media (max-width:640px){.mrep-table .opt{display:none}}
+
+  /* ── AI에게 물어보기(설치 점검과 같은 셸) ── */
+  body[data-ai="off"]:not([data-acct="admin"]) .aiq-gate{display:none!important}   /* 고객사 스위치 꺼짐 → 메뉴 없음 */
+  body:not([data-ai="on"]) .aiq-alarm{display:none!important}
+  @media (min-width:641px){#aiq-overlay .cmsn-shell{height:min(720px,calc(100vh - 32px))}}   /* 휴대폰은 셸 기본(전체 화면) */
+  .aiq-thread{flex:1 1 auto;min-height:0}
+  #aiq-form[hidden]{display:none}                 /* .cmsn-foot의 display:flex가 hidden을 덮지 않게 */
+  .aiq-q{align-self:flex-end;max-width:85%;background:var(--accent-soft);color:var(--ink);border-radius:10px 10px 2px 10px;
+    padding:8px 12px;font-size:13.5px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;flex:none}
+  .aiq-a{flex:none;font-size:14px;line-height:1.65;overflow-wrap:anywhere;max-width:68ch}
+  .aiq-a p{margin:0 0 6px} .aiq-a ul{margin:0 0 6px;padding-left:18px}
+  .aiq-ref{font:600 11px var(--mono);color:var(--accent);background:var(--accent-soft);border-radius:4px;padding:1px 5px;white-space:nowrap}
+  .aiq-note{margin:4px 0 0;font-size:12.5px;color:var(--ink-2)}
+  .aiq-note.bad{color:var(--crit)}
+  .aiq-ev{margin-top:8px;border:1px solid var(--rule);border-radius:8px;font-size:12px}
+  .aiq-ev summary{cursor:pointer;padding:8px 10px;font-weight:600;color:var(--ink-2)}
+  .aiq-ev summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .aiq-ev ol{margin:0;padding:0 10px 9px;list-style:none;display:flex;flex-direction:column;gap:5px}
+  .aiq-ev li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:baseline;color:var(--ink-3)}
+  .aiq-ev li.cited{color:var(--ink)}
+  .aiq-ev li:not(.cited) .aiq-ref{color:var(--ink-3);background:var(--surface-2)}
+  .aiq-ev li time{font:11px var(--mono);color:var(--ink-3);white-space:nowrap}
+  .aiq-wait{flex:none;color:var(--ink-2);font-size:13px}
+  .aiq-sugs{display:flex;flex-wrap:wrap;gap:6px;flex:none}
+  .aiq-sug{font:600 12.5px var(--sans);padding:7px 12px;border:1px solid var(--rule);border-radius:16px;background:none;color:var(--ink);
+    cursor:pointer;min-height:36px;text-align:left}
+  .aiq-sug:hover{border-color:var(--accent);color:var(--accent)}
+  .aiq-in{flex:1 1 220px;resize:none;font:500 14px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);
+    border-radius:6px;padding:9px 10px;min-height:40px;max-height:120px}
+  .aiq-in:focus-visible,.aiq-sug:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .aiq-meta{flex-basis:100%;font-size:11.5px;line-height:1.5;color:var(--ink-3)}
+  .ap-ask{flex:none;align-self:center;font:600 11px var(--sans);padding:5px 9px;border-radius:6px;cursor:pointer;
+    border:1px solid var(--rule);background:transparent;color:var(--ink-2);margin-right:4px}
+  .ap-ask:hover{border-color:var(--accent);color:var(--accent)}
 
   /* ── 계정: 등급별 표시 · 비번 변경 · 계정 관리 ── */
   body:not([data-acct="admin"]) .jcc-admin{display:none!important}   /* JCC 전용 기능은 고객 화면에서 숨김 */
@@ -1207,6 +1243,7 @@
         <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
         <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
         <button class="mb-item" id="btn-monthly">월간 리포트</button>
+        <button class="mb-item aiq-gate" id="btn-ask">AI에게 물어보기</button>
         <div class="mb-div jcc-admin"></div>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
       </div>
@@ -1345,6 +1382,23 @@
         <button class="cmsn-btn primary" id="cmsn-complete">완료 기록</button>
         <div class="cmsn-msg" id="cmsn-msg" aria-live="polite"></div>
       </footer>
+    </section>
+  </div>
+
+  <!-- AI에게 물어보기(고객사 스위치가 켜진 계정 — 자기 판넬 기록만) -->
+  <div class="overlay" id="aiq-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="aiq-title">
+      
+        <h3 id="aiq-title">AI에게 물어보기</h3>
+        <button class="cmsn-btn" id="aiq-new" hidden>새 대화</button>
+        <button class="cmsn-x" id="aiq-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      
+      <div class="cmsn-body aiq-thread" id="aiq-thread" aria-live="polite"></div>
+      <form class="cmsn-foot" id="aiq-form">
+        <textarea class="aiq-in" id="aiq-in" rows="1" maxlength="1000" placeholder="예: 3번 판넬 벤트가 왜 열렸어?" aria-label="질문"></textarea>
+        <button class="cmsn-btn primary" id="aiq-send" type="submit">묻기</button>
+        <div class="aiq-meta" id="aiq-meta"></div>
+      </form>
     </section>
   </div>
 
@@ -2030,7 +2084,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     poweredOff: {},   // dev -> true  (전원 끄기 명령을 받은 CCM은 값을 안 올린다)
     alarmState: {},   // "dev:key" -> ok|warn|alarm
     liveState: {},    // 키 -> up|down|stuck|drift|anomaly
-    seq: 1, t0: Date.now() / 1000, started: false,
+    seq: 1, eseq: 1, t0: Date.now() / 1000, started: false,
   };
   const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn",
                 fire: "crit", contact: "crit", dew: "warn", actuator_fault: "crit" };
@@ -2038,7 +2092,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   const K = (d, k) => d + ":" + k;
 
   function logEvent(dev, key, etype, detail, source) {
-    S.events.unshift({ ts: now(), device_id: dev || "", sensor_key: key || "", etype, detail, source: source || "system" });
+    S.events.unshift({ id: S.eseq++, ts: now(), device_id: dev || "", sensor_key: key || "", etype, detail, source: source || "system" });
     if (S.events.length > 800) S.events.length = 800;
   }
   function openAlarm(dev, key, kind, detail) {
@@ -2895,8 +2949,50 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── AI에게 물어보기 (데모: 실제 AI 호출 없음 — 시연 데이터를 요약한 예시 답. 실서버는 ai.py가 Claude로 답한다) ──
+  const AIDEMO = { used: 0, limit: 200 };
+  function aiDemoStatus() {
+    const on = ACC.owner[SIM.panel] == null || (ACC.customers.find(c => c.id === ACC.owner[SIM.panel]) || {}).ai_enabled;
+    return { available: true, reason: "", enabled: true, blocked: "", panels: on ? 1 : 0, excluded_panels: on ? 0 : 1,
+      model: "데모(실제 AI 아님)", usage: { questions: AIDEMO.used, limit: AIDEMO.limit, remaining: AIDEMO.limit - AIDEMO.used } };
+  }
+  function aiDemoAsk(q) {
+    q = String(q || "").trim();
+    if (!q) return [{ error: "질문을 입력하세요" }, 400];
+    if (q.length > 1000) return [{ error: "질문은 1000자 이내로 써 주세요" }, 400];
+    if (!aiDemoStatus().panels) return [{ answer: "", note: "이 고객사는 AI가 꺼져 있어 판넬 기록을 보내지 않았습니다(계정 관리에서 켜기).",
+      evidence: [], model: "데모", usage: {}, remaining: AIDEMO.limit - AIDEMO.used }, 200];
+    AIDEMO.used++;
+    const t = now(), hm = ts => { const d = new Date(ts * 1000); return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+    const evidence = [], cite = (ref, kind, label, ts) => { if (!evidence.some(e => e.ref === ref))
+      evidence.push({ ref, kind, label: String(label || "").slice(0, 200), ts, panel: SIM.panel, cited: true }); return `[${ref}]`; };
+    const name = S.panelNames[SIM.panel] || SIM.panel_name;
+    const pv = predView()[0], lines = [];
+    const am = q.match(/경보#(\d+)/), one = am && S.alarms.find(a => a.id === +am[1]);
+    if (one) {
+      lines.push(`${hm(one.raised_at)}에 ${name}에서 경보가 났습니다: ${one.detail || one.kind} ${cite("경보#" + one.id, "alarm", one.detail || one.kind, one.raised_at)}`);
+      lines.push(one.cleared_at ? `${hm(one.cleared_at)}에 정상으로 돌아왔습니다.` : "아직 해제되지 않았습니다.");
+    } else {
+      const al = S.alarms.filter(a => a.raised_at >= t - 7 * 86400).sort((a, b) => b.raised_at - a.raised_at);
+      lines.push((al.length ? `최근 7일 동안 ${name}에서 경보가 ${al.length}건 났습니다.` : `최근 7일 동안 ${name}에 경보가 없었습니다.`) +
+        ` ${cite("경보 이력:7일", "alarm", `최근 7일 경보 ${al.length}건`, t)}`);
+      al.slice(0, 4).forEach(a => lines.push(`- ${hm(a.raised_at)} ${a.detail || a.kind}${a.cleared_at ? " (해제됨)" : " (아직 열림)"} ${cite("경보#" + a.id, "alarm", a.detail || a.kind, a.raised_at)}`));
+    }
+    const acts = S.events.filter(e => /^(vent_open|vent_close|vent_hold|dew_actuate|actuator_fault)$/.test(e.etype)).slice(0, 3);
+    if (acts.length) { lines.push("", "자동 조치 기록:");
+      acts.forEach(e => lines.push(`- ${hm(e.ts)} ${e.detail} ${cite("기록#" + e.id, "event", e.detail, e.ts)}`)); }
+    if (pv) {
+      const f = pv.fire || {}, c = pv.contact || {}, d = pv.dew || {};
+      lines.push("", `지금 판정: 화재 ${f.stage || "-"}(FRI ${f.fri ?? "-"}), 접점 ${c.stage || "-"}, 결로 ${d.stage || "-"} ${cite("상태:" + SIM.panel, "status", name + " 지금 상태", t)}`);
+      if (f.stage && f.stage !== "normal" && (f.reasons || []).length) lines.push(`화재 판정 근거: ${f.reasons.slice(0, 2).join(" · ")}`);
+    }
+    lines.push("", "현장에서는 경보가 아직 열려 있다면 해당 센서 주변과 벤트 동작을 눈으로 확인해 주세요.");
+    return [{ answer: lines.join("\n"), note: "데모 답변입니다 — 실제 AI가 아니라 시연 기록을 요약한 예시입니다. 운영 서버에서는 Claude가 기록을 직접 조회해 답합니다.",
+      evidence, model: "데모", usage: {}, remaining: AIDEMO.limit - AIDEMO.used }, 200];
+  }
+
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true }], owner: {}, receivers: {}, users: [], seq: 2 };
   ACC.owner[SIM.panel] = 1;                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
@@ -2915,6 +3011,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "ai") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
       const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
       ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
@@ -3002,6 +3100,9 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
+      if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);
+        return new Promise(res => setTimeout(() => res(J(obj, st)), 900)); }   // 생각하는 동안의 기다림도 시연
       if (p === "/api/monthly") { const q = qs.get("customer_id");
         return Promise.resolve(J({ reports: MONTHLY.filter(r => !q || String(r.customer_id) === q) })); }
       if (p === "/api/monthly/issue" && method === "POST") {
@@ -3013,7 +3114,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
       if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
-      const ma = p.match(/^\/api\/admin\/([a-z/]+)$/);
+      const ma = p.match(/^\/api\/admin\/([a-z_/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
       if (p === "/api/tuning/scenarios") return Promise.resolve(tuneData() ? J({ scenarios: tuneData().scenarios }) : J({ error: "튜닝 데이터 없음" }, 503));
@@ -4376,6 +4477,7 @@ const EVENT_META = {
   tuning_edge: {label:"현장 CCM 기준",  dot:"info", ic:"⚙"},
   actuator_fault:{label:"출력 작동 실패", dot:"crit", ic:"⚠"},
   actuator_fault_clear:{label:"출력 작동 정상", dot:"ok", ic:"✓"},
+  ai_ask:      {label:"AI 질문",       dot:"info", ic:"?"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
@@ -4383,7 +4485,7 @@ const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","si
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
   "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline","firmware","ota_offer","ota_trial","ota_rollback",
-  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear"]);
+  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear","ai_ask"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -5039,6 +5141,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-10-01T15:30", status:"done", cat:"diag", name:"AI에게 물어보기 — 실제 기록만 보고 답하는 질의응답",
+   sensors:"계정이 볼 수 있는 판넬 중 AI가 켜진 고객사 것",
+   summary:"대시보드에서 '왜 벤트가 열렸어?', '지난주 문제 정리해줘'처럼 물으면 Claude가 경보·활동 기록·센서 추세를 직접 조회해 답하고, 답마다 살펴본 기록을 근거로 붙인다. 경보 옆 'AI 해설'로 그 경보를 바로 물을 수 있다. AI는 설명만 하고 벤트·히터·팬 결정은 지금처럼 검증된 규칙이 한다.",
+   method:"Claude API 도구 호출(읽기 전용 5개: 판넬 목록·판넬 상태·경보 이력·활동 기록·센서 추세) · 모든 도구가 허용 판넬로 거름 · 고객사별 스위치(기본 꺼짐 — 데이터가 Anthropic으로 나감, 꺼진 고객사 판넬은 관리자 질문에도 안 보냄) · 답 본문에 [경보#12] 근거 표시 + AI가 조회한 기록 목록 · 기록에 없으면 모른다고 답하게 지시 · 도구 왕복 최대 6회 · 고객사별 월 질문 한도·토큰 사용량 기록 · 지시·도구 캐시 · 안전 거절 시 서버 측 대체 모델 · 경보 문자 발송은 AI를 기다리지 않음 · 시험은 가짜 클라이언트(실제 호출 없음)",
+   next:"실제 키로 현장 질문 20개 받아 답 품질·비용 측정, 자주 묻는 질문을 제안 버튼으로"},
   {ts:"2026-10-01T09:20", status:"done", cat:"diag", name:"고객용 월간 리포트 — 매달 1일 자동 발행",
    sensors:"고객사의 판넬 전체",
    summary:"매달 1일(한국 시간) 고객사마다 지난달 성과를 문서로 발행해 보관한다. '사고 징조를 몇 건 먼저 잡았나·벤트가 몇 번 스스로 열렸나·경보를 얼마나 빨리 확인했나·가동률'을 결과 언어로 쓰고, 다음 달 권고를 자동으로 붙인다. 발행된 문서는 바뀌지 않아 계약 갱신 증빙이 된다.",
@@ -5381,6 +5488,99 @@ $("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing");
 window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
 
+// ── AI에게 물어보기 ─────────────────────────────────────
+// 서버 ai.py가 실제 기록(경보·활동 기록·센서 추세)만 조회해 답한다. 화면은 답 + AI가 살펴본 기록(근거).
+// AI는 설명만 — 출력 조작 도구가 없다. 고객사 스위치가 꺼져 있으면 서버가 403(메뉴도 숨김).
+const AIQ = { st: null, hist: [], busy: false };
+const aiqEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const AIQ_SUGS = ["지금 주의가 필요한 판넬 있어?", "지난 7일 경보를 정리해줘", "벤트가 최근에 왜 열렸어?", "접점 발열이 점점 나빠지는 판넬 있어?"];
+async function aiqRefresh(){
+  try { AIQ.st = await fetch("/api/ai/status", {cache:"no-store"}).then(r => r.ok ? r.json() : null); } catch(_){ AIQ.st = null; }
+  document.body.dataset.ai = AIQ.st && AIQ.st.available && AIQ.st.enabled ? "on" : "off";
+  return AIQ.st;
+}
+function aiqMeta(){
+  const s = AIQ.st, u = (s && s.usage) || {};
+  $("#aiq-meta").textContent = !s ? "" : `이번 달 ${u.questions || 0}/${u.limit || 0}회 · 질문과 관련 기록이 Anthropic(Claude)로 전송됩니다 · AI는 설명만 하고 장비를 조작하지 않습니다` +
+    (s.excluded_panels ? ` · AI가 꺼진 고객사 판넬 ${s.excluded_panels}개는 보내지 않음` : "");
+}
+function aiqWhen(ts){
+  if (!ts) return "";
+  const d = new Date(ts * 1000), p = n => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function aiqText(t){
+  // 답 본문: 이스케이프 → **굵게** → [근거] 표시 → 목록·문단
+  const lines = aiqEsc(t).replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")
+    .replace(/\[([^\[\]]{1,60})\]/g, '<span class="aiq-ref">$1</span>').split("\n");
+  let html = "", list = false;
+  for (const l of lines){
+    const m = l.match(/^\s*[-•*]\s+(.*)/);
+    if (m){ if (!list){ html += "<ul>"; list = true; } html += `<li>${m[1]}</li>`; continue; }
+    if (list){ html += "</ul>"; list = false; }
+    if (l.trim()) html += `<p>${l}</p>`;
+  }
+  return html + (list ? "</ul>" : "");
+}
+function aiqAnswer(r){
+  const ev = r.evidence || [], cited = ev.filter(e => e.cited).length;
+  return `<div class="aiq-a">${r.answer ? aiqText(r.answer) : ""}${r.note ? `<p class="aiq-note">${aiqEsc(r.note)}</p>` : ""}` +
+    (ev.length ? `<details class="aiq-ev"><summary>근거 — 답에 인용 ${cited}건 · AI가 살펴본 기록 ${ev.length}건</summary><ol>` +
+      ev.map(e => `<li class="${e.cited ? "cited" : ""}"><span class="aiq-ref">${aiqEsc(e.ref)}</span><span>${aiqEsc(e.label)}</span>` +
+        `<time>${aiqWhen(e.ts)}</time></li>`).join("") + `</ol></details>`
+      : r.answer ? `<p class="aiq-note">기록을 조회하지 않고 답했습니다 — 일반 설명으로 읽어 주세요.</p>` : "") + `</div>`;
+}
+function aiqRender(){
+  const th = $("#aiq-thread"), s = AIQ.st;
+  if (!s || !s.available || !s.enabled){
+    th.innerHTML = `<p class="acct-note">${aiqEsc(!s ? "AI 상태를 불러오지 못했습니다" : s.blocked || s.reason || "AI 기능이 꺼져 있습니다")}</p>` +
+      (s && !s.available && document.body.dataset.acct === "admin"
+        ? `<p class="acct-note">운영 서버 환경변수에 ANTHROPIC_API_KEY를 넣으면 켜집니다(Render → Environment). 고객사별로는 계정 관리에서 켭니다.</p>` : "");
+    $("#aiq-form").hidden = true; $("#aiq-new").hidden = true; return;
+  }
+  $("#aiq-form").hidden = false;
+  $("#aiq-new").hidden = !AIQ.hist.length;
+  if (!AIQ.hist.length){
+    th.innerHTML = `<p class="acct-note">판넬 상태·경보·활동 기록을 물어보세요. 답마다 AI가 살펴본 기록이 근거로 붙습니다.</p>` +
+      `<div class="aiq-sugs">${AIQ_SUGS.map(q => `<button type="button" class="aiq-sug">${aiqEsc(q)}</button>`).join("")}</div>`;
+    th.querySelectorAll(".aiq-sug").forEach(b => b.onclick = () => aiqAsk(b.textContent));
+    return;
+  }
+  th.innerHTML = AIQ.hist.map(h => `<div class="aiq-q">${aiqEsc(h.q)}</div>` +
+    (h.res ? aiqAnswer(h.res) : h.err ? `<div class="aiq-a"><p class="aiq-note bad">${aiqEsc(h.err)}</p></div>`
+      : `<div class="aiq-wait">기록을 찾아보는 중… (보통 10~30초)</div>`)).join("");
+  th.scrollTop = th.scrollHeight;
+}
+async function aiqAsk(q){
+  q = String(q || "").trim();
+  if (!q || AIQ.busy) return;
+  const prev = AIQ.hist.filter(h => h.res && h.res.answer).slice(-3).map(h => ({q: h.q, a: h.res.answer}));
+  const item = {q};
+  AIQ.hist.push(item); AIQ.busy = true; $("#aiq-send").disabled = true; $("#aiq-in").value = "";
+  aiqRender();
+  try {
+    const r = await fetch("/api/ai/ask", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({question: q, history: prev})});
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) item.res = j; else item.err = j.error || `답을 받지 못했습니다 (${r.status})`;
+  } catch(_){ item.err = "서버에 닿지 못했습니다"; }
+  AIQ.busy = false; $("#aiq-send").disabled = false;
+  await aiqRefresh(); aiqMeta(); aiqRender();
+  if (!$("#aiq-form").hidden) $("#aiq-in").focus();
+}
+async function openAsk(q){
+  $("#aiq-overlay").classList.add("open");
+  await aiqRefresh(); aiqMeta(); aiqRender();
+  if (q) aiqAsk(q); else if (!$("#aiq-form").hidden) $("#aiq-in").focus();
+}
+$("#btn-ask").onclick = () => openAsk();
+$("#aiq-close").onclick = () => $("#aiq-overlay").classList.remove("open");
+$("#aiq-new").onclick = () => { if (!AIQ.busy){ AIQ.hist = []; aiqRender(); $("#aiq-in").focus(); } };
+$("#aiq-form").addEventListener("submit", e => { e.preventDefault(); aiqAsk($("#aiq-in").value); });
+$("#aiq-in").addEventListener("keydown", e => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing){ e.preventDefault(); aiqAsk($("#aiq-in").value); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#aiq-overlay").classList.contains("open")) $("#aiq-overlay").classList.remove("open"); });
+
 // ── 계정: 등급별 화면 · 내 비번 변경 · 계정 관리 ─────────────
 // 권한은 서버가 쥔다(권한 표). 화면은 등급에 맞춰 메뉴를 숨길 뿐 — 숨긴 걸 눌러도 서버가 403.
 const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 전용"};
@@ -5472,6 +5672,9 @@ function acctRender(){
       `<span>월간 리포트 알림<small>매달 1일 리포트가 발행되면 아래 번호로 문자 한 통(실제 발송)</small></span></label>` +
       `<textarea class="acct-rcv" id="acct-rcv" aria-label="알림 받을 번호">${acctEsc(c.receivers.join("\n"))}</textarea>` +
       `<div class="acct-actions"><button class="acct-btn" id="acct-rcv-save">번호 저장</button></div></div>` +
+      `<div><h4>AI에게 물어보기<span>기본 꺼짐 — 질문할 때 이 고객사 판넬 기록이 외부 AI(Anthropic)로 전송됩니다</span></h4>` +
+      `<label class="acct-panel"><input type="checkbox" id="acct-ai" ${c.ai_enabled ? "checked" : ""}>` +
+      `<span>이 고객사에서 AI에게 물어보기 사용<small>계약서·고객 동의를 확인한 뒤 켜세요. 꺼져 있으면 JCC 관리자가 물어도 이 고객사 판넬 기록은 보내지 않습니다.</small></span></label></div>` +
       `<div><h4>계정<span>담당자: 경보 확인·수동 조작 · 보기 전용: 화면·리포트만</span></h4>${table(users.filter(u => u.customer_id === c.id))}</div>` +
       `<form class="acct-add" id="acct-user-form"><input id="acct-user-name" maxlength="40" placeholder="새 아이디 (예: kim.a)" aria-label="새 아이디">` +
       `<select id="acct-user-role" aria-label="등급"><option value="manager">담당자</option><option value="viewer">보기 전용</option></select>` +
@@ -5484,6 +5687,11 @@ function acctRender(){
     $("#acct-mnotify").onchange = async e => {
       try { await acctPost("monthly_notify", {customer_id: c.id, on: e.target.checked});
         acctMsg(e.target.checked ? `${c.name}: 월간 리포트 알림 켬` : `${c.name}: 월간 리포트 알림 끔`); await acctLoad();
+      } catch(err){ acctMsg(err.message, true); e.target.checked = !e.target.checked; }
+    };
+    $("#acct-ai").onchange = async e => {
+      try { await acctPost("ai", {customer_id: c.id, on: e.target.checked});
+        acctMsg(e.target.checked ? `${c.name}: AI에게 물어보기 켬` : `${c.name}: AI에게 물어보기 끔`); await acctLoad(); aiqRefresh();
       } catch(err){ acctMsg(err.message, true); e.target.checked = !e.target.checked; }
     };
     $("#acct-rcv-save").onclick = async () => {
@@ -6093,6 +6301,7 @@ function loadAlarms(){
         `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
         `<div class="apmeta">${escapeHtml(idline)} · ${ago(a.raised_at)||"방금"}`+
         `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div></div>`+
+        `<button class="ap-ask aiq-alarm" data-askal="${a.id}">AI 해설</button>`+
         (acked ? `<button class="ap-ack done">확인됨</button>` : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
         `</div>`;
     };
@@ -6112,6 +6321,10 @@ function loadAlarms(){
         (open ? members.map(a=>alarmRow(a, true)).join("") : "")+`</div>`;
     }).join("");
     list.querySelectorAll("[data-ack]").forEach(b=> b.onclick = ()=> ackAlarm(+b.dataset.ack));
+    list.querySelectorAll("[data-askal]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
+      const a = byId.get(+b.dataset.askal); if(!a) return;
+      alarmPanelOpen = false; $("#alarm-panel").hidden = true;
+      openAsk(`경보#${a.id} "${a.detail||a.kind}" (${sensorIdLine(a.device_id, a.sensor_key)})가 왜 났는지, 지금 현장에서 무엇을 확인하면 되는지 설명해줘`); });
     list.querySelectorAll("[data-ackinc]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
       const ids = b.dataset.ackinc.split(",").map(Number); b.disabled = true;
       Promise.all(ids.map(id=>fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},
@@ -6216,6 +6429,7 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
     window.__jccLocked = false;
     if(window.__jccUser && window.__jccUser.must_change){ openPw(true); return; }   // 임시 비번 → 먼저 변경
     try{ refresh(); loadAlarms(); loadPredict(); loadTicker(); }catch(e){}
+    aiqRefresh();               // AI 메뉴·경보 'AI 해설' 표시 여부(고객사 스위치·서버 키) — 잠금이 풀린 뒤에
   }
   fetch("/api/auth/status",{cache:"no-store"}).then(r=>r.json()).then(s=>{
     AUTH = {enabled:!!s.enabled, authed:!!s.authed};

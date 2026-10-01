@@ -113,6 +113,7 @@ ROUTES = [
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
+    ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -256,6 +257,50 @@ class Handler(BaseHTTPRequestHandler):
         self._scope_cache = sc
         return sc
 
+    def _ai_scope(self) -> dict:
+        """AI에 보내도 되는 판넬. 데이터가 외부 AI로 나가므로 고객사 스위치(ai_enabled)가 켜진 것만.
+        JCC 관리자: 켜진 고객사 판넬 + 미배정(JCC 자체) 판넬. 고객: 자기 고객사가 켜져 있을 때 자기 판넬."""
+        u, ac = self._user(), self.storage.accounts
+        on, owner = ac.ai_customers(), ac.panel_owner_map()
+        every = {p["panel"] for p in self.storage.list_panels()}
+        if u["role"] == "admin":
+            allowed = {p for p in every if owner.get(p) is None or owner[p] in on}
+            return {"panels": allowed, "customer_id": 0, "blocked": "", "excluded": len(every - allowed)}
+        if u.get("customer_id") not in on:
+            return {"panels": set(), "customer_id": u.get("customer_id") or -1, "excluded": 0,
+                    "blocked": "이 고객사는 AI 기능이 꺼져 있습니다(JCC에 문의하세요)"}
+        return {"panels": set(self._scope()["panels"]) & every, "customer_id": u["customer_id"],
+                "blocked": "", "excluded": 0}
+
+    def _ai_status(self) -> None:
+        from .ai import MODEL
+        a, sc = self.storage.ai, self._ai_scope()
+        return self._json({"available": a.available, "reason": a.reason, "enabled": not sc["blocked"],
+                           "blocked": sc["blocked"], "panels": len(sc["panels"]), "excluded_panels": sc["excluded"],
+                           "model": MODEL, "usage": a.usage(sc["customer_id"])})
+
+    def _ai_ask(self) -> None:
+        from .ai import AIError
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 60_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        sc = self._ai_scope()
+        if sc["blocked"]:
+            return self._json({"error": sc["blocked"]}, 403)
+        hist = b.get("history") if isinstance(b.get("history"), list) else []
+        q = str(b.get("question", ""))
+        try:
+            res = self.storage.ai.ask(q, sc["panels"], sc["customer_id"], hist)
+        except AIError as exc:
+            return self._json({"error": str(exc)}, exc.status)
+        self.storage.log_event("", "", "ai_ask", f"AI 질문: {q.strip()[:80]} ({self._user()['username']})",
+                               source="user")
+        return self._json(res)
+
     def _in_scope(self, key: str) -> bool:
         sc = self._scope()
         return sc is None or key in sc["devices"] or key in sc["panels"]
@@ -344,6 +389,8 @@ class Handler(BaseHTTPRequestHandler):
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/ai/status":
+            return self._ai_status()
         if path == "/api/commission/reports":
             return self._json({"reports": self.storage.list_commission_reports(None if sc is None else sc["panels"])})
         if path == "/api/admin/accounts":
@@ -425,6 +472,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "고객사와 월(YYYY-MM)을 확인하세요"}, 400)
             rep = issue(self.storage, cid, period, self._user()["username"])
             return self._json({"ok": True, "report": rep}) if rep else self._json({"error": "없는 고객사입니다"}, 400)
+        if parsed.path == "/api/ai/ask":
+            return self._ai_ask()
         if parsed.path.startswith("/api/commission/"):
             return self._commission(parsed.path[len("/api/commission/"):])
         if parsed.path == "/api/discover":
@@ -977,6 +1026,14 @@ class Handler(BaseHTTPRequestHandler):
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
+            if action == "ai":
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                on = bool(b.get("on"))
+                ac.set_ai(cid, on)
+                audit(f"고객사 #{cid} AI에게 물어보기 {'켬' if on else '끔'}")
+                return self._json({"ok": True})
             if action == "receivers":
                 cid = as_id(b.get("customer_id"))
                 if cid is None or not ac.customer_exists(cid) or not isinstance(b.get("numbers"), list):
@@ -1074,5 +1131,8 @@ class Handler(BaseHTTPRequestHandler):
 
 def make_server(host: str, port: int, storage: Storage) -> ThreadingHTTPServer:
     # 핸들러 클래스에 storage를 붙여 요청마다 공유하게 한다.
+    if getattr(storage, "ai", None) is None:      # AI에게 물어보기(키·SDK 없으면 꺼진 채로 둔다)
+        from .ai import Assistant, default_client
+        storage.ai = Assistant(storage, *default_client())
     handler = type("BoundHandler", (Handler,), {"storage": storage})
     return ThreadingHTTPServer((host, port), handler)

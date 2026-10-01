@@ -73,10 +73,14 @@ class Accounts:
         self._conn, self._lock = conn, lock
         with self._lock:
             self._conn.executescript(SCHEMA)
-            try:   # 구버전 DB: 월간 리포트 알림 스위치(기본 꺼짐 — 실제 문자가 나가므로 JCC가 켠 고객사만)
-                self._conn.execute("ALTER TABLE customers ADD COLUMN monthly_notify INTEGER DEFAULT 0")
-            except Exception:  # noqa: BLE001 - 이미 있음
-                pass
+            # 구버전 DB 열 추가(이미 있으면 넘어감)
+            #   monthly_notify: 월간 리포트 알림(기본 꺼짐 — 실제 문자가 나가므로 JCC가 켠 고객사만)
+            #   ai_enabled    : AI에게 물어보기(기본 꺼짐 — 데이터가 외부 AI로 나가므로 계약·동의 확인 후 JCC가 켬)
+            for col in ("monthly_notify", "ai_enabled"):
+                try:
+                    self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} INTEGER DEFAULT 0")
+                except Exception:  # noqa: BLE001 - 이미 있음
+                    pass
             self._conn.commit()
 
     # ── 고객사·판넬 ─────────────────────────────────────────
@@ -91,13 +95,26 @@ class Accounts:
 
     def list_customers(self) -> list:
         with self._lock:
-            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify FROM customers ORDER BY id").fetchall()
-        return [dict(dict(r), monthly_notify=bool(r["monthly_notify"])) for r in rows]
+            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled "
+                                      "FROM customers ORDER BY id").fetchall()
+        return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]))
+                for r in rows]
 
     def set_monthly_notify(self, customer_id: int, on: bool) -> None:
         with self._lock:
             self._conn.execute("UPDATE customers SET monthly_notify=? WHERE id=?", (1 if on else 0, customer_id))
             self._conn.commit()
+
+    def set_ai(self, customer_id: int, on: bool) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE customers SET ai_enabled=? WHERE id=?", (1 if on else 0, customer_id))
+            self._conn.commit()
+
+    def ai_customers(self) -> set:
+        """AI가 켜진 고객사 id."""
+        with self._lock:
+            rows = self._conn.execute("SELECT id FROM customers WHERE ai_enabled=1").fetchall()
+        return {r["id"] for r in rows}
 
     def customer_exists(self, cid) -> bool:
         with self._lock:

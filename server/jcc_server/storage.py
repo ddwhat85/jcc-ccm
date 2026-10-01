@@ -698,6 +698,31 @@ class Storage:
             rows = self._conn.execute(q, args).fetchall()
         return [dict(r) for r in rows]
 
+    def events_since(self, since: float, devices=None, limit: int = 100) -> list[dict]:
+        """기간 내 활동 기록(최신순). devices = 허용 기기·판넬 키 집합(None이면 전부)."""
+        q = "SELECT id, ts, device_id, sensor_key, etype, detail, source FROM events WHERE ts >= ?"
+        args: list = [since]
+        if devices is not None:
+            frag, fargs = self._in_devices(devices)
+            q += " AND " + frag; args.extend(fargs)
+        q += " ORDER BY ts DESC LIMIT ?"; args.append(max(1, min(limit, 500)))
+        with self._lock:
+            rows = self._conn.execute(q, args).fetchall()
+        return [dict(r) for r in rows]
+
+    def alarms_since(self, since: float, devices=None, limit: int = 100) -> list[dict]:
+        """기간 내 발생한 경보(해제된 것 포함, 최신순)."""
+        q = ("SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, acked_at, acked_by, "
+             "escalated_at, cleared_at FROM alarms WHERE raised_at >= ?")
+        args: list = [since]
+        if devices is not None:
+            frag, fargs = self._in_devices(devices)
+            q += " AND " + frag; args.extend(fargs)
+        q += " ORDER BY raised_at DESC LIMIT ?"; args.append(max(1, min(limit, 500)))
+        with self._lock:
+            rows = self._conn.execute(q, args).fetchall()
+        return [dict(r) for r in rows]
+
     @staticmethod
     def _in_devices(devices) -> tuple:
         """SQL 조건 'device_id IN (...)'(빈 집합이면 아무것도 안 맞게)."""
