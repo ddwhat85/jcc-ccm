@@ -852,6 +852,34 @@
   .xp-form select{width:100%}
   .xp-form [hidden]{display:none}
 
+  /* ── 경보 이력(alh-): 지난 경보·원인 적기·기준 검토 후보 ── */
+  #alh-overlay .cmsn-shell{width:min(880px,calc(100vw - 32px))}
+  .alh-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,2fr);gap:10px 12px}
+  .alh-bar select,.alh-bar input{width:100%;min-width:0;box-sizing:border-box}
+  .alh-noisy{border:1px solid var(--rule);background:var(--warn-soft);border-radius:var(--r);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+  .alh-noisy h4{margin:0;font:700 13px var(--sans);color:var(--ink)}
+  .alh-noisy h4 small{margin-left:8px;font:500 11px var(--sans);color:var(--ink-3)}
+  .alh-n{display:flex;flex-wrap:wrap;gap:2px 10px;font-size:12.5px}
+  .alh-n span{color:var(--ink-2)}
+  .alh-noisy .cmsn-btn{align-self:flex-start}
+  .alh-sum{font:400 11px var(--mono);color:var(--ink-3);letter-spacing:.02em}
+  .alh-row{display:grid;grid-template-columns:112px minmax(0,1fr) 128px 88px;gap:4px 12px;align-items:start;
+    padding:9px 0;border-bottom:1px solid var(--rule-2);font-size:12.5px}
+  .alh-row small{display:block;color:var(--ink-3);font-size:11px;margin-top:2px}
+  .alh-row .t{font:400 12px var(--num);font-variant-numeric:tabular-nums;color:var(--ink)}
+  .alh-row .w b{font-weight:600}
+  .alh-row .nt{color:var(--ink-2)}
+  .alh-row .ap-ack{justify-self:end;white-space:nowrap}
+  .alh-f{margin:0 0 8px}
+  .alh-empty{padding:24px 0;text-align:center;color:var(--ink-3);font-size:13px}
+  @media (max-width:640px){
+    #alh-overlay .cmsn-shell{width:100vw}
+    .alh-bar{grid-template-columns:1fr 1fr}
+    .alh-bar .w2{grid-column:1/-1}
+    .alh-row{grid-template-columns:minmax(0,1fr) auto}
+    .alh-row .t,.alh-row .w{grid-column:1/-1}
+  }
+
   /* ── 정기 점검 일지(설치 점검과 같은 셸) ── */
   #pchk-overlay .cmsn-shell{width:min(860px,calc(100vw - 32px))}
   .pchk-sec{flex:none;display:flex;flex-direction:column;gap:8px}
@@ -1632,6 +1660,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
         <button class="mb-item" id="btn-report">이력 리포트</button>
         <button class="mb-item" id="btn-xp">엑셀(CSV) 내보내기</button>
+        <button class="mb-item" id="btn-alh">경보 이력</button>
         <button class="mb-item jcc-admin" id="btn-algo">알고리즘 내역</button>
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
@@ -1828,7 +1857,26 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     </section>
   </div>
 
-  <!-- 정기 점검 일지: 볼 곳 → 체크리스트·사진·특이사항 → 고객 서명 → 보고서(인쇄·PDF). 고객은 완료 보고서만 -->
+  <!-- 경보 이력: 지난 경보를 거르고 해제된 경보에도 원인·메모를 단다. 오경보 잦은 센서(기준 검토 후보)는 맨 위 -->
+  <div class="overlay" id="alh-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="alh-title">
+      <header class="cmsn-head"><h3 id="alh-title">경보 이력</h3>
+        <button class="cmsn-x" id="alh-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></header>
+      <div class="cmsn-body">
+        <div class="alh-bar">
+          <label class="acct-f">기간<select id="alh-days"><option value="7">최근 7일</option><option value="30" selected>최근 30일</option><option value="90">최근 90일</option></select></label>
+          <label class="acct-f">원인<select id="alh-cause"><option value="">전체</option><option value="none">원인 미기록</option><option value="real">실제 이상</option><option value="false">오경보</option><option value="work">시험·작업</option><option value="other">그 밖</option></select></label>
+          <label class="acct-f w2">찾기<input id="alh-q" placeholder="판넬·센서·내용·메모" autocomplete="off"></label>
+        </div>
+        <div id="alh-noisy"></div>
+        <div class="alh-sum" id="alh-sum"></div>
+        <div id="alh-list"></div>
+        <div class="cmsn-msg" id="alh-msg" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 정기 점검 일지: 볼 곳 →체크리스트·사진·특이사항 → 고객 서명 → 보고서(인쇄·PDF). 고객은 완료 보고서만 -->
   <div class="overlay" id="pchk-overlay">
     <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="pchk-title">
       <header class="cmsn-head pchk-noprint">
@@ -4331,6 +4379,7 @@ const QK_CMDS = [
   ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
   ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
   ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
+  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
   ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["이력 리포트", () => $("#btn-report").click()],
 ];
@@ -4412,6 +4461,74 @@ $("#xp-form").addEventListener("submit", async e => {
     m.className = "cmsn-msg ok"; m.textContent = `${name} 내려받음`;
   } catch(err){ m.className = "cmsn-msg bad"; m.textContent = err.message; }
 });
+
+// ── 경보 이력 ─────────────────────────────────────────
+// 지난 경보를 기간·원인으로 거르고, 확인 없이 해제된 경보에도 원인·조치 메모를 단다(원인은 나중에 아는 일이 많다).
+// 맨 위엔 오경보·시험 작업 기록이 잦은 센서 — 경보 기준 검토 후보(서버 alarm_review.py).
+const ALH = { d: null, open: null };
+const alhTime = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false}) : "";
+const alhDur = m => m < 1 ? "1분 미만" : m < 60 ? `${Math.round(m)}분` : m < 1440 ? `${(m / 60).toFixed(1)}시간` : `${(m / 1440).toFixed(1)}일`;
+function alhMsg(t, bad){ const m = $("#alh-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function alhLoad(){
+  try { const r = await fetch(`/api/alarms/history?days=${$("#alh-days").value}&cause=${encodeURIComponent($("#alh-cause").value)}`, {cache:"no-store"});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `불러오지 못함 (${r.status})`); ALH.d = j; }
+  catch(e){ $("#alh-list").innerHTML = ""; $("#alh-sum").textContent = ""; alhMsg(e.message, true); return; }
+  alhPaint();
+}
+function alhForm(a){
+  return `<div class="ap-ackf alh-f"><div class="ap-causes" role="group" aria-label="원인">` +
+    Object.entries(ACK_CAUSE).map(([k, v]) => `<button type="button" data-cause="${k}" aria-pressed="${k === a.cause}">${v}</button>`).join("") +
+    `</div><input class="ap-note" maxlength="200" placeholder="조치 메모(선택) — 예: 센서 청소, 용접 작업 중" value="${escapeHtml(a.ack_note || "")}">` +
+    `<div class="ap-ackrow"><button type="button" class="ap-cancel" data-alhx>취소</button>` +
+    `<button type="button" class="ap-ack" data-alhgo="${a.id}">${a.open && !a.acked_at ? "확인하고 저장" : "저장"}</button></div></div>`;
+}
+function alhPaint(){
+  const d = ALH.d; if (!d) return;
+  const q = $("#alh-q").value.trim().toLowerCase();
+  const rows = d.alarms.filter(a => !q || [a.panel_name, a.sensor_name, a.detail, a.device_id, a.ack_note]
+    .some(x => String(x || "").toLowerCase().includes(q)));
+  const acct = document.body.dataset.acct, canWrite = acct === "admin" || acct === "manager";
+  $("#alh-noisy").innerHTML = d.noisy && d.noisy.length ? `<section class="alh-noisy"><h4>기준 검토가 필요한 센서<small>오경보·시험 작업 기록이 잦음 · 최근 ${Math.round(d.days)}일</small></h4>` +
+    d.noisy.map(n => `<div class="alh-n"><b>${escapeHtml(n.panel_name || n.device_id)} · ${escapeHtml(n.sensor_name || "CCM")}</b><span>${escapeHtml(n.say)}</span></div>`).join("") +
+    (acct === "admin" ? `<button type="button" class="cmsn-btn" id="alh-tune">예지 튜닝 콘솔 열기</button>` : "") + `</section>` : "";
+  const none = rows.filter(a => !a.cause).length;
+  $("#alh-sum").textContent = `경보 ${d.total}건` + (d.total > d.alarms.length ? ` 중 최근 ${d.alarms.length}건` : "") +
+    (q ? ` · 찾은 것 ${rows.length}건` : "") + (none ? ` · 원인 미기록 ${none}건` : "");
+  $("#alh-list").innerHTML = rows.length ? rows.map(a => {
+    const crit = a.severity === "crit", note = [ACK_CAUSE[a.cause] || "", a.ack_note || ""].filter(Boolean).join(" — ");
+    const who = a.acked_at ? `확인 ${escapeHtml(a.acked_by || "")}` : a.open ? "미확인" : "확인 없이 해제";
+    return `<div class="alh-row"><span class="t">${alhTime(a.raised_at)}<small>${a.open ? "진행 중 · " : ""}${alhDur(a.minutes)}</small></span>` +
+      `<span class="w"><b>${escapeHtml(a.panel_name || a.device_id)} · ${escapeHtml(a.sensor_name || "CCM")}</b><small>${escapeHtml(a.detail || a.kind)}</small>` +
+      (note ? `<small class="nt">${escapeHtml(note)}</small>` : "") + `</span>` +
+      `<span class="s"><span class="fleet-chip${crit ? " crit" : ""}">${crit ? "위험" : "주의"}</span><small>${who}</small></span>` +
+      (canWrite ? `<button type="button" class="ap-ack memo" data-alh="${a.id}">${a.cause || a.ack_note ? "메모 고치기" : a.open && !a.acked_at ? "확인" : "원인 적기"}</button>` : "<span></span>") +
+      `</div>` + (ALH.open === a.id ? alhForm(a) : "");
+  }).join("") : `<div class="alh-empty">조건에 맞는 경보가 없습니다.</div>`;
+  const list = $("#alh-list");
+  list.querySelectorAll("[data-alh]").forEach(b => b.onclick = () => { const id = +b.dataset.alh; ALH.open = ALH.open === id ? null : id; alhPaint();
+    setTimeout(() => list.querySelector(".alh-f .ap-note")?.focus(), 30); });
+  list.querySelectorAll(".alh-f .ap-causes button").forEach(b => b.onclick = () => {
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.parentElement.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", "false")); b.setAttribute("aria-pressed", String(on)); });
+  list.querySelectorAll("[data-alhx]").forEach(b => b.onclick = () => { ALH.open = null; alhPaint(); });
+  list.querySelectorAll(".alh-f .ap-note").forEach(inp => inp.onkeydown = e => {
+    if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); inp.closest(".alh-f").querySelector("[data-alhgo]").click(); }
+    if (e.key === "Escape"){ e.stopPropagation(); ALH.open = null; alhPaint(); } });
+  list.querySelectorAll("[data-alhgo]").forEach(b => b.onclick = async () => {
+    const f = b.closest(".alh-f"), id = +b.dataset.alhgo, a = d.alarms.find(x => x.id === id);
+    const cause = (f.querySelector('.ap-causes [aria-pressed="true"]') || {}).dataset?.cause || "", note = f.querySelector(".ap-note").value.trim();
+    if (!cause && !note && !(a && a.open && !a.acked_at)){ alhMsg("원인을 고르거나 메모를 적어 주세요", true); return; }
+    b.disabled = true;
+    try { const r = await fetch("/api/alarm/ack", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({alarm_id:id, note, cause})});
+      const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error || "저장하지 못했습니다");
+      ALH.open = null; alhMsg("저장했습니다 — 리포트·AI 답에 반영됩니다"); await alhLoad(); loadAlarms(); }
+    catch(e){ b.disabled = false; alhMsg(e.message, true); } });
+  const tune = $("#alh-tune"); if (tune) tune.onclick = () => { $("#alh-overlay").classList.remove("open"); $("#btn-tune").click(); };
+}
+$("#btn-alh").onclick = () => { $("#alh-overlay").classList.add("open"); ALH.open = null; alhMsg(""); alhLoad(); };
+$("#alh-close").onclick = () => $("#alh-overlay").classList.remove("open");
+$("#alh-days").onchange = $("#alh-cause").onchange = () => { ALH.open = null; alhLoad(); };
+$("#alh-q").oninput = () => alhPaint();
 
 // ── 정기 점검 일지 ─────────────────────────────────────
 // 직원이 현장을 점검한 기록. 서버(inspection.py)가 '이번에 볼 곳'을 데이터에서 뽑아 주고,
@@ -5724,7 +5841,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["qk-overlay","xp-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","alh-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }

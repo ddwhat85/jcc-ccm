@@ -131,6 +131,36 @@
   function closeAlarm(dev, key, kind) {
     S.alarms.forEach(a => { if (!a.cleared_at && a.device_id === dev && a.sensor_key === key && a.kind === kind) a.cleared_at = now(); });
   }
+  // 경보 이력(서버 alarm_review.py와 같은 모양). 시연이 막 시작돼 지난 기록이 없으므로 첫 조회 때 지난 2주치를 몇 건 깐다.
+  function seedPastAlarms() {
+    if (S.pastSeeded) return;
+    const dev = deviceList()[0]; if (!dev || !dev.latest.length) return;
+    S.pastSeeded = true;
+    const k1 = dev.latest[0], k2 = dev.latest[1] || k1, t = now();
+    [[k1, "alarm", "false", "센서 주변 용접 작업", 13], [k1, "alarm", "false", "", 10], [k1, "alarm", "work", "가스 기능시험", 7],
+     [k1, "alarm", "false", "센서 청소 후 정상", 4], [k2, "alarm_warn", "real", "팬 필터 막힘 — 교체", 9], [k2, "alarm_warn", null, "", 2]]
+      .forEach(([s, kind, cause, note, d]) => S.alarms.push({ id: S.seq++, device_id: dev.device_id, sensor_key: s.sensor_key, kind,
+        detail: `${s.name || s.sensor_key} 기준 넘음`, severity: SEV[kind] || "warn", raised_at: t - d * 86400, cleared_at: t - d * 86400 + 1500,
+        acked_at: cause ? t - d * 86400 + 300 : null, acked_by: cause ? "김현장" : null, escalated_at: null, cause, ack_note: note || null }));
+  }
+  function alarmHistory(days, cause) {
+    seedPastAlarms();
+    days = Math.min(90, Math.max(1, days || 30));
+    const t = now(), since = t - days * 86400, names = {}, sname = {};
+    panelList().forEach(p => p.ccms.forEach(c => { names[c.device_id] = p.panel_name; c.latest.forEach(s => { sname[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; }); }));
+    let rows = S.alarms.filter(a => a.raised_at >= since).sort((a, b) => b.raised_at - a.raised_at);
+    const by = {};
+    rows.forEach(a => { const k = a.device_id + "|" + (a.sensor_key || "") + "|" + a.kind; (by[k] = by[k] || []).push(a.cause || ""); });
+    const noisy = Object.entries(by).map(([k, cs]) => { const [dev, key, kind] = k.split("|"), fake = cs.filter(c => c === "false" || c === "work").length,
+      labeled = cs.filter(Boolean).length;
+      return fake >= 3 && fake / labeled >= 0.5 ? { device_id: dev, sensor_key: key, kind, panel_name: names[dev] || "", sensor_name: sname[dev + "|" + key] || key,
+        total: cs.length, false: fake, unlabeled: cs.length - labeled, say: `오경보·시험 작업 ${fake}/${labeled}건 — 경보 기준(예지 튜닝 콘솔) 검토` } : null; })
+      .filter(Boolean).sort((a, b) => b.false - a.false);
+    if (cause === "none") rows = rows.filter(a => !a.cause); else if (cause) rows = rows.filter(a => a.cause === cause);
+    return { days, total: rows.length, noisy, alarms: rows.slice(0, 500).map(a => ({ ...a, panel_name: names[a.device_id] || "",
+      sensor_name: sname[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "", open: !a.cleared_at,
+      minutes: Math.round(((a.cleared_at || t) - a.raised_at) / 6) / 10 })) };
+  }
   function raise(dev, key, kind, detail) { openAlarm(dev, key, kind, detail); logEvent(dev, key, kind, detail); }
   function clear(dev, key, kind, clearType, detail) { closeAlarm(dev, key, kind); logEvent(dev, key, clearType, detail); }
 
@@ -1361,6 +1391,7 @@
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/alarms/history") return Promise.resolve(J(alarmHistory(parseFloat(qs.get("days") || "30"), qs.get("cause") || "")));
       if (p === "/api/export/alarms.csv" || p === "/api/export/readings.csv") {     // 데모: 메모리의 기록으로 같은 모양 CSV
         const days = Math.min(366, Math.max(1, parseFloat(qs.get("days") || "30"))), since = now() - days * 86400;
         const t = ts => { if (!ts) return ""; const d = new Date(ts * 1000), z = n => String(n).padStart(2, "0");
@@ -1460,7 +1491,7 @@
           if (a && !a.cleared_at && !a.acked_at) { ok = true; a.acked_at = now(); a.acked_by = "데모";
             a.ack_note = note || null; a.cause = cause || null;
             logEvent(a.device_id, a.sensor_key, "ack", `경보 확인(데모): ${a.detail}` + (cause || note ? " · " + [CAUSE[cause], note].filter(Boolean).join(" — ") : ""), "user"); }
-          else if (a && a.acked_at && (note || cause)) { ok = true; if (note) a.ack_note = note; if (cause) a.cause = cause;
+          else if (a && (a.acked_at || a.cleared_at) && (note || cause)) { ok = true; if (note) a.ack_note = note; if (cause) a.cause = cause;
             logEvent(a.device_id, a.sensor_key, "ack", `경보 메모(데모): ${a.detail} · ` + [CAUSE[cause], note].filter(Boolean).join(" — "), "user"); }
           return Promise.resolve(J({ ok, alarm_id: Number(body.alarm_id) }));
         }
