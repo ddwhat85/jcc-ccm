@@ -104,7 +104,7 @@ def _session_token() -> str:
 ROUTES = [
     ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/predict-core.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
-    ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"),
+    ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
     ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
     ("POST", "/api/me/password", "self"),
     ("GET", "/api/devices", "read"), ("GET", "/api/panels", "read"), ("GET", "/api/alarms", "read"),
@@ -555,6 +555,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_ota(path[len("/ota/"):])
         if path.startswith("/img/"):
             return self._serve_image(path[len("/img/"):])
+        if path.startswith("/fonts/"):
+            return self._serve_font(path[len("/fonts/"):])
 
         m = re.fullmatch(r"/api/devices/([^/]+)/history", path)
         if m:
@@ -1091,6 +1093,24 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", self._IMG_TYPES[ext])
         self.send_header("Content-Length", str(len(blob)))
         self.send_header("Cache-Control", "public, max-age=3600")
+        self.end_headers()
+        self.wfile.write(blob)
+
+    _FONT_TYPES = {".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8"}
+
+    def _serve_font(self, name: str) -> None:
+        """static/fonts/ 의 글꼴(woff2)과 라이선스 문서. 파일명만 취해 경로 탈출을 막는다. 1년 캐시."""
+        safe = os.path.basename(unquote(urlparse(name).path))
+        ext = os.path.splitext(safe)[1].lower()
+        full = os.path.join(_STATIC_DIR, "fonts", safe)
+        if not safe or ext not in self._FONT_TYPES or not os.path.isfile(full):
+            return self._json({"error": "not found"}, 404)
+        with open(full, "rb") as fh:
+            blob = fh.read()
+        self.send_response(200)
+        self.send_header("Content-Type", self._FONT_TYPES[ext])
+        self.send_header("Content-Length", str(len(blob)))
+        self.send_header("Cache-Control", "public, max-age=31536000, immutable")
         self.end_headers()
         self.wfile.write(blob)
 

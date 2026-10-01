@@ -11,6 +11,12 @@
         ],
         "createdAt": "2026-09-14T08:15:15.505Z",
         "reason": "SmartRay-style node editor canvas; grid is a functional canvas surface (rule's named exception), user-confirmed"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "8px",
+        "createdAt": "2026-10-01T09:15:12.460Z",
+        "reason": "User accepted recommendation (2026-10-01): 8px unit labels inside graph node value pills are intentional micro labels"
       }
     ]
   }

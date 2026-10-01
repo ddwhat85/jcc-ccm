@@ -260,11 +260,9 @@
   }
   /* ── AI 자동연결 스캔 HUD — 캔버스 우측 상단 고정(개요 사이드바 왼쪽), 불투명 패널 ── */
   .scanhud{position:absolute;right:324px;top:24px;z-index:40;width:264px;pointer-events:none;
-           background:rgba(5,14,10,.9);border:1px solid #1c3a2e;border-radius:2px;padding:14px 15px;
-           box-shadow:0 14px 44px rgba(8,10,12,.5);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+           background:var(--surface);border:2px solid var(--line-3);border-radius:var(--r);padding:14px 15px;
+           box-shadow:0 14px 34px -10px rgba(8,10,12,.4);
            font-family:var(--mono);opacity:0;transform:translateY(8px);transition:opacity .35s ease,transform .35s ease}
-  .scanhud::before{content:"";position:absolute;inset:0;border-radius:2px;pointer-events:none;opacity:.5;
-    background:repeating-linear-gradient(0deg,rgba(0,255,150,.035) 0 1px,transparent 1px 3px)}
   .scanhud.on{opacity:1;transform:none}
   /* 헤드라이트 포커스: 스캔 시작 순간 나머지는 어둡게, 판넬·클라우드만 환하게 */
   .graph.focusing .node{opacity:.18;transition:opacity .3s ease}
@@ -274,21 +272,19 @@
   .node.spot{box-shadow:0 0 0 2px var(--accent),0 0 0 6px color-mix(in srgb,var(--accent) 22%,transparent);
              transition:box-shadow .3s ease}
   @media (prefers-reduced-motion:reduce){.graph.focusing .node{transition:none}}
-  .scanhud.done .sh-timer{color:#20e39a}
-  .sh-timer{font:700 34px var(--mono);color:#3fe0a0;letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
-  .sh-timer small{font-size:13px;color:#5f9c86;margin-left:5px;font-weight:600;letter-spacing:0}
-  .sh-title{font:700 10.5px var(--mono);color:#8fe8c4;margin:8px 0 7px;display:flex;align-items:center;gap:6px;
-            letter-spacing:.05em;text-transform:uppercase}
-  .sh-title .dot{width:7px;height:7px;border-radius:50%;background:#20e39a;flex:none;animation:hpulse 1s ease-in-out infinite}
-  .sh-count{font:600 10.5px var(--mono);color:#5f9c86;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #14291f}
+  .scanhud.done .sh-timer{color:var(--ok)}
+  .sh-timer{font:400 34px var(--num);color:var(--ink);letter-spacing:-.03em;line-height:1;font-variant-numeric:tabular-nums}
+  .sh-timer small{font:500 13px var(--sans);color:var(--ink-3);margin-left:5px}
+  .sh-title{font:700 12px var(--sans);color:var(--ink);margin:8px 0 7px;display:flex;align-items:center;gap:6px}
+  .sh-title .dot{width:7px;height:7px;border-radius:50%;background:var(--wire);flex:none;animation:hpulse 1s ease-in-out infinite}
+  .sh-count{font:400 10.5px var(--mono);color:var(--ink-3);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--rule)}
   .sh-log{display:flex;flex-direction:column;gap:2px;min-height:158px;justify-content:flex-end}
-  .sh-line{font:600 10.5px var(--mono);color:#3fe0a0;display:flex;align-items:center;gap:5px;
+  .sh-line{font:500 11px var(--sans);color:var(--ink-2);display:flex;align-items:center;gap:6px;
            white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
            opacity:0;transform:translateY(4px);animation:shln .28s ease forwards}
-  .sh-line::before{content:"›";color:#2f7d5f;flex:none}
-  .sh-line .ic{flex:none}
-  .sh-line.found .ic{color:#20e39a} .sh-line.sys{color:#2f9d78}
-  .sh-log::after{content:"▊";color:#20e39a;font-size:10px;align-self:flex-start;animation:blink 1s step-end infinite}
+  .sh-line .ic{flex:none;width:6px;height:6px;border-radius:50%;background:var(--rule)}
+  .sh-line.found{color:var(--ink)} .sh-line.found .ic{background:var(--ok)} .sh-line.sys .ic{background:var(--wire)}
+  @media (prefers-reduced-motion:reduce){.sh-title .dot{animation:none}}
   @keyframes shln{to{opacity:1;transform:none}}
   @keyframes blink{50%{opacity:0}}
   @media (prefers-reduced-motion:reduce){
@@ -1301,63 +1297,62 @@
   @keyframes tkin{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
   @media (prefers-reduced-motion:reduce){.ticker .tk.newest{animation:none}}
 
-  /* ── 부팅 로그인 — 국방/해킹 터미널 콘솔 ── */
+  /* ── 부팅 로그인 — 도면 표지(cover sheet): 같은 도면 세계, 테마 토큰만 씀 ── */
   .boot{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
-        background:#04070a;font-family:var(--mono);opacity:1;transition:opacity .5s ease;overflow:hidden}
+        background-color:var(--ground);font-family:var(--sans);opacity:1;transition:opacity .45s ease;overflow:hidden;
+        background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),
+          linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+        background-size:120px 120px,120px 120px,24px 24px,24px 24px}
   .boot.gone{opacity:0;pointer-events:none}
   .boot[hidden]{display:none}
-  .boot::before{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
-    background:repeating-linear-gradient(0deg,rgba(53,224,143,.045) 0 1px,transparent 1px 3px)}
-  .boot::after{content:"";position:absolute;inset:0;pointer-events:none;
-    background:radial-gradient(120% 120% at 50% 40%,transparent 52%,rgba(8,10,12,.7) 100%)}
-  .term{position:relative;width:min(560px,94vw);background:rgba(4,10,8,.92);border:1px solid #17402e;
-    box-shadow:0 0 0 1px #0a1c14,0 30px 80px rgba(8,10,12,.7);color:#8fe8c4}
-  .term-cls{background:#8a1410;color:#ffe0dd;font:700 10px var(--mono);letter-spacing:.22em;
-    text-align:center;padding:5px;border-bottom:1px solid #17402e}
-  .term-bar{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #17402e;
-    font:700 11px var(--mono);letter-spacing:.06em;color:#35e08f}
-  .term-bar .tb-dot{width:8px;height:8px;border-radius:50%;background:#35e08f;flex:none;animation:hpulse 1.2s ease-in-out infinite}
-  .term-bar .tb-v{margin-left:auto;color:#2f7d5f;font-weight:600;letter-spacing:.03em}
-  .term-body{padding:15px 18px 14px}
-  .term-logo{height:34px;width:auto;display:block;margin:0 0 12px;opacity:.95}
-  .term-boot{margin:0 0 12px;font:600 11px var(--mono);color:#2f9d78;line-height:1.55;white-space:pre-wrap;min-height:70px}
-  .term-boot .cur{color:#35e08f;animation:blink 1s step-end infinite}
-  .tline{font:600 12px var(--mono);color:#7fbfa4;letter-spacing:.02em;padding:3px 0;
+  .term{position:relative;width:min(520px,calc(100vw - 32px));background:var(--surface);color:var(--ink);
+    border:2px solid var(--line-3);box-shadow:inset 0 0 0 5px var(--surface),inset 0 0 0 6px var(--rule),0 30px 70px -24px rgba(8,10,12,.45)}
+  .term-bar{display:flex;align-items:center;gap:8px;padding:12px 18px 10px;border-bottom:2px solid var(--line-3);
+    font:800 14px var(--sans);letter-spacing:-.01em;color:var(--ink)}
+  .term-bar .tb-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
+  .term-bar .tb-v{margin-left:auto;color:var(--ink-3);font:400 10.5px var(--mono);letter-spacing:.04em}
+  .term-body{padding:18px 20px 16px}
+  .term-logo{height:30px;width:auto;margin:0 0 14px}
+  .term-logo.lt{display:block} .term-logo.dk{display:none}
+  :root[data-theme="dark"] .term-logo.lt{display:none} :root[data-theme="dark"] .term-logo.dk{display:block}
+  .term-boot{margin:0 0 12px;font:400 11px var(--mono);color:var(--ink-3);line-height:1.6;white-space:pre-wrap;min-height:70px}
+  .term-boot .cur{color:var(--ink);animation:blink 1s step-end infinite}
+  .tline{font:500 12.5px var(--sans);color:var(--ink-2);padding:5px 0;border-top:1px solid var(--rule-2);
     display:flex;align-items:center;white-space:nowrap;overflow:hidden}
   .tline .nm{flex:none}
-  .tline .dots{flex:1;color:#1f4a37;overflow:hidden;white-space:nowrap;margin:0 6px;letter-spacing:1px}
-  .tline .bl-st{flex:none;color:#e6b93a}
-  .tline.up .bl-st{color:#35e08f} .tline.down .bl-st{color:#ff4b4b}
-  .term-auth{margin-top:12px;border-top:1px dashed #17402e;padding-top:14px}
-  .ta-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
-  .ta-row label{flex:none;width:82px;font:700 11px var(--mono);letter-spacing:.08em;color:#35e08f}
-  .ta-row input{flex:1;min-width:0;padding:9px 11px;border:1px solid #17402e;background:#020705;
-    color:#c9ffe8;font:14px var(--mono);letter-spacing:.08em;outline:none;border-radius:0}
-  .ta-row input:focus{border-color:#35e08f;background:#04120c}
-  #boot-login{width:100%;margin-top:4px;padding:11px;border:1px solid #35e08f;background:#07160f;
-    color:#35e08f;font:800 13px var(--mono);letter-spacing:.14em;cursor:pointer;border-radius:0}
-  #boot-login:hover:not(:disabled){background:#35e08f;color:#04120c}
-  #boot-login:disabled{border-color:#1a3327;color:#3c6b57;cursor:not-allowed}
-  .boot-msg{min-height:16px;font:600 11px var(--mono);color:#ff4b4b;margin:10px 0 0;letter-spacing:.03em}
-  .boot-hint{margin-top:10px;font:600 10.5px var(--mono);color:#2f7d5f;letter-spacing:.04em}
-  .boot-hint b{color:#8fe8c4}
-  .term-warn{margin-top:12px;padding-top:10px;border-top:1px solid #17402e;
-    font:600 9.5px var(--mono);color:#a98a2e;letter-spacing:.05em}
-  .boot-hack{margin-top:12px}
-  .hack-log{height:132px;overflow:hidden;font:600 11px var(--mono);color:#35e08f;line-height:1.5;
+  .tline .dots{flex:1;color:var(--rule);overflow:hidden;white-space:nowrap;margin:0 8px;letter-spacing:1px}
+  .tline .bl-st{flex:none;font:400 11px var(--mono);color:var(--warn)}
+  .tline.up .bl-st{color:var(--ok)} .tline.down .bl-st{color:var(--crit)}
+  .term-auth{margin-top:14px;border-top:2px solid var(--line-3);padding-top:16px}
+  .ta-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .ta-row label{flex:none;width:82px;font:400 10.5px var(--mono);letter-spacing:.08em;color:var(--ink-3)}
+  .ta-row input{flex:1;min-width:0;padding:10px 11px;border:1px solid var(--rule);background:var(--canvas);
+    color:var(--ink);font:500 14px var(--mono);letter-spacing:.04em;outline:none;border-radius:var(--r)}
+  .ta-row input:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  #boot-login{width:100%;margin-top:6px;padding:12px;border:1px solid var(--accent);background:var(--accent);
+    color:#fff;font:700 14px var(--sans);cursor:pointer;border-radius:var(--r)}
+  #boot-login:hover:not(:disabled){filter:brightness(1.12)}
+  #boot-login:disabled{background:var(--surface-2);border-color:var(--rule);color:var(--ink-3);cursor:not-allowed}
+  #boot-login:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .boot-msg{min-height:16px;font:600 12px var(--sans);color:var(--crit);margin:10px 0 0}
+  .boot-hint{margin-top:8px;font:400 11px var(--mono);color:var(--ink-3)}
+  .boot-hint b{color:var(--ink);font-weight:700}
+  .term-warn{margin-top:14px;padding-top:10px;border-top:1px solid var(--rule);font:500 11px var(--sans);color:var(--ink-3)}
+  .boot-hack{margin-top:14px}
+  .hack-log{height:132px;overflow:hidden;font:400 11px var(--mono);color:var(--ink-2);line-height:1.55;
     display:flex;flex-direction:column;justify-content:flex-end;margin-bottom:10px}
   .hack-log .hl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .hack-log .hl.ok{color:#8fffd0}
-  .hack-bar{height:10px;background:#020705;border:1px solid #17402e;overflow:hidden}
-  .hack-fill{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;
-             background:#35e08f;transition:transform .2s linear}
-  .hack-pct{text-align:right;font:700 12px var(--mono);color:#35e08f;margin-top:6px;letter-spacing:.06em}
-  .term .corner{position:absolute;width:12px;height:12px;border:2px solid #35e08f;pointer-events:none}
-  .term .corner.tl{top:-1px;left:-1px;border-right:0;border-bottom:0}
-  .term .corner.tr{top:-1px;right:-1px;border-left:0;border-bottom:0}
-  .term .corner.bl{bottom:-1px;left:-1px;border-right:0;border-top:0}
-  .term .corner.br{bottom:-1px;right:-1px;border-left:0;border-top:0}
-  @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}.term-bar .tb-dot{animation:none}}
+  .hack-log .hl.ok{color:var(--ok)}
+  .hack-bar{height:8px;background:var(--surface-2);border:1px solid var(--rule);overflow:hidden}
+  .hack-fill{height:100%;width:100%;transform:scaleX(0);transform-origin:left center;background:var(--wire);transition:transform .2s linear}
+  .hack-pct{text-align:right;font:400 12px var(--mono);color:var(--ink);margin-top:6px}
+  /* 모서리 맞춤표(도면 재단선) */
+  .term .corner{position:absolute;width:12px;height:12px;border:2px solid var(--line-3);pointer-events:none}
+  .term .corner.tl{top:-8px;left:-8px;border-right:0;border-bottom:0}
+  .term .corner.tr{top:-8px;right:-8px;border-left:0;border-bottom:0}
+  .term .corner.bl{bottom:-8px;left:-8px;border-right:0;border-top:0}
+  .term .corner.br{bottom:-8px;right:-8px;border-left:0;border-top:0}
+  @media (prefers-reduced-motion:reduce){.boot{transition:none}.hack-fill{transition:none}}
 
   /* ═══ 도면 시트 세계 — 컴포넌트 문법 ═══════════════════════════════
      선 굵기 3단: 가는 선(--rule-2) · 보통 선(--rule) · 굵은 외곽선(--line-3, 2px). 모서리는 2px.
@@ -1554,10 +1549,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <!-- 부팅 로그인: 국방/해킹 터미널풍. 회선 2개(WAN·LAN) 연결 확인 → 인증 → 게이지 -->
   <div class="boot" id="boot">
     <div class="term">
-      <div class="term-cls">// CLASSIFIED — RESTRICTED ACCESS //</div>
-      <div class="term-bar"><span class="tb-dot"></span>JCC-CCM :: SECURE ACCESS TERMINAL<span class="tb-v">NODE SEOUL-01 · v3.7</span></div>
+      <div class="term-bar"><span class="tb-dot"></span>JCC-CCM 현장 감시 시스템<span class="tb-v">SEOUL-01 · v3.7</span></div>
       <div class="term-body">
-        <img class="term-logo" src="img/logo-dark.png" alt="JCC Solution" onerror="this.remove()">
+        <img class="term-logo lt" src="img/logo-light.png" alt="JCC Solution" onerror="this.remove()">
+        <img class="term-logo dk" src="img/logo-dark.png" alt="" onerror="this.remove()">
         <pre class="term-boot" id="term-boot"></pre>
         <div class="tline" id="blink-wan"><span class="nm">LINK//WAN  인터넷 회선</span><span class="dots">····························</span><span class="bl-st">[ SCAN ]</span></div>
         <div class="tline" id="blink-lan"><span class="nm">LINK//LAN  이더넷·센서망</span><span class="dots">··························</span><span class="bl-st">[ SCAN ]</span></div>
@@ -1573,7 +1568,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="hack-bar"><div class="hack-fill" id="hack-fill"></div></div>
           <div class="hack-pct" id="hack-pct">0%</div>
         </div>
-        <div class="term-warn">⚠ AUTHORIZED PERSONNEL ONLY — ALL SESSIONS ARE MONITORED &amp; LOGGED</div>
+        <div class="term-warn">허가된 직원만 접속할 수 있습니다 — 모든 접속은 기록됩니다</div>
       </div>
       <span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
     </div>
@@ -4323,7 +4318,7 @@ function scanHudLine(ic, text, cls){
   const log = $("#sh-log"); if(!log) return;
   const d = document.createElement("div");
   d.className = "sh-line " + (cls||"");
-  d.innerHTML = `<span class="ic">${ic}</span><span class="tx">${escapeHtml(text)}</span>`;
+  d.innerHTML = `<span class="ic" aria-hidden="true"></span><span class="tx">${escapeHtml(text)}</span>`;   // ic(기호)는 쓰지 않는다 — 줄 종류가 점 색을 정한다
   log.appendChild(d);
   while(log.children.length > 7) log.removeChild(log.firstChild);   // 최근 것만 유지
 }

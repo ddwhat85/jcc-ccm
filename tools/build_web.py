@@ -89,6 +89,13 @@ def main() -> int:
             if name.lower().endswith((".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg")):
                 shutil.copy2(os.path.join(SRC_IMG, name), os.path.join(dst_img, name))
 
+    # 글꼴: 정적 데모(web/)는 서버와 같은 파일을 복사해 쓴다
+    src_fonts, dst_fonts = os.path.join(ROOT, "server", "static", "fonts"), os.path.join(OUT, "fonts")
+    if os.path.isdir(src_fonts):
+        os.makedirs(dst_fonts, exist_ok=True)
+        for name in os.listdir(src_fonts):
+            shutil.copy2(os.path.join(src_fonts, name), os.path.join(dst_fonts, name))
+
     # 호스팅 페이지(Artifact 등)는 자체 <html>/<head>/<body> 뼈대를 씌우므로,
     # 그 태그를 뺀 본문 전용판도 만든다(title·style은 맨 앞에 유지).
     body_only = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.I)
@@ -114,6 +121,11 @@ def main() -> int:
     # 인코딩 선언은 반드시 남긴다 — 위에서 <meta>를 전부 지웠으므로 charset을 다시 넣는다.
     # (호스트가 UTF-8 charset을 안 붙여주는 환경에서 한글이 깨지는 것을 막는다.)
     body_only = '<meta charset="utf-8">\n' + body_only.lstrip()
+    # 아티팩트는 글꼴 파일을 함께 올리지 않으므로 서버 보관 글꼴 블록을 구글 글꼴 불러오기로 바꾼다
+    body_only = re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/",
+                       lambda _m: '@import url("https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800'
+                                  '&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");',
+                       body_only, count=1, flags=re.S)
     with open(os.path.join(OUT, "artifact.html"), "w", encoding="utf-8") as fh:
         fh.write(body_only)
 
