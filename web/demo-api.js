@@ -977,6 +977,85 @@
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── 정기 점검 일지 (데모: 서버 inspection.py와 같은 모양, 메모리에만 — 새로고침하면 사라짐. 사진은 화면 안에 보관) ──
+  const PCHKD = { list: [], seq: 1, pseq: 1 };
+  const PCHK_CL = [
+    ["외관·청결", [["clean", "판넬 내부 먼지·이물 청소"], ["filter", "환기 팬 필터 상태(막힘·오염)"], ["door", "도어 패킹·잠금·접지선"]]],
+    ["전기", [["terminal", "주요 단자 조임 상태(변색·풀림)"], ["breaker", "차단기 외관·발열 흔적"], ["current", "부하 전류가 화면 값과 맞는지(클램프 측정)"]]],
+    ["센서", [["gas_test", "가스 센서 기능시험(표준가스 또는 시험 버튼)"], ["temp_cmp", "온습도 센서 — 기준계와 비교"], ["wiring", "센서 배선·고정·커넥터"]]],
+    ["출력", [["vent", "벤트 열림·닫힘 작동 시험"], ["heater_fan", "히터·팬 작동 시험"]]],
+    ["통신·전원", [["ccm", "CCM 상태등·통신(화면에 실시간 값)"], ["power", "CCM 전원·배선·방수"]]],
+  ];
+  function pchkFocusDemo(panel) {
+    const prev = PCHKD.list.filter(x => x.panel === panel && x.status === "done").sort((a, b) => b.done_at - a.done_at)[0];
+    const since = prev ? prev.done_at : now() - 90 * 86400, items = [];
+    const al = S.alarms.filter(a => a.raised_at >= since), falsey = al.filter(a => a.cause === "false" || a.cause === "work").length;
+    const by = {};
+    al.filter(a => a.cause !== "false" && a.cause !== "work").forEach(a => { (by[a.kind + "|" + a.sensor_key] = by[a.kind + "|" + a.sensor_key] || []).push(a); });
+    Object.values(by).sort((a, b) => b.length - a.length).forEach(l => { const a = l[0];
+      items.push({ prio: a.severity === "crit" ? 0 : 2, text: `${a.detail.split(" — ")[0]} — ${l.length}회, 원인 확인`, check: null }); });
+    ((rulView()[0] || {}).items || []).forEach(i => { if (i.status === "reached" || (i.status === "ok" && i.days <= 60))
+      items.push({ prio: i.days <= 14 ? 0 : 1, text: `${i.label}: ${i.say} — ${i.advice}`, check: "terminal" }); });
+    if (!prev || now() - prev.done_at >= 80 * 86400) items.push({ prio: 2, text: "가스 센서 정기 기능시험(제조사 권장 — 표준가스 또는 시험 버튼)", check: "gas_test" });
+    if (falsey) items.push({ prio: 3, text: `오경보·시험 작업으로 기록된 경보 ${falsey}건 — 반복되면 경보 기준 조정 검토`, check: null });
+    items.sort((a, b) => a.prio - b.prio);
+    const d = new Date(since * 1000);
+    return { items: items.slice(0, 12), since, since_label: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` + (prev ? " (지난 점검)" : " (최근 90일)"),
+      alarms: al.length, false_alarms: falsey };
+  }
+  const pchkPub = x => x && Object.assign({}, x, { photos: x.photos.map(p => ({ id: p.id, ts: p.ts, caption: p.caption, by: p.by, src: p.src })) });
+  function pchkHistDemo(panel) {
+    return PCHKD.list.filter(x => !panel || x.panel === panel).sort((a, b) => (b.done_at || b.created_at) - (a.done_at || a.created_at))
+      .map(x => ({ id: x.id, panel: x.panel, status: x.status, created_at: x.created_at, done_at: x.done_at || null, by: x.by, next_due: x.next_due || null,
+        overall: x.report ? x.report.overall : null, panel_name: x.report ? x.report.panel_name : null, signer: x.report ? x.report.signer : null }));
+  }
+  function pchkPost(action, b) {
+    const pl = panelList();
+    if (action === "start") {
+      const p = pl.find(x => x.panel === b.panel); if (!p) return [{ error: "없는 판넬입니다" }, 400];
+      let d = PCHKD.list.find(x => x.panel === p.panel && x.status === "draft");
+      if (!d) { d = { id: PCHKD.seq++, panel: p.panel, status: "draft", created_at: now(), updated_at: now(), by: "데모", photos: [],
+          data: { checklist: PCHK_CL.map(([g, its]) => ({ group: g, items: its.map(([k, l]) => ({ key: k, label: l, applies: k !== "heater_fan" })) })),
+            results: {}, notes: {}, summary: "", interval: 90 } };
+        PCHKD.list.push(d); logEvent(p.panel, "", "inspection", `정기 점검 시작: ${p.panel_name} (데모)`, "user"); }
+      return [pchkPub(d), 200];
+    }
+    const d = PCHKD.list.find(x => x.id === b.id); if (!d) return [{ error: "없는 점검입니다" }, 400];
+    if (d.status !== "draft") return [{ error: "완료된 점검은 고칠 수 없습니다" }, 400];
+    const keys = new Set(d.data.checklist.flatMap(g => g.items.map(i => i.key)));
+    if (action === "save") {
+      Object.entries(b.results || {}).forEach(([k, v]) => { if (keys.has(k) && ["ok", "fix", "bad", "na"].includes(v)) d.data.results[k] = v; });
+      Object.entries(b.notes || {}).forEach(([k, v]) => { if (keys.has(k)) d.data.notes[k] = String(v || "").slice(0, 300); });
+      if ("summary" in b) d.data.summary = String(b.summary || "").slice(0, 3000);
+      if ([30, 60, 90, 180, 365].includes(b.interval)) d.data.interval = b.interval;
+      d.updated_at = now(); return [pchkPub(d), 200];
+    }
+    if (action === "photo") {
+      if (!/^data:image\/(jpeg|png);base64,/.test(String(b.data || ""))) return [{ error: "image/jpeg, image/png만 올릴 수 있습니다" }, 400];
+      if (d.photos.length >= 20) return [{ error: "사진은 점검 하나에 20장까지입니다" }, 400];
+      const id = PCHKD.pseq++; d.photos.push({ id, ts: now(), caption: String(b.caption || "").slice(0, 120), by: "데모", src: b.data }); return [{ id }, 200];
+    }
+    if (action === "photo_delete") { const n = d.photos.length; d.photos = d.photos.filter(p => p.id !== b.photo_id);
+      return n !== d.photos.length ? [{ ok: true }, 200] : [{ error: "지울 수 없는 사진입니다" }, 400]; }
+    if (action === "complete") {
+      const left = d.data.checklist.flatMap(g => g.items).filter(i => i.applies && !d.data.results[i.key]);
+      if (left.length) return [{ error: `체크리스트 ${left.length}개가 남았습니다 — 예: ${left[0].label}` }, 400];
+      const signer = String(b.signer || "").trim().slice(0, 40); if (!signer) return [{ error: "고객 확인자 이름을 적어 주세요" }, 400];
+      if (!/^data:image\/png;base64,/.test(String(b.signature || ""))) return [{ error: "서명이 없습니다" }, 400];
+      const p = pl.find(x => x.panel === d.panel) || { panel_name: d.panel }, res = d.data.results;
+      const counts = { ok: 0, fix: 0, bad: 0, na: 0 }; Object.values(res).forEach(v => counts[v]++);
+      const overall = counts.bad ? "bad" : counts.fix ? "fix" : "ok", t = now(), cid = ACC.owner[d.panel];
+      d.report = { panel: d.panel, panel_name: p.panel_name, site: p.site || "", customer: cid != null ? ((ACC.customers.find(x => x.id === cid) || {}).name || "") : "",
+        started_at: d.created_at, done_at: t, by: "데모", signer, signature: b.signature, focus: pchkFocusDemo(d.panel), checklist: d.data.checklist,
+        results: res, notes: d.data.notes, summary: d.data.summary, counts, overall, interval: d.data.interval, next_due: t + d.data.interval * 86400,
+        photos: d.photos.map(x => ({ id: x.id, caption: x.caption, src: x.src })) };
+      Object.assign(d, { status: "done", done_at: t, next_due: d.report.next_due });
+      logEvent(d.panel, "", "inspection", `정기 점검 완료: ${p.panel_name} — ${{ ok: "이상 없음", fix: "현장 조치 완료", bad: "조치 필요 항목 있음" }[overall]} (확인 ${signer}, 데모)`, "user");
+      return [pchkPub(d), 200];
+    }
+    return [{ error: "없는 작업입니다" }, 404];
+  }
+
   // ── 현장 목록 (데모: 서버 fleet.py와 같은 모양·규칙. 데모는 판넬 1개) ──
   function fleetView() {
     const t = now(), pv = predView()[0] || {}, life = (rulView()[0] || {}).items || [];
@@ -1009,6 +1088,7 @@
         predict: { fire: f.stage, fri: f.fri, contact: c.stage, dew: d.stage, vent_open: !!(f.vent && f.vent.open) },
         life: near ? { label: near.label, say: near.say, days: near.days, status: near.status } : null,
         commission: cm ? { overall: cm.overall, ts: cm.ts } : null,
+        next_inspection: (PCHKD.list.filter(x => x.panel === p.panel && x.status === "done").sort((a, b) => b.done_at - a.done_at)[0] || {}).next_due || null,
         sensors: p.ccms.reduce((n, x) => n + (x.latest || []).length, 0), age: ls ? Math.round(t - ls) : null };
     });
   }
@@ -1281,6 +1361,14 @@
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/inspection" && method === "GET") { const pn = qs.get("panel") || "";
+        if (!panelList().some(x => x.panel === pn)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
+        return Promise.resolve(J({ focus: pchkFocusDemo(pn), draft: pchkPub(PCHKD.list.find(x => x.panel === pn && x.status === "draft")) || null, history: pchkHistDemo(pn) })); }
+      if (p === "/api/inspections") return Promise.resolve(J({ inspections: pchkHistDemo("") }));
+      const mpi = p.match(/^\/api\/inspection\/(\d+)$/);
+      if (mpi && method === "GET") { const x = PCHKD.list.find(y => y.id === +mpi[1]); return Promise.resolve(x ? J(pchkPub(x)) : J({ error: "볼 수 없는 점검입니다" }, 404)); }
+      const mpa = p.match(/^\/api\/inspection\/([a-z_]+)$/);
+      if (mpa && method === "POST") { const [obj, st] = pchkPost(mpa[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/sensor/manual" && method === "GET") return Promise.resolve(J({ sensors: manualStatus() }));
       if (p === "/api/sensor/manual" && method === "POST") { const [obj, st] = manualPost(body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);

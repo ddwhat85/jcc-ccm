@@ -128,6 +128,9 @@ ROUTES = [
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
     ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"),
+    ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
+    ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
+    ("POST", r"/api/inspection/[a-z_]+", "admin"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -286,6 +289,36 @@ class Handler(BaseHTTPRequestHandler):
         return {"panels": set(self._scope()["panels"]) & every, "customer_id": u["customer_id"],
                 "blocked": "", "excluded": 0}
 
+    def _inspection(self, action: str) -> None:
+        """정기 점검 쓰기(JCC 관리자): start·save·photo·photo_delete·complete."""
+        from . import inspection as insp
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= self.MAX_BODY else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        me = self._user()["username"]
+        iid = b.get("id") if isinstance(b.get("id"), int) and not isinstance(b.get("id"), bool) else None
+        try:
+            if action == "start":
+                return self._json(insp.start(self.storage, str(b.get("panel", "")), me))
+            if iid is None:
+                return self._json({"error": "점검 id가 필요합니다"}, 400)
+            if action == "save":
+                return self._json(insp.save(self.storage, iid, b))
+            if action == "photo":
+                return self._json(insp.add_photo(self.storage, iid, b.get("data"), b.get("caption", ""), me))
+            if action == "photo_delete":
+                ok = insp.del_photo(self.storage, iid, int(b.get("photo_id") or 0))
+                return self._json({"ok": True}) if ok else self._json({"error": "지울 수 없는 사진입니다"}, 400)
+            if action == "complete":
+                return self._json(insp.complete(self.storage, iid, b.get("signer", ""), b.get("signature", ""), me))
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json({"error": "없는 작업입니다"}, 404)
+
     def _manual_sensor(self) -> None:
         """{action:"add", device_id, spec, meta?} | {action:"remove", device_id, key} — JCC 관리자만."""
         from . import manual_sensors
@@ -427,6 +460,37 @@ class Handler(BaseHTTPRequestHandler):
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/inspection":                 # 점검 화면 준비(관리자): 볼 곳·초안·이력
+            from . import inspection as insp
+            panel = (parse_qs(parsed.query).get("panel") or [""])[0]
+            if not any(p["panel"] == panel for p in self.storage.list_panels()):
+                return self._json({"error": "없는 판넬입니다"}, 404)
+            return self._json({"focus": insp.focus(self.storage, panel), "draft": insp.draft_for(self.storage, panel),
+                               "history": insp.history(self.storage, {panel})})
+        if path == "/api/inspections":
+            from . import inspection as insp
+            return self._json({"inspections": insp.history(self.storage, None if sc is None else sc["panels"],
+                                                          include_drafts=sc is None)})
+        mi = re.fullmatch(r"/api/inspection/(\d+)", path)
+        if mi:
+            from . import inspection as insp
+            d = insp.view(self.storage, int(mi.group(1)))
+            if d is None or (sc is not None and (d["status"] != "done" or d["panel"] not in sc["panels"])):
+                return self._json({"error": "볼 수 없는 점검입니다"}, 404)
+            return self._json(d)
+        mp = re.fullmatch(r"/api/inspection/photo/(\d+)", path)
+        if mp:
+            from . import inspection as insp
+            ph = insp.photo_bytes(self.storage, int(mp.group(1)))
+            if ph is None or (sc is not None and (ph[3] != "done" or ph[2] not in sc["panels"])):
+                return self._json({"error": "볼 수 없는 사진입니다"}, 404)
+            self.send_response(200)
+            self.send_header("Content-Type", ph[0])
+            self.send_header("Content-Length", str(len(ph[1])))
+            self.send_header("Cache-Control", "private, max-age=86400")
+            self.end_headers()
+            self.wfile.write(ph[1])
+            return
         if path == "/api/fleet":
             from .fleet import fleet
             return self._json({"panels": fleet(self.storage, None if sc is None else sc["panels"])})
@@ -525,6 +589,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._ai_ask()
         if parsed.path == "/api/sensor/manual":
             return self._manual_sensor()
+        if parsed.path.startswith("/api/inspection/"):
+            return self._inspection(parsed.path[len("/api/inspection/"):])
         if parsed.path.startswith("/api/commission/"):
             return self._commission(parsed.path[len("/api/commission/"):])
         if parsed.path == "/api/discover":

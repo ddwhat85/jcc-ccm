@@ -14,7 +14,9 @@ _FIRE_WATCH = ("watch", "warning")
 
 def fleet(storage, panels: set | None = None) -> list:
     """panels=None이면 전부(JCC 관리자), 아니면 그 판넬만(고객 범위)."""
+    from .inspection import due_map
     from .rul import panel_view
+    due = due_map(storage)
     owner = storage.accounts.panel_owner_map()
     names = {c["id"]: c["name"] for c in storage.accounts.list_customers()}
     pred = {r.get("panel"): r for r in storage.predict_state()}
@@ -62,12 +64,16 @@ def fleet(storage, panels: set | None = None) -> list:
             if near and (near["status"] == "reached" or (near["days"] or 99) <= 14):
                 why.append("남은 여유 2주 이내")
             status = "warn" if why else "ok"
+        if due.get(pid) and due[pid] < now:              # 점검 기한은 어떤 상태든 보이게(정상이면 주의로)
+            why.append(f"정기 점검 기한 {int((now - due[pid]) // 86400)}일 지남")
+            if status == "ok":
+                status = "warn"
         cm = cms.get(pid)
         cid = owner.get(pid)
         out.append({
             "panel": pid, "panel_name": p["panel_name"], "site": p.get("site") or "",
             "customer_id": cid, "customer": names.get(cid, "") if cid is not None else "",
-            "status": status, "why": why[:3],
+            "status": status, "why": why[:4],
             "ccm_online": on, "ccm_total": len(p["ccms"]),
             "last_seen": max((x.get("last_seen") or 0) for x in p["ccms"]) if p["ccms"] else None,
             "alarms": {"crit": crit, "warn": len(al) - crit, "unacked": unacked},
@@ -75,6 +81,7 @@ def fleet(storage, panels: set | None = None) -> list:
                         "vent_open": bool((f.get("vent") or {}).get("open"))},
             "life": {"label": near["label"], "say": near["say"], "days": near["days"], "status": near["status"]} if near else None,
             "commission": {"overall": cm["overall"], "ts": cm["ts"]} if cm else None,
+            "next_inspection": due.get(pid),
             "sensors": sum(len(x.get("latest") or []) for x in p["ccms"]),
             "age": None if not p["ccms"] else round(now - max((x.get("last_seen") or 0) for x in p["ccms"])),
         })

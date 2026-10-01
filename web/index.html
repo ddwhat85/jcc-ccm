@@ -826,6 +826,60 @@
   .mrep-ai p{margin:0;font-size:14px;line-height:1.7;max-width:68ch}
   @media (max-width:640px){.mrep-table .opt{display:none}}
 
+  /* ── 정기 점검 일지(설치 점검과 같은 셸) ── */
+  #pchk-overlay .cmsn-shell{width:min(860px,calc(100vw - 32px))}
+  .pchk-sec{flex:none;display:flex;flex-direction:column;gap:8px}
+  .pchk-sec>h4{margin:0;font:700 13.5px var(--sans);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .pchk-sec>h4 small{font:500 11.5px var(--sans);color:var(--ink-3)}
+  .pchk-focus{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+  .pchk-focus li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:baseline;font-size:13px;line-height:1.5}
+  .pchk-focus i{width:8px;height:8px;border-radius:50%;background:var(--ink-3);display:inline-block;transform:translateY(-1px)}
+  .pchk-focus i.p0{background:var(--crit)} .pchk-focus i.p1{background:var(--warn)}
+  .pchk-grp{border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+  .pchk-grp>h5{margin:0;padding:8px 12px;font:700 12.5px var(--sans);background:var(--canvas)}
+  .pchk-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;padding:9px 12px;border-top:1px solid var(--rule-2);align-items:center}
+  .pchk-item .lb{font-size:13px;line-height:1.4}
+  .pchk-item.na .lb{color:var(--ink-3)}
+  .pchk-item .note{grid-column:1/-1}
+  .pchk-item .note input{width:100%;box-sizing:border-box;font:500 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:6px 8px}
+  .pchk-res{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--surface)}
+  .pchk-res button{font:600 11.5px var(--sans);padding:6px 10px;border:0;background:none;color:var(--ink-2);cursor:pointer;min-height:32px;white-space:nowrap}
+  .pchk-res button+button{border-left:1px solid var(--rule)}
+  .pchk-res button[aria-pressed="true"][data-r="ok"]{background:var(--ok);color:#fff}
+  .pchk-res button[aria-pressed="true"][data-r="fix"]{background:var(--accent);color:#fff}
+  .pchk-res button[aria-pressed="true"][data-r="bad"]{background:var(--crit);color:#fff}
+  .pchk-res button[aria-pressed="true"][data-r="na"]{background:var(--surface-2);color:var(--ink)}
+  .pchk-res button:focus-visible,.pchk-item input:focus-visible,#pchk-summary:focus-visible,#pchk-signer:focus-visible,
+    #pchk-interval:focus-visible,.pchk-ph button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .pchk-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+  .pchk-ph{position:relative;border:1px solid var(--rule);border-radius:8px;overflow:hidden;background:var(--canvas);display:flex;flex-direction:column}
+  .pchk-ph img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
+  .pchk-ph span{font-size:11.5px;color:var(--ink-2);padding:4px 6px;overflow-wrap:anywhere}
+  .pchk-ph button{position:absolute;top:4px;right:4px;font:600 11px var(--sans);padding:3px 7px;border-radius:5px;border:0;background:rgba(0,0,0,.6);color:#fff;cursor:pointer}
+  #pchk-summary{width:100%;box-sizing:border-box;min-height:80px;font:500 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;resize:vertical}
+  .pchk-sign{display:grid;grid-template-columns:minmax(0,220px) minmax(0,1fr);gap:10px;align-items:start}
+  .pchk-sign input,#pchk-interval{font:500 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:7px 9px}
+  #pchk-pad{width:100%;height:150px;background:#fff;border:1px dashed var(--rule);border-radius:8px;touch-action:none;cursor:crosshair}
+  .pchk-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pchk-saved{font-size:11.5px;color:var(--ink-3)}
+  #pchk-doc{display:flex;flex-direction:column;gap:14px}
+  #pchk-doc h2{margin:0;font:700 19px var(--sans)}
+  #pchk-doc .meta{color:var(--ink-2);font-size:12.5px;margin-top:4px}
+  #pchk-doc h4{margin:0 0 6px;font:700 13px var(--sans)}
+  .pchk-verdict{font:700 14px var(--sans);padding:10px 14px;border-radius:8px}
+  .pchk-verdict.ok{background:var(--ok-soft);color:var(--ok)} .pchk-verdict.fix{background:var(--accent-soft);color:var(--accent)}
+  .pchk-verdict.bad{background:var(--crit-soft);color:var(--crit)}
+  .pchk-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+  .pchk-tbl th{text-align:left;font:600 11px var(--sans);color:var(--ink-3);padding:5px 6px;border-bottom:1px solid var(--rule)}
+  .pchk-tbl td{padding:6px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+  .pchk-tbl td.r{white-space:nowrap;font-weight:600}
+  .pchk-tbl td.r.bad{color:var(--crit)} .pchk-tbl td.r.fix{color:var(--accent)}
+  .pchk-signimg{max-width:240px;border:1px solid var(--rule);border-radius:6px;background:#fff}
+  @media (max-width:640px){
+    #pchk-overlay .cmsn-shell{width:100vw}
+    .pchk-item{grid-template-columns:minmax(0,1fr)} .pchk-sign{grid-template-columns:minmax(0,1fr)}
+  }
+
   /* ── 노드 추가(장비 검색 · 센서 직접 지정) — 설치 점검과 같은 셸 ── */
   .nadd-sec{flex:none;display:flex;flex-direction:column;gap:10px}
   .nadd-sec+.nadd-sec{border-top:1px solid var(--rule);padding-top:14px}
@@ -1069,6 +1123,12 @@
     .rp-range,.rp-print,#rp-close{display:none!important}
   }
   /* 월간 리포트 인쇄 */
+  @media print{
+    body.pchk-printing *{visibility:hidden}
+    body.pchk-printing #pchk-doc,body.pchk-printing #pchk-doc *{visibility:visible}
+    body.pchk-printing #pchk-doc{position:absolute;inset:0;background:#fff;color:#111;padding:24px}
+    body.pchk-printing .pchk-noprint{display:none!important}
+  }
   @media print{
     body.mrep-printing *{visibility:hidden}
     body.mrep-printing #mrep-doc,body.mrep-printing #mrep-doc *{visibility:visible}
@@ -1339,6 +1399,8 @@
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
         <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
         <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
+        <button class="mb-item jcc-admin" id="btn-pchk">정기 점검</button>
+        <button class="mb-item" id="btn-pchk-reports">점검 보고서</button>
         <button class="mb-item" id="btn-monthly">월간 리포트</button>
         <button class="mb-item aiq-gate" id="btn-ask">AI에게 물어보기</button>
         <div class="mb-div jcc-admin"></div>
@@ -1494,6 +1556,25 @@
         <input class="cmsn-note" id="cmsn-note" maxlength="500" placeholder="메모 (교체 필요 부품·특이사항)" aria-label="메모">
         <button class="cmsn-btn primary" id="cmsn-complete">완료 기록</button>
         <div class="cmsn-msg" id="cmsn-msg" aria-live="polite"></div>
+      </footer>
+    </section>
+  </div>
+
+  <!-- 정기 점검 일지: 볼 곳 → 체크리스트·사진·특이사항 → 고객 서명 → 보고서(인쇄·PDF). 고객은 완료 보고서만 -->
+  <div class="overlay" id="pchk-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="pchk-title">
+      <header class="cmsn-head pchk-noprint">
+        <h3 id="pchk-title">정기 점검</h3>
+        <select id="pchk-panel" aria-label="판넬" class="jcc-admin"></select>
+        <button class="cmsn-btn" id="pchk-hist">지난 점검</button>
+        <button class="cmsn-btn" id="pchk-print" hidden>인쇄·PDF</button>
+        <button class="cmsn-x" id="pchk-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="cmsn-body" id="pchk-body"></div>
+      <footer class="cmsn-foot pchk-noprint" id="pchk-foot" hidden>
+        <span class="pchk-saved" id="pchk-saved"></span>
+        <button class="cmsn-btn primary" id="pchk-done" style="margin-left:auto">점검 완료</button>
+        <div class="cmsn-msg" id="pchk-msg" aria-live="polite"></div>
       </footer>
     </section>
   </div>
@@ -1659,7 +1740,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=5ccc7222"></script>
+<script src="demo-api.js?v=13dc2485"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -2924,6 +3005,7 @@ const EVENT_META = {
   ai_ask:      {label:"AI 질문",       dot:"info", ic:"?"},
   rul_warn:    {label:"남은 여유 2주 이내", dot:"warn", ic:"⏳"},
   manual_sensor:{label:"센서 직접 지정", dot:"info", ic:"+"},
+  inspection:  {label:"정기 점검",      dot:"info", ic:"✓"},
 };
 // 상세문구를 그대로 보여줄 이벤트(라벨 대신 detail 사용)
 const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","silent","recovered","stuck","drift",
@@ -2931,7 +3013,7 @@ const DETAIL_EVENTS = new Set(["diagnose","alarm","alarm_warn","alarm_clear","si
   "heal_restart","heal_ok","heal_giveup","heal2_restart","heal2_ok","heal2_giveup","heal_config",
   "fire","fire_clear","contact","contact_clear","dew","dew_clear",
   "vent_open","vent_close","vent_hold","dew_actuate","actuator","edge_actuate","baseline","firmware","ota_offer","ota_trial","ota_rollback",
-  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear","ai_ask","rul_warn","manual_sensor"]);
+  "tuning_apply","tuning_rollback","tuning_reject","tuning_edge","actuator_fault","actuator_fault_clear","ai_ask","rul_warn","manual_sensor","inspection"]);
 function loadEvents(dev, key){
   const el = $("#evt-list"); if(!el) return;
   const qs = "device_id="+encodeURIComponent(dev)+(key?"&sensor_key="+encodeURIComponent(key):"")+"&limit=10";
@@ -3952,6 +4034,198 @@ $("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing");
 window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
 
+// ── 정기 점검 일지 ─────────────────────────────────────
+// 직원이 현장을 점검한 기록. 서버(inspection.py)가 '이번에 볼 곳'을 데이터에서 뽑아 주고,
+// 체크리스트·사진·특이사항은 바뀔 때마다 초안으로 저장, 고객 서명으로 완료하면 보고서가 굳는다.
+const PCHK = { panel: "", d: null, saveT: null, signed: false, mode: "work" };
+const PCHK_R = [["ok","정상"],["fix","조치함"],["bad","조치 필요"],["na","해당 없음"]];
+const PCHK_W = {ok:"이상 없음", fix:"현장 조치 완료", bad:"조치 필요 항목 있음"};
+const pchkEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const pchkDate = t => t ? new Date(t * 1000).toLocaleDateString("ko-KR") : "";
+function pchkMsg(t, bad){ const m = $("#pchk-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function pchkApi(path, body){
+  const r = await fetch(path, body ? {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)} : {cache:"no-store"});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || `요청 실패 (${r.status})`);
+  return j;
+}
+async function openPchk(onlyReports){
+  $("#pchk-overlay").classList.add("open"); pchkMsg(""); $("#pchk-print").hidden = true;
+  const admin = document.body.dataset.acct === "admin" && !onlyReports;
+  $("#pchk-title").textContent = admin ? "정기 점검" : "점검 보고서";
+  $("#pchk-hist").hidden = !admin; $("#pchk-panel").hidden = !admin;
+  if (!admin){ $("#pchk-foot").hidden = true; return pchkHistory(null); }
+  const panels = (lastPanels || []).map(p => [p.panel, p.panel_name || p.panel]);
+  $("#pchk-panel").innerHTML = panels.length ? panels.map(([v, n]) => `<option value="${pchkEsc(v)}">${pchkEsc(n)}</option>`).join("")
+    : `<option value="">연결된 판넬 없음</option>`;
+  const want = PCHK.panel || focusPanel || (panels[0] || [""])[0];
+  if (want) $("#pchk-panel").value = want;
+  pchkLoad();
+}
+async function pchkLoad(){
+  PCHK.panel = $("#pchk-panel").value; PCHK.mode = "work";
+  if (!PCHK.panel){ $("#pchk-body").innerHTML = `<p class="acct-note">연결된 판넬이 없습니다.</p>`; $("#pchk-foot").hidden = true; return; }
+  try { const j = await pchkApi("/api/inspection?panel=" + encodeURIComponent(PCHK.panel)); PCHK.d = j.draft; PCHK.focus = j.focus; PCHK.hist = j.history; }
+  catch(e){ $("#pchk-body").innerHTML = `<p class="acct-note">${pchkEsc(e.message)}</p>`; return; }
+  pchkPaint();
+}
+function pchkFocusHtml(f){
+  return `<section class="pchk-sec"><h4>이번 점검 때 볼 곳<small>${pchkEsc(f.since_label || "")} 이후 데이터 · 경보 ${f.alarms || 0}건</small></h4>` +
+    (f.items && f.items.length ? `<ul class="pchk-focus">${f.items.map(i => `<li><i class="p${i.prio}"></i><span>${pchkEsc(i.text)}</span></li>`).join("")}</ul>`
+      : `<p class="acct-note">눈에 띄는 이상 기록이 없습니다 — 체크리스트대로 점검하세요.</p>`) + `</section>`;
+}
+function pchkPaint(){
+  const body = $("#pchk-body"), d = PCHK.d;
+  if (!d){
+    const last = (PCHK.hist || []).find(h => h.status === "done");
+    body.innerHTML = pchkFocusHtml(PCHK.focus) +
+      `<section class="pchk-sec"><p class="acct-note">${last ? `지난 점검 ${pchkDate(last.done_at)} (${pchkEsc(PCHK_W[last.overall] || "")}) · 다음 예정 ${pchkDate(last.next_due)}` : "이 판넬은 아직 정기 점검 기록이 없습니다."}</p>` +
+      `<div class="pchk-row"><button class="cmsn-btn primary" id="pchk-start">점검 시작</button></div></section>`;
+    $("#pchk-foot").hidden = true;
+    $("#pchk-start").onclick = async () => { try { PCHK.d = await pchkApi("/api/inspection/start", {panel: PCHK.panel}); pchkPaint(); } catch(e){ pchkMsg(e.message, true); } };
+    return;
+  }
+  const data = d.data;
+  body.innerHTML = pchkFocusHtml(PCHK.focus) +
+    `<section class="pchk-sec"><h4>체크리스트<small>모든 항목을 골라야 완료할 수 있습니다</small></h4>` +
+    data.checklist.map(g => `<div class="pchk-grp"><h5>${pchkEsc(g.group)}</h5>` + g.items.map(it => {
+      const v = data.results[it.key] || (it.applies ? "" : "na"), note = data.notes[it.key] || "";
+      return `<div class="pchk-item${v === "na" ? " na" : ""}" data-k="${it.key}"><span class="lb">${pchkEsc(it.label)}</span>` +
+        `<span class="pchk-res" role="group" aria-label="${pchkEsc(it.label)} 결과">${PCHK_R.map(([r, w]) => `<button type="button" data-r="${r}" aria-pressed="${v === r}">${w}</button>`).join("")}</span>` +
+        `<span class="note"${v === "fix" || v === "bad" || note ? "" : " hidden"}><input maxlength="300" placeholder="무엇을 했는지·무엇이 필요한지" value="${pchkEsc(note)}"></span></div>`;
+    }).join("") + `</div>`).join("") + `</section>` +
+    `<section class="pchk-sec"><h4>사진<small>${(d.photos || []).length}/20 — 휴대폰은 바로 촬영</small></h4>` +
+    `<div class="pchk-photos">${(d.photos || []).map(p => `<figure class="pchk-ph" style="margin:0"><img src="${pchkEsc(p.src || "/api/inspection/photo/" + p.id)}" alt="${pchkEsc(p.caption || "점검 사진")}" loading="lazy">` +
+      `<span>${pchkEsc(p.caption || "")}</span><button type="button" data-delph="${p.id}">삭제</button></figure>`).join("")}</div>` +
+    `<div class="pchk-row"><label class="cmsn-btn" style="cursor:pointer">사진 추가<input type="file" id="pchk-file" accept="image/*" capture="environment" multiple hidden></label>` +
+    `<input id="pchk-cap" maxlength="120" placeholder="사진 설명(선택) — 예: 단자대 재조임 후" style="flex:1 1 200px;font:500 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:6px;padding:7px 9px"></div></section>` +
+    `<section class="pchk-sec"><h4>특이사항·조치</h4><textarea id="pchk-summary" maxlength="3000" placeholder="고객에게 전할 내용 — 발견한 것, 한 조치, 권하는 조치">${pchkEsc(data.summary || "")}</textarea></section>` +
+    `<section class="pchk-sec"><h4>다음 정기 점검</h4><div class="pchk-row"><select id="pchk-interval">${[30,60,90,180,365].map(n => `<option value="${n}"${n === data.interval ? " selected" : ""}>${n}일 뒤</option>`).join("")}</select></div></section>` +
+    `<section class="pchk-sec"><h4>고객 확인<small>현장 담당자가 내용을 확인하고 서명</small></h4><div class="pchk-sign">` +
+    `<input id="pchk-signer" maxlength="40" placeholder="확인자 이름·직함"><div><canvas id="pchk-pad" width="600" height="150" aria-label="서명란"></canvas>` +
+    `<div class="pchk-row"><button type="button" class="cmsn-btn" id="pchk-clear">서명 지우기</button><span class="pchk-saved">손가락이나 마우스로 서명</span></div></div></div></section>`;
+  $("#pchk-foot").hidden = false;
+  $("#pchk-saved").textContent = `초안 저장됨 · ${new Date((d.updated_at || d.created_at) * 1000).toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"})}`;
+  body.querySelectorAll(".pchk-item").forEach(row => {
+    const k = row.dataset.k;
+    row.querySelectorAll("[data-r]").forEach(b => b.onclick = () => {
+      row.querySelectorAll("[data-r]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+      row.classList.toggle("na", b.dataset.r === "na");
+      if (b.dataset.r === "fix" || b.dataset.r === "bad"){ row.querySelector(".note").hidden = false; }
+      pchkQueue({results: {[k]: b.dataset.r}}); });
+    row.querySelector(".note input").oninput = e => pchkQueue({notes: {[k]: e.target.value}});
+  });
+  $("#pchk-summary").oninput = e => pchkQueue({summary: e.target.value});
+  $("#pchk-interval").onchange = e => pchkQueue({interval: Number(e.target.value)});
+  $("#pchk-file").onchange = pchkUpload;
+  body.querySelectorAll("[data-delph]").forEach(b => b.onclick = async () => {
+    try { await pchkApi("/api/inspection/photo_delete", {id: d.id, photo_id: Number(b.dataset.delph)}); await pchkReload(); } catch(e){ pchkMsg(e.message, true); } });
+  pchkPad();
+}
+let pchkPending = {};
+function pchkQueue(patch){
+  for (const [k, v] of Object.entries(patch)){
+    if (typeof v === "object" && v){ pchkPending[k] = Object.assign(pchkPending[k] || {}, v); } else pchkPending[k] = v;
+    if (k === "results" || k === "notes") Object.assign(PCHK.d.data[k], v); else PCHK.d.data[k] = v;
+  }
+  $("#pchk-saved").textContent = "저장 중…";
+  clearTimeout(PCHK.saveT); PCHK.saveT = setTimeout(pchkFlush, 700);
+}
+async function pchkFlush(){
+  clearTimeout(PCHK.saveT);
+  const p = pchkPending; pchkPending = {};
+  if (!Object.keys(p).length || !PCHK.d) return;
+  try { const d = await pchkApi("/api/inspection/save", Object.assign({id: PCHK.d.id}, p));
+    PCHK.d.updated_at = d.updated_at;
+    $("#pchk-saved").textContent = `초안 저장됨 · ${new Date(d.updated_at * 1000).toLocaleTimeString("ko-KR", {hour:"2-digit", minute:"2-digit"})}`;
+  } catch(e){ pchkPending = Object.assign(p, pchkPending); $("#pchk-saved").textContent = "저장 못 함 — 연결 확인"; pchkMsg(e.message, true); }
+}
+async function pchkReload(){ await pchkFlush(); const signer = ($("#pchk-signer") || {}).value || "";
+  PCHK.d = await pchkApi("/api/inspection/" + PCHK.d.id); pchkPaint(); if (signer) $("#pchk-signer").value = signer; }
+function pchkShrink(file){
+  // 휴대폰 사진(수 MB)을 1280px JPEG로 줄여 올린다
+  return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, 1280 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); res(c.toDataURL("image/jpeg", 0.82)); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error("이미지를 읽지 못했습니다")); }; img.src = url; });
+}
+async function pchkUpload(e){
+  const files = [...e.target.files]; if (!files.length) return;
+  const cap = $("#pchk-cap").value.trim();
+  for (const [i, f] of files.entries()){
+    pchkMsg(`사진 올리는 중 ${i + 1}/${files.length}…`);
+    try { await pchkApi("/api/inspection/photo", {id: PCHK.d.id, data: await pchkShrink(f), caption: cap}); }
+    catch(err){ pchkMsg(err.message, true); return; }
+  }
+  pchkMsg(`사진 ${files.length}장 올림`); await pchkReload();
+}
+function pchkPad(){
+  const c = $("#pchk-pad"); if (!c) return;
+  const g = c.getContext("2d"); PCHK.signed = false;
+  g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.lineWidth = 2.4; g.lineCap = "round"; g.strokeStyle = "#111";
+  let down = false;
+  const pt = e => { const r = c.getBoundingClientRect(); return [(e.clientX - r.left) * c.width / r.width, (e.clientY - r.top) * c.height / r.height]; };
+  c.onpointerdown = e => { down = true; c.setPointerCapture(e.pointerId); g.beginPath(); g.moveTo(...pt(e)); };
+  c.onpointermove = e => { if (!down) return; g.lineTo(...pt(e)); g.stroke(); PCHK.signed = true; };
+  c.onpointerup = c.onpointercancel = () => { down = false; };
+  $("#pchk-clear").onclick = () => { g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); PCHK.signed = false; };
+}
+$("#pchk-done").onclick = async () => {
+  if (!PCHK.d) return;
+  await pchkFlush();
+  const left = PCHK.d.data.checklist.flatMap(g => g.items).filter(it => it.applies && !PCHK.d.data.results[it.key]);
+  if (left.length){ pchkMsg(`체크리스트 ${left.length}개가 남았습니다 — ${left[0].label}`, true);
+    document.querySelector(`.pchk-item[data-k="${left[0].key}"]`)?.scrollIntoView({block:"center"}); return; }
+  const signer = $("#pchk-signer").value.trim();
+  if (!signer){ pchkMsg("고객 확인자 이름을 적어 주세요", true); $("#pchk-signer").focus(); return; }
+  if (!PCHK.signed){ pchkMsg("서명란에 서명을 받아 주세요", true); return; }
+  try { const d = await pchkApi("/api/inspection/complete", {id: PCHK.d.id, signer, signature: $("#pchk-pad").toDataURL("image/png")});
+    PCHK.d = null; pchkMsg(`점검 완료 — 다음 정기 점검 ${pchkDate(d.report.next_due)}`); pchkDoc(d.report); if (VIEW === "list") loadFleet();
+  } catch(e){ pchkMsg(e.message, true); }
+};
+async function pchkHistory(panel){
+  PCHK.mode = "hist"; $("#pchk-foot").hidden = true; $("#pchk-print").hidden = true;
+  let list = [];
+  try { list = (await pchkApi("/api/inspections")).inspections || []; } catch(e){ pchkMsg(e.message, true); }
+  if (panel) list = list.filter(x => x.panel === panel);
+  list = list.filter(x => x.status === "done");
+  $("#pchk-body").innerHTML = (list.length ? list.map(x => `<button class="cmsn-rep" data-id="${x.id}">${pchkEsc(x.panel_name || x.panel)} · ${pchkDate(x.done_at)}` +
+      `<span class="cmsn-chip ${x.overall === "bad" ? "fail" : x.overall === "fix" ? "warn" : "pass"}">${PCHK_W[x.overall] || ""}</span>` +
+      `<small>점검 ${pchkEsc(x.by)} · 확인 ${pchkEsc(x.signer || "")} · 다음 예정 ${pchkDate(x.next_due)}</small></button>`).join("")
+    : `<p class="acct-note">완료된 정기 점검 보고서가 없습니다.</p>`) +
+    (document.body.dataset.acct === "admin" && panel ? `<p class="pchk-noprint"><button class="cmsn-btn" id="pchk-back">점검으로 돌아가기</button></p>` : "");
+  $("#pchk-body").querySelectorAll(".cmsn-rep").forEach(b => b.onclick = async () => {
+    try { pchkDoc((await pchkApi("/api/inspection/" + b.dataset.id)).report); } catch(e){ pchkMsg(e.message, true); } });
+  const back = $("#pchk-back"); if (back) back.onclick = pchkLoad;
+}
+function pchkDoc(r){
+  PCHK.mode = "doc"; $("#pchk-foot").hidden = true;
+  const rows = r.checklist.flatMap(g => g.items.map(it => ({g: g.group, ...it})));
+  $("#pchk-body").innerHTML = `<div id="pchk-doc"><div><h2>${pchkEsc(r.customer ? r.customer + " " : "")}${pchkEsc(r.panel_name)} 정기 점검 보고서</h2>` +
+    `<div class="meta">점검일 ${pchkDate(r.done_at)} · 점검 ${pchkEsc(r.by)} · 확인 ${pchkEsc(r.signer)}${r.site ? " · " + pchkEsc(r.site) : ""} · JCC Solution</div></div>` +
+    `<div class="pchk-verdict ${r.overall}">${PCHK_W[r.overall]} — 정상 ${r.counts.ok} · 조치함 ${r.counts.fix} · 조치 필요 ${r.counts.bad}</div>` +
+    (r.focus && r.focus.items.length ? `<div><h4>점검 전 데이터가 짚은 곳</h4><ul class="pchk-focus">${r.focus.items.map(i => `<li><i class="p${i.prio}"></i><span>${pchkEsc(i.text)}</span></li>`).join("")}</ul></div>` : "") +
+    `<div><h4>점검 항목</h4><table class="pchk-tbl"><thead><tr><th>구분</th><th>항목</th><th>결과</th><th>메모</th></tr></thead><tbody>` +
+    rows.map(it => { const v = r.results[it.key] || "na"; return `<tr><td>${pchkEsc(it.g)}</td><td>${pchkEsc(it.label)}</td>` +
+      `<td class="r ${v}">${(PCHK_R.find(x => x[0] === v) || [, ""])[1]}</td><td>${pchkEsc(r.notes[it.key] || "")}</td></tr>`; }).join("") + `</tbody></table></div>` +
+    (r.summary ? `<div><h4>특이사항·조치</h4><p style="margin:0;white-space:pre-wrap;font-size:13.5px;line-height:1.6">${pchkEsc(r.summary)}</p></div>` : "") +
+    (r.photos && r.photos.length ? `<div><h4>사진</h4><div class="pchk-photos">${r.photos.map(p => `<figure class="pchk-ph" style="margin:0"><img src="${pchkEsc(p.src || "/api/inspection/photo/" + p.id)}" alt="${pchkEsc(p.caption || "점검 사진")}"><span>${pchkEsc(p.caption || "")}</span></figure>`).join("")}</div></div>` : "") +
+    `<div><h4>다음 정기 점검</h4><p style="margin:0;font-size:13.5px">${pchkDate(r.next_due)} (${r.interval}일 주기)</p></div>` +
+    `<div><h4>고객 확인</h4><img class="pchk-signimg" src="${pchkEsc(r.signature)}" alt="${pchkEsc(r.signer)} 서명"><div class="meta">${pchkEsc(r.signer)}</div></div>` +
+    `<p class="pchk-noprint"><button class="cmsn-btn" id="pchk-back2">목록으로</button></p></div>`;
+  $("#pchk-print").hidden = false;
+  $("#pchk-back2").onclick = () => pchkHistory(document.body.dataset.acct === "admin" ? r.panel : null);
+}
+$("#btn-pchk").onclick = () => openPchk(false);
+$("#btn-pchk-reports").onclick = () => openPchk(true);
+$("#pchk-panel").onchange = async () => { await pchkFlush(); pchkMsg(""); pchkLoad(); };
+$("#pchk-hist").onclick = async () => { await pchkFlush(); pchkHistory(PCHK.panel); };
+$("#pchk-close").onclick = async () => { await pchkFlush(); $("#pchk-overlay").classList.remove("open"); };
+$("#pchk-print").onclick = () => { document.body.classList.add("pchk-printing"); window.print(); };
+window.addEventListener("afterprint", () => document.body.classList.remove("pchk-printing"));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#pchk-overlay").classList.contains("open")){ pchkFlush(); $("#pchk-overlay").classList.remove("open"); } });
+
 // ── 현장 목록(첫 화면) ───────────────────────────────────
 // 판넬이 많아지면 그래프로는 어디가 문제인지 안 보인다. 서버(fleet.py)가 위험한 것부터 정렬해 준다.
 // 줄을 누르면 그 판넬을 고른 채 배선 보기로 — 오른쪽 예지보전·남은 여유도 그 판넬 것으로 바뀐다.
@@ -3993,6 +4267,7 @@ function paintFleet(){
       `<span class="c2">CCM ${p.ccm_online}/${p.ccm_total} 연결 · 센서 ${p.sensors}<small>${p.last_seen ? "마지막 수신 " + (ago(p.last_seen) || "방금") : "수신 기록 없음"}</small></span>` +
       `<span class="c3">${why}${p.life ? `<small>남은 여유 · ${escapeHtml(p.life.say)}</small>` : ""}${pr.vent_open ? `<small>벤트 열림</small>` : ""}</span>` +
       `<span class="c4">${al.unacked ? `<span><span class="fleet-chip${al.crit ? " crit" : ""}">미확인 경보 ${al.unacked}</span></span>` : ""}` +
+      `<small>${p.next_inspection ? (p.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 D-${Math.ceil((p.next_inspection - Date.now() / 1000) / 86400)}`) : "정기 점검 기록 없음"}</small>` +
       `<small>${p.commission ? FLEET_CM[p.commission.overall] + " · " + new Date(p.commission.ts * 1000).toLocaleDateString("ko-KR") : "설치 점검 기록 없음"}</small></span></button>`; };
   const grouped = document.body.dataset.acct === "admin" && fleetData.some(p => p.customer);
   if (!grouped){ box.innerHTML = rows.map(row).join(""); }
