@@ -838,6 +838,33 @@
   .xp-form select{width:100%}
   .xp-form [hidden]{display:none}
 
+  /* ── 근무 인계 요약(ho-): 지난 확인 뒤 — 지금 손볼 것 / 그동안 있었던 일 ── */
+  #ho-overlay .cmsn-shell{width:min(720px,calc(100vw - 32px))}
+  .ho-when{font:400 11px var(--mono);color:var(--ink-3);letter-spacing:.02em}
+  .ho-sec{display:flex;flex-direction:column;gap:6px}
+  .ho-sec h4{margin:0;font:700 13px var(--sans);color:var(--ink);display:flex;align-items:baseline;gap:8px}
+  .ho-sec h4 small{font:500 11px var(--sans);color:var(--ink-3)}
+  .ho-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--rule);border-radius:var(--r)}
+  .ho-stat{padding:9px 12px;border-left:1px solid var(--rule-2)}
+  .ho-stat:first-child{border-left:0}
+  .ho-stat b{display:block;font:400 22px var(--num);color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.1}
+  .ho-stat b.crit{color:var(--crit)}
+  .ho-stat span{font:500 11px var(--sans);color:var(--ink-3)}
+  .ho-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 10px;align-items:baseline;
+    padding:7px 0;border-bottom:1px solid var(--rule-2);font-size:12.5px}
+  .ho-row small{color:var(--ink-3);font-size:11px}
+  .ho-row .tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ho-ok{font-size:12.5px;color:var(--ink-3);padding:4px 0}
+  .ho-links{display:flex;flex-wrap:wrap;gap:6px}
+  .ho-foot{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid var(--rule)}
+  @media (max-width:640px){
+    #ho-overlay .cmsn-shell{width:100vw}
+    #ho-overlay .cmsn-body{flex:1}          /* 휴대폰 전체 화면: 확인 버튼은 아래 끝에 */
+    .ho-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .ho-stat:nth-child(3){border-left:0}
+    .ho-stat:nth-child(n+3){border-top:1px solid var(--rule-2)}
+  }
+
   /* ── 경보 이력(alh-): 지난 경보·원인 적기·기준 검토 후보 ── */
   #alh-overlay .cmsn-shell{width:min(880px,calc(100vw - 32px))}
   .alh-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,2fr);gap:10px 12px}
@@ -1632,6 +1659,8 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <div class="mb-menu" data-menu="work">
       <button class="mb-title">업무</button>
       <div class="mb-dd" hidden>
+        <button class="mb-item" id="btn-ho">인계 요약</button>
+        <div class="mb-div"></div>
         <button class="mb-item jcc-admin" id="btn-pchk">정기 점검</button>
         <button class="mb-item" id="btn-pchk-reports">점검 보고서</button>
         <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
@@ -1838,6 +1867,16 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <p class="acct-note">센서 값은 서버 보관 기간(기본 14일) 안의 것만 있습니다. 경보는 90일까지 보관됩니다.</p>
         <div class="cmsn-msg" id="xp-msg" aria-live="polite"></div>
       </div>
+    </section>
+  </div>
+
+  <!-- 근무 인계 요약: 내가 마지막으로 확인한 뒤 — 지금 손볼 것 / 그동안 있었던 일. 직원 로그인 때 일이 있었으면 자동으로 -->
+  <div class="overlay" id="ho-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="ho-title">
+      <h3 id="ho-title">인계 요약</h3><span class="ho-when" id="ho-when"></span>
+        <button class="cmsn-x" id="ho-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="cmsn-body" id="ho-body"></div>
+      <div class="ho-foot"><button class="cmsn-btn" id="ho-later">나중에</button><button class="cmsn-btn primary" id="ho-seen">확인함 — 다음 인계는 지금부터</button></div>
     </section>
   </div>
 
@@ -2673,6 +2712,29 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     return { days, total: rows.length, noisy, alarms: rows.slice(0, 500).map(a => ({ ...a, panel_name: names[a.device_id] || "",
       sensor_name: sname[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "", open: !a.cleared_at,
       minutes: Math.round(((a.cleared_at || t) - a.raised_at) / 6) / 10 })) };
+  }
+  // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
+  function handoverView() {
+    const t = now(), seen = S.hoSeen || null, since = Math.max(seen != null ? seen : t - 12 * 3600, t - 7 * 86400);
+    const pl = panelList(), pname = {}, sname = {};
+    pl.forEach(p => p.ccms.forEach(c => { pname[c.device_id] = p.panel_name; c.latest.forEach(s => { sname[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; }); }));
+    const where = a => ({ panel_name: pname[a.device_id] || a.device_id, sensor_name: sname[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "" });
+    const fresh = S.alarms.filter(a => a.raised_at >= since);
+    const unacked = S.alarms.filter(a => !a.cleared_at && !a.acked_at).sort((a, b) => (a.severity !== "crit") - (b.severity !== "crit") || a.raised_at - b.raised_at);
+    const offline = pl.flatMap(p => p.ccms.filter(c => !c.online).map(c => ({ panel_name: p.panel_name, device_id: c.device_id, last_seen: c.last_seen })));
+    const notes = S.events.filter(e => e.ts >= since && e.etype === "ack" && e.source === "user" && e.detail.includes(" · ")).slice(0, 6).map(e => ({ ts: e.ts, detail: e.detail }));
+    const W = { ok: "이상 없음", fix: "현장 조치 완료", bad: "조치 필요 항목 있음" }, C = { pass: "합격", warn: "조건부", fail: "불합격", wait: "미완료" };
+    const done = pchkHistDemo("").filter(h => h.status === "done" && h.done_at >= since)
+      .map(h => ({ kind: "정기 점검", panel_name: h.panel_name || h.panel, ts: h.done_at, by: h.by, result: W[h.overall] || "" }))
+      .concat(CM.reports.filter(r => r.ts >= since).map(r => ({ kind: "설치 점검", panel_name: pname[r.panel] || r.panel, ts: r.ts, by: r.by, result: C[r.overall] || "" })))
+      .sort((a, b) => b.ts - a.ts).slice(0, 8);
+    const out = { since, seen, now: t,
+      todo: { unacked: unacked.length, unacked_list: unacked.slice(0, 6).map(a => ({ id: a.id, detail: a.detail || a.kind, severity: a.severity, raised_at: a.raised_at, ...where(a) })),
+        offline: offline.slice(0, 10), offline_count: offline.length },
+      happened: { alarms: fresh.length, crit: fresh.filter(a => a.severity === "crit").length, cleared: fresh.filter(a => a.cleared_at).length,
+        no_cause: fresh.filter(a => a.cleared_at && !a.cause).length, notes, done } };
+    out.quiet = !(unacked.length || offline.length || fresh.length || notes.length || done.length);
+    return out;
   }
   function raise(dev, key, kind, detail) { openAlarm(dev, key, kind, detail); logEvent(dev, key, kind, detail); }
   function clear(dev, key, kind, clearType, detail) { closeAlarm(dev, key, kind); logEvent(dev, key, clearType, detail); }
@@ -3904,6 +3966,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/handover" && method !== "POST") return Promise.resolve(J(handoverView()));
+      if (p === "/api/handover/seen") { S.hoSeen = now(); return Promise.resolve(J({ ok: true, ts: S.hoSeen })); }
       if (p === "/api/alarms/history") return Promise.resolve(J(alarmHistory(parseFloat(qs.get("days") || "30"), qs.get("cause") || "")));
       if (p === "/api/export/alarms.csv" || p === "/api/export/readings.csv") {     // 데모: 메모리의 기록으로 같은 모양 CSV
         const days = Math.min(366, Math.max(1, parseFloat(qs.get("days") || "30"))), since = now() - days * 86400;
@@ -6394,7 +6458,7 @@ const QK_CMDS = [
   ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
   ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
   ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
-  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()],
+  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
   ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["기간 리포트", () => $("#btn-report").click()],
 ];
@@ -6476,6 +6540,55 @@ $("#xp-form").addEventListener("submit", async e => {
     m.className = "cmsn-msg ok"; m.textContent = `${name} 내려받음`;
   } catch(err){ m.className = "cmsn-msg bad"; m.textContent = err.message; }
 });
+
+// ── 근무 인계 요약 ─────────────────────────────────────
+// 교대·출근 때 '내가 마지막으로 확인한 뒤' 무슨 일이 있었고 지금 무엇을 손봐야 하나를 한 장으로(서버 handover.py).
+// 기준 시각은 사람마다 서버에 있어 휴대폰·PC 어디서 봐도 같다. '확인함'을 눌러야 기준이 지금으로 옮겨진다.
+const hoTime = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {month:"long", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false}) : "";
+async function hoFetch(){ const r = await fetch("/api/handover", {cache:"no-store"}); if (!r.ok) throw new Error(`불러오지 못함 (${r.status})`); return r.json(); }
+function hoPaint(d){
+  const t = d.todo, h = d.happened;
+  $("#ho-when").textContent = d.seen ? `지난 확인 ${hoTime(d.since)} 이후` : `최근 12시간 · ${hoTime(d.since)}부터`;
+  const unackRows = t.unacked_list.map(a => `<div class="ho-row"><span class="fleet-chip${a.severity === "crit" ? " crit" : ""}">${a.severity === "crit" ? "위험" : "주의"}</span>` +
+    `<span class="tx"><b>${escapeHtml(a.panel_name)} · ${escapeHtml(a.sensor_name || "CCM")}</b> ${escapeHtml(a.detail)}</span><small>${ago(a.raised_at) || "방금"}</small></div>`).join("");
+  const offRows = t.offline.map(c => `<div class="ho-row"><span class="fleet-chip">끊김</span><span class="tx"><b>${escapeHtml(c.panel_name)}</b> ${escapeHtml(c.device_id)}</span>` +
+    `<small>${c.last_seen ? "마지막 수신 " + (ago(c.last_seen) || "방금") : "수신 기록 없음"}</small></div>`).join("");
+  const todoN = t.unacked + t.offline_count;
+  $("#ho-body").innerHTML =
+    `<section class="ho-sec"><h4>지금 손볼 것<small>${todoN ? `${todoN}건` : ""}</small></h4>` +
+    (todoN ? unackRows + (t.unacked > t.unacked_list.length ? `<div class="ho-ok">미확인 경보 ${t.unacked - t.unacked_list.length}건 더</div>` : "") + offRows +
+      `<div class="ho-links">${t.unacked ? `<button class="cmsn-btn" data-ho="bell">경보 창에서 확인</button>` : ""}<button class="cmsn-btn" data-ho="list">현장 목록 보기</button></div>`
+      : `<div class="ho-ok">미확인 경보도, 끊긴 CCM도 없습니다.</div>`) + `</section>` +
+    `<section class="ho-sec"><h4>그동안 있었던 일</h4><div class="ho-stats">` +
+    `<div class="ho-stat"><b>${h.alarms}</b><span>새 경보</span></div><div class="ho-stat"><b class="${h.crit ? "crit" : ""}">${h.crit}</b><span>그중 위험</span></div>` +
+    `<div class="ho-stat"><b>${h.cleared}</b><span>해제됨</span></div><div class="ho-stat"><b>${h.no_cause}</b><span>원인 미기록</span></div></div>` +
+    (h.no_cause ? `<div class="ho-links"><button class="cmsn-btn" data-ho="nocause">원인 미기록 경보에 원인 적기</button></div>` : "") +
+    (h.notes.length ? `<div>${h.notes.map(n => `<div class="ho-row"><span class="fleet-chip">메모</span><span class="tx">${escapeHtml(n.detail)}</span><small>${ago(n.ts) || "방금"}</small></div>`).join("")}</div>` : "") +
+    (h.done.length ? `<div>${h.done.map(x => `<div class="ho-row"><span class="fleet-chip">${escapeHtml(x.kind)}</span><span class="tx"><b>${escapeHtml(x.panel_name)}</b> ${escapeHtml(x.result)} · ${escapeHtml(x.by || "")}</span><small>${ago(x.ts) || "방금"}</small></div>`).join("")}</div>` : "") +
+    (!h.alarms && !h.notes.length && !h.done.length ? `<div class="ho-ok">새 경보·메모·점검 기록이 없었습니다.</div>` : "") + `</section>`;
+  $("#ho-body").querySelectorAll("[data-ho]").forEach(b => b.onclick = (e) => { e.stopPropagation();
+    $("#ho-overlay").classList.remove("open");
+    if (b.dataset.ho === "bell"){ alarmPanelOpen = true; $("#alarm-panel").hidden = false; loadAlarms(); }
+    else if (b.dataset.ho === "list") setView("list");
+    else { $("#alh-cause").value = "none"; $("#btn-alh").click(); } });   // 원인 미기록만 걸러 연다
+}
+async function openHandover(){
+  $("#ho-overlay").classList.add("open"); $("#ho-body").innerHTML = `<div class="ho-ok">불러오는 중…</div>`;
+  try { hoPaint(await hoFetch()); } catch(e){ $("#ho-body").innerHTML = `<div class="ho-ok">${escapeHtml(e.message)}</div>`; }
+}
+async function hoAuto(){
+  // JCC 직원 로그인 때 한 번(이 탭에서): 손볼 것이나 있었던 일이 있을 때만 띄운다
+  if (document.body.dataset.acct !== "admin") return;
+  try { if (sessionStorage.getItem("jcc-ho-shown")) return; sessionStorage.setItem("jcc-ho-shown", "1"); } catch(_){}
+  try { const d = await hoFetch(); if (d.quiet || document.querySelector(".overlay.open")) return;
+    $("#ho-overlay").classList.add("open"); hoPaint(d); } catch(_){}
+}
+$("#btn-ho").onclick = openHandover;
+$("#ho-close").onclick = $("#ho-later").onclick = () => $("#ho-overlay").classList.remove("open");
+$("#ho-seen").onclick = async () => {
+  try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+    if (!r.ok) throw new Error(); $("#ho-overlay").classList.remove("open"); setStatus("인계 확인 — 다음 요약은 지금부터"); }
+  catch(_){ setStatus("인계 확인을 저장하지 못했습니다 — 연결 확인"); } };
 
 // ── 경보 이력 ─────────────────────────────────────────
 // 지난 경보를 기간·원인으로 거르고, 확인 없이 해제된 경보에도 원인·조치 메모를 단다(원인은 나중에 아는 일이 많다).
@@ -7857,7 +7970,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["qk-overlay","xp-overlay","alh-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }
@@ -7929,6 +8042,7 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
     if(window.__jccUser && window.__jccUser.must_change){ openPw(true); return; }   // 임시 비번 → 먼저 변경
     try{ refresh(); loadAlarms(); loadPredict(); loadTicker(); if(VIEW==="list") loadFleet(); }catch(e){}
     aiqRefresh();               // AI 메뉴·경보 'AI 해설' 표시 여부(고객사 스위치·서버 키) — 잠금이 풀린 뒤에
+    setTimeout(hoAuto, 2500);   // 직원: 지난 확인 뒤 일이 있었으면 인계 요약(부팅 화면이 걷힌 뒤)
   }
   fetch("/api/auth/status",{cache:"no-store"}).then(r=>r.json()).then(s=>{
     AUTH = {enabled:!!s.enabled, authed:!!s.authed};

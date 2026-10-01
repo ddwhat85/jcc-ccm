@@ -161,6 +161,29 @@
       sensor_name: sname[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "", open: !a.cleared_at,
       minutes: Math.round(((a.cleared_at || t) - a.raised_at) / 6) / 10 })) };
   }
+  // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
+  function handoverView() {
+    const t = now(), seen = S.hoSeen || null, since = Math.max(seen != null ? seen : t - 12 * 3600, t - 7 * 86400);
+    const pl = panelList(), pname = {}, sname = {};
+    pl.forEach(p => p.ccms.forEach(c => { pname[c.device_id] = p.panel_name; c.latest.forEach(s => { sname[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; }); }));
+    const where = a => ({ panel_name: pname[a.device_id] || a.device_id, sensor_name: sname[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "" });
+    const fresh = S.alarms.filter(a => a.raised_at >= since);
+    const unacked = S.alarms.filter(a => !a.cleared_at && !a.acked_at).sort((a, b) => (a.severity !== "crit") - (b.severity !== "crit") || a.raised_at - b.raised_at);
+    const offline = pl.flatMap(p => p.ccms.filter(c => !c.online).map(c => ({ panel_name: p.panel_name, device_id: c.device_id, last_seen: c.last_seen })));
+    const notes = S.events.filter(e => e.ts >= since && e.etype === "ack" && e.source === "user" && e.detail.includes(" · ")).slice(0, 6).map(e => ({ ts: e.ts, detail: e.detail }));
+    const W = { ok: "이상 없음", fix: "현장 조치 완료", bad: "조치 필요 항목 있음" }, C = { pass: "합격", warn: "조건부", fail: "불합격", wait: "미완료" };
+    const done = pchkHistDemo("").filter(h => h.status === "done" && h.done_at >= since)
+      .map(h => ({ kind: "정기 점검", panel_name: h.panel_name || h.panel, ts: h.done_at, by: h.by, result: W[h.overall] || "" }))
+      .concat(CM.reports.filter(r => r.ts >= since).map(r => ({ kind: "설치 점검", panel_name: pname[r.panel] || r.panel, ts: r.ts, by: r.by, result: C[r.overall] || "" })))
+      .sort((a, b) => b.ts - a.ts).slice(0, 8);
+    const out = { since, seen, now: t,
+      todo: { unacked: unacked.length, unacked_list: unacked.slice(0, 6).map(a => ({ id: a.id, detail: a.detail || a.kind, severity: a.severity, raised_at: a.raised_at, ...where(a) })),
+        offline: offline.slice(0, 10), offline_count: offline.length },
+      happened: { alarms: fresh.length, crit: fresh.filter(a => a.severity === "crit").length, cleared: fresh.filter(a => a.cleared_at).length,
+        no_cause: fresh.filter(a => a.cleared_at && !a.cause).length, notes, done } };
+    out.quiet = !(unacked.length || offline.length || fresh.length || notes.length || done.length);
+    return out;
+  }
   function raise(dev, key, kind, detail) { openAlarm(dev, key, kind, detail); logEvent(dev, key, kind, detail); }
   function clear(dev, key, kind, clearType, detail) { closeAlarm(dev, key, kind); logEvent(dev, key, clearType, detail); }
 
@@ -1391,6 +1414,8 @@
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/handover" && method !== "POST") return Promise.resolve(J(handoverView()));
+      if (p === "/api/handover/seen") { S.hoSeen = now(); return Promise.resolve(J({ ok: true, ts: S.hoSeen })); }
       if (p === "/api/alarms/history") return Promise.resolve(J(alarmHistory(parseFloat(qs.get("days") || "30"), qs.get("cause") || "")));
       if (p === "/api/export/alarms.csv" || p === "/api/export/readings.csv") {     // 데모: 메모리의 기록으로 같은 모양 CSV
         const days = Math.min(366, Math.max(1, parseFloat(qs.get("days") || "30"))), since = now() - days * 86400;

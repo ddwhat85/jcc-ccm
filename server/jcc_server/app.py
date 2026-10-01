@@ -128,6 +128,7 @@ ROUTES = [
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
     ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"), ("GET", "/api/alarms/history", "read"),
+    ("GET", "/api/handover", "read"), ("POST", "/api/handover/seen", "read"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -518,6 +519,11 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
+            from .handover import summary
+            return self._json(summary(self.storage, self._user()["username"],
+                                      None if sc is None else (sc["devices"] | sc["panels"]),
+                                      None if sc is None else sc["panels"]))
         if path == "/api/alarms/history":             # 지난 경보 + 오경보 잦은 센서
             from .alarm_review import history
             q = parse_qs(parsed.query)
@@ -625,6 +631,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"ok": True, "report": rep}) if rep else self._json({"error": "없는 고객사입니다"}, 400)
         if parsed.path == "/api/ai/ask":
             return self._ai_ask()
+        if parsed.path == "/api/handover/seen":       # 인계 확인 — 다음 요약은 지금부터
+            from .handover import mark_seen
+            return self._json({"ok": True, "ts": mark_seen(self.storage, self._user()["username"])})
         if parsed.path == "/api/sensor/manual":
             return self._manual_sensor()
         if parsed.path.startswith("/api/inspection/"):
