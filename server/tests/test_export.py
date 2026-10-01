@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
 
 from jcc_server import app as appmod
+from jcc_server import export
 from jcc_server.storage import Storage
 
 _fails = []
@@ -90,6 +91,20 @@ def run():
         check("고객: 자기 판넬 경보만", s == 200 and [r[2] for r in rows[1:]] == ["ccm-a"], str([r[2] for r in rows[1:]]))
         check("고객: 남의 센서 이력 403", v("/api/export/readings.csv?device_id=ccm-b&sensor=t")[0] == 403)
         check("로그인 전 401", client()("/api/export/alarms.csv")[0] == 401)
+        # 상한: 경보는 500건에서 조용히 잘리면 안 되고, 센서 이력은 넘치면 최근 값을 남긴다
+        with st._lock:
+            for i in range(700):
+                st._conn.execute("INSERT INTO alarms (device_id, sensor_key, kind, detail, severity, raised_at, cleared_at) "
+                                 "VALUES ('ccm-b','t','alarm','x','warn',?,?)", (now - 3600 + i, now - 3600 + i + 1))
+            st._conn.commit()
+        rows = list(csv.reader(io.StringIO(export.alarms_csv(st, 7).decode("utf-8-sig"))))
+        check("경보 CSV 500건 넘어도 전부", len(rows) - 1 == 702, str(len(rows) - 1))
+        old, export.MAX_ROWS = export.MAX_ROWS, 3
+        try:
+            rows = list(csv.reader(io.StringIO(export.readings_csv(st, "ccm-a", "t", 1).decode("utf-8-sig"))))
+        finally:
+            export.MAX_ROWS = old
+        check("센서 이력 상한 넘치면 최근 값 남김(시간순)", [r[4] for r in rows[1:]] == ["22.0", "23.0", "24.0"], str(rows[1:]))
     finally:
         srv.shutdown()
         st.close()

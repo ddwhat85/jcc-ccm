@@ -11,7 +11,8 @@ import time
 from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
-MAX_ROWS = 200_000
+MAX_ROWS = 200_000                 # 센서 이력
+MAX_ALARMS = 100_000               # storage.alarms_since 상한과 같게
 _CAUSE = {"real": "실제 이상", "false": "오경보", "work": "시험·작업", "other": "그 밖"}
 
 
@@ -35,7 +36,7 @@ def alarms_csv(storage, days: float, keys=None) -> bytes:
         for c in p["ccms"]:
             owner[c["device_id"]] = p["panel_name"]
         owner[p["panel"]] = p["panel_name"]
-    rows = storage.alarms_since(since, keys if keys is not None else set(owner), 500)
+    rows = storage.alarms_since(since, keys if keys is not None else set(owner), MAX_ALARMS)
     return _csv(["경보번호", "판넬", "기기", "센서", "종류", "심각도", "내용", "발생", "확인", "확인자", "원인", "조치 메모", "해제"],
                 ([a["id"], owner.get(a["device_id"], ""), a["device_id"], a.get("sensor_key") or "", a["kind"],
                   "위험" if a.get("severity") == "crit" else "주의", a.get("detail") or "", _t(a["raised_at"]),
@@ -47,8 +48,9 @@ def readings_csv(storage, device_id: str, sensor_key: str, days: float) -> bytes
     since = time.time() - days * 86400
     with storage._lock:
         rows = storage._conn.execute(
-            "SELECT ts, value, ok, name, unit FROM readings WHERE device_id=? AND sensor_key=? AND ts>=? "
-            "ORDER BY ts LIMIT ?", (device_id, sensor_key, since, MAX_ROWS)).fetchall()
+            # 상한을 넘으면 오래된 쪽을 버린다(최근 값이 감사·원인 조사에 더 중요) — 최신 N행을 뽑아 시간순으로
+            "SELECT * FROM (SELECT ts, value, ok, name, unit FROM readings WHERE device_id=? AND sensor_key=? AND ts>=? "
+            "ORDER BY ts DESC LIMIT ?) ORDER BY ts", (device_id, sensor_key, since, MAX_ROWS)).fetchall()
     return _csv(["시각", "기기", "센서", "이름", "값", "단위", "정상 수신"],
                 ([_t(r["ts"]), device_id, sensor_key, r["name"] or "", "" if r["value"] is None else r["value"],
                   r["unit"] or "", "예" if r["ok"] else "아니오"] for r in rows))

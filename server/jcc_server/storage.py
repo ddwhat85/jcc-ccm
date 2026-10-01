@@ -734,14 +734,14 @@ class Storage:
         return [dict(r) for r in rows]
 
     def alarms_since(self, since: float, devices=None, limit: int = 100) -> list[dict]:
-        """기간 내 발생한 경보(해제된 것 포함, 최신순)."""
+        """기간 내 발생한 경보(해제된 것 포함, 최신순). limit 상한 100,000(내보내기용 — 화면·AI는 작게 부른다)."""
         q = ("SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, acked_at, acked_by, "
              "escalated_at, cleared_at, ack_note, cause FROM alarms WHERE raised_at >= ?")
         args: list = [since]
         if devices is not None:
             frag, fargs = self._in_devices(devices)
             q += " AND " + frag; args.extend(fargs)
-        q += " ORDER BY raised_at DESC LIMIT ?"; args.append(max(1, min(limit, 500)))
+        q += " ORDER BY raised_at DESC LIMIT ?"; args.append(max(1, min(limit, 100_000)))
         with self._lock:
             rows = self._conn.execute(q, args).fetchall()
         return [dict(r) for r in rows]

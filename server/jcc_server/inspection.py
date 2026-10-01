@@ -143,7 +143,7 @@ def focus(storage, panel: str, now: float | None = None) -> dict:
                           "check": None})
     for pv in panel_view(storage, {panel}):
         for i in pv["items"]:
-            if i["status"] == "reached" or (i["status"] == "ok" and (i["days"] or 999) <= 60):
+            if i["status"] == "reached" or (i["status"] == "ok" and i["days"] is not None and i["days"] <= 60):
                 items.append({"prio": 0 if i["status"] == "reached" or i["days"] <= 14 else 1,
                               "text": f"{i['label']}: {i['say']} — {i['advice']}",
                               "check": "terminal" if i["kind"] == "contact" else "gas_test" if i["kind"] == "gas" else None})
@@ -223,6 +223,9 @@ def save(storage, iid: int, patch: dict) -> dict:
         raise ValueError("완료된 점검은 고칠 수 없습니다")
     data = d["data"]
     valid = {it["key"] for g in data["checklist"] for it in g["items"]}
+    for f in ("results", "notes"):
+        if patch.get(f) is not None and not isinstance(patch.get(f), dict):
+            raise ValueError("잘못된 요청 형식입니다")
     for k, v in (patch.get("results") or {}).items():
         if k in valid and (v in RESULTS or v is None):
             if v is None:

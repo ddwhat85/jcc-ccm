@@ -107,6 +107,10 @@ def run():
                                            "notes": {"terminal": "M6 2개 재조임"}, "summary": "단자 재조임", "interval": 180})
         check("저장(모르는 항목·값은 무시)", s == 200 and d["data"]["results"] == {"clean": "ok", "terminal": "fix"}
               and d["data"]["notes"]["terminal"] == "M6 2개 재조임" and d["data"]["interval"] == 180)
+        check("엉뚱한 모양 요청은 400(연결 끊김 아님)",
+              adm("/api/inspection/save", {"id": iid, "results": ["ok"]})[0] == 400
+              and adm("/api/inspection/save", {"id": iid, "notes": "x"})[0] == 400
+              and adm("/api/inspection/photo_delete", {"id": iid, "photo_id": {"a": 1}})[0] == 400)
         s, j = adm("/api/inspection/photo", {"id": iid, "data": JPG, "caption": "단자대"})
         check("사진 올리기", s == 200 and j["id"])
         pid = j["id"]

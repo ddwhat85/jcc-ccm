@@ -61,7 +61,7 @@ def fleet(storage, panels: set | None = None) -> list:
                 why.append("접점 발열 지켜보는 중")
             if d.get("stage") == "danger":
                 why.append("결로 위험")
-            if near and (near["status"] == "reached" or (near["days"] or 99) <= 14):
+            if near and (near["status"] == "reached" or (near["days"] is not None and near["days"] <= 14)):
                 why.append("남은 여유 2주 이내")
             status = "warn" if why else "ok"
         if due.get(pid) and due[pid] < now:              # 점검 기한은 어떤 상태든 보이게(정상이면 주의로)

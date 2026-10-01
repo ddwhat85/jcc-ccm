@@ -316,8 +316,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"ok": True}) if ok else self._json({"error": "지울 수 없는 사진입니다"}, 400)
             if action == "complete":
                 return self._json(insp.complete(self.storage, iid, b.get("signer", ""), b.get("signature", ""), me))
-        except ValueError as exc:
-            return self._json({"error": str(exc)}, 400)
+        except (ValueError, TypeError) as exc:          # TypeError: photo_id 같은 값이 엉뚱한 모양일 때
+            return self._json({"error": str(exc) if isinstance(exc, ValueError) else "잘못된 요청 형식입니다"}, 400)
         return self._json({"error": "없는 작업입니다"}, 404)
 
     def _manual_sensor(self) -> None:

@@ -4372,7 +4372,7 @@ $("#qk-in").addEventListener("keydown", e => {
   if (e.key === "ArrowDown"){ e.preventDefault(); QK.sel = Math.min(QK.items.length - 1, QK.sel + 1); qkPaint(); }
   else if (e.key === "ArrowUp"){ e.preventDefault(); QK.sel = Math.max(0, QK.sel - 1); qkPaint(); }
   else if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); qkGo(); }
-  else if (e.key === "Escape"){ e.preventDefault(); qkClose(); } });
+  else if (e.key === "Escape"){ e.preventDefault(); e.stopPropagation(); qkClose(); } });   // 아래 창(노드 선택)까지 닫히지 않게
 $("#qk-overlay").onclick = e => { if (e.target === $("#qk-overlay")) qkClose(); };
 $("#btn-qk").onclick = qkOpen;
 document.addEventListener("keydown", e => {
@@ -4520,7 +4520,11 @@ async function pchkFlush(){
   } catch(e){ pchkPending = Object.assign(p, pchkPending); $("#pchk-saved").textContent = "저장 못 함 — 연결 확인"; pchkMsg(e.message, true); }
 }
 async function pchkReload(){ await pchkFlush(); const signer = ($("#pchk-signer") || {}).value || "";
-  PCHK.d = await pchkApi("/api/inspection/" + PCHK.d.id); pchkPaint(); if (signer) $("#pchk-signer").value = signer; }
+  // 사진을 올리거나 지워 다시 그려도 받아 둔 서명·사진 설명은 남긴다
+  const pad = $("#pchk-pad"), sign = PCHK.signed && pad ? pad.toDataURL("image/png") : "", cap = ($("#pchk-cap") || {}).value || "";
+  PCHK.d = await pchkApi("/api/inspection/" + PCHK.d.id); pchkPaint(); if (signer) $("#pchk-signer").value = signer;
+  if (cap) $("#pchk-cap").value = cap;
+  if (sign){ const img = new Image(); img.onload = () => { $("#pchk-pad").getContext("2d").drawImage(img, 0, 0); PCHK.signed = true; }; img.src = sign; } }
 function pchkShrink(file){
   // 휴대폰 사진(수 MB)을 1280px JPEG로 줄여 올린다
   return new Promise((res, rej) => { const img = new Image(), url = URL.createObjectURL(file);
@@ -5720,7 +5724,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }
