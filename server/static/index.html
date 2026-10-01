@@ -325,7 +325,7 @@
   .node.restarting{box-shadow:0 0 0 2px #e6b422,0 2px 7px rgba(20,24,32,.22)}
   /* 자가복구(자동): L1=파랑 '자가복구 중', L2=보라 'CCM 재시작 중' — 사람이 아니라 시스템이 함 */
   .node.healing::before{border-color:#3a90ff;border-top-color:transparent}
-  .node.healing::after{content:"🔧 자가복구 중…";color:#3a90ff}
+  .node.healing::after{content:"자가복구 중…";color:#3a90ff}
   .node.healing{box-shadow:0 0 0 2px #3a90ff,0 2px 7px rgba(20,24,32,.22)}
   .node.healing2::before{border-color:#a06bd6;border-top-color:transparent}
   .node.healing2::after{content:"♻ CCM 재시작 중…";color:#a06bd6}
@@ -1273,6 +1273,27 @@
               white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .ticker .tk .tt{color:var(--ink-3);flex:none;font-weight:500}
   .ticker .tk .ic{flex:none}
+  .tkd{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ink-3);transform:translateY(-1px)}
+  .tkd.crit{background:var(--crit)} .tkd.warn{background:var(--warn)} .tkd.ok{background:var(--ok)} .tkd.info{background:var(--accent)}
+  /* 선 아이콘 */
+  .ico{display:inline-block;vertical-align:-3px;flex:none}
+  .mb-theme,.mb-bell{display:inline-flex;align-items:center;justify-content:center}
+  .mb-ai .ico,.mb-check .ico{margin-right:5px;width:15px;height:15px}
+  .dch-title .ico{margin-right:5px;width:14px;height:14px;vertical-align:-2px}
+  /* ── 휴대폰: 윗줄 메뉴가 화면을 넘지 않게(줄바꿈·덜 중요한 것 숨김), 도크는 제어만 ── */
+  @media (max-width:640px){
+    .menubar{flex-wrap:wrap;height:auto;min-height:40px;padding:4px 8px;row-gap:2px}
+    .mb-app{padding:0 6px 0 2px}
+    .mb-title{padding:5px 8px}
+    .mb-right{gap:8px}
+    .clock,#btn-full,.acct-who,.mb-status,#conn-t{display:none!important}
+    .mb-view button{padding:3px 8px}
+    .dock{height:auto}
+    .dock-log{display:none}
+    .dock-ctrl{width:100%;max-width:none;border-left:0;padding:8px}
+    .dc-actions{width:118px}
+    .dch-subs{flex-wrap:wrap;gap:6px 12px}
+  }
   .ticker .tk .tm{overflow:hidden;text-overflow:ellipsis}
   .ticker .tk.alarm .tm{color:var(--crit)} .ticker .tk.clear .tm{color:var(--ok)}
   .ticker .tk.warn .tm{color:var(--warn)} .ticker .tk.info .tm{color:var(--ink-2)}
@@ -1428,10 +1449,10 @@
     <div class="mb-right">
       <span class="acct-who" id="acct-who"></span>
       <span class="mb-status" id="status"></span>
-      <button class="mb-bell" id="btn-bell" title="활성 경보"><span>🔔</span><span class="bell-badge" id="bell-badge" hidden>0</span></button>
-      <button class="mb-theme" id="btn-sound" title="위험 경보 소리 알림 켜기/끄기">🔇</button>
-      <button class="mb-theme" id="btn-full" title="전체화면 (벽걸이 모니터용)">⛶</button>
-      <button class="mb-theme" id="btn-theme" title="라이트/다크 전환">🌙</button>
+      <button class="mb-bell" id="btn-bell" title="활성 경보" aria-label="활성 경보"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="bell-badge" id="bell-badge" hidden>0</span></button>
+      <button class="mb-theme" id="btn-sound" title="위험 경보 소리 알림 켜기/끄기" aria-label="경보 소리"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/></svg></button>
+      <button class="mb-theme" id="btn-full" title="전체화면 (벽걸이 모니터용)" aria-label="전체화면"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+      <button class="mb-theme" id="btn-theme" title="라이트/다크 전환" aria-label="라이트/다크 전환"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
       <span class="conn" id="conn"><span class="dot"></span><span id="conn-t">연결 확인 중</span></span>
       <span class="clock" id="clock">--:--:--</span>
     </div>
@@ -1485,12 +1506,12 @@
     </div>
     <div class="dock-ctrl jcc-admin">
       <div class="dc-actions jcc-admin">
-        <button class="mb-ai" id="btn-discover">✨ AI 자동연결</button>
-        <button class="mb-check" id="btn-health">🩺 전체 점검</button>
+        <button class="mb-ai" id="btn-discover"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>AI 자동연결</button>
+        <button class="mb-check" id="btn-health"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 13l2 2 4-4"/></svg>전체 점검</button>
       </div>
       <div class="dc-heal jcc-admin">
         <div class="dch-row">
-          <span class="dch-title">🔧 자가복구</span>
+          <span class="dch-title"><svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 6.5a4 4 0 0 0 5 5L12 19a2.1 2.1 0 0 1-3-3l7.5-7.5"/><path d="M14.5 6.5L17 4"/></svg>자가복구</span>
           <label class="sw" title="자가치유 전체 켜기/끄기"><input type="checkbox" id="heal-master" checked><span class="sl"></span></label>
           <span class="dch-count">오늘 <b id="heal-n">0</b>건</span>
           <button class="dch-hist" id="heal-hist">내역 →</button>
@@ -1546,7 +1567,7 @@
   <!-- 자가복구 내역 -->
   <div class="overlay" id="heal-overlay">
     <div class="modal hh-modal">
-      <div class="modal-head"><h3>🔧 자가복구 내역</h3><button id="hh-close">×</button></div>
+      <div class="modal-head"><h3>자가복구 내역</h3><button id="hh-close">×</button></div>
       <div id="heal-body"></div>
     </div>
   </div>
@@ -2416,7 +2437,7 @@ function renderOverview(panels){
   if(!panels.length){
     spotStop(); _ovSig="";
     box.innerHTML = `<div class="ov-h">시스템 개요</div>`+
-      `<div class="ov-hint">아직 연결된 장비가 없습니다.<br><b>[✨ AI 자동연결]</b>을 누르면<br>하드웨어를 자동으로 찾아 연결합니다.</div>`;
+      `<div class="ov-hint">아직 연결된 장비가 없습니다.<br><b>[AI 자동연결]</b>을 누르면<br>하드웨어를 자동으로 찾아 연결합니다.</div>`;
     return;
   }
   const ccmOnline = ccms.filter(c=>c.online && !clientOff.has("ccm:"+c.device_id)).length;
@@ -3079,7 +3100,7 @@ function runDiagnose(dev, key, btn){
   out.innerHTML = `<div class="evt-empty">진단 실행 중…</div>`;
   fetch("/api/diagnose",{method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({device_id:dev, sensor_key:key||""})}).then(r=>r.json()).then(rep=>{
-    if(btn){ btn.disabled=false; btn.textContent="🩺 자가진단"; }
+    if(btn){ btn.disabled=false; btn.textContent="자가진단"; }
     if(!rep.ok){ out.innerHTML = `<div class="evt-empty">${escapeHtml(rep.summary||"진단 실패")}</div>`; return; }
     const rows = (rep.checks||[]).map(c=>
       `<div class="diag-row"><span class="dn">${escapeHtml(c.name)}</span>`+
@@ -3088,7 +3109,7 @@ function runDiagnose(dev, key, btn){
     out.innerHTML = `<div class="diag"><div class="diag-head ${rep.status}">`+
       `<span class="dot"></span>자가진단 결과 — ${escapeHtml(rep.summary)}</div>${rows}</div>`;
     loadEvents(dev, key);   // 진단도 기록되므로 로그 새로고침
-  }).catch(()=>{ if(btn){btn.disabled=false;btn.textContent="🩺 자가진단";}
+  }).catch(()=>{ if(btn){btn.disabled=false;btn.textContent="자가진단";}
     out.innerHTML = `<div class="evt-empty">진단 실패</div>`; });
 }
 // 인스펙터가 열려있을 때 현재 측정값·상태만 제자리 갱신
@@ -3171,7 +3192,7 @@ function renderInspector(id, n){
           ? `<button class="insp-btn" id="sen-toggle">전원 켜기</button>`
           : `<button class="insp-btn danger" id="sen-toggle">전원 끄기</button>`)+
       `</div>`+
-      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">🩺 자가진단</button>`+
+      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">자가진단</button>`+
       `<div id="diag-out"></div>`+
       // 활동 기록(로그)
       `<div class="insp-sec">활동 기록</div><div class="evt-list" id="evt-list">불러오는 중…</div>`+
@@ -3202,7 +3223,7 @@ function renderInspector(id, n){
           ? `<button class="insp-btn" id="ccm-poweron">⏻ 전원 켜기</button>`
           : `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`)+
       `</div>`+
-      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">🩺 자가진단</button>`+
+      `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">자가진단</button>`+
       `<div id="diag-out"></div>`+
       `<div class="insp-sec">활동 기록</div><div class="evt-list" id="evt-list">불러오는 중…</div>`+
       `<div class="insp-manual"><span class="mh">제품 설정 안내</span>${escapeHtml(p.manual)}</div>`;
@@ -3446,6 +3467,11 @@ let openMenu = null;
 function openMB(m){
   if(openMenu && openMenu!==m) closeMB();
   m.classList.add("open"); m.querySelector(".mb-dd").hidden = false; openMenu = m;
+  // 좁은 화면: 드롭다운이 오른쪽 밖으로 나가면 화면 안으로 당긴다
+  const dd = m.querySelector(".mb-dd"); dd.style.left = "";
+  const right = m.getBoundingClientRect().left + dd.offsetWidth;          // 여는 애니메이션(축소)과 무관한 실제 폭
+  const vw = Math.min(innerWidth, document.documentElement.clientWidth || innerWidth);
+  if (right > vw - 8) dd.style.left = Math.min(0, vw - 8 - right) + "px";
 }
 function closeMB(){
   if(openMenu){ openMenu.classList.remove("open"); openMenu.querySelector(".mb-dd").hidden = true; openMenu = null; }
@@ -3519,6 +3545,16 @@ window.addEventListener("keydown", e=>{
 });
 window.addEventListener("resize", ()=>requestAnimationFrame(drawWires));
 
+// 선 아이콘(직원 화면 공통) — 이모지 대신. 테마·전체화면·소리 버튼이 상태에 따라 바꿔 낀다
+const ICO = (p) => `<svg class="ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const ICONS = {
+  sun: ICO('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon: ICO('<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>'),
+  expand: ICO('<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>'),
+  shrink: ICO('<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/>'),
+  sound: ICO('<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),
+  mute: ICO('<path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l4 6M21 9l-4 6"/>'),
+};
 // ── 테마 (라이트/다크) ────────────────────────────────
 const LS_THEME = "jcc-theme";
 function currentTheme(){
@@ -3528,7 +3564,7 @@ function currentTheme(){
 }
 function applyTheme(t){
   document.documentElement.setAttribute("data-theme", t);
-  const b = $("#btn-theme"); if(b) b.textContent = t==="dark" ? "☀️" : "🌙";
+  const b = $("#btn-theme"); if(b) b.innerHTML = t==="dark" ? ICONS.sun : ICONS.moon;
   try{ localStorage.setItem(LS_THEME, t); }catch(e){}
   if(window._logoApply) window._logoApply();   // 테마에 맞는 로고 재선택
   requestAnimationFrame(drawWires);   // 색 바뀌면 배선 다시(색 캐시 방지)
@@ -3564,7 +3600,7 @@ $("#btn-full").onclick = ()=>{
   }catch(e){ setStatus("이 환경에서는 전체화면을 쓸 수 없습니다"); }
 };
 document.addEventListener("fullscreenchange", ()=>{
-  const b=$("#btn-full"); if(b) b.textContent = document.fullscreenElement ? "🗗" : "⛶"; });
+  const b=$("#btn-full"); if(b) b.innerHTML = document.fullscreenElement ? ICONS.shrink : ICONS.expand; });
 
 // ── 하단 실시간 로그 스트립 (알람·특이사항 3줄) ─────────
 function loadTicker(){
@@ -3584,7 +3620,7 @@ function loadTicker(){
       const isNew = i===0 && k!==prevTop;
       return `<div class="tk ${cls} ${isNew?"newest":""}" data-k="${k}">`+
              `<span class="tt">${ago(e.ts)||"방금"}</span>`+
-             `<span class="ic">${m.ic||"•"}</span>`+
+             `<span class="ic"><i class="tkd ${m.dot||"info"}"></i></span>`+
              `<span class="tm">${escapeHtml(dev+txt)}</span></div>`;
     }).join("");
   }).catch(()=>{});
@@ -3846,7 +3882,7 @@ const ALGORITHMS = [
 const ALGO_CATS = [
   {k:"all", label:"전체"}, {k:"fire", label:"🔥 가스·화재"}, {k:"elec", label:"⚡ 전기·발열"},
   {k:"env", label:"🌡 환경·결로"}, {k:"watch", label:"👁 감시·이상"},
-  {k:"heal", label:"🔧 자가치유"}, {k:"diag", label:"🩺 진단·탐색"},
+  {k:"heal", label:"자가치유"}, {k:"diag", label:"진단·탐색"},
 ];
 const ALGO_LABEL = {done:"구현됨", wip:"코어 구현·통합중", design:"설계 완료", planned:"예정"};
 let _algoCat = "all";
@@ -5325,7 +5361,7 @@ function beep(){
 }
 function applySound(on){
   soundOn = on; try{ localStorage.setItem("jcc-sound", on?"1":"0"); }catch(e){}
-  const b = $("#btn-sound"); if(b){ b.textContent = on?"🔊":"🔇";
+  const b = $("#btn-sound"); if(b){ b.innerHTML = on ? ICONS.sound : ICONS.mute;
     b.title = on?"위험 경보 소리 알림 켜짐 (누르면 끄기)":"위험 경보 소리 알림 꺼짐 (누르면 켜기)"; }
 }
 
@@ -5367,7 +5403,7 @@ function loadAlarms(){
       const acked = !!a.acked_at;
       const idline = sensorIdLine(a.device_id, a.sensor_key);   // 품번·주소·CCM
       return `<div class="ap-item${sub?" ap-sub":""}"><span class="apd ${crit?'crit':''}"></span>`+
-        `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
+        `<div class="apbody"><div class="aptext">${escapeHtml(a.detail||a.kind)}</div>`+
         `<div class="apmeta">${escapeHtml(idline)} · ${ago(a.raised_at)||"방금"}`+
         `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div>`+
         (a.cause||a.ack_note ? `<div class="apnote">${escapeHtml([ACK_CAUSE[a.cause]||"", a.ack_note||""].filter(Boolean).join(" — "))}</div>` : "")+`</div>`+
