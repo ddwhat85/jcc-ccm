@@ -913,7 +913,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ── 경보 확인(ack) ───────────────────────────────────────
     def _ack(self) -> None:
-        """{alarm_id, by?} — 활성 경보를 확인 처리(에스컬레이션 중단)."""
+        """{alarm_id, note?, cause?} — 활성 경보를 확인 처리(에스컬레이션 중단). 이미 확인한 경보엔 메모만 고친다."""
         length = int(self.headers.get("Content-Length", 0) or 0)
         if length <= 0 or length > 100_000:
             return self._json({"error": "빈 요청"}, 400)
@@ -928,7 +928,8 @@ class Handler(BaseHTTPRequestHandler):
         al = self.storage.get_alarm(alarm_id)
         if al is None or not self._in_scope(al.get("device_id") or ""):
             return self._json({"error": "이 계정 범위 밖의 경보입니다"}, 403)
-        ok = self.storage.ack_alarm(alarm_id, self._user()["username"])
+        ok = self.storage.ack_alarm(alarm_id, self._user()["username"], str(body.get("note") or ""),
+                                    str(body.get("cause") or ""))
         return self._json({"ok": ok, "alarm_id": alarm_id})
 
     # ── 알림 테스트 발송 ─────────────────────────────────────

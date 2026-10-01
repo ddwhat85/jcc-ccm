@@ -167,7 +167,12 @@ _MIGRATIONS = [
     "ALTER TABLE discovered ADD COLUMN manual TEXT",
     "ALTER TABLE discovered ADD COLUMN alarm_min REAL",
     "ALTER TABLE discovered ADD COLUMN alarm_max REAL",
+    "ALTER TABLE alarms ADD COLUMN ack_note TEXT",          # 경보 확인 때 남긴 조치 메모
+    "ALTER TABLE alarms ADD COLUMN cause TEXT",             # 확인한 원인: real|false|work|other
 ]
+
+# 경보 확인 때 고르는 원인(현장 판단). 오경보·시험 작업 기록이 쌓이면 기준 튜닝·리포트에 쓴다.
+ALARM_CAUSES = {"real": "실제 이상", "false": "오경보", "work": "시험·작업", "other": "그 밖"}
 
 
 def _as_float(v, default: float) -> float:
@@ -731,7 +736,7 @@ class Storage:
     def alarms_since(self, since: float, devices=None, limit: int = 100) -> list[dict]:
         """기간 내 발생한 경보(해제된 것 포함, 최신순)."""
         q = ("SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, acked_at, acked_by, "
-             "escalated_at, cleared_at FROM alarms WHERE raised_at >= ?")
+             "escalated_at, cleared_at, ack_note, cause FROM alarms WHERE raised_at >= ?")
         args: list = [since]
         if devices is not None:
             frag, fargs = self._in_devices(devices)
@@ -862,7 +867,7 @@ class Storage:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, "
-                "acked_at, acked_by, escalated_at FROM alarms "
+                "acked_at, acked_by, escalated_at, ack_note, cause FROM alarms "
                 "WHERE cleared_at IS NULL ORDER BY raised_at DESC LIMIT 200").fetchall()
         return [dict(r) for r in rows]
 
@@ -876,18 +881,30 @@ class Storage:
         panels = {r["device_id"]: (r["panel"] or r["device_id"]) for r in rows}
         return group_alarms(alarms, sensors, panels)
 
-    def ack_alarm(self, alarm_id: int, by: str = "operator") -> bool:
+    def ack_alarm(self, alarm_id: int, by: str = "operator", note: str = "", cause: str = "") -> bool:
+        """활성 경보 확인. note·cause(원인)를 함께 남길 수 있고, 이미 확인한 경보엔 메모만 고쳐 쓴다
+        (해제된 뒤에도 — 현장에서 원인을 나중에 알게 되는 경우가 많다)."""
+        note = (note or "").strip()[:200]
+        cause = cause if cause in ALARM_CAUSES else ""
         with self._lock:
             cur = self._conn.execute(
-                "UPDATE alarms SET acked_at=?, acked_by=? WHERE id=? AND cleared_at IS NULL AND acked_at IS NULL",
-                (time.time(), by, alarm_id))
+                "UPDATE alarms SET acked_at=?, acked_by=?, ack_note=?, cause=? "
+                "WHERE id=? AND cleared_at IS NULL AND acked_at IS NULL",
+                (time.time(), by, note or None, cause or None, alarm_id))
+            first = cur.rowcount > 0
+            if not first and (note or cause):
+                cur = self._conn.execute(
+                    "UPDATE alarms SET ack_note=COALESCE(?, ack_note), cause=COALESCE(?, cause) "
+                    "WHERE id=? AND acked_at IS NOT NULL", (note or None, cause or None, alarm_id))
             row = self._conn.execute(
                 "SELECT device_id, sensor_key, detail FROM alarms WHERE id=?", (alarm_id,)).fetchone()
             self._conn.commit()
             ok = cur.rowcount > 0
         if ok and row:
+            extra = " — ".join(x for x in (ALARM_CAUSES.get(cause, ""), note) if x)
             self.log_event(row["device_id"], row["sensor_key"], "ack",
-                           f"경보 확인({by}): {row['detail']}", source="user")
+                           (f"경보 확인({by}): " if first else f"경보 메모({by}): ") + row["detail"]
+                           + (f" · {extra}" if extra else ""), source="user")
         return ok
 
     def escalate_due(self, after_seconds: float = 120, severity: str = "crit") -> list[dict]:

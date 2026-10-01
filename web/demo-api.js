@@ -1305,10 +1305,16 @@
         }
         if (p === "/api/diagnose") return Promise.resolve(J(diagnose(String(body.device_id || ""), String(body.sensor_key || ""))));
         if (p === "/api/alarm/ack") {
-          const a = S.alarms.find(x => x.id === Number(body.alarm_id) && !x.cleared_at && !x.acked_at);
-          if (a) { a.acked_at = now(); a.acked_by = String(body.by || "operator");
-            logEvent(a.device_id, a.sensor_key, "ack", `경보 확인(${a.acked_by}): ${a.detail}`, "user"); }
-          return Promise.resolve(J({ ok: !!a, alarm_id: Number(body.alarm_id) }));
+          const CAUSE = { real: "실제 이상", false: "오경보", work: "시험·작업", other: "그 밖" };
+          const note = String(body.note || "").trim().slice(0, 200), cause = CAUSE[body.cause] ? body.cause : "";
+          const a = S.alarms.find(x => x.id === Number(body.alarm_id));
+          let ok = false;
+          if (a && !a.cleared_at && !a.acked_at) { ok = true; a.acked_at = now(); a.acked_by = "데모";
+            a.ack_note = note || null; a.cause = cause || null;
+            logEvent(a.device_id, a.sensor_key, "ack", `경보 확인(데모): ${a.detail}` + (cause || note ? " · " + [CAUSE[cause], note].filter(Boolean).join(" — ") : ""), "user"); }
+          else if (a && a.acked_at && (note || cause)) { ok = true; if (note) a.ack_note = note; if (cause) a.cause = cause;
+            logEvent(a.device_id, a.sensor_key, "ack", `경보 메모(데모): ${a.detail} · ` + [CAUSE[cause], note].filter(Boolean).join(" — "), "user"); }
+          return Promise.resolve(J({ ok, alarm_id: Number(body.alarm_id) }));
         }
         if (p === "/api/channel") {
           const dev = String(body.device_id || ""), key = String(body.sensor_key || ""), en = !!body.enabled;

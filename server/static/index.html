@@ -1087,6 +1087,19 @@
           border:1px solid var(--accent);background:var(--accent);color:#fff}
   .ap-ack:hover{filter:brightness(1.06)}
   .ap-ack.done{background:transparent;color:var(--ok,#2f9e54);border-color:var(--rule);cursor:default}
+  /* 경보 확인 + 원인·조치 메모 */
+  .ap-ackf{margin:0 0 6px 17px;padding:8px 10px;border:1px solid var(--rule);border-radius:8px;background:var(--canvas);
+    display:flex;flex-direction:column;gap:7px}
+  .ap-causes{display:flex;flex-wrap:wrap;gap:5px}
+  .ap-causes button{font:600 11px var(--sans);padding:4px 10px;border-radius:12px;border:1px solid var(--rule);background:var(--surface);
+    color:var(--ink-2);cursor:pointer;min-height:28px}
+  .ap-causes button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .ap-note{font:500 12px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:6px 8px;width:100%;box-sizing:border-box}
+  .ap-ackrow{display:flex;gap:6px;justify-content:flex-end}
+  .ap-ackrow .ap-cancel{font:600 11px var(--sans);padding:5px 10px;border-radius:6px;border:1px solid var(--rule);background:none;color:var(--ink-2);cursor:pointer}
+  .ap-causes button:focus-visible,.ap-note:focus-visible,.ap-cancel:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .ap-item .apnote{font-size:11px;color:var(--ink-2);margin-top:3px}
+  .ap-ack.memo{background:transparent;color:var(--ink-2);border-color:var(--rule)}
   /* 사건(원인) 묶음: 원인 한 줄 + 펼치면 관련 경보(들여쓰기) */
   .ap-inc{border-bottom:1px solid var(--rule)}
   .ap-inc > .ap-item{border-bottom:0}
@@ -3818,7 +3831,8 @@ function mrepShow(rep){
     : `<li>이번 달은 사고 징조가 없었습니다</li>`);
   if (s.vent_auto) res.push(`<li>벤트가 ${n(s.vent_auto + "번")} 스스로 열려 가스를 내보냈습니다</li>`);
   res.push(`<li>위험 경보 ${n(s.alarms_crit + "건")}, 주의 ${n(s.alarms_warn + "건")}` +
-    (s.ack_min_avg != null ? ` — 위험 경보를 사람이 확인하기까지 평균 ${n(s.ack_min_avg + "분")}` : "") + `</li>`);
+    (s.ack_min_avg != null ? ` — 위험 경보를 사람이 확인하기까지 평균 ${n(s.ack_min_avg + "분")}` : "") +
+    (s.alarms_false ? ` <small>(그중 ${s.alarms_false}건은 현장 확인 결과 오경보·시험 작업)</small>` : "") + `</li>`);
   if (s.self_heal) res.push(`<li>장비가 ${n(s.self_heal + "번")} 스스로 복구했습니다` + (s.self_heal_rate != null ? ` <small>(자동 복구 성공률 ${s.self_heal_rate}%)</small>` : "") + `</li>`);
   res.push(s.uptime != null ? `<li>가동률 ${n(s.uptime + "%")} <small>(판넬 ${s.panels}개, 통신이 끊긴 시간을 뺀 비율)</small></li>` : `<li>이 달엔 아직 가동 기록이 없습니다</li>`);
   if (s.faults) res.push(`<li class="bad">벤트·히터·팬 작동 실패 ${n(s.faults + "건")} — 아래 권고를 확인하세요</li>`);
@@ -4807,6 +4821,8 @@ function loadAlarms(){
     const ackAllBtn = $("#ap-ackall");
     if(ackAllBtn) ackAllBtn.hidden = !al.some(a=>!a.acked_at);   // 미확인 있을 때만
     if(!alarmPanelOpen) return;                 // 열려있을 때만 목록 렌더
+    ackLast = al; ackInc = inc;
+    if(ackOpen && document.querySelector("#ap-list .ap-ackf")) return;   // 메모 쓰는 중엔 목록을 다시 그리지 않는다(입력 보존)
     const list = $("#ap-list");
     if(!al.length){ list.innerHTML = `<div class="ap-empty">활성 경보 없음 — 정상 ✓</div>`; return; }
     const byId = new Map(al.map(a=>[a.id, a]));
@@ -4818,16 +4834,18 @@ function loadAlarms(){
       return `<div class="ap-item${sub?" ap-sub":""}"><span class="apd ${crit?'crit':''}"></span>`+
         `<div class="apbody"><div class="aptext">${m.ic||"⚠"} ${escapeHtml(a.detail||a.kind)}</div>`+
         `<div class="apmeta">${escapeHtml(idline)} · ${ago(a.raised_at)||"방금"}`+
-        `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div></div>`+
+        `${a.escalated_at?` · <span class="apesc">⬆ 상향됨</span>`:""}${acked?` · 확인:${escapeHtml(a.acked_by||"")}`:""}</div>`+
+        (a.cause||a.ack_note ? `<div class="apnote">${escapeHtml([ACK_CAUSE[a.cause]||"", a.ack_note||""].filter(Boolean).join(" — "))}</div>` : "")+`</div>`+
         `<button class="ap-ask aiq-alarm" data-askal="${a.id}">AI 해설</button>`+
-        (acked ? `<button class="ap-ack done">확인됨</button>` : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
-        `</div>`;
+        (acked ? `<button class="ap-ack memo" data-ack="${a.id}" title="원인·조치 메모 쓰기/고치기">메모</button>`
+               : `<button class="ap-ack" data-ack="${a.id}">확인</button>`)+
+        `</div>` + (ackOpen === "a:"+a.id ? ackForm("a:"+a.id, a) : "");
     };
     // 사건(원인) 단위: 경보 1개짜리는 예전처럼, 여러 개면 원인 제목 + '관련 경보 N개'(펼침) + 모두 확인
     list.innerHTML = inc.map(i=>{
       const members = i.alarms.map(id=>byId.get(id)).filter(Boolean);
       if(members.length <= 1) return members.map(a=>alarmRow(a, false)).join("");
-      const open = incOpen.has(i.key), crit = i.severity==="crit";
+      const open = incOpen.has(i.key) || members.some(a=>ackOpen==="a:"+a.id), crit = i.severity==="crit";   // 메모 쓰는 경보가 있으면 펼침
       const unacked = members.filter(a=>!a.acked_at).map(a=>a.id);
       const L = incLabel(i);
       return `<div class="ap-inc"><div class="ap-item"><span class="apd ${crit?'crit':''}"></span>`+
@@ -4836,21 +4854,60 @@ function loadAlarms(){
         `${open?"▾":"▸"} 관련 경보 ${members.length}개</button> · ${ago(i.started_at)||"방금"} 시작</div></div>`+
         (unacked.length ? `<button class="ap-ack" data-ackinc="${unacked.join(",")}">모두 확인</button>`
                         : `<button class="ap-ack done">확인됨</button>`)+`</div>`+
+        (ackOpen === "i:"+unacked.join(",") ? ackForm("i:"+unacked.join(","), null) : "")+
         (open ? members.map(a=>alarmRow(a, true)).join("") : "")+`</div>`;
     }).join("");
-    list.querySelectorAll("[data-ack]").forEach(b=> b.onclick = ()=> ackAlarm(+b.dataset.ack));
+    list.querySelectorAll("[data-ack]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
+      const k = "a:"+b.dataset.ack; ackOpen = ackOpen === k ? null : k; ackDraw(); });
+    ackWire(list);
     list.querySelectorAll("[data-askal]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
       const a = byId.get(+b.dataset.askal); if(!a) return;
       alarmPanelOpen = false; $("#alarm-panel").hidden = true;
       openAsk(`경보#${a.id} "${a.detail||a.kind}" (${sensorIdLine(a.device_id, a.sensor_key)})가 왜 났는지, 지금 현장에서 무엇을 확인하면 되는지 설명해줘`); });
     list.querySelectorAll("[data-ackinc]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
-      const ids = b.dataset.ackinc.split(",").map(Number); b.disabled = true;
-      Promise.all(ids.map(id=>fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({alarm_id:id, by:"operator"})}).catch(()=>{})))
-        .then(()=>{ setStatus(`사건 경보 ${ids.length}건 확인`); loadAlarms(); }); });
+      const k = "i:"+b.dataset.ackinc; ackOpen = ackOpen === k ? null : k; ackDraw(); });
     list.querySelectorAll("[data-inc]").forEach(b=> b.onclick = (e)=>{ e.stopPropagation();
       const k = b.dataset.inc; incOpen.has(k) ? incOpen.delete(k) : incOpen.add(k); loadAlarms(); });
   }).catch(()=>{});
+}
+// ── 경보 확인 + 원인·조치 메모 ─────────────────────────────
+// '확인'을 누르면 원인(실제 이상·오경보·시험/작업·그 밖)과 한 줄 메모를 남긴다(둘 다 선택). 확인한 경보엔 '메모'로 고쳐 쓴다.
+// 이 기록은 AI 답·월간 리포트(오경보 수)·나중의 기준 튜닝에 쓰인다.
+const ACK_CAUSE = {real:"실제 이상", false:"오경보", work:"시험·작업", other:"그 밖"};
+let ackOpen = null, ackLast = [], ackInc = [];
+function ackForm(key, a){
+  const cur = a ? a.cause : "";
+  return `<div class="ap-ackf" data-ackf="${key}"><div class="ap-causes" role="group" aria-label="원인">` +
+    Object.entries(ACK_CAUSE).map(([k, v]) => `<button type="button" data-cause="${k}" aria-pressed="${k === cur}">${v}</button>`).join("") +
+    `</div><input class="ap-note" maxlength="200" placeholder="조치 메모(선택) — 예: 단자 재조임, 용접 작업 중" value="${escapeHtml(a && a.ack_note || "")}">` +
+    `<div class="ap-ackrow"><button type="button" class="ap-cancel" data-ackx>취소</button>` +
+    `<button type="button" class="ap-ack" data-ackgo="${key}">${a && a.acked_at ? "메모 저장" : key.startsWith("i:") ? "모두 확인" : "확인"}</button></div></div>`;
+}
+function ackDraw(){
+  // 열린 폼을 반영해 목록을 다시 그린다(폴링 결과를 기다리지 않고)
+  const keep = ackOpen; ackOpen = null; const list = $("#ap-list"); list.querySelector(".ap-ackf")?.remove(); ackOpen = keep;
+  loadAlarms();
+  setTimeout(() => { const f = list.querySelector(".ap-ackf .ap-note"); if (f) f.focus(); }, 150);
+}
+function ackWire(list){
+  list.querySelectorAll(".ap-causes button").forEach(b => b.onclick = e => { e.stopPropagation();
+    const on = b.getAttribute("aria-pressed") !== "true";
+    b.parentElement.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", "false"));
+    b.setAttribute("aria-pressed", String(on)); });
+  list.querySelectorAll("[data-ackx]").forEach(b => b.onclick = e => { e.stopPropagation(); ackOpen = null; ackDraw(); });
+  list.querySelectorAll(".ap-note").forEach(inp => inp.onkeydown = e => {
+    if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); inp.closest(".ap-ackf").querySelector("[data-ackgo]").click(); }
+    if (e.key === "Escape"){ e.stopPropagation(); ackOpen = null; ackDraw(); } });
+  list.querySelectorAll("[data-ackgo]").forEach(b => b.onclick = e => { e.stopPropagation();
+    const f = b.closest(".ap-ackf"), key = b.dataset.ackgo;
+    const cause = (f.querySelector('.ap-causes [aria-pressed="true"]') || {}).dataset?.cause || "";
+    const note = f.querySelector(".ap-note").value.trim();
+    const ids = key.slice(2).split(",").map(Number).filter(Boolean);
+    b.disabled = true;
+    Promise.all(ids.map(id => fetch("/api/alarm/ack", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({alarm_id:id, note, cause})}).catch(() => {})))
+      .then(() => { ackOpen = null; setStatus(ids.length > 1 ? `경보 ${ids.length}건 확인` : "경보 확인" + (cause || note ? " · 메모 남김" : ""));
+        loadAlarms(); }); });
 }
 function ackAlarm(id){
   fetch("/api/alarm/ack",{method:"POST",headers:{"Content-Type":"application/json"},

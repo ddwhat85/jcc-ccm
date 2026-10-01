@@ -45,6 +45,7 @@ SYSTEM = """너는 JCC-CCM 판넬 감시 시스템의 설명 담당이다. 사�
 - 도구 결과에 없는 사실은 "기록에 없다" 또는 "알 수 없다"고 말하라. 추측이면 추측이라고 밝혀라.
 - 근거가 된 기록은 문장 끝에 도구 결과의 ref를 대괄호로 달아라. 예: 벤트가 열렸다 [기록#381].
 - 시각은 한국 시간으로, "10월 1일 14:03"처럼 쓴다. 수치에는 단위를 붙인다.
+- 경보의 cause·action_note는 현장 직원이 확인하며 남긴 원인·조치다. 오경보·시험 작업으로 기록된 경보는 그렇게 구분해 말하라.
 
 알아 둘 시스템 동작
 - 화재 징조는 FRI(0~100)와 단계(normal/watch/warning/danger/critical)로 판정하고, danger 이상이면 벤트를 자동으로 연다.
@@ -435,6 +436,8 @@ class _Tools:
             out.append({"ref": ref, "panel": pid, "device": a["device_id"], "sensor": a.get("sensor_key"),
                         "kind": a["kind"], "severity": a.get("severity"), "detail": a.get("detail"),
                         "raised": _kst(a["raised_at"]), "acked": _kst(a.get("acked_at")), "acked_by": a.get("acked_by"),
+                        "cause": {"real": "실제 이상", "false": "오경보", "work": "시험·작업", "other": "그 밖"}.get(
+                            a.get("cause") or "", ""), "action_note": a.get("ack_note") or "",
                         "escalated": _kst(a.get("escalated_at")), "cleared": _kst(a.get("cleared_at")) or "아직 열림"})
         return {"days": days, "count": len(out), "alarms": out}
 

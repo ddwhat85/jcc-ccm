@@ -56,7 +56,7 @@ def _alarm_stats(storage, keys: set, start: float, end: float) -> dict:
     frag, fa = storage._in_devices(keys)
     with storage._lock:
         rows = storage._conn.execute(
-            f"SELECT device_id, sensor_key, kind, severity, raised_at, acked_at FROM alarms "
+            f"SELECT device_id, sensor_key, kind, severity, raised_at, acked_at, cause FROM alarms "
             f"WHERE raised_at >= ? AND raised_at < ? AND {frag}", (start, end, *fa)).fetchall()
     crit = [r for r in rows if r["severity"] == "crit"]
     acks = [(r["acked_at"] - r["raised_at"]) / 60.0 for r in crit if r["acked_at"]]
@@ -67,6 +67,7 @@ def _alarm_stats(storage, keys: set, start: float, end: float) -> dict:
         if r["kind"] == "actuator_fault":
             d["fault"] += 1
     return {"crit": len(crit), "warn": len(rows) - len(crit),
+            "false": sum(1 for r in rows if r["cause"] in ("false", "work")),
             "ack_min_avg": round(sum(acks) / len(acks), 1) if acks else None, "by_dev": by_dev}
 
 
@@ -120,6 +121,7 @@ def build_monthly(storage, customer_id: int, period: str, now: float | None = No
             "fire": pr["fire"], "contact": pr["contact"]["detected"], "dew": pr["dew"],
             "vent_auto": pr["fire"]["vent_auto"] + pr["fire"]["vent_edge"],
             "alarms_crit": al["crit"], "alarms_warn": al["warn"], "ack_min_avg": al["ack_min_avg"],
+            "alarms_false": al.get("false", 0),
             "self_heal": heal["auto_fixed"], "self_heal_rate": heal["success_rate"],
             "faults": sum(r["faults"] for r in rows),
         },
