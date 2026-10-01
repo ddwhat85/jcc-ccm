@@ -4510,7 +4510,8 @@ function alhPaint(){
     b.disabled = true;
     try { const r = await fetch("/api/alarm/ack", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({alarm_id:id, note, cause})});
       const j = await r.json().catch(() => ({})); if (!r.ok || !j.ok) throw new Error(j.error || "저장하지 못했습니다");
-      ALH.open = null; alhMsg("저장했습니다 — 리포트·AI 답에 반영됩니다"); await alhLoad(); loadAlarms(); }
+      ALH.open = null; alhMsg(cause || note ? "저장했습니다 — 리포트·AI 답에 반영됩니다" : "경보를 확인했습니다 — 원인은 나중에 적어도 됩니다");
+      await alhLoad(); loadAlarms(); }
     catch(e){ b.disabled = false; alhMsg(e.message, true); } });
   const tune = $("#alh-tune"); if (tune) tune.onclick = () => { $("#alh-overlay").classList.remove("open"); $("#btn-tune").click(); };
 }
