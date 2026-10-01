@@ -745,6 +745,29 @@
   #cmsn-doc .meta{color:var(--ink-2);font-size:12.5px;margin-bottom:12px}
   @media (max-width:640px){.cmsn-shell{width:100vw;max-height:100vh;height:100vh;border-radius:0}}
 
+  /* ── 월간 리포트 문서(설치 점검과 같은 셸·버튼을 쓰고 문서 부분만) ── */
+  .mrep-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .mrep-ctl select,.mrep-ctl input{font:600 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);
+    border-radius:6px;padding:6px 8px}
+  .mrep-ctl select:focus-visible,.mrep-ctl input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  #mrep-doc{display:flex;flex-direction:column;gap:16px}
+  #mrep-doc h2{margin:0;font:700 19px var(--sans);letter-spacing:-.01em;text-wrap:balance}
+  #mrep-doc .meta{color:var(--ink-2);font-size:12.5px;margin-top:4px}
+  #mrep-doc h4{margin:0 0 8px;font:700 13px var(--sans)}
+  .mrep-results{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+  .mrep-results li{font-size:14px;line-height:1.55;padding-left:14px;position:relative}
+  .mrep-results li::before{content:"";position:absolute;left:0;top:.62em;width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .mrep-results li.bad::before{background:var(--crit)}
+  .mrep-results b{font-weight:700;font-variant-numeric:tabular-nums}
+  .mrep-results small{color:var(--ink-2);font-size:12.5px}
+  .mrep-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .mrep-table th{text-align:left;font:600 11px var(--sans);color:var(--ink-3);padding:5px 6px;border-bottom:1px solid var(--rule)}
+  .mrep-table td{padding:7px 6px;border-bottom:1px solid var(--rule-2);font-variant-numeric:tabular-nums}
+  .mrep-table td.n,.mrep-table th.n{text-align:right}
+  .mrep-list{margin:0;padding-left:18px;font-size:13px;line-height:1.6}
+  .mrep-foot{color:var(--ink-3);font-size:11.5px}
+  @media (max-width:640px){.mrep-table .opt{display:none}}
+
   /* ── 계정: 등급별 표시 · 비번 변경 · 계정 관리 ── */
   body:not([data-acct="admin"]) .jcc-admin{display:none!important}   /* JCC 전용 기능은 고객 화면에서 숨김 */
   body:not([data-acctdb="1"]) .acct-db{display:none!important}       /* DB 계정에만 '내 비번 변경' */
@@ -917,6 +940,13 @@
     #report-overlay{position:absolute;inset:0;background:#fff;display:block!important}
     .rp-modal{box-shadow:none;max-height:none;width:100%}
     .rp-range,.rp-print,#rp-close{display:none!important}
+  }
+  /* 월간 리포트 인쇄 */
+  @media print{
+    body.mrep-printing *{visibility:hidden}
+    body.mrep-printing #mrep-doc,body.mrep-printing #mrep-doc *{visibility:visible}
+    body.mrep-printing #mrep-doc{position:absolute;inset:0;background:#fff;color:#111;padding:28px}
+    body.mrep-printing .mrep-noprint{display:none!important}
   }
   /* 설치 보고서 인쇄(보고서를 연 경우 그것만 찍는다) */
   @media print{
@@ -1182,6 +1212,7 @@
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
         <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
         <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
+        <button class="mb-item" id="btn-monthly">월간 리포트</button>
         <div class="mb-div jcc-admin"></div>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
       </div>
@@ -1323,6 +1354,24 @@
     </section>
   </div>
 
+  <!-- 월간 리포트(모든 계정 — 자기 고객사) -->
+  <div class="overlay" id="mrep-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="mrep-title">
+      <header class="cmsn-head mrep-noprint">
+        <h3 id="mrep-title">월간 리포트</h3>
+        <div class="mrep-ctl jcc-admin">
+          <select id="mrep-cust" aria-label="고객사"></select>
+          <input type="month" id="mrep-month" aria-label="발행할 달">
+          <button class="cmsn-btn" id="mrep-issue">지금 발행</button>
+        </div>
+        <button class="cmsn-btn" id="mrep-print" hidden>인쇄·PDF</button>
+        <button class="cmsn-x" id="mrep-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      </header>
+      <div class="cmsn-msg mrep-noprint" id="mrep-msg" aria-live="polite" style="padding:0 16px"></div>
+      <div class="cmsn-body" id="mrep-body"></div>
+    </section>
+  </div>
+
   <!-- 설치 보고서(모든 계정 — 자기 판넬) -->
   <div class="overlay" id="cmsn-rep-overlay">
     <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="cmsn-rep-title">
@@ -1403,7 +1452,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=5bd8d66d"></script>
+<script src="demo-api.js?v=804c3713"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -3303,6 +3352,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-10-01T09:20", status:"done", cat:"diag", name:"고객용 월간 리포트 — 매달 1일 자동 발행",
+   sensors:"고객사의 판넬 전체",
+   summary:"매달 1일(한국 시간) 고객사마다 지난달 성과를 문서로 발행해 보관한다. '사고 징조를 몇 건 먼저 잡았나·벤트가 몇 번 스스로 열렸나·경보를 얼마나 빨리 확인했나·가동률'을 결과 언어로 쓰고, 다음 달 권고를 자동으로 붙인다. 발행된 문서는 바뀌지 않아 계약 갱신 증빙이 된다.",
+   method:"발행 시점 스냅숏 저장(고객사·월 유일, 재발행은 교체) · 기간 한국 시간 달 경계 · 기존 이력 리포트를 기간·기기로 한정해 재사용 · 가동률 = CCM 침묵 경보 구간을 뺀 비율(설치 전 기간 제외) · 위험 경보 확인까지 평균 시간 · 출력 작동 실패 · 설치 점검 판정 · 권고(드리프트→교정, 고착→점검, 작동 실패→구동기, 침묵→네트워크, 위치 스위치 없음→보조접점 구동기) · 감시 루프가 매시간 확인해 한 번만 발행 · 알림은 JCC가 켠 고객사만 문자 한 통 · 고객은 자기 고객사 것만",
+   next:"실제 운영 한 달 뒤 고객 반응으로 문구·항목 다듬기"},
   {ts:"2026-10-01T08:10", status:"done", cat:"diag", name:"현장 설치 점검(시운전) 마법사",
    sensors:"판넬의 CCM·센서 전체 · 벤트·히터·팬",
    summary:"설치 기사가 휴대폰으로 판넬 하나를 골라 연결 → 센서 → 예지 역할 → 출력 시험 순서로 확인하고, 문제마다 '할 일'을 안내받은 뒤 결과를 시운전 기록으로 남긴다. 고객도 자기 판넬의 설치 보고서를 볼 수 있다.",
@@ -3552,6 +3606,94 @@ document.addEventListener("keydown", e => {
   if ($("#cmsn-rep-overlay").classList.contains("open")) $("#cmsn-rep-overlay").classList.remove("open");
 });
 
+// ── 월간 리포트 ─────────────────────────────────────────
+// 발행 시점 스냅숏(서버 monthly.py). 결과 언어로 — '무엇을 먼저 잡았나'를 문장으로.
+const MREP = { reps: [] };
+const mrepEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const mrepMonth = p => `${p.slice(0, 4)}년 ${Number(p.slice(5, 7))}월`;
+function mrepMsg(t, bad){ const m = $("#mrep-msg"); m.textContent = t || ""; m.className = "cmsn-msg mrep-noprint" + (bad ? " bad" : t ? " ok" : ""); }
+function mrepPrevMonth(){ const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+async function mrepList(){
+  $("#mrep-print").hidden = true;
+  const cid = document.body.dataset.acct === "admin" ? $("#mrep-cust").value : "";
+  try { MREP.reps = (await fetch("/api/monthly" + (cid ? "?customer_id=" + cid : ""), {cache:"no-store"}).then(r => r.json())).reports || []; }
+  catch(_){ MREP.reps = []; mrepMsg("리포트를 불러오지 못했습니다", true); }
+  const when = t => new Date(t * 1000).toLocaleDateString("ko-KR");
+  $("#mrep-body").innerHTML = MREP.reps.length ? MREP.reps.map((r, i) => `<button class="cmsn-rep" data-i="${i}">` +
+      `${mrepEsc(r.customer || r.report.customer)} · ${mrepMonth(r.period)}<span class="cmsn-chip pass">판넬 ${r.report.summary.panels}</span>` +
+      `<small>발행 ${when(r.created_at)} · ${mrepEsc(r.by)}</small></button>`).join("")
+    : `<p class="acct-note">아직 발행된 월간 리포트가 없습니다. 매달 1일에 지난달 리포트가 자동으로 발행됩니다.</p>`;
+  $("#mrep-body").querySelectorAll(".cmsn-rep").forEach(b => b.onclick = () => mrepShow(MREP.reps[Number(b.dataset.i)].report));
+}
+function mrepShow(rep){
+  const s = rep.summary, f = s.fire || {}, n = v => `<b>${v}</b>`;
+  const d0 = new Date(rep.range[0] * 1000), d1 = new Date((rep.range[1] - 1) * 1000);
+  const fmt = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  const res = [];
+  res.push(s.precursors
+    ? `<li>사고 징조를 ${n(s.precursors + "건")} 먼저 잡았습니다 <small>(화재 ${f.detected || 0} · 접점 발열 ${s.contact || 0} · 결로 ${(s.dew || {}).detected || 0})</small>` +
+      (f.detected ? " — 화재 징조 중 " + [
+        f.prevented ? `${n(f.prevented + "건")}은 위험선에 닿기 전에 끝났고` : "",
+        f.reached ? `${n(f.reached + "건")}은 위험선까지 갔지만` + (f.lead_min_avg != null ? ` 평균 ${n(f.lead_min_avg + "분")} 먼저 감지했고` : " 먼저 감지했고") : "",
+        f.watching ? `${n(f.watching + "건")}은 발행 때 아직 지켜보는 중이었습니다` : "",
+      ].filter(Boolean).join(", ").replace(/고$/, "습니다") : "") + `</li>`
+    : `<li>이번 달은 사고 징조가 없었습니다</li>`);
+  if (s.vent_auto) res.push(`<li>벤트가 ${n(s.vent_auto + "번")} 스스로 열려 가스를 내보냈습니다</li>`);
+  res.push(`<li>위험 경보 ${n(s.alarms_crit + "건")}, 주의 ${n(s.alarms_warn + "건")}` +
+    (s.ack_min_avg != null ? ` — 위험 경보를 사람이 확인하기까지 평균 ${n(s.ack_min_avg + "분")}` : "") + `</li>`);
+  if (s.self_heal) res.push(`<li>장비가 ${n(s.self_heal + "번")} 스스로 복구했습니다` + (s.self_heal_rate != null ? ` <small>(자동 복구 성공률 ${s.self_heal_rate}%)</small>` : "") + `</li>`);
+  res.push(s.uptime != null ? `<li>가동률 ${n(s.uptime + "%")} <small>(판넬 ${s.panels}개, 통신이 끊긴 시간을 뺀 비율)</small></li>` : `<li>이 달엔 아직 가동 기록이 없습니다</li>`);
+  if (s.faults) res.push(`<li class="bad">벤트·히터·팬 작동 실패 ${n(s.faults + "건")} — 아래 권고를 확인하세요</li>`);
+  const cm = {pass:"합격", warn:"조건부", fail:"불합격", wait:"미완료"};
+  $("#mrep-body").innerHTML = `<div id="mrep-doc"><div><h2>${mrepEsc(rep.customer)} 판넬 운영 리포트 — ${mrepMonth(rep.period)}</h2>` +
+    `<div class="meta">기간 ${fmt(d0)}~${fmt(d1)} · 판넬 ${s.panels}개 · 발행 ${new Date(rep.generated_at * 1000).toLocaleDateString("ko-KR")}` +
+    `${rep.generated_at < rep.range[1] ? " (달이 끝나기 전 발행 — 발행 시점까지 집계)" : ""} · JCC Solution</div></div>` +
+    `<div><h4>이번 달 결과</h4><ul class="mrep-results">${res.join("")}</ul></div>` +
+    (rep.panels.length ? `<div><h4>판넬별</h4><table class="mrep-table"><thead><tr><th>판넬</th><th class="n">가동률</th><th class="n">위험</th>` +
+      `<th class="n opt">주의</th><th class="n">작동 실패</th><th class="opt">설치 점검</th></tr></thead><tbody>` +
+      rep.panels.map(p => `<tr><td>${mrepEsc(p.panel_name)}</td><td class="n">${p.uptime == null ? "—" : p.uptime + "%"}</td>` +
+        `<td class="n">${p.crit}</td><td class="n opt">${p.warn}</td><td class="n">${p.faults}</td><td class="opt">${p.commission ? cm[p.commission] : "기록 없음"}</td></tr>`).join("") +
+      `</tbody></table></div>` : "") +
+    (rep.problems && rep.problems.length ? `<div><h4>주의가 필요했던 장비</h4><ul class="mrep-list">` +
+      rep.problems.map(p => `<li>${mrepEsc(p.name)} — ${mrepEsc(p.detail)}</li>`).join("") + `</ul></div>` : "") +
+    `<div><h4>다음 달 권고</h4><ul class="mrep-list">${(rep.advice || []).map(a => `<li>${mrepEsc(a)}</li>`).join("")}</ul></div>` +
+    `<p class="mrep-foot">이 리포트는 발행 시점의 기록으로 만들어졌으며 이후 바뀌지 않습니다.</p>` +
+    `<p class="mrep-noprint"><button class="cmsn-btn" id="mrep-back">목록으로</button></p></div>`;
+  $("#mrep-print").hidden = false;
+  $("#mrep-back").onclick = mrepList;
+}
+async function openMonthly(){
+  $("#mrep-overlay").classList.add("open"); mrepMsg("");
+  if (document.body.dataset.acct === "admin"){
+    if (!$("#mrep-month").value) $("#mrep-month").value = mrepPrevMonth();
+    try { const d = await fetch("/api/admin/accounts", {cache:"no-store"}).then(r => r.json());
+      const cur = $("#mrep-cust").value;
+      $("#mrep-cust").innerHTML = `<option value="">전체 고객사</option>` +
+        (d.customers || []).map(c => `<option value="${c.id}">${mrepEsc(c.name)}</option>`).join("");
+      if (cur) $("#mrep-cust").value = cur;
+    } catch(_){}
+  }
+  mrepList();
+}
+$("#btn-monthly").onclick = openMonthly;
+$("#mrep-close").onclick = () => $("#mrep-overlay").classList.remove("open");
+$("#mrep-cust").onchange = mrepList;
+$("#mrep-issue").onclick = async () => {
+  const cid = Number($("#mrep-cust").value), period = $("#mrep-month").value;
+  if (!cid){ mrepMsg("발행할 고객사를 고르세요", true); return; }
+  if (!/^\d{4}-\d{2}$/.test(period)){ mrepMsg("발행할 달을 고르세요", true); return; }
+  try { const r = await fetch("/api/monthly/issue", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({customer_id: cid, period})});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){ mrepMsg(j.error || `발행 못 함 (${r.status})`, true); return; }
+    mrepMsg(`${j.report.customer} ${mrepMonth(period)} 리포트 발행 — 같은 달을 다시 발행하면 교체됩니다`); mrepShow(j.report);
+  } catch(_){ mrepMsg("서버에 닿지 못했습니다", true); }
+};
+$("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing"); window.print(); };
+window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
+document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
+
 // ── 계정: 등급별 화면 · 내 비번 변경 · 계정 관리 ─────────────
 // 권한은 서버가 쥔다(권한 표). 화면은 등급에 맞춰 메뉴를 숨길 뿐 — 숨긴 걸 눌러도 서버가 403.
 const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 전용"};
@@ -3639,6 +3781,8 @@ function acctRender(){
           `<span>${acctEsc(p.panel_name || p.panel)}<small>${acctEsc(p.panel)} · ${mine ? "이 고객사" : other ? "다른 고객사: " + acctEsc(own[p.customer_id] || "") : "배정 없음(JCC만)"}</small></span></label>`;
       }).join("") : `<p class="acct-note">아직 연결된 판넬이 없습니다. CCM이 데이터를 보내면 여기에 나타납니다.</p>`) + `</div></div>` +
       `<div><h4>알림 받을 번호<span>한 줄에 하나 — 이 고객사 판넬 경보를 JCC 운영 번호와 함께 받습니다</span></h4>` +
+      `<label class="acct-panel" style="margin-bottom:8px"><input type="checkbox" id="acct-mnotify" ${c.monthly_notify ? "checked" : ""}>` +
+      `<span>월간 리포트 알림<small>매달 1일 리포트가 발행되면 아래 번호로 문자 한 통(실제 발송)</small></span></label>` +
       `<textarea class="acct-rcv" id="acct-rcv" aria-label="알림 받을 번호">${acctEsc(c.receivers.join("\n"))}</textarea>` +
       `<div class="acct-actions"><button class="acct-btn" id="acct-rcv-save">번호 저장</button></div></div>` +
       `<div><h4>계정<span>담당자: 경보 확인·수동 조작 · 보기 전용: 화면·리포트만</span></h4>${table(users.filter(u => u.customer_id === c.id))}</div>` +
@@ -3650,6 +3794,11 @@ function acctRender(){
         acctMsg(cb.checked ? `${cb.dataset.panel} → ${c.name}` : `${cb.dataset.panel} 배정 해제(JCC만 봄)`); await acctLoad();
       } catch(e){ acctMsg(e.message, true); cb.checked = !cb.checked; }
     });
+    $("#acct-mnotify").onchange = async e => {
+      try { await acctPost("monthly_notify", {customer_id: c.id, on: e.target.checked});
+        acctMsg(e.target.checked ? `${c.name}: 월간 리포트 알림 켬` : `${c.name}: 월간 리포트 알림 끔`); await acctLoad();
+      } catch(err){ acctMsg(err.message, true); e.target.checked = !e.target.checked; }
+    };
     $("#acct-rcv-save").onclick = async () => {
       try { const j = await acctPost("receivers", {customer_id: c.id, numbers: $("#acct-rcv").value.split(/[\n,]/)});
         acctMsg(`알림 번호 ${j.numbers.length}개 저장`); await acctLoad();

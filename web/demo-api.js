@@ -977,7 +977,8 @@
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [], owner: {}, receivers: {}, users: [], seq: 1 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false }], owner: {}, receivers: {}, users: [], seq: 2 };
+  ACC.owner[SIM.panel] = 1;                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
   function accView() {
@@ -993,6 +994,8 @@
       return [{ ok: true, id: c.id }, 200]; }
     if (action === "panel") { if (b.customer_id != null && !cust(b.customer_id)) return [{ error: "판넬과 고객사를 확인하세요" }, 400];
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
+    if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
       const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
       ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
@@ -1010,6 +1013,30 @@
     if (action === "user/reset") { u.must_change = true; return [{ ok: true, temp_password: accTemp() }, 200]; }
     if (action === "user/disable") { u.disabled = !!b.disabled; return [{ ok: true }, 200]; }
     return [{ error: "없는 관리 작업입니다" }, 404];
+  }
+
+  // ── 월간 리포트 (데모: 서버 monthly.py와 같은 모양, 수치는 시연 데이터 최근 30일) ──
+  const MONTHLY = [];
+  function monthlyIssue(cid, period) {
+    const c = ACC.customers.find(x => x.id === cid); if (!c) return null;
+    const [y, m] = period.split("-").map(Number);
+    const start = Date.UTC(y, m - 1, 1, -9) / 1000, end = Date.UTC(y, m, 1, -9) / 1000;   // 한국 시간 달
+    const base = buildReport(30), pr = base.summary.predict, panels = panelList().filter(p => ACC.owner[p.panel] === cid);
+    const rows = panels.map(p => ({ panel: p.panel, panel_name: p.panel_name, ccms: p.ccms.length, uptime: 100,
+      crit: base.summary.alarms.crit, warn: base.summary.alarms.warn, faults: 0, commission: null }));
+    const advice = base.problems.filter(x => /드리프트|고착/.test(x.detail)).map(x => `${x.name}: ${/드리프트/.test(x.detail) ? "값이 한쪽으로 계속 이동했습니다 — 센서 교정을 권합니다" : "값이 멈춘 적이 있습니다 — 센서 상태 점검을 권합니다"}`);
+    const rep = { customer: c.name, customer_id: cid, period, range: [start, end], generated_at: now(), panels: rows,
+      summary: { panels: rows.length, uptime: rows.length ? 100 : null,
+        precursors: pr.fire.detected + pr.contact.detected + pr.dew.detected, fire: pr.fire, contact: pr.contact.detected, dew: pr.dew,
+        vent_auto: pr.fire.vent_auto, alarms_crit: base.summary.alarms.crit, alarms_warn: base.summary.alarms.warn, ack_min_avg: null,
+        self_heal: base.summary.heal.auto_fixed, self_heal_rate: base.summary.heal.success_rate, faults: 0 },
+      problems: base.problems.slice(0, 6), advice: advice.length ? advice.slice(0, 6) : ["특이사항 없음 — 지금 상태를 유지하세요"] };
+    const i = MONTHLY.findIndex(r => r.customer_id === cid && r.period === period);
+    const row = { customer_id: cid, period, created_at: now(), by: "데모", report: rep, customer: c.name };
+    if (i >= 0) MONTHLY[i] = row; else MONTHLY.push(row);
+    MONTHLY.sort((a, b) => (b.period > a.period ? 1 : b.period < a.period ? -1 : a.customer_id - b.customer_id));
+    logEvent("", "", "monthly", `${c.name} ${period} 월간 리포트 발행 (데모)`, "system");
+    return rep;
   }
 
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
@@ -1056,6 +1083,13 @@
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/monthly") { const q = qs.get("customer_id");
+        return Promise.resolve(J({ reports: MONTHLY.filter(r => !q || String(r.customer_id) === q) })); }
+      if (p === "/api/monthly/issue" && method === "POST") {
+        if (!Number.isInteger(body.customer_id) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(String(body.period || "")))
+          return Promise.resolve(J({ error: "고객사와 월(YYYY-MM)을 확인하세요" }, 400));
+        const rep = monthlyIssue(body.customer_id, body.period);
+        return Promise.resolve(rep ? J({ ok: true, report: rep }) : J({ error: "없는 고객사입니다" }, 400)); }
       if (p === "/api/commission/check") { const r = cmCheck(qs.get("panel") || ""); return Promise.resolve(r ? J(r) : J({ error: "없는 판넬입니다" }, 404)); }
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);

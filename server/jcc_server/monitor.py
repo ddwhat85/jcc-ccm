@@ -37,6 +37,7 @@ def start(storage, interval: float = 10) -> None:
         # 시작 직후에는 아직 데이터가 안 쌓였을 수 있어 한 박자 쉬고 시작한다.
         time.sleep(interval)
         last_prune = 0.0
+        last_monthly = 0.0
         notified: set = set()
         sent: set = set()          # 실제로 알림을 보낸 경보 id(사건 단위 중복 억제용)
         first_pass = True          # 재시작 직후 기존 경보를 다시 발송하지 않기 위함
@@ -79,6 +80,10 @@ def start(storage, interval: float = 10) -> None:
                     esc_sent.add(key)
                     dispatch(a, "상향", storage.receivers_for_device(a.get("device_id") or ""))
                 now = time.time()
+                if now - last_monthly > 3600:                # 1시간마다: 달이 바뀌었으면 고객사 월간 리포트 발행(한 번만)
+                    last_monthly = now
+                    from .monthly import generate_due
+                    generate_due(storage, now)
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리
                     last_prune = now
                     storage.prune(readings_days=keep_readings, events_days=keep_events)

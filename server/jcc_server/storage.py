@@ -110,6 +110,15 @@ CREATE TABLE IF NOT EXISTS pred_state (
     state      TEXT,
     updated_at REAL
 );
+-- 고객용 월간 리포트 — 발행 시점 스냅숏(발행 뒤 데이터가 정리돼도 문서는 그대로)
+CREATE TABLE IF NOT EXISTS monthly_reports (
+    customer_id INTEGER,
+    period      TEXT,
+    created_at  REAL,
+    by          TEXT,
+    report      TEXT,
+    PRIMARY KEY (customer_id, period)
+);
 -- 시운전(설치 점검) 기록 — 판넬별, 고객도 자기 판넬 것은 본다(설치 품질 증빙)
 CREATE TABLE IF NOT EXISTS commission_reports (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -709,6 +718,31 @@ class Storage:
         except Exception:  # noqa: BLE001 - 알림 대상 조회 실패가 알림 자체를 막으면 안 된다
             return []
 
+    def save_monthly(self, customer_id: int, period: str, by: str, report: dict) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO monthly_reports (customer_id, period, created_at, by, report) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(customer_id, period) DO UPDATE SET created_at=excluded.created_at, "
+                "by=excluded.by, report=excluded.report",
+                (customer_id, period, time.time(), by, json.dumps(report, ensure_ascii=False)))
+            self._conn.commit()
+
+    def has_monthly(self, customer_id: int, period: str) -> bool:
+        with self._lock:
+            return self._conn.execute("SELECT 1 FROM monthly_reports WHERE customer_id=? AND period=?",
+                                      (customer_id, period)).fetchone() is not None
+
+    def list_monthly(self, customer_id=None, limit: int = 60) -> list:
+        q, args = "SELECT * FROM monthly_reports", []
+        if customer_id is not None:
+            q += " WHERE customer_id=?"
+            args.append(customer_id)
+        q += " ORDER BY period DESC, customer_id LIMIT ?"
+        with self._lock:
+            rows = self._conn.execute(q, (*args, int(limit))).fetchall()
+        return [dict(customer_id=r["customer_id"], period=r["period"], created_at=r["created_at"], by=r["by"],
+                     report=json.loads(r["report"] or "{}")) for r in rows]
+
     def add_commission_report(self, panel: str, by: str, overall: str, report: dict) -> int:
         with self._lock:
             cur = self._conn.execute("INSERT INTO commission_reports (panel, ts, by, overall, report) VALUES (?, ?, ?, ?, ?)",
@@ -986,17 +1020,20 @@ class Storage:
     # ── 기간별 종합 리포트 (이력 트렌드) ─────────────────────
     _PROB_LABEL = {"alarm": "위험", "alarm_warn": "경고", "silent": "침묵",
                    "stuck": "고착", "drift": "드리프트", "anomaly": "이상",
-                   "fire": "화재 징조", "contact": "접점 발열", "dew": "결로"}
+                   "fire": "화재 징조", "contact": "접점 발열", "dew": "결로", "actuator_fault": "출력 작동 실패"}
     PREVENT_WINDOW = 1800.0    # 화재 징조 감지 후 이 시간(초) 안에 가스가 위험선에 닿았는지 본다
 
-    def _predict_report(self, since: float, ev: dict, devices=None) -> dict:
+    def _predict_report(self, since: float, ev: dict, devices=None, until: float | None = None) -> dict:
         """예지보전 성과: 먼저 잡은 화재 징조, 위험선 도달 전에 끝난 건수, 선행 시간, 조치 횟수."""
         frag, fa = ("1", []) if devices is None else self._in_devices(devices)
+        until = 9e18 if until is None else until
         with self._lock:
             fires = self._conn.execute(
-                f"SELECT ts FROM events WHERE etype='fire' AND ts >= ? AND {frag} ORDER BY ts", (since, *fa)).fetchall()
+                f"SELECT ts FROM events WHERE etype='fire' AND ts >= ? AND ts < ? AND {frag} ORDER BY ts",
+                (since, until, *fa)).fetchall()
             edge_rows = self._conn.execute(
-                f"SELECT detail FROM events WHERE etype='edge_actuate' AND ts >= ? AND {frag}", (since, *fa)).fetchall()
+                f"SELECT detail FROM events WHERE etype='edge_actuate' AND ts >= ? AND ts < ? AND {frag}",
+                (since, until, *fa)).fetchall()
         # 가스 센서와 유효 위험선(사용자 설정 > 프로파일)
         disc, sets = self._discovered_map(), self._settings_map()
         if devices is not None:
@@ -1043,7 +1080,8 @@ class Storage:
             "manual": ev.get("actuator", 0),
         }
 
-    def build_report(self, days: float = 7, devices=None) -> dict:
+    def build_report(self, days: float = 7, devices=None, since: float | None = None,
+                     until: float | None = None) -> dict:
         """지정 기간의 운영 리포트를 만든다.
 
         가동 현황·경보 요약·**자가치유 성과**·센서별 값 통계(min/avg/max)·문제
@@ -1051,21 +1089,26 @@ class Storage:
         """
         now = time.time()
         days = max(1 / 24, float(days))               # 최소 1시간
-        since = now - days * 86400
+        if since is None:
+            since = now - days * 86400
+        else:
+            days = max(1 / 24, ((until or now) - since) / 86400)
+        until_q = 9e18 if until is None else until    # 월간 리포트: 기간 끝(그 뒤 데이터 제외)
         # 고객 계정이면 그 고객사 기기만(devices=None이면 전체 — JCC 관리자)
         frag, fa = ("1", []) if devices is None else self._in_devices(devices)
         with self._lock:
             ev_rows = self._conn.execute(
-                f"SELECT etype, COUNT(*) c FROM events WHERE ts >= ? AND {frag} GROUP BY etype",
-                (since, *fa)).fetchall()
+                f"SELECT etype, COUNT(*) c FROM events WHERE ts >= ? AND ts < ? AND {frag} GROUP BY etype",
+                (since, until_q, *fa)).fetchall()
             rd_rows = self._conn.execute(
                 "SELECT device_id, sensor_key, COUNT(*) n, MIN(value) mn, AVG(value) av, "
-                "MAX(value) mx FROM readings WHERE ts >= ? AND ok = 1 AND value IS NOT NULL "
-                f"AND {frag} GROUP BY device_id, sensor_key", (since, *fa)).fetchall()
+                "MAX(value) mx FROM readings WHERE ts >= ? AND ts < ? AND ok = 1 AND value IS NOT NULL "
+                f"AND {frag} GROUP BY device_id, sensor_key", (since, until_q, *fa)).fetchall()
             prob_rows = self._conn.execute(
-                "SELECT device_id, sensor_key, etype, COUNT(*) c FROM events WHERE ts >= ? "
-                "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly','fire','contact','dew') "
-                f"AND {frag} GROUP BY device_id, sensor_key, etype", (since, *fa)).fetchall()
+                "SELECT device_id, sensor_key, etype, COUNT(*) c FROM events WHERE ts >= ? AND ts < ? "
+                "AND etype IN ('alarm','alarm_warn','silent','stuck','drift','anomaly','fire','contact','dew',"
+                "'actuator_fault') "
+                f"AND {frag} GROUP BY device_id, sensor_key, etype", (since, until_q, *fa)).fetchall()
             dev_rows = self._conn.execute(f"SELECT device_id, last_seen FROM devices WHERE {frag}", fa).fetchall()
 
         ev = {r["etype"]: r["c"] for r in ev_rows}
@@ -1126,7 +1169,7 @@ class Storage:
                     "l2_restart": ev.get("heal2_restart", 0), "l2_ok": l2ok, "l2_giveup": l2gu,
                     "auto_fixed": auto_fixed, "success_rate": success_rate,
                 },
-                "predict": self._predict_report(since, ev, devices),
+                "predict": self._predict_report(since, ev, devices, until),
             },
             "sensors": sensors, "problems": problems[:8],
         }
