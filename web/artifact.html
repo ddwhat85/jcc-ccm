@@ -6202,6 +6202,10 @@ $("#xp-form").addEventListener("submit", async e => {
     const r = await fetch(url, {cache:"no-store"});
     if (!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || `실패 (${r.status})`); }
     const blob = await r.blob(), cd = r.headers.get("Content-Disposition") || "", name = (cd.match(/filename="([^"]+)"/) || [, "jcc-export.csv"])[1];
+    if (window.JCC_DEMO){                  // 시연판(아티팩트)은 파일 내려받기가 막혀 있다 — 미리보기만
+      const lines = (await blob.text()).replace(/^\ufeff/, "").split(/\r?\n/).filter(Boolean);
+      m.className = "cmsn-msg ok"; m.textContent = `시연판에서는 내려받기가 막혀 있어 미리보기만 보여 줍니다(${lines.length - 1}행). 운영 서버에선 ${name} 파일로 받습니다. — ` + lines.slice(0, 3).join(" / ");
+      return; }
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
     m.className = "cmsn-msg ok"; m.textContent = `${name} 내려받음`;
