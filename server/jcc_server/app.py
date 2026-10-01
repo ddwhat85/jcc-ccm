@@ -127,7 +127,7 @@ ROUTES = [
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
-    ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"),
+    ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"), ("GET", "/api/alarms/history", "read"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -518,6 +518,15 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/api/alarms/history":             # 지난 경보 + 오경보 잦은 센서
+            from .alarm_review import history
+            q = parse_qs(parsed.query)
+            try:
+                days = float((q.get("days") or ["30"])[0])
+            except ValueError:
+                days = 30.0
+            return self._json(history(self.storage, None if sc is None else (sc["devices"] | sc["panels"]), days,
+                                      (q.get("cause") or [""])[0]))
         if path == "/api/fleet":
             from .fleet import fleet
             return self._json({"panels": fleet(self.storage, None if sc is None else sc["panels"])})

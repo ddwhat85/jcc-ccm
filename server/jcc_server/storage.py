@@ -895,7 +895,8 @@ class Storage:
             if not first and (note or cause):
                 cur = self._conn.execute(
                     "UPDATE alarms SET ack_note=COALESCE(?, ack_note), cause=COALESCE(?, cause) "
-                    "WHERE id=? AND acked_at IS NOT NULL", (note or None, cause or None, alarm_id))
+                    "WHERE id=? AND (acked_at IS NOT NULL OR cleared_at IS NOT NULL)",   # 확인 없이 해제된 경보에도 나중에 원인을
+                    (note or None, cause or None, alarm_id))
             row = self._conn.execute(
                 "SELECT device_id, sensor_key, detail FROM alarms WHERE id=?", (alarm_id,)).fetchone()
             self._conn.commit()
