@@ -118,6 +118,7 @@
   .mb-item .sc{margin-left:auto;font-size:11px;opacity:.5;font-family:var(--mono)}
   .mb-label{font-size:11px;color:var(--ink-3);padding:7px 11px 3px;font-weight:600}
   .mb-div{height:1px;background:var(--menu-border);margin:5px 8px}
+  body[data-view="list"] .mb-menu[data-menu="edit"]{display:none}   /* 편집은 배선 그림 조작 — 배선 보기에서만 */
   .mb-right{margin-left:auto;display:flex;align-items:center;gap:13px}
   .mb-status{font-size:12px;color:var(--ink-3);font-family:var(--mono);
              max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1560,6 +1561,7 @@
   }
   @media (max-width:640px){
     .mb-menu[data-menu="edit"],#btn-sound{display:none!important}
+    .mbv-l{display:none}   /* 휴대폰: 보기 전환은 '현장·배선'으로 짧게(메뉴 한 줄 유지) */
     .mb-view button{padding:3px 7px}
     .mb-title{padding:5px 7px}
     .mb-app{padding:0 4px 0 0}
@@ -1626,25 +1628,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <span id="brand-text">JCC<b>·</b>CCM</span>
     </div>
     <div class="mb-view" role="group" aria-label="보기">
-      <button type="button" data-view="list" aria-pressed="true">현장 목록</button><button type="button" data-view="graph" aria-pressed="false">배선 보기</button>
-    </div>
-
-    <div class="mb-menu" data-menu="file">
-      <button class="mb-title">파일</button>
-      <div class="mb-dd" hidden>
-        <button class="mb-item" id="btn-new">새로 만들기</button>
-        <button class="mb-item" id="btn-open">열기</button>
-        <button class="mb-item" id="btn-save">저장<span class="sc">⌘S</span></button>
-        <button class="mb-item" id="btn-saveas">다른 이름으로 저장…</button>
-        <button class="mb-item acct-db" id="btn-mypw">내 비번 변경</button>
-        <button class="mb-item" id="btn-logout">로그아웃</button>
-      </div>
+      <button type="button" data-view="list" aria-pressed="true">현장<span class="mbv-l"> 목록</span></button><button type="button" data-view="graph" aria-pressed="false">배선<span class="mbv-l"> 보기</span></button>
     </div>
 
     <div class="mb-menu jcc-admin" data-menu="edit">
       <button class="mb-title">편집</button>
       <div class="mb-dd" hidden>
-        <button class="mb-item" id="btn-delete">노드·연결 삭제<span class="sc">⌫</span></button>
+        <button class="mb-item" id="btn-delete">선택한 연결 삭제<span class="sc">Del</span></button>
         <button class="mb-item" id="btn-restore">꺼진 센서 모두 켜기</button>
         <button class="mb-item" id="btn-arrange">자동 정렬</button>
       </div>
@@ -1653,25 +1643,34 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <!-- 노드 추가: 장비 검색 + 검색에 안 잡히는 센서 직접 지정(팝업). 예전 '추가' 메뉴의 그림용 노드는 뺐다 -->
     <button class="mb-title jcc-admin" id="btn-addnode">노드 추가</button>
 
+    <!-- 업무: 현장 점검과 기록·리포트. 고객 계정은 보고서·리포트만 -->
+    <div class="mb-menu" data-menu="work">
+      <button class="mb-title">업무</button>
+      <div class="mb-dd" hidden>
+        <button class="mb-item jcc-admin" id="btn-pchk">정기 점검</button>
+        <button class="mb-item" id="btn-pchk-reports">점검 보고서</button>
+        <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
+        <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
+        <div class="mb-div"></div>
+        <button class="mb-item" id="btn-alh">경보 이력</button>
+        <button class="mb-item" id="btn-monthly">월간 리포트</button>
+        <button class="mb-item" id="btn-report">기간 리포트</button>
+        <button class="mb-item" id="btn-xp">엑셀(CSV) 내보내기</button>
+      </div>
+    </div>
+
     <div class="mb-menu" data-menu="tools">
       <button class="mb-title">도구</button>
       <div class="mb-dd" hidden>
         <button class="mb-item" id="btn-qk">빠른 찾기<span class="sc">Ctrl K</span></button>
-        <button class="mb-item" id="btn-run">데이터 새로고침</button>
-        <button class="mb-item" id="btn-report">이력 리포트</button>
-        <button class="mb-item" id="btn-xp">엑셀(CSV) 내보내기</button>
-        <button class="mb-item" id="btn-alh">경보 이력</button>
-        <button class="mb-item jcc-admin" id="btn-algo">알고리즘 내역</button>
-        <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
-        <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
-        <button class="mb-item jcc-admin" id="btn-commission">설치 점검</button>
-        <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
-        <button class="mb-item jcc-admin" id="btn-pchk">정기 점검</button>
-        <button class="mb-item" id="btn-pchk-reports">점검 보고서</button>
-        <button class="mb-item" id="btn-monthly">월간 리포트</button>
         <button class="mb-item aiq-gate" id="btn-ask">AI에게 물어보기</button>
         <div class="mb-div jcc-admin"></div>
+        <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
+        <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
+        <div class="mb-div"></div>
+        <button class="mb-item acct-db" id="btn-mypw">내 비번 변경</button>
+        <button class="mb-item" id="btn-logout">로그아웃</button>
       </div>
     </div>
 
@@ -1783,7 +1782,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="overlay" id="report-overlay">
     <div class="modal rp-modal" id="rp-modal">
       <div class="modal-head">
-        <h3>이력 리포트</h3>
+        <h3>기간 리포트</h3>
         <div class="rp-range" id="rp-range">
           <button data-days="1" class="rp-rbtn">오늘</button>
           <button data-days="7" class="rp-rbtn on">최근 7일</button>
@@ -3070,6 +3069,7 @@ function makeDraggable(el){
   window.addEventListener("mouseup", ()=>{
     if(!drag) return; drag=false; el.style.zIndex="";
     nodePos[el.dataset.id] = {x:parseFloat(el.style.left)||0, y:parseFloat(el.style.top)||0};
+    savePos(nodePos);
   });
 }
 
@@ -3744,20 +3744,6 @@ document.addEventListener("click", e=>{ if(openMenu && !e.target.closest(".mb-me
 document.querySelectorAll(".mb-dd .mb-item").forEach(b=> b.addEventListener("click", ()=> closeMB()));
 // 노드 추가 항목
 document.querySelectorAll(".mb-item[data-add]").forEach(b=>{ b.onclick = ()=>addUserNode(b.dataset.add); });
-$("#btn-new").onclick = ()=>{
-  if((userNodes.length||userWires.length) && !confirm("추가한 노드·연결을 모두 지울까요? (현장 실시간 노드는 유지됩니다)")) return;
-  userNodes.forEach(n=>{ nodes.get(n.id)?.el.remove(); nodes.delete(n.id); delete nodePos[n.id]; });
-  userNodes = []; userWires = []; selectedWireId = null;
-  saveUser(); saveWires(); savePos(nodePos);
-  $("#inspector").classList.remove("open"); selectedId=null;
-  requestAnimationFrame(drawWires); setStatus("새 구성");
-};
-$("#btn-open").onclick = ()=>{ userNodes=loadUser(); userWires=loadWires(); nodePos=loadPos(); renderUserNodes();
-  requestAnimationFrame(drawWires); setStatus("불러옴"); };
-$("#btn-save").onclick = ()=>{ saveUser(); saveWires(); savePos(nodePos); setStatus("저장됨 ✓"); };
-$("#btn-saveas").onclick = ()=>{                 // prompt()은 샌드박스에서 막혀 사용 안 함
-  saveUser(); saveWires(); savePos(nodePos);
-  setStatus("구성 저장됨 · "+new Date().toLocaleString("ko-KR",{hour12:false})); };
 $("#btn-delete").onclick = deleteSelected;
 // 로그아웃: 부팅 로그인 화면으로 되돌린다(부팅 플래그 해제 후 새로고침).
 // 서버 비밀번호 인증이 켜져 있으면 세션 쿠키도 함께 해제한다(없으면 무해).
@@ -3774,7 +3760,6 @@ $("#btn-restore").onclick = ()=>{ setStatus("꺼진 센서 채널 모두 켜는 
 $("#btn-arrange").onclick = ()=>{ // 현장 노드만 자동정렬, 사용자 노드 배치는 보존
   for(const id of Object.keys(nodePos)){ if(!id.startsWith("user:")) delete nodePos[id]; }
   savePos(nodePos); applyPositions(); requestAnimationFrame(drawWires); setStatus("자동 정렬"); };
-$("#btn-run").onclick = ()=>{ setStatus("실행 — 데이터 갱신 중"); refresh(); };
 // 알림(카카오 알림톡·문자) 연결 확인 — 운영자가 직접 누를 때만 실제 발송된다
 $("#btn-notify-test").onclick = ()=>{
   setStatus("알림 테스트 발송 중…");
@@ -4172,7 +4157,7 @@ function openAlgo(){
   renderAlgo();
   $("#algo-overlay").classList.add("open");
 }
-$("#btn-algo").onclick = openAlgo;
+// 알고리즘 개발 내역(openAlgo)은 직원 메뉴에서 뺐다 — 개발 진행표라 현장 업무와 무관
 $("#algo-close").onclick = ()=> $("#algo-overlay").classList.remove("open");
 $("#algo-overlay").onclick = e=>{ if(e.target===$("#algo-overlay")) $("#algo-overlay").classList.remove("open"); };
 
@@ -4381,7 +4366,7 @@ const QK_CMDS = [
   ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
   ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
-  ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["이력 리포트", () => $("#btn-report").click()],
+  ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["기간 리포트", () => $("#btn-report").click()],
 ];
 function qkSource(){
   const out = [], admin = document.body.dataset.acct === "admin";
