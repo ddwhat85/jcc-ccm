@@ -820,6 +820,23 @@
   .mrep-ai p{margin:0;font-size:14px;line-height:1.7;max-width:68ch}
   @media (max-width:640px){.mrep-table .opt{display:none}}
 
+  /* ── 빠른 찾기(Ctrl+K) ── */
+  #qk-overlay{align-items:flex-start;padding-top:12vh}
+  .qk-box{width:min(560px,calc(100vw - 32px));background:var(--surface);border-radius:10px;box-shadow:0 24px 64px rgba(0,0,0,.38);overflow:hidden;color:var(--ink)}
+  #qk-in{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid var(--rule);background:none;color:var(--ink);font:500 15px var(--sans);padding:14px 16px;outline:none}
+  .qk-list{max-height:52vh;overflow-y:auto;margin:0;padding:6px;list-style:none}
+  .qk-list li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+  .qk-list li[aria-selected="true"]{background:var(--accent-soft)}
+  .qk-list li small{color:var(--ink-3);font-size:11.5px;overflow-wrap:anywhere}
+  .qk-list li .k{font:700 10.5px var(--sans);padding:2px 7px;border-radius:10px;background:var(--surface-2);color:var(--ink-2);white-space:nowrap}
+  .qk-foot{border-top:1px solid var(--rule);padding:7px 12px;font-size:11px;color:var(--ink-3)}
+  .qk-empty{padding:18px;text-align:center;color:var(--ink-3);font-size:13px}
+  /* ── CSV 내보내기 ── */
+  .xp-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px}
+  .xp-form .w2{grid-column:1/-1}
+  .xp-form select{width:100%}
+  .xp-form [hidden]{display:none}
+
   /* ── 정기 점검 일지(설치 점검과 같은 셸) ── */
   #pchk-overlay .cmsn-shell{width:min(860px,calc(100vw - 32px))}
   .pchk-sec{flex:none;display:flex;flex-direction:column;gap:8px}
@@ -1386,8 +1403,10 @@
     <div class="mb-menu" data-menu="tools">
       <button class="mb-title">도구</button>
       <div class="mb-dd" hidden>
+        <button class="mb-item" id="btn-qk">빠른 찾기<span class="sc">Ctrl K</span></button>
         <button class="mb-item" id="btn-run">데이터 새로고침</button>
         <button class="mb-item" id="btn-report">이력 리포트</button>
+        <button class="mb-item" id="btn-xp">엑셀(CSV) 내보내기</button>
         <button class="mb-item jcc-admin" id="btn-algo">알고리즘 내역</button>
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
@@ -1551,6 +1570,33 @@
         <button class="cmsn-btn primary" id="cmsn-complete">완료 기록</button>
         <div class="cmsn-msg" id="cmsn-msg" aria-live="polite"></div>
       </footer>
+    </section>
+  </div>
+
+  <!-- 빠른 찾기: 판넬·센서·고객사·기능을 이름으로 -->
+  <div class="overlay" id="qk-overlay">
+    <div class="qk-box" role="dialog" aria-modal="true" aria-label="빠른 찾기">
+      <input id="qk-in" placeholder="판넬·센서·고객사·기능 찾기" autocomplete="off" spellcheck="false" aria-controls="qk-list">
+      <ul class="qk-list" id="qk-list" role="listbox"></ul>
+      <div class="qk-foot">↑↓ 고르기 · Enter 열기 · Esc 닫기</div>
+    </div>
+  </div>
+
+  <!-- CSV 내보내기: 경보 목록·센서 이력(엑셀에서 바로 열림) -->
+  <div class="overlay" id="xp-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="xp-title" style="width:min(480px,calc(100vw - 32px))">
+      <h3 id="xp-title">엑셀(CSV) 내보내기</h3>
+        <button class="cmsn-x" id="xp-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="cmsn-body">
+        <form class="xp-form" id="xp-form">
+          <label class="acct-f w2">무엇을<select id="xp-kind"><option value="alarms">경보 목록(원인·조치 메모 포함)</option><option value="readings">센서 값 이력</option></select></label>
+          <label class="acct-f w2 xp-r" hidden>센서<select id="xp-sensor"></select></label>
+          <label class="acct-f">기간<select id="xp-days"><option value="7">최근 7일</option><option value="30" selected>최근 30일</option><option value="90">최근 90일</option><option value="365">최근 1년</option></select></label>
+          <div class="acct-f" style="justify-content:flex-end"><button class="cmsn-btn primary" type="submit">내려받기</button></div>
+        </form>
+        <p class="acct-note">센서 값은 서버 보관 기간(기본 14일) 안의 것만 있습니다. 경보는 90일까지 보관됩니다.</p>
+        <div class="cmsn-msg" id="xp-msg" aria-live="polite"></div>
+      </div>
     </section>
   </div>
 
@@ -3568,6 +3614,29 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/export/alarms.csv" || p === "/api/export/readings.csv") {     // 데모: 메모리의 기록으로 같은 모양 CSV
+        const days = Math.min(366, Math.max(1, parseFloat(qs.get("days") || "30"))), since = now() - days * 86400;
+        const t = ts => { if (!ts) return ""; const d = new Date(ts * 1000), z = n => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+        const q = v => /[",\r\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+        const CAUSE = { real: "실제 이상", false: "오경보", work: "시험·작업", other: "그 밖" };
+        let rows, name;
+        if (p.endsWith("alarms.csv")) {
+          rows = [["경보번호", "판넬", "기기", "센서", "종류", "심각도", "내용", "발생", "확인", "확인자", "원인", "조치 메모", "해제"]].concat(
+            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, S.panelNames[SIM.panel] || SIM.panel_name,
+              a.device_id, a.sensor_key || "", a.kind, a.severity === "crit" ? "위험" : "주의", a.detail || "", t(a.raised_at), t(a.acked_at),
+              a.acked_by || "", CAUSE[a.cause] || "", a.ack_note || "", t(a.cleared_at)]));
+          name = "jcc-alarms-demo.csv";
+        } else {
+          const dev = qs.get("device_id") || "", key = qs.get("sensor") || "";
+          rows = [["시각", "기기", "센서", "이름", "값", "단위", "정상 수신"]].concat((S.readings[K(dev, key)] || []).filter(r => r.ts >= since)
+            .map(r => [t(r.ts), dev, key, key, r.value == null ? "" : r.value, "", r.ok ? "예" : "아니오"]));
+          name = `jcc-${dev}-${key}-demo.csv`;
+        }
+        const csv = "\ufeff" + rows.map(r => r.map(q).join(",")).join("\r\n") + "\r\n";
+        return Promise.resolve(new Response(csv, { status: 200, headers: { "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${name}"` } }));
+      }
       if (p === "/api/inspection" && method === "GET") { const pn = qs.get("panel") || "";
         if (!panelList().some(x => x.panel === pn)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
         return Promise.resolve(J({ focus: pchkFocusDemo(pn), draft: pchkPub(PCHKD.list.find(x => x.panel === pn && x.status === "draft")) || null, history: pchkHistDemo(pn) })); }
@@ -6016,6 +6085,92 @@ $("#mrep-issue").onclick = async () => {
 $("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing"); window.print(); };
 window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
+
+// ── 빠른 찾기(Ctrl+K) ────────────────────────────────────
+// 판넬·센서·고객사·기능을 이름 일부로 찾아 바로 연다. 현장이 많아질수록 메뉴를 뒤지는 시간이 준다.
+const QK = { items: [], sel: 0 };
+const QK_CMDS = [
+  ["현장 목록", () => setView("list")], ["배선 보기", () => setView("graph")],
+  ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
+  ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
+  ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
+  ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
+  ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["이력 리포트", () => $("#btn-report").click()],
+];
+function qkSource(){
+  const out = [], admin = document.body.dataset.acct === "admin";
+  const fl = new Map((fleetData || []).map(p => [p.panel, p]));
+  (lastPanels || []).forEach(p => {
+    const f = fl.get(p.panel) || {};
+    out.push({k:"판넬", t:p.panel_name || p.panel, s:[p.panel, f.customer, p.site].filter(Boolean).join(" · "), go:() => openPanel(p.panel)});
+    (p.ccms || []).forEach(c => (c.latest || []).forEach(r => out.push({k:"센서", t:r.name || r.sensor_key,
+      s:`${p.panel_name || p.panel} · ${c.device_id} · ${r.sensor_key}`,
+      go:() => { openPanel(p.panel); const id = "sensor:" + c.device_id + ":" + r.sensor_key; if (nodes.get(id)) { select(id); nodes.get(id).el.scrollIntoView({block:"center", inline:"center"}); } }})));
+  });
+  [...new Set((fleetData || []).map(p => p.customer).filter(Boolean))].forEach(cu => out.push({k:"고객사", t:cu, s:"현장 목록에서 이 고객사만",
+    go:() => { setView("list"); $("#fleet-q").value = cu; paintFleet(); }}));
+  QK_CMDS.forEach(([t, fn, adm]) => { if (!adm || admin) out.push({k:"기능", t, s:"", go:fn}); });
+  return out;
+}
+function qkPaint(){
+  const q = $("#qk-in").value.trim().toLowerCase(), all = qkSource();
+  const score = it => { const t = it.t.toLowerCase(), s2 = (it.s || "").toLowerCase();
+    if (!q) return it.k === "판넬" ? 1 : it.k === "기능" ? 2 : 9;
+    if (t.startsWith(q)) return 0; if (t.includes(q)) return 1; if (s2.includes(q)) return 2; return 99; };
+  QK.items = all.map(it => [score(it), it]).filter(([sc]) => q ? sc < 99 : sc < 9).sort((a, b) => a[0] - b[0]).map(([, it]) => it).slice(0, 30);
+  QK.sel = Math.min(QK.sel, Math.max(0, QK.items.length - 1));
+  $("#qk-list").innerHTML = QK.items.length ? QK.items.map((it, i) => `<li role="option" id="qk-${i}" aria-selected="${i === QK.sel}" data-i="${i}">` +
+    `<span class="k">${it.k}</span><span>${escapeHtml(it.t)}${it.s ? `<br><small>${escapeHtml(it.s)}</small>` : ""}</span><span></span></li>`).join("")
+    : `<li class="qk-empty" aria-disabled="true">찾는 것이 없습니다</li>`;
+  $("#qk-in").setAttribute("aria-activedescendant", QK.items.length ? "qk-" + QK.sel : "");
+  $("#qk-list").querySelectorAll("[data-i]").forEach(li => li.onclick = () => { QK.sel = +li.dataset.i; qkGo(); });
+  $("#qk-list").querySelector('[aria-selected="true"]')?.scrollIntoView({block:"nearest"});
+}
+function qkOpen(){ document.querySelectorAll(".overlay.open").forEach(o => { if (o.id !== "qk-overlay") o.classList.remove("open"); });
+  $("#qk-overlay").classList.add("open"); $("#qk-in").value = ""; QK.sel = 0; qkPaint(); setTimeout(() => $("#qk-in").focus(), 30); }
+function qkClose(){ $("#qk-overlay").classList.remove("open"); }
+function qkGo(){ const it = QK.items[QK.sel]; if (!it) return; qkClose(); it.go(); }
+$("#qk-in").addEventListener("input", () => { QK.sel = 0; qkPaint(); });
+$("#qk-in").addEventListener("keydown", e => {
+  if (e.key === "ArrowDown"){ e.preventDefault(); QK.sel = Math.min(QK.items.length - 1, QK.sel + 1); qkPaint(); }
+  else if (e.key === "ArrowUp"){ e.preventDefault(); QK.sel = Math.max(0, QK.sel - 1); qkPaint(); }
+  else if (e.key === "Enter" && !e.isComposing){ e.preventDefault(); qkGo(); }
+  else if (e.key === "Escape"){ e.preventDefault(); qkClose(); } });
+$("#qk-overlay").onclick = e => { if (e.target === $("#qk-overlay")) qkClose(); };
+$("#btn-qk").onclick = qkOpen;
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "k" && !window.__jccLocked){ e.preventDefault();
+    $("#qk-overlay").classList.contains("open") ? qkClose() : qkOpen(); } });
+
+// ── 엑셀(CSV) 내보내기 ─────────────────────────────────
+function xpOpen(){
+  $("#xp-overlay").classList.add("open"); $("#xp-msg").textContent = "";
+  const opts = (lastPanels || []).flatMap(p => (p.ccms || []).flatMap(c => (c.latest || []).map(r =>
+    `<option value="${escapeHtml(c.device_id)}|${escapeHtml(r.sensor_key)}">${escapeHtml(p.panel_name || p.panel)} · ${escapeHtml(r.name || r.sensor_key)} (${escapeHtml(c.device_id)})</option>`)));
+  $("#xp-sensor").innerHTML = opts.join("") || `<option value="">센서 없음</option>`;
+  xpKind();
+}
+function xpKind(){ document.querySelectorAll(".xp-r").forEach(el => el.hidden = $("#xp-kind").value !== "readings"); }
+$("#btn-xp").onclick = xpOpen;
+$("#xp-close").onclick = () => $("#xp-overlay").classList.remove("open");
+$("#xp-kind").onchange = xpKind;
+$("#xp-form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const days = $("#xp-days").value, kind = $("#xp-kind").value, m = $("#xp-msg");
+  let url = `/api/export/alarms.csv?days=${days}`;
+  if (kind === "readings"){ const [dev, key] = ($("#xp-sensor").value || "|").split("|");
+    if (!dev){ m.className = "cmsn-msg bad"; m.textContent = "센서를 고르세요"; return; }
+    url = `/api/export/readings.csv?days=${days}&device_id=${encodeURIComponent(dev)}&sensor=${encodeURIComponent(key)}`; }
+  m.className = "cmsn-msg"; m.textContent = "만드는 중…";
+  try {
+    const r = await fetch(url, {cache:"no-store"});
+    if (!r.ok){ const j = await r.json().catch(() => ({})); throw new Error(j.error || `실패 (${r.status})`); }
+    const blob = await r.blob(), cd = r.headers.get("Content-Disposition") || "", name = (cd.match(/filename="([^"]+)"/) || [, "jcc-export.csv"])[1];
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    m.className = "cmsn-msg ok"; m.textContent = `${name} 내려받음`;
+  } catch(err){ m.className = "cmsn-msg bad"; m.textContent = err.message; }
+});
 
 // ── 정기 점검 일지 ─────────────────────────────────────
 // 직원이 현장을 점검한 기록. 서버(inspection.py)가 '이번에 볼 곳'을 데이터에서 뽑아 주고,

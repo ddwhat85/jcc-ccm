@@ -1361,6 +1361,29 @@
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
+      if (p === "/api/export/alarms.csv" || p === "/api/export/readings.csv") {     // 데모: 메모리의 기록으로 같은 모양 CSV
+        const days = Math.min(366, Math.max(1, parseFloat(qs.get("days") || "30"))), since = now() - days * 86400;
+        const t = ts => { if (!ts) return ""; const d = new Date(ts * 1000), z = n => String(n).padStart(2, "0");
+          return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+        const q = v => /[",\r\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+        const CAUSE = { real: "실제 이상", false: "오경보", work: "시험·작업", other: "그 밖" };
+        let rows, name;
+        if (p.endsWith("alarms.csv")) {
+          rows = [["경보번호", "판넬", "기기", "센서", "종류", "심각도", "내용", "발생", "확인", "확인자", "원인", "조치 메모", "해제"]].concat(
+            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, S.panelNames[SIM.panel] || SIM.panel_name,
+              a.device_id, a.sensor_key || "", a.kind, a.severity === "crit" ? "위험" : "주의", a.detail || "", t(a.raised_at), t(a.acked_at),
+              a.acked_by || "", CAUSE[a.cause] || "", a.ack_note || "", t(a.cleared_at)]));
+          name = "jcc-alarms-demo.csv";
+        } else {
+          const dev = qs.get("device_id") || "", key = qs.get("sensor") || "";
+          rows = [["시각", "기기", "센서", "이름", "값", "단위", "정상 수신"]].concat((S.readings[K(dev, key)] || []).filter(r => r.ts >= since)
+            .map(r => [t(r.ts), dev, key, key, r.value == null ? "" : r.value, "", r.ok ? "예" : "아니오"]));
+          name = `jcc-${dev}-${key}-demo.csv`;
+        }
+        const csv = "\ufeff" + rows.map(r => r.map(q).join(",")).join("\r\n") + "\r\n";
+        return Promise.resolve(new Response(csv, { status: 200, headers: { "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": `attachment; filename="${name}"` } }));
+      }
       if (p === "/api/inspection" && method === "GET") { const pn = qs.get("panel") || "";
         if (!panelList().some(x => x.panel === pn)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
         return Promise.resolve(J({ focus: pchkFocusDemo(pn), draft: pchkPub(PCHKD.list.find(x => x.panel === pn && x.status === "draft")) || null, history: pchkHistDemo(pn) })); }

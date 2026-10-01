@@ -131,6 +131,7 @@ ROUTES = [
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
+    ("GET", "/api/export/alarms.csv", "read"), ("GET", "/api/export/readings.csv", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -490,6 +491,32 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Cache-Control", "private, max-age=86400")
             self.end_headers()
             self.wfile.write(ph[1])
+            return
+        if path in ("/api/export/alarms.csv", "/api/export/readings.csv"):
+            from . import export
+            q = parse_qs(parsed.query)
+            try:
+                days = min(366.0, max(1.0, float((q.get("days") or ["30"])[0])))
+            except ValueError:
+                days = 30.0
+            stamp = time.strftime("%Y%m%d")
+            if path.endswith("alarms.csv"):
+                body = export.alarms_csv(self.storage, days, None if sc is None else (sc["devices"] | sc["panels"]))
+                fname = f"jcc-alarms-{stamp}.csv"
+            else:
+                dev, key = (q.get("device_id") or [""])[0], (q.get("sensor") or [""])[0]
+                if not dev or not key:
+                    return self._json({"error": "device_id와 sensor가 필요합니다"}, 400)
+                if not self._in_scope(dev):
+                    return self._json({"error": "이 계정 범위 밖의 기기입니다"}, 403)
+                body = export.readings_csv(self.storage, dev, key, days)
+                fname = f"jcc-{re.sub(r'[^A-Za-z0-9_.-]', '_', dev)}-{re.sub(r'[^A-Za-z0-9_.-]', '_', key)}-{stamp}.csv"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{fname}"')
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         if path == "/api/fleet":
             from .fleet import fleet
