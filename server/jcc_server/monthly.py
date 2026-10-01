@@ -157,10 +157,22 @@ def _advice(rep, base, cms) -> list:
     return uniq[:6] or ["특이사항 없음 — 지금 상태를 유지하세요"]
 
 
+def _ai_note(storage, rep: dict, customer_id: int):
+    """AI 월간 해설 — 고객사 AI 스위치가 켜져 있고 서버 키가 있을 때만. 실패하면 없이 발행한다."""
+    ai = getattr(storage, "ai", None)
+    if ai is None or not ai.available or customer_id not in storage.accounts.ai_customers():
+        return None
+    try:
+        return ai.summarize_monthly(rep, customer_id)
+    except Exception:  # noqa: BLE001 - 해설이 실패해도 리포트는 나가야 한다
+        return None
+
+
 def issue(storage, customer_id: int, period: str, by: str, now: float | None = None) -> dict | None:
     rep = build_monthly(storage, customer_id, period, now)
     if rep is None:
         return None
+    rep["ai_note"] = _ai_note(storage, rep, customer_id)
     storage.save_monthly(customer_id, period, by, rep)
     storage.log_event("", "", "monthly", f"{rep['customer']} {period} 월간 리포트 발행 ({by})", source="system")
     return rep

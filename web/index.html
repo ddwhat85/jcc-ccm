@@ -780,6 +780,9 @@
   .mrep-table td.n,.mrep-table th.n{text-align:right}
   .mrep-list{margin:0;padding-left:18px;font-size:13px;line-height:1.6}
   .mrep-foot{color:var(--ink-3);font-size:11.5px}
+  .mrep-ai{background:var(--canvas);border:1px solid var(--rule);border-radius:8px;padding:12px 14px}
+  .mrep-ai h4 small{margin-left:6px;font:500 11.5px var(--sans);color:var(--ink-3)}
+  .mrep-ai p{margin:0;font-size:14px;line-height:1.7;max-width:68ch}
   @media (max-width:640px){.mrep-table .opt{display:none}}
 
   /* ── AI에게 물어보기(설치 점검과 같은 셸) ── */
@@ -1518,7 +1521,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=04f2d841"></script>
+<script src="demo-api.js?v=bc2fdd35"></script>
 <script>
 // 세션 만료 감지: 로그인한 뒤 API가 401(인증 필요)을 돌려주면 로그인 화면으로 돌아간다.
 // (로그인 화면이 떠 있는 동안의 401은 정상 — 아직 로그인 전)
@@ -3444,6 +3447,11 @@ function openHealHistory(){
 // 새 알고리즘을 만들 때마다 여기 맨 위에 한 줄 추가한다(최신순 자동 정렬).
 // cat: fire(가스·화재) | watch(감시·이상) | heal(자가치유) | diag(진단·탐색)
 const ALGORITHMS = [
+  {ts:"2026-10-01T17:40", status:"done", cat:"diag", name:"AI 월간 해설 — 리포트 첫머리 요약",
+   sensors:"월간 리포트 수치(AI가 켜진 고객사)",
+   summary:"월간 리포트를 발행할 때 그 달 수치만 보고 AI가 3~5문장 요약을 써서 맨 위에 붙인다. 무엇을 먼저 잡았고 무엇이 자동 처리됐는지, 다음 달 가장 중요한 권고 하나. 리포트에 없는 숫자가 하나라도 나오면 해설을 버리고 리포트만 발행한다.",
+   method:"입력 = 리포트 JSON(요약·판넬·문제·남은 여유·권고)만 · 도구 없음 · 새 숫자 계산 금지 지시 + 숫자 검사(글의 모든 숫자가 리포트에 있어야 통과) · 고객사 AI 스위치·서버 키 있을 때만 · 실패해도 발행은 그대로 · 사용량은 그 고객사 월 한도에서 1회 · 발행 스냅숏에 저장(이후 바뀌지 않음)",
+   next:"실제 리포트 몇 달치로 문장 톤 다듬기"},
   {ts:"2026-10-01T17:00", status:"done", cat:"watch", name:"남은 여유(수명) 예측 — 기준선까지 남은 날",
    sensors:"접점 발열 잔차 · 경고/경보값이 있는 아날로그 센서(가스·온도·습도 등)",
    summary:"지금 위험한지에 더해 '이대로 가면 언제 위험해지나'를 본다. 접점 잔차가 날마다 조금씩 오르면 '위험 기준까지 약 9주', 가스 센서 기준선이 서서히 오르면 '경고선까지 약 20일 — 교정 필요'처럼 범위와 함께 알려 준다. 데이터가 7일 미만이거나 추세가 분명하지 않으면 예측하지 않는다.",
@@ -3452,7 +3460,7 @@ const ALGORITHMS = [
   {ts:"2026-10-01T15:30", status:"done", cat:"diag", name:"AI에게 물어보기 — 실제 기록만 보고 답하는 질의응답",
    sensors:"계정이 볼 수 있는 판넬 중 AI가 켜진 고객사 것",
    summary:"대시보드에서 '왜 벤트가 열렸어?', '지난주 문제 정리해줘'처럼 물으면 Claude가 경보·활동 기록·센서 추세를 직접 조회해 답하고, 답마다 살펴본 기록을 근거로 붙인다. 경보 옆 'AI 해설'로 그 경보를 바로 물을 수 있다. AI는 설명만 하고 벤트·히터·팬 결정은 지금처럼 검증된 규칙이 한다.",
-   method:"Claude API 도구 호출(읽기 전용 5개: 판넬 목록·판넬 상태·경보 이력·활동 기록·센서 추세) · 모든 도구가 허용 판넬로 거름 · 고객사별 스위치(기본 꺼짐 — 데이터가 Anthropic으로 나감, 꺼진 고객사 판넬은 관리자 질문에도 안 보냄) · 답 본문에 [경보#12] 근거 표시 + AI가 조회한 기록 목록 · 기록에 없으면 모른다고 답하게 지시 · 도구 왕복 최대 6회 · 고객사별 월 질문 한도·토큰 사용량 기록 · 지시·도구 캐시 · 안전 거절 시 서버 측 대체 모델 · 경보 문자 발송은 AI를 기다리지 않음 · 시험은 가짜 클라이언트(실제 호출 없음)",
+   method:"Claude API 도구 호출(읽기 전용 6개: 판넬 목록·판넬 상태·경보 이력·활동 기록·센서 추세·남은 여유) · 모든 도구가 허용 판넬로 거름 · 고객사별 스위치(기본 꺼짐 — 데이터가 Anthropic으로 나감, 꺼진 고객사 판넬은 관리자 질문에도 안 보냄) · 답 본문에 [경보#12] 근거 표시 + AI가 조회한 기록 목록 · 기록에 없으면 모른다고 답하게 지시 · 도구 왕복 최대 6회 · 고객사별 월 질문 한도·토큰 사용량 기록 · 지시·도구 캐시 · 안전 거절 시 서버 측 대체 모델 · 경보 문자 발송은 AI를 기다리지 않음 · 시험은 가짜 클라이언트(실제 호출 없음)",
    next:"실제 키로 현장 질문 20개 받아 답 품질·비용 측정, 자주 묻는 질문을 제안 버튼으로"},
   {ts:"2026-10-01T09:20", status:"done", cat:"diag", name:"고객용 월간 리포트 — 매달 1일 자동 발행",
    sensors:"고객사의 판넬 전체",
@@ -3751,6 +3759,8 @@ function mrepShow(rep){
   $("#mrep-body").innerHTML = `<div id="mrep-doc"><div><h2>${mrepEsc(rep.customer)} 판넬 운영 리포트 — ${mrepMonth(rep.period)}</h2>` +
     `<div class="meta">기간 ${fmt(d0)}~${fmt(d1)} · 판넬 ${s.panels}개 · 발행 ${new Date(rep.generated_at * 1000).toLocaleDateString("ko-KR")}` +
     `${rep.generated_at < rep.range[1] ? " (달이 끝나기 전 발행 — 발행 시점까지 집계)" : ""} · JCC Solution</div></div>` +
+    (rep.ai_note ? `<div class="mrep-ai"><h4>AI 해설<small>아래 수치만으로 AI가 쓴 요약 · 리포트에 없는 숫자는 쓰지 못하게 검사함</small></h4>` +
+      `<p>${mrepEsc(rep.ai_note.text)}</p></div>` : "") +
     `<div><h4>이번 달 결과</h4><ul class="mrep-results">${res.join("")}</ul></div>` +
     (rep.panels.length ? `<div><h4>판넬별</h4><table class="mrep-table"><thead><tr><th>판넬</th><th class="n">가동률</th><th class="n">위험</th>` +
       `<th class="n opt">주의</th><th class="n">작동 실패</th><th class="opt">설치 점검</th></tr></thead><tbody>` +

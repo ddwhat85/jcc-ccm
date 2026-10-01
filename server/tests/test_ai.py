@@ -264,6 +264,32 @@ def run():
         check("키 없으면 available false + 이유", j["available"] is False and "ANTHROPIC_API_KEY" in j["reason"])
         s, j = adm("/api/ai/ask", {"question": "q"})
         check("키 없으면 질문 503", s == 503)
+
+        print("\n=== AI 월간 해설 ===")
+        from jcc_server import monthly
+        check("숫자 검사: 원문 숫자만 통과", aimod.numbers_grounded("9월 경보 3건, 가동률 99.5%", '{"p":"2026-09","n":3,"u":99.50}')
+              and not aimod.numbers_grounded("경보 37건", '{"n":3}'))
+        good = FakeClient(lambda n, kw: resp([text("이번 달은 큰 문제 없이 지나갔습니다. 지금 상태를 유지하세요.")], "end_turn"))
+        st.ai = aimod.Assistant(st, good)
+        rep = monthly.issue(st, ca, "2026-09", "시험")
+        check("고객사 AI 켜짐 → 해설 붙음", rep["ai_note"] and "유지" in rep["ai_note"]["text"]
+              and good.calls[0]["system"][0]["text"] == aimod.MONTHLY_SYSTEM and "tools" not in good.calls[0])
+        check("해설 입력은 리포트 JSON", "리포트 JSON" in good.calls[0]["messages"][0]["content"]
+              and '"period":"2026-09"' in good.calls[0]["messages"][0]["content"])
+        saved = st.list_monthly(ca)[0]["report"]
+        check("스냅숏에 저장", saved.get("ai_note", {}).get("text") == rep["ai_note"]["text"])
+        st.ai = aimod.Assistant(st, FakeClient(lambda n, kw: resp([text("경보가 4817건 났습니다.")], "end_turn")))
+        check("리포트에 없는 숫자 → 해설 버림", monthly.issue(st, ca, "2026-09", "시험")["ai_note"] is None)
+
+        def boom(n, kw):
+            raise RuntimeError("network")
+        st.ai = aimod.Assistant(st, FakeClient(boom))
+        r = monthly.issue(st, ca, "2026-09", "시험")
+        check("해설 실패해도 리포트는 발행", r is not None and r["ai_note"] is None)
+        quiet = FakeClient(lambda n, kw: resp([text("x")], "end_turn"))
+        st.ai = aimod.Assistant(st, quiet)
+        st.accounts.set_ai(ca, False)
+        check("고객사 AI 꺼짐 → 호출 없음", monthly.issue(st, ca, "2026-09", "시험")["ai_note"] is None and not quiet.calls)
     finally:
         srv.shutdown()
         st.close()

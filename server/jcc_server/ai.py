@@ -56,6 +56,15 @@ SYSTEM = """너는 JCC-CCM 판넬 감시 시스템의 설명 담당이다. 사�
 - 한국어, 짧고 분명하게. 결론을 먼저, 근거를 뒤에. 필요하면 짧은 목록.
 - 현장에서 지금 확인할 것이 있으면 마지막에 한 줄로 권한다."""
 
+MONTHLY_SYSTEM = """너는 배전반 감시 서비스(JCC-CCM)의 월간 리포트 첫머리에 들어갈 요약을 쓴다. 읽는 사람은 고객사 설비 담당자와 관리자다.
+
+규칙
+- 주어진 리포트 JSON에 있는 사실과 숫자만 쓴다. 새 숫자를 계산하거나 만들지 마라(합계·비율·차이 금지). 리포트에 없는 숫자는 쓰지 않는다.
+- 한국어 3~5문장, 문단 하나. 목록·제목·이모지 없이.
+- 결과 언어로: 무엇을 먼저 잡았고, 무엇이 자동으로 처리됐고, 가동은 어땠는지. 장비 용어는 줄인다.
+- 마지막 문장은 리포트의 advice 중 가장 중요한 것 하나를 권고로 쓴다. 특이사항이 없으면 지금 상태 유지를 권한다.
+- 문제를 부풀리거나 줄이지 않는다."""
+
 TOOLS = [
     {"name": "list_panels",
      "description": "볼 수 있는 판넬 전체 목록. 판넬 id·이름·온라인 여부, 화재/접점/결로 판정 단계, 활성 경보 수.",
@@ -118,6 +127,15 @@ def default_client():
     except ImportError:
         return None, "서버에 anthropic 패키지가 설치되지 않았습니다"
     return anthropic.Anthropic(timeout=90.0, max_retries=2), ""
+
+
+def numbers_grounded(text: str, source: str) -> bool:
+    """글에 나온 숫자가 모두 원문(리포트 JSON)에 있나. 'AI가 숫자를 지어내지 않았다'는 최소 확인."""
+    import re
+    def norm(n: str) -> str:              # 09 → 9, 12.50 → 12.5, 3.0 → 3
+        return n.rstrip("0").rstrip(".") if "." in n else str(int(n))
+    have = {norm(n) for n in re.findall(r"\d+(?:\.\d+)?", source)}
+    return all(norm(n) in have for n in re.findall(r"\d+(?:\.\d+)?", text.replace(",", "")))
 
 
 class AIError(Exception):
@@ -229,18 +247,43 @@ class Assistant:
         return {"answer": answer, "note": note, "evidence": evidence, "model": model, "usage": used,
                 "remaining": self.usage(customer_id)["remaining"]}
 
-    def _call(self, messages):
+    def summarize_monthly(self, rep: dict, customer_id: int) -> dict | None:
+        """월간 리포트 첫머리 요약(3~5문장). 리포트에 없는 숫자가 나오면 버린다(None). 실패해도 None —
+        리포트 발행을 막지 않는다. 사용량은 그 고객사 몫으로 1회."""
+        if not self.available or self.usage(customer_id)["remaining"] <= 0:
+            return None
+        data = {k: rep.get(k) for k in ("customer", "period", "summary", "panels", "problems", "life", "advice")}
+        body = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
+        try:
+            resp = self._call([{"role": "user", "content": f"리포트 JSON:\n{body}\n\n요약을 써 줘."}],
+                              system=MONTHLY_SYSTEM, tools=None, max_tokens=1500)
+        except AIError:
+            return None
+        u = getattr(resp, "usage", None)
+        self._record(customer_id, {
+            "input_tokens": int(getattr(u, "input_tokens", 0) or 0) + int(getattr(u, "cache_creation_input_tokens", 0) or 0),
+            "output_tokens": int(getattr(u, "output_tokens", 0) or 0),
+            "cache_read_tokens": int(getattr(u, "cache_read_input_tokens", 0) or 0)})
+        if getattr(resp, "stop_reason", None) != "end_turn":
+            return None
+        text = "".join(getattr(b, "text", "") for b in resp.content if getattr(b, "type", "") == "text").strip()
+        if not text or not numbers_grounded(text, body):
+            return None
+        return {"text": text[:1200], "model": getattr(resp, "model", MODEL) or MODEL, "at": time.time()}
+
+    def _call(self, messages, system: str = SYSTEM, tools=TOOLS, max_tokens: int = MAX_TOKENS):
         kwargs = dict(
             model=MODEL,
-            max_tokens=MAX_TOKENS,
+            max_tokens=max_tokens,
             # 지시·도구는 매번 같다 → 캐시해 두 번째 왕복부터 싸게(도구 → 지시 순으로 앞부분이 고정)
-            system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-            tools=TOOLS,
+            system=[{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
             messages=messages,
             output_config={"effort": "medium"},
             betas=[_FALLBACK_BETA],
             fallbacks="default",          # 안전 분류기가 거절하면 서버가 권장 모델로 다시 돌린다
         )
+        if tools:
+            kwargs["tools"] = tools
         try:
             import anthropic
         except ImportError:               # 시험용 가짜 클라이언트(SDK 없는 환경)

@@ -1118,6 +1118,12 @@
         vent_auto: pr.fire.vent_auto, alarms_crit: base.summary.alarms.crit, alarms_warn: base.summary.alarms.warn, ack_min_avg: null,
         self_heal: base.summary.heal.auto_fixed, self_heal_rate: base.summary.heal.success_rate, faults: 0 },
       problems: base.problems.slice(0, 6), advice: advice.length ? advice.slice(0, 6) : ["특이사항 없음 — 지금 상태를 유지하세요"] };
+    if (c.ai_enabled) {        // 데모: 실서버는 Claude가 리포트 수치만으로 쓴다(숫자 검사 통과분만). 여기선 같은 모양의 예시
+      const s = rep.summary;
+      rep.ai_note = { model: "데모", at: now(), text: (s.precursors ? `이번 달 사고 징조 ${s.precursors}건을 먼저 잡았고` : "이번 달은 사고 징조가 없었고") +
+        (s.vent_auto ? `, 벤트가 ${s.vent_auto}번 스스로 열려 처리했습니다. ` : ", 자동 조치가 필요한 일은 없었습니다. ") +
+        `위험 경보는 ${s.alarms_crit}건, 주의는 ${s.alarms_warn}건이었습니다. ${rep.advice[0]}. (데모 해설 — 실제 AI 아님)` };
+    }
     const i = MONTHLY.findIndex(r => r.customer_id === cid && r.period === period);
     const row = { customer_id: cid, period, created_at: now(), by: "데모", report: rep, customer: c.name };
     if (i >= 0) MONTHLY[i] = row; else MONTHLY.push(row);
