@@ -113,7 +113,7 @@ ROUTES = [
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
-    ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"),
+    ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -389,6 +389,9 @@ class Handler(BaseHTTPRequestHandler):
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/rul":
+            from .rul import panel_view
+            return self._json({"panels": panel_view(self.storage, None if sc is None else sc["panels"])})
         if path == "/api/ai/status":
             return self._ai_status()
         if path == "/api/commission/reports":

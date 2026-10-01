@@ -125,12 +125,15 @@ def build_monthly(storage, customer_id: int, period: str, now: float | None = No
         },
         "problems": base["problems"][:6],
     }
+    from .rul import panel_view
+    rep["life"] = [dict(i, panel_name=pv["panel_name"]) for pv in panel_view(storage, set(panels))
+                   for i in pv["items"] if i["status"] in ("ok", "reached") and (i["days"] or 0) <= 60]
     rep["advice"] = _advice(rep, base, cms)
     return rep
 
 
 def _advice(rep, base, cms) -> list:
-    out = []
+    out = [f"{i['panel_name']} {i['label']}: {i['say']} — {i['advice']}" for i in rep.get("life", [])[:3]]
     for pb in base["problems"]:
         d = pb.get("detail") or ""
         if "드리프트" in d:

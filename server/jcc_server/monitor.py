@@ -84,6 +84,8 @@ def start(storage, interval: float = 10) -> None:
                     last_monthly = now
                     from .monthly import generate_due
                     generate_due(storage, now)
+                    from .rul import rollup                  # 남은 여유 예측: 하루 대표값 갱신(문자 없음)
+                    rollup(storage, now)
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리
                     last_prune = now
                     storage.prune(readings_days=keep_readings, events_days=keep_events)

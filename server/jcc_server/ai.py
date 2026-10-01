@@ -48,6 +48,7 @@ SYSTEM = """너는 JCC-CCM 판넬 감시 시스템의 설명 담당이다. 사�
 - 화재 징조는 FRI(0~100)와 단계(normal/watch/warning/danger/critical)로 판정하고, danger 이상이면 벤트를 자동으로 연다.
 - 접점 발열은 전류로 예상한 온도와 실제 온도의 차이(residual, °C)로 판정한다. 기준 학습이 끝나야 서서히 풀리는 접점도 잡는다.
 - 결로는 이슬점과 표면 온도의 여유(margin, °C)로 판정하고 히터·팬을 돌린다.
+- 남은 여유 예측(remaining_life)은 하루 중앙값의 추세로 기준선까지 남은 날을 범위로 낸 것이다. 추정이므로 범위와 함께 말하라.
 - 이 판정과 출력 결정은 검증된 규칙이 한다. 너는 그것을 설명할 뿐이고, 출력을 조작할 수 없다.
   조작을 요청받으면 대시보드에서 담당자가 직접 해야 한다고 안내하라.
 
@@ -83,6 +84,10 @@ TOOLS = [
          "sensor_key": {"type": "string", "description": "panel_status의 센서 sensor_key"},
          "hours": {"type": "number", "description": "최근 몇 시간(1~336, 기본 24)"}},
          "required": ["panel", "sensor_key"], "additionalProperties": False}},
+    {"name": "remaining_life",
+     "description": "판넬의 남은 여유 예측: 하루 대표값 추세로 접점 잔차·센서 기준선이 위험/경고 기준에 닿기까지 남은 날(범위). 데이터 7일 미만이면 예측 없음.",
+     "input_schema": {"type": "object", "properties": {
+         "panel": {"type": "string"}}, "required": ["panel"], "additionalProperties": False}},
 ]
 
 
@@ -397,6 +402,17 @@ class _Tools:
             out.append({"ref": ref, "at": _kst(e["ts"]), "panel": pid, "type": e["etype"],
                         "detail": e.get("detail"), "by": e.get("source")})
         return {"days": days, "count": len(out), "events": out}
+
+    def t_remaining_life(self, panel):
+        p = self._need_panel(panel)
+        from .rul import panel_view
+        pv = panel_view(self.st, {p["panel"]})
+        items = pv[0]["items"] if pv else []
+        ref = f"여유:{p['panel']}"
+        self._cite(ref, "life", f"{p['panel_name']} 남은 여유 예측", time.time(), p["panel"])
+        return {"ref": ref, "items": [{k: i.get(k) for k in ("label", "status", "say", "advice", "days", "days_lo",
+                                                              "days_hi", "current", "threshold", "unit", "n_days",
+                                                              "slope_per_day")} for i in items]}
 
     def t_sensor_trend(self, panel, sensor_key, hours=24):
         p = self._need_panel(panel)

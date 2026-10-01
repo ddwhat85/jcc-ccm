@@ -116,7 +116,8 @@ def run():
           and first["betas"] == ["server-side-fallback-2026-07-01"] and first["output_config"] == {"effort": "medium"}
           and first["system"][0].get("cache_control") == {"type": "ephemeral"})
     names = {t["name"] for t in first["tools"]}
-    check("도구 5개, 모두 조회용", names == {"list_panels", "panel_status", "alarm_history", "event_log", "sensor_trend"},
+    check("도구 6개, 모두 조회용", names == {"list_panels", "panel_status", "alarm_history", "event_log", "sensor_trend",
+                                       "remaining_life"},
           str(names))
     check("출력 조작 도구 없음", not any(n.startswith(w) for n in names for w in ("set", "open", "close", "ack", "run", "write"))
           and not any(w in n for n in names for w in ("actuat", "command", "control")))

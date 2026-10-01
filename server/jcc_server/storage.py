@@ -1443,6 +1443,10 @@ class Storage:
                     pred.load_state(panel, saved)
             res = pred.assess_panel(panel, now, asm["inputs"], pend)
             self._predict[panel] = res
+            # 남은 여유 예측용: 기준 학습이 끝난 접점의 잔차를 하루 단위로 모은다(rul.rollup이 중앙값 저장)
+            if "contact" not in pend and res["contact"].get("baseline", {}).get("status") == "ready":
+                from .rul import note_contact
+                note_contact(self, panel, res["contact"].get("residual"), now)
             ev = res["contact"].get("baseline_event")
             if ev == "ready":
                 b = res["contact"]["baseline"]

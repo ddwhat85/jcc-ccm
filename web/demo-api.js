@@ -976,6 +976,49 @@
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── 남은 여유 (데모: 지난 21일 하루 대표값을 시연용으로 합성 — 실서버는 rul.py가 실제 기록으로 같은 계산) ──
+  function rulEstimate(vals, thr, dir) {           // rul.estimate와 같은 규칙(Theil–Sen, 25~75 백분위)
+    const sg = dir === "down" ? -1 : 1, pts = vals.slice(-30).map((v, i) => [i, v * sg]), n = pts.length;
+    const out = { status: "insufficient", n_days: n, threshold: thr, current: n ? vals[vals.length - 1] : null, days: null, days_lo: null, days_hi: null };
+    if (n < 7) return out;
+    const sl = []; for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) sl.push((pts[j][1] - pts[i][1]) / (pts[j][0] - pts[i][0]));
+    sl.sort((a, b) => a - b);
+    const q = p => { const k = (sl.length - 1) * p, a = Math.floor(k), b = Math.min(a + 1, sl.length - 1); return sl[a] + (sl[b] - sl[a]) * (k - a); };
+    const m = q(0.5), ints = pts.map(([x, y]) => y - m * x).sort((a, b) => a - b), b0 = ints[Math.floor(ints.length / 2)];
+    const cur = b0 + m * pts[n - 1][0], gap = thr * sg - cur, lo = q(0.25), hi = q(0.75);
+    out.current = Math.round(cur * sg * 1000) / 1000; out.slope_per_day = m * sg;
+    if (gap <= 0) return Object.assign(out, { status: "reached" });
+    if (lo <= 0) return Object.assign(out, { status: hi < 0 ? "away" : "flat" });
+    if (gap / m > 365) return Object.assign(out, { status: "far" });
+    return Object.assign(out, { status: "ok", days: gap / m, days_lo: gap / hi, days_hi: Math.min(gap / lo, 730) });
+  }
+  function rulSay(i) {
+    if (i.status === "insufficient") return `데이터 ${i.n_days}일 — 7일 쌓이면 예측`;
+    if (i.status === "reached") return "이미 기준선 이상";
+    if (i.status === "flat" || i.status === "away") return "뚜렷하게 나빠지는 추세 없음";
+    if (i.status === "far") return "1년 넘게 여유";
+    const [u, k] = i.days >= 21 ? ["주", 7] : ["일", 1], a = Math.max(1, Math.round(i.days_lo / k)), z = Math.max(1, Math.round(i.days_hi / k));
+    const what = { contact: "위험 기준까지", gas: "경고선까지(기준선 드리프트)" }[i.kind] || "경고선까지";
+    return `${what} 약 ${Math.max(1, Math.round(i.days / k))}${u}` + (a !== z ? ` (${a}~${z}${u})` : "");
+  }
+  function rulView() {
+    const wob = (i, a) => Math.sin(i * 2.399) * a;                     // 결정적 잔물결(새로고침해도 같은 값)
+    const series = (f) => Array.from({ length: 21 }, (_, i) => f(i));
+    const res = (PREDICTOR.contact_cfg && PREDICTOR.contact_cfg.res_alarm) || 11;
+    const items = [
+      Object.assign(rulEstimate(series(i => 3.1 + 0.11 * i + wob(i, 0.25)), res, "up"), { kind: "contact", unit: "°C",
+        label: `접점 발열 잔차 → 위험 기준 ${res}°C`, advice: "접점 조임·청소 점검을 계획하세요" }),
+      Object.assign(rulEstimate(series(i => 0.6 + 0.004 * i + wob(i, 0.05)), 10, "up"), { kind: "gas", unit: "%LEL",
+        label: "수소 → 경고선 10%LEL", advice: "" }),
+      Object.assign(rulEstimate(series(i => 31 + wob(i, 0.8)), 45, "up"), { kind: "sensor", unit: "°C",
+        label: "함내 온도 → 경고선 45°C", advice: "" }),
+    ];
+    items.forEach(i => { i.say = rulSay(i); if (i.status !== "ok" && i.status !== "reached") i.advice = ""; });
+    const order = { reached: 0, ok: 1, insufficient: 3, flat: 4, far: 5, away: 6 };
+    items.sort((a, b) => (order[a.status] - order[b.status]) || ((a.days ?? 1e9) - (b.days ?? 1e9)));
+    return [{ panel: SIM.panel, panel_name: S.panelNames[SIM.panel] || SIM.panel_name, items, demo: "시연용 합성 기록(21일)" }];
+  }
+
   // ── AI에게 물어보기 (데모: 실제 AI 호출 없음 — 시연 데이터를 요약한 예시 답. 실서버는 ai.py가 Claude로 답한다) ──
   const AIDEMO = { used: 0, limit: 200 };
   function aiDemoStatus() {
@@ -1128,6 +1171,7 @@
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
+      if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);
         return new Promise(res => setTimeout(() => res(J(obj, st)), 900)); }   // 생각하는 동안의 기다림도 시연
       if (p === "/api/monthly") { const q = qs.get("customer_id");
