@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import io
 import json
 import os
 import re
@@ -104,9 +105,10 @@ ROUTES = [
     ("POST", "/api/device/command", "admin"), ("POST", "/api/diagnose", "admin"),
     ("POST", "/api/notify/test", "admin"), ("POST", "/api/panel/name", "admin"),
     ("POST", "/api/predict/baseline", "admin"),
-    ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z/]+", "admin"),
+    ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z_/]+", "admin"),
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
+    ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -315,6 +317,18 @@ class Handler(BaseHTTPRequestHandler):
             from .commission import check_panel
             rep = check_panel(self.storage, (parse_qs(parsed.query).get("panel") or [""])[0])
             return self._json(rep) if rep else self._json({"error": "없는 판넬입니다"}, 404)
+        if path == "/api/monthly":
+            u = self._user()
+            if u["role"] == "admin":
+                q = (parse_qs(parsed.query).get("customer_id") or [""])[0]
+                cid = int(q) if q.isdigit() else None
+            else:
+                cid = u["customer_id"]                  # 고객은 무엇을 물어도 자기 고객사만
+            names = {c["id"]: c["name"] for c in self.storage.accounts.list_customers()}
+            reps = self.storage.list_monthly(cid)
+            for r in reps:
+                r["customer"] = names.get(r["customer_id"], "")
+            return self._json({"reports": reps})
         if path == "/api/commission/reports":
             return self._json({"reports": self.storage.list_commission_reports(None if sc is None else sc["panels"])})
         if path == "/api/admin/accounts":
@@ -362,7 +376,15 @@ class Handler(BaseHTTPRequestHandler):
         self._json({"error": "not found"}, 404)
 
     # ── POST ───────────────────────────────────────────────
+    MAX_BODY = 5_000_000      # 가장 큰 요청(탐색 보고)과 같은 한도
+
     def do_POST(self) -> None:
+        # 본문을 먼저 끝까지 읽어 둔다. 본문을 남긴 채 거절(401·403)하고 연결을 닫으면 윈도우 등에서
+        # 연결이 강제로 끊겨(RST) 클라이언트가 거절 응답 대신 '연결 끊김'을 본다(test_scope에서 간헐적으로 발견).
+        # 각 처리기는 지금처럼 self.rfile에서 읽으면 된다 — 미리 읽은 내용을 그대로 돌려준다.
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if 0 < length <= self.MAX_BODY:
+            self.rfile = io.BytesIO(self.rfile.read(length))
         parsed = urlparse(self.path)
         # 로그인/로그아웃은 인증 이전에 처리한다.
         if parsed.path == "/api/login":
@@ -376,6 +398,18 @@ class Handler(BaseHTTPRequestHandler):
             return self._change_password()
         if parsed.path.startswith("/api/admin/"):
             return self._admin(parsed.path[len("/api/admin/"):])
+        if parsed.path == "/api/monthly/issue":
+            from .monthly import issue, valid_period
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            try:
+                b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 10_000 else {}
+            except (ValueError, UnicodeDecodeError):
+                return self._json({"error": "잘못된 JSON"}, 400)
+            cid, period = b.get("customer_id"), str(b.get("period", ""))
+            if not isinstance(cid, int) or isinstance(cid, bool) or not valid_period(period):
+                return self._json({"error": "고객사와 월(YYYY-MM)을 확인하세요"}, 400)
+            rep = issue(self.storage, cid, period, self._user()["username"])
+            return self._json({"ok": True, "report": rep}) if rep else self._json({"error": "없는 고객사입니다"}, 400)
         if parsed.path.startswith("/api/commission/"):
             return self._commission(parsed.path[len("/api/commission/"):])
         if parsed.path == "/api/discover":
@@ -919,6 +953,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "판넬과 고객사를 확인하세요"}, 400)
                 ac.assign_panel(panel, cid)
                 audit(f"판넬 {panel} → " + ("배정 해제(JCC만)" if cid is None else f"고객사 #{cid}"))
+                return self._json({"ok": True})
+            if action == "monthly_notify":
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                on = bool(b.get("on"))
+                ac.set_monthly_notify(cid, on)
+                audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
             if action == "receivers":
                 cid = as_id(b.get("customer_id"))
