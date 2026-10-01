@@ -333,6 +333,8 @@ class Handler(BaseHTTPRequestHandler):
             res = self.storage.ai.ask(q, sc["panels"], sc["customer_id"], hist)
         except AIError as exc:
             return self._json({"error": str(exc)}, exc.status)
+        except Exception as exc:  # noqa: BLE001 - 예상 밖 오류도 화면엔 이유를(연결이 그냥 끊기지 않게)
+            return self._json({"error": f"AI 처리 중 오류({type(exc).__name__}) — 잠시 뒤 다시 시도해 주세요"}, 502)
         self.storage.log_event("", "", "ai_ask", f"AI 질문: {q.strip()[:80]} ({self._user()['username']})",
                                source="user")
         return self._json(res)

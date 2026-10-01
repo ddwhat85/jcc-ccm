@@ -76,6 +76,24 @@ def test_tcp_driver_reads_or_fails_gracefully():
     assert not r.ok and r.key == "meter_kw" and r.error, r
 
 
+def test_tcp_backoff_keeps_loop_fast():
+    """연결 안 되는 TCP 장비가 매 주기 수집(=벤트 판정)을 늦추지 않게: 실패 뒤 30초는 바로 실패."""
+    import time
+    from jcc_ccm.sensors.modbus import ModbusTcpBus
+    t = [1000.0]
+    bus = ModbusTcpBus("192.0.2.12", 502, clock=lambda: t[0])
+    bus._down_until = t[0] + ModbusTcpBus.RETRY_AFTER        # 방금 연결 실패한 상태
+    s = time.time()
+    try:
+        bus.read_registers(1, 0, 1, "input")
+        raise AssertionError("실패해야 함")
+    except IOError as exc:
+        assert "잠시 뒤 재시도" in str(exc)
+    assert time.time() - s < 0.05
+    t[0] += ModbusTcpBus.RETRY_AFTER + 1                    # 대기 지나면 다시 시도(여기선 pymodbus 연결 시도)
+    assert bus._clock() >= bus._down_until
+
+
 def test_parse_from_server():
     msg = {"ok": True, "sensor_config": {"version": 2, "sensors": [RTU]}}
     assert parse_sensor_config(msg) == msg["sensor_config"]

@@ -1059,7 +1059,7 @@
   }
   function rulSay(i) {
     if (i.status === "insufficient") return `데이터 ${i.n_days}일 — 7일 쌓이면 예측`;
-    if (i.status === "reached") return "이미 기준선 이상";
+    if (i.status === "reached") return "이미 기준선에 닿음";
     if (i.status === "flat" || i.status === "away") return "뚜렷하게 나빠지는 추세 없음";
     if (i.status === "far") return "1년 넘게 여유";
     const [u, k] = i.days >= 21 ? ["주", 7] : ["일", 1], a = Math.max(1, Math.round(i.days_lo / k)), z = Math.max(1, Math.round(i.days_hi / k));

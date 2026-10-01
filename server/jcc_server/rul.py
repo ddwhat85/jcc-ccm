@@ -194,7 +194,7 @@ def _say(item: dict) -> str:
     if st == "insufficient":
         return f"데이터 {item['n_days']}일 — {MIN_DAYS}일 쌓이면 예측"
     if st == "reached":
-        return "이미 기준선 이상"
+        return "이미 기준선에 닿음"
     if st in ("flat", "away"):
         return "뚜렷하게 나빠지는 추세 없음"
     if st == "far":

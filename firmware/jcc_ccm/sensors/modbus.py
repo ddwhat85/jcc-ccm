@@ -121,20 +121,30 @@ class ModbusBus:
 class ModbusTcpBus(ModbusBus):
     """이더넷 Modbus 장비(Modbus TCP). 읽기·재연결 규칙은 RS485 버스와 같고 연결만 다르다."""
 
-    def __init__(self, host: str, port: int = 502, timeout: float = 1.0):
+    # 연결이 안 되는 장비를 매 주기 다시 붙잡으면 채널마다 수 초씩 수집 루프(=벤트 판정)가 늦어진다.
+    # 한 번 실패하면 이 시간 동안은 시도하지 않고 바로 실패로 돌려준다.
+    RETRY_AFTER = 30.0
+
+    def __init__(self, host: str, port: int = 502, timeout: float = 1.0, clock=None):
         super().__init__(ModbusBusConfig(port=f"{host}:{port}", timeout_seconds=timeout))
         self._host, self._port = host, int(port)
+        self._down_until = 0.0
+        import time as _t
+        self._clock = clock or _t.monotonic
 
     def _ensure_client(self):
         if self._client is not None:
             return self._client
+        if self._clock() < self._down_until:
+            raise IOError(f"Modbus TCP {self._host}:{self._port} 연결 안 됨 — 잠시 뒤 재시도")
         from pymodbus.client import ModbusTcpClient
-        client = ModbusTcpClient(host=self._host, port=self._port, timeout=self._cfg.timeout_seconds)
+        client = ModbusTcpClient(host=self._host, port=self._port, timeout=self._cfg.timeout_seconds, retries=0)
         if not client.connect():
             try:
                 client.close()
             except Exception:  # noqa: BLE001
                 pass
+            self._down_until = self._clock() + self.RETRY_AFTER
             raise IOError(f"Modbus TCP 연결 실패: {self._host}:{self._port}")
         self._client = client
         return self._client

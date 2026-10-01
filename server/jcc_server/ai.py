@@ -363,6 +363,9 @@ class _Tools:
                     "content": json.dumps(out, ensure_ascii=False, separators=(",", ":"))}
         except (ValueError, TypeError) as exc:
             return {"type": "tool_result", "tool_use_id": block.id, "content": f"오류: {exc}", "is_error": True}
+        except Exception as exc:  # noqa: BLE001 - 조회 실패가 질문 전체를 깨면 안 된다
+            return {"type": "tool_result", "tool_use_id": block.id, "content": f"조회 실패: {type(exc).__name__}",
+                    "is_error": True}
 
     def _need_panel(self, panel):
         p = self._panel(str(panel or ""))

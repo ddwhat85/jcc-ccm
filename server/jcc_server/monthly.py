@@ -168,12 +168,24 @@ def _ai_note(storage, rep: dict, customer_id: int):
         return None
 
 
-def issue(storage, customer_id: int, period: str, by: str, now: float | None = None) -> dict | None:
+def issue(storage, customer_id: int, period: str, by: str, now: float | None = None,
+          ai_wait: bool = True) -> dict | None:
+    """ai_wait=False: AI 해설은 뒤에서 따로 만들어 붙인다(감시 루프가 AI 응답을 기다리지 않게)."""
     rep = build_monthly(storage, customer_id, period, now)
     if rep is None:
         return None
-    rep["ai_note"] = _ai_note(storage, rep, customer_id)
+    rep["ai_note"] = _ai_note(storage, rep, customer_id) if ai_wait else None
     storage.save_monthly(customer_id, period, by, rep)
+    ai = getattr(storage, "ai", None)
+    if not ai_wait and ai is not None and ai.available and customer_id in storage.accounts.ai_customers():
+        import threading
+
+        def later():
+            note = _ai_note(storage, rep, customer_id)
+            if note:
+                rep["ai_note"] = note
+                storage.save_monthly(customer_id, period, by, rep)
+        threading.Thread(target=later, daemon=True).start()
     storage.log_event("", "", "monthly", f"{rep['customer']} {period} 월간 리포트 발행 ({by})", source="system")
     return rep
 
@@ -186,7 +198,7 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
     for c in storage.accounts.list_customers():
         if storage.has_monthly(c["id"], period):
             continue
-        rep = issue(storage, c["id"], period, "자동 발행", now)
+        rep = issue(storage, c["id"], period, "자동 발행", now, ai_wait=False)
         n += 1
         if rep and c.get("monthly_notify"):
             nums = storage.accounts.receivers_for(c["id"])

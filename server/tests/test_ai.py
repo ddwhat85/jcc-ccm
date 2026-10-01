@@ -291,6 +291,38 @@ def run():
         st.ai = aimod.Assistant(st, quiet)
         st.accounts.set_ai(ca, False)
         check("고객사 AI 꺼짐 → 호출 없음", monthly.issue(st, ca, "2026-09", "시험")["ai_note"] is None and not quiet.calls)
+
+        print("\n=== 버그 검사 회귀 ===")
+        st.accounts.set_ai(ca, True)
+
+        def slow(n, kw):
+            time.sleep(1.5)
+            return resp([text("지금 상태를 유지하세요.")], "end_turn")
+        st.ai = aimod.Assistant(st, FakeClient(slow))
+        from datetime import datetime, timezone, timedelta
+        dec = datetime(2026, 12, 5, tzinfo=timezone(timedelta(hours=9))).timestamp()
+        t0 = time.time()
+        monthly.generate_due(st, dec, send=lambda *a: None)
+        took = time.time() - t0
+        check("자동 발행은 AI를 기다리지 않음(감시 루프 보호)", took < 1.0, f"{took:.2f}s")
+        check("발행 직후엔 해설 없이 저장", st.list_monthly(ca)[0]["period"] == "2026-11"
+              and not st.list_monthly(ca)[0]["report"].get("ai_note"))
+        time.sleep(2.5)
+        check("해설은 뒤에서 붙음", (st.list_monthly(ca)[0]["report"].get("ai_note") or {}).get("text") == "지금 상태를 유지하세요.")
+
+        orig = st.list_panels
+        st.list_panels = lambda: (_ for _ in ()).throw(RuntimeError("db"))
+        try:
+            def sc(n, kw):
+                if n == 1:
+                    return resp([tool(1, "list_panels")], "tool_use")
+                sc.res = tool_results(kw)
+                return resp([text("확인 못 함")], "end_turn")
+            r = aimod.Assistant(st, FakeClient(sc)).ask("상태?", every)
+            check("도구 내부 오류 → 도구 오류 결과(질문은 계속)", r["answer"] == "확인 못 함" and sc.res[0][1]
+                  and "조회 실패" in sc.res[0][0], str(sc.res))
+        finally:
+            st.list_panels = orig
     finally:
         srv.shutdown()
         st.close()
