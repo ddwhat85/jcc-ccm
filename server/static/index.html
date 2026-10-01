@@ -124,6 +124,47 @@
 
   /* ── 본체: 캔버스 | 인스펙터 (좌측바 없음) ── */
   .body{flex:1 1 auto;display:flex;min-height:0;position:relative}
+  /* ── 현장 목록(첫 화면) — 판넬마다 '지금 손봐야 하나'를 한 줄로 ── */
+  .fleet{position:absolute;inset:0;z-index:20;background:var(--canvas);overflow-y:auto}
+  .fleet[hidden]{display:none}
+  .fleet-in{max-width:1120px;margin:0 auto;padding:18px 20px 48px;display:flex;flex-direction:column;gap:12px}
+  .fleet-head{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap}
+  .fleet-head h2{margin:0;font:700 18px var(--sans);color:var(--ink)}
+  .fleet-sum{display:flex;gap:6px;flex-wrap:wrap}
+  .fleet-tools{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .fleet-seg{display:inline-flex;border:1px solid var(--rule);border-radius:6px;overflow:hidden;background:var(--surface)}
+  .fleet-seg button{font:600 12px var(--sans);padding:6px 12px;border:0;background:none;color:var(--ink-2);cursor:pointer;min-height:32px}
+  .fleet-seg button+button{border-left:1px solid var(--rule)}
+  .fleet-seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  #fleet-q{font:500 13px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:7px 10px;width:200px;max-width:100%}
+  .fleet-seg button:focus-visible,#fleet-q:focus-visible,.fleet-row:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  .fleet-grp h3{margin:8px 0 6px;font:700 12px var(--sans);color:var(--ink-3)}
+  .fleet-grp h3 small{font-weight:500;margin-left:6px}
+  .fleet-row{display:grid;grid-template-columns:76px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,.9fr);gap:3px 14px;align-items:center;
+    width:100%;text-align:left;padding:11px 14px;border:1px solid var(--rule);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+  .fleet-row+.fleet-row{margin-top:6px}
+  .fleet-row:hover{border-color:var(--ink-3)}
+  .fleet-row>span{min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12.5px;line-height:1.4}
+  .fleet-row b{font:700 14px var(--sans);overflow-wrap:anywhere}
+  .fleet-row small{color:var(--ink-3);font-size:11.5px;overflow-wrap:anywhere}
+  .fleet-st{justify-self:start;font:700 11.5px var(--sans);padding:3px 10px;border-radius:12px;white-space:nowrap}
+  .fleet-st.crit{background:var(--crit-soft);color:var(--crit)} .fleet-st.warn{background:var(--warn-soft);color:var(--warn)}
+  .fleet-st.off{background:var(--surface-2);color:var(--ink-2)} .fleet-st.ok{background:var(--ok-soft);color:var(--ok)}
+  .fleet-why{color:var(--ink)} .fleet-row .ok-t{color:var(--ink-3)}
+  .fleet-chip{display:inline-block;font:600 11px var(--sans);padding:1px 7px;border-radius:10px;background:var(--surface-2);color:var(--ink-2);margin-right:4px}
+  .fleet-chip.crit{background:var(--crit-soft);color:var(--crit)}
+  .fleet-empty{padding:40px 16px;text-align:center;color:var(--ink-2);font-size:13px;line-height:1.6}
+  .mb-view{display:inline-flex;margin-left:6px;border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+  .mb-view button{font:600 12px var(--sans);padding:3px 10px;border:0;background:none;color:var(--ink-2);cursor:pointer}
+  .mb-view button+button{border-left:1px solid var(--rule)}
+  .mb-view button[aria-pressed="true"]{background:var(--accent);color:#fff}
+  .mb-view button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  @media (max-width:760px){
+    .fleet-in{padding:14px 16px 40px}
+    .fleet-tools{margin-left:0;width:100%} #fleet-q{flex:1 1 140px;width:auto}
+    .fleet-row{grid-template-columns:auto minmax(0,1fr);gap:4px 10px}
+    .fleet-row>.c2,.fleet-row>.c3,.fleet-row>.c4{grid-column:2}
+  }
 
   .canvas{flex:1 1 auto;position:relative;overflow:auto;background:var(--canvas);
     background-image:radial-gradient(var(--rule-2) 1px, transparent 1px);
@@ -1258,6 +1299,9 @@
       <img id="brand-logo-dark" class="lgo lgo-dark" src="img/logo-dark.png" alt="JCC Solution">
       <span id="brand-text">JCC<b>·</b>CCM</span>
     </div>
+    <div class="mb-view" role="group" aria-label="보기">
+      <button type="button" data-view="list" aria-pressed="true">현장 목록</button><button type="button" data-view="graph" aria-pressed="false">배선 보기</button>
+    </div>
 
     <div class="mb-menu" data-menu="file">
       <button class="mb-title">파일</button>
@@ -1313,6 +1357,22 @@
   </div>
 
   <div class="body">
+    <!-- 현장 목록(첫 화면): 판넬마다 상태·이유·경보·남은 여유·마지막 점검. 줄을 누르면 그 판넬의 배선 보기로 -->
+    <section class="fleet" id="fleet" aria-label="현장 목록">
+      <div class="fleet-in">
+        <header class="fleet-head">
+          <h2>현장 목록</h2>
+          <div class="fleet-sum" id="fleet-sum"></div>
+          <div class="fleet-tools">
+            <div class="fleet-seg" role="group" aria-label="걸러 보기">
+              <button type="button" data-ff="all" aria-pressed="true">전체</button><button type="button" data-ff="bad" aria-pressed="false">손볼 곳</button><button type="button" data-ff="offline" aria-pressed="false">연결 끊김</button>
+            </div>
+            <input type="search" id="fleet-q" placeholder="판넬·고객사 찾기" aria-label="판넬·고객사 찾기">
+          </div>
+        </header>
+        <div id="fleet-list"></div>
+      </div>
+    </section>
 
     <div class="canvas" id="canvas">
       <div class="graph" id="graph">
@@ -2432,7 +2492,8 @@ function pdmToggle(act){
 }
 function loadPredict(){
   fetch("/api/predict",{cache:"no-store"}).then(r=>r.json()).then(d=>{
-    lastPred = (d.panels||[])[0] || null;
+    // 현장 목록에서 고른 판넬(없으면 첫 판넬)의 예지 상태를 보여 준다
+    lastPred = (d.panels||[]).find(p=>p.panel===focusPanel) || (d.panels||[])[0] || null;
     renderPred();
     loadRul();
   }).catch(()=>{});
@@ -3887,6 +3948,73 @@ $("#mrep-print").onclick = () => { document.body.classList.add("mrep-printing");
 window.addEventListener("afterprint", () => document.body.classList.remove("mrep-printing"));
 document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#mrep-overlay").classList.contains("open")) $("#mrep-overlay").classList.remove("open"); });
 
+// ── 현장 목록(첫 화면) ───────────────────────────────────
+// 판넬이 많아지면 그래프로는 어디가 문제인지 안 보인다. 서버(fleet.py)가 위험한 것부터 정렬해 준다.
+// 줄을 누르면 그 판넬을 고른 채 배선 보기로 — 오른쪽 예지보전·남은 여유도 그 판넬 것으로 바뀐다.
+let VIEW = "list", focusPanel = null, fleetData = [], fleetFilter = "all", fleetTimer = null;
+const FLEET_ST = {crit:["위험","crit"], offline:["연결 끊김","off"], warn:["주의","warn"], ok:["정상","ok"]};
+const FLEET_CM = {pass:"점검 합격", warn:"점검 조건부", fail:"점검 불합격", wait:"점검 미완료"};
+function setView(v){
+  VIEW = v === "graph" ? "graph" : "list"; document.body.dataset.view = VIEW;
+  $("#fleet").hidden = VIEW !== "list";
+  document.querySelectorAll(".mb-view [data-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.view === VIEW)));
+  try { localStorage.setItem("jcc-view", VIEW); } catch(_){}
+  clearInterval(fleetTimer);
+  if (VIEW === "list"){ loadFleet(); fleetTimer = setInterval(loadFleet, 5000); }
+  else requestAnimationFrame(drawWires);
+}
+function loadFleet(){
+  if (window.__jccLocked) return;
+  fetch("/api/fleet", {cache:"no-store"}).then(r => r.ok ? r.json() : null).then(d => {
+    if (!d) return; fleetData = d.panels || []; paintFleet(); }).catch(() => {});
+}
+function paintFleet(){
+  const q = ($("#fleet-q").value || "").trim().toLowerCase();
+  const cnt = k => fleetData.filter(p => p.status === k).length;
+  $("#fleet-sum").innerHTML = `<span class="fleet-chip">판넬 ${fleetData.length}</span>` +
+    (cnt("crit") ? `<span class="fleet-chip crit">위험 ${cnt("crit")}</span>` : "") +
+    (cnt("warn") ? `<span class="fleet-chip">주의 ${cnt("warn")}</span>` : "") +
+    (cnt("offline") ? `<span class="fleet-chip">끊김 ${cnt("offline")}</span>` : "");
+  const rows = fleetData.filter(p => (fleetFilter === "all" || (fleetFilter === "bad" ? p.status !== "ok" : p.status === "offline")) &&
+    (!q || [p.panel, p.panel_name, p.customer, p.site].some(x => String(x || "").toLowerCase().includes(q))));
+  const box = $("#fleet-list");
+  if (!fleetData.length){ box.innerHTML = `<div class="fleet-empty">아직 연결된 판넬이 없습니다.<br>CCM이 데이터를 보내면 여기에 나타납니다 — 상단 <b>노드 추가</b>에서 검색해 보세요.</div>`; return; }
+  if (!rows.length){ box.innerHTML = `<div class="fleet-empty">조건에 맞는 판넬이 없습니다.</div>`; return; }
+  const row = p => { const [w, c] = FLEET_ST[p.status] || ["?", "off"];
+    const why = p.why.length ? `<span class="fleet-why">${p.why.map(escapeHtml).join(" · ")}</span>` : `<span class="ok-t">이상 없음</span>`;
+    const pr = p.predict || {}, al = p.alarms || {};
+    return `<button type="button" class="fleet-row" data-open="${escapeHtml(p.panel)}">` +
+      `<span class="fleet-st ${c}">${w}</span>` +
+      `<span class="c1"><b>${escapeHtml(p.panel_name)}</b><small>${escapeHtml(p.panel)}${p.site ? " · " + escapeHtml(p.site) : ""}</small></span>` +
+      `<span class="c2">CCM ${p.ccm_online}/${p.ccm_total} 연결 · 센서 ${p.sensors}<small>${p.last_seen ? "마지막 수신 " + (ago(p.last_seen) || "방금") : "수신 기록 없음"}</small></span>` +
+      `<span class="c3">${why}${p.life ? `<small>남은 여유 · ${escapeHtml(p.life.say)}</small>` : ""}${pr.vent_open ? `<small>벤트 열림</small>` : ""}</span>` +
+      `<span class="c4">${al.unacked ? `<span><span class="fleet-chip${al.crit ? " crit" : ""}">미확인 경보 ${al.unacked}</span></span>` : ""}` +
+      `<small>${p.commission ? FLEET_CM[p.commission.overall] + " · " + new Date(p.commission.ts * 1000).toLocaleDateString("ko-KR") : "설치 점검 기록 없음"}</small></span></button>`; };
+  const grouped = document.body.dataset.acct === "admin" && fleetData.some(p => p.customer);
+  if (!grouped){ box.innerHTML = rows.map(row).join(""); }
+  else {
+    const groups = new Map();
+    rows.forEach(p => { const k = p.customer || "JCC 자체 · 미배정"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); });
+    box.innerHTML = [...groups].map(([k, ps]) => `<section class="fleet-grp"><h3>${escapeHtml(k)}<small>판넬 ${ps.length}</small></h3>${ps.map(row).join("")}</section>`).join("");
+  }
+  box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openPanel(b.dataset.open));
+}
+function openPanel(pid){
+  focusPanel = pid; setView("graph"); loadPredict(); loadRul(true);
+  const id = "panel:" + pid, n = nodes.get(id);
+  highlightNode(id);
+  if (n) n.el.scrollIntoView({block:"center", inline:"center"});
+  setStatus(`${(fleetData.find(p => p.panel === pid) || {}).panel_name || pid} — 배선 보기`);
+}
+document.querySelectorAll(".mb-view [data-view]").forEach(b => b.onclick = () => setView(b.dataset.view));
+document.querySelectorAll(".fleet-seg [data-ff]").forEach(b => b.onclick = () => {
+  fleetFilter = b.dataset.ff;
+  document.querySelectorAll(".fleet-seg [data-ff]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  paintFleet(); });
+$("#fleet-q").addEventListener("input", paintFleet);
+{ let v = "list"; try { v = localStorage.getItem("jcc-view") || "list"; } catch(_){}
+  setView(v); }
+
 // ── 노드 추가: ① 장비 검색 ② 검색에 안 잡히면 센서 직접 지정 ─────────────
 // 실제 장비는 CCM이 보고하면 저절로 노드가 된다. 여기서는 (1) 다시 찾고 무엇이 새로 잡혔는지 보여 주고,
 // (2) 자동 식별이 안 되는 센서를 사람이 지정한다 → 서버가 규격 검사 후 CCM에 내려보내 적용(manual_sensors.py).
@@ -5003,7 +5131,7 @@ baselineHealCount(); setInterval(baselineHealCount, 60000);  // 오늘 복구 �
   function afterLogin(){                      // 로그인 전에 비어 있던 화면을 바로 채운다
     window.__jccLocked = false;
     if(window.__jccUser && window.__jccUser.must_change){ openPw(true); return; }   // 임시 비번 → 먼저 변경
-    try{ refresh(); loadAlarms(); loadPredict(); loadTicker(); }catch(e){}
+    try{ refresh(); loadAlarms(); loadPredict(); loadTicker(); if(VIEW==="list") loadFleet(); }catch(e){}
     aiqRefresh();               // AI 메뉴·경보 'AI 해설' 표시 여부(고객사 스위치·서버 키) — 잠금이 풀린 뒤에
   }
   fetch("/api/auth/status",{cache:"no-store"}).then(r=>r.json()).then(s=>{

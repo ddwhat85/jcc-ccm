@@ -127,7 +127,7 @@ ROUTES = [
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
-    ("GET", "/api/sensor/profiles", "admin"),
+    ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -427,6 +427,9 @@ class Handler(BaseHTTPRequestHandler):
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/fleet":
+            from .fleet import fleet
+            return self._json({"panels": fleet(self.storage, None if sc is None else sc["panels"])})
         if path == "/api/sensor/manual":
             from .manual_sensors import status_list
             return self._json({"sensors": status_list(self.storage, (parse_qs(parsed.query).get("device_id") or [""])[0])})

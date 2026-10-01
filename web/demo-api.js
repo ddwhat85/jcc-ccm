@@ -977,6 +977,42 @@
     return [{ error: "없는 작업입니다" }, 404];
   }
 
+  // ── 현장 목록 (데모: 서버 fleet.py와 같은 모양·규칙. 데모는 판넬 1개) ──
+  function fleetView() {
+    const t = now(), pv = predView()[0] || {}, life = (rulView()[0] || {}).items || [];
+    return panelList().map(p => {
+      const keys = new Set([p.panel, ...p.ccms.map(c => c.device_id)]);
+      const al = S.alarms.filter(a => !a.cleared_at && keys.has(a.device_id));
+      const crit = al.filter(a => a.severity === "crit").length, on = p.ccms.filter(c => c.online).length;
+      const f = pv.fire || {}, c = pv.contact || {}, d = pv.dew || {};
+      const near = life.find(i => i.status === "reached" || i.status === "ok");
+      let why = [], status;
+      if (crit) why.push(`위험 경보 ${crit}`);
+      if (["danger", "critical"].includes(f.stage)) why.push(`화재 징조(FRI ${f.fri})`);
+      if (c.stage === "danger") why.push("접점 발열 위험");
+      if (why.length) status = "crit";
+      else if (!on) { status = "offline"; why = ["CCM 연결 끊김"]; }
+      else {
+        if (al.length - crit) why.push(`주의 경보 ${al.length - crit}`);
+        if (on < p.ccms.length) why.push(`CCM ${p.ccms.length - on}대 끊김`);
+        if (["watch", "warning"].includes(f.stage)) why.push("화재 지켜보는 중");
+        if (d.stage === "danger") why.push("결로 위험");
+        if (near && (near.status === "reached" || near.days <= 14)) why.push("남은 여유 2주 이내");
+        status = why.length ? "warn" : "ok";
+      }
+      const cm = CM.reports.find(r => r.panel === p.panel), cid = ACC.owner[p.panel];
+      const ls = Math.max(0, ...p.ccms.map(x => x.last_seen || 0));
+      return { panel: p.panel, panel_name: p.panel_name, site: p.site || "", customer_id: cid ?? null,
+        customer: cid != null ? ((ACC.customers.find(x => x.id === cid) || {}).name || "") : "",
+        status, why: why.slice(0, 3), ccm_online: on, ccm_total: p.ccms.length, last_seen: ls || null,
+        alarms: { crit, warn: al.length - crit, unacked: al.filter(a => !a.acked_at).length },
+        predict: { fire: f.stage, fri: f.fri, contact: c.stage, dew: d.stage, vent_open: !!(f.vent && f.vent.open) },
+        life: near ? { label: near.label, say: near.say, days: near.days, status: near.status } : null,
+        commission: cm ? { overall: cm.overall, ts: cm.ts } : null,
+        sensors: p.ccms.reduce((n, x) => n + (x.latest || []).length, 0), age: ls ? Math.round(t - ls) : null };
+    });
+  }
+
   // ── 노드 추가: 센서 직접 지정 (데모: 서버 manual_sensors.py와 같은 모양·검사, CCM 반영은 5초 뒤로 흉내) ──
   const MANUAL = { list: [], ver: {} };
   const DT = ["uint16", "int16", "uint32", "int32", "float32"];
@@ -1244,6 +1280,7 @@
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
+      if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/sensor/manual" && method === "GET") return Promise.resolve(J({ sensors: manualStatus() }));
       if (p === "/api/sensor/manual" && method === "POST") { const [obj, st] = manualPost(body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/ai/ask" && method === "POST") { const [obj, st] = aiDemoAsk(body.question);
