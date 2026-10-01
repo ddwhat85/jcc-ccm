@@ -1,45 +1,62 @@
 # JCC-CCM 배포 · 알림 설정 안내
 
-## 1. Render 상시 배포 (공유 주소 만들기)
+## 1. 운영 서버 올리기 (Render) — 휴대폰으로도 됨
 
-저장소에 `render.yaml`이 들어 있어, Render가 설정을 알아서 읽는다.
+저장소의 `render.yaml`이 운영 설정을 담고 있다(Starter + 영구 디스크 + 운영 잠금).
+**요금**: Starter 월 약 $7 + 디스크 1GB 월 약 $0.25. 무료 플랜은 재시작 때 DB가 지워져
+계정·월간 리포트·설치 점검 기록이 사라지므로 운영엔 쓰지 않는다(시연은 데모 아티팩트로).
 
-1. <https://render.com> → **Get Started** → **Sign in with GitHub**
-2. GitHub 접근 권한 요청 → **Authorize** (`ddwhat85/jcc-ccm` 저장소만 허용해도 됨)
-3. 대시보드 우측 상단 **New +** → **Blueprint**
-4. 목록에서 **`ddwhat85/jcc-ccm`** 선택 → `render.yaml`을 읽어 **jcc-ccm (Free)** 서비스가 표시됨
-5. **Apply** 클릭 → 2~3분 빌드
-6. 완료되면 `https://jcc-ccm-xxxx.onrender.com` 형태의 **상시 주소**가 생긴다
+### 0) 먼저 — 저장소를 비공개로 (권장)
 
-### 무료 플랜에서 알아둘 것
+GitHub 앱/웹 → `ddwhat85/jcc-ccm` → **Settings** → 맨 아래 **Danger Zone** →
+**Change visibility** → **Make private**. 판매용 펌웨어·예지 알고리즘 코드가 공개돼 있기 때문.
+비공개여도 Render 연결은 된다(아래 2번에서 저장소 접근만 허용).
 
-| 항목 | 내용 |
-|---|---|
-| 슬립 | 약 15분 미사용 시 잠들고, 다음 접속 때 **30~50초** 걸려 깨어남 |
-| 디스크 | 재배포·재시작 때 **초기화**(SQLite DB가 비워짐). 데모 모드가 켜져 있어 기동하면 자동으로 다시 채워짐 |
-| 실데이터 보관 | 현장 데이터를 영구 보관하려면 유료 플랜(퍼시스턴트 디스크) 또는 PostgreSQL 이전 필요 |
+### 1) 가입·연결
 
-### 실제 CCM으로 운영 전환할 때
+1. <https://render.com> → **Get Started** → **GitHub로 가입**
+2. GitHub 권한 요청 → **Only select repositories** → `jcc-ccm` 선택 → **Install / Authorize**
+3. 결제 카드 등록(Starter 플랜용) — Render 화면 **Billing**
 
-Render 대시보드 → **Environment** 에서 `JCC_DEMO` 를 **삭제**한다.
-그러면 시뮬레이션이 꺼지고 진짜 CCM이 보내는 텔레메트리만 받는다.
+### 2) 서버 만들기
 
-### 접근 제한 (공용 비밀번호)
+1. Render 대시보드 → **New +** → **Blueprint**
+2. `ddwhat85/jcc-ccm` 선택 → `render.yaml`을 읽어 **jcc-ccm (Starter, 디스크 1GB)** 가 표시됨
+3. 입력란이 뜨면:
+   - `JCC_DASHBOARD_USER` — 비상 관리자 아이디(예: `jcc-ops`)
+   - `JCC_DASHBOARD_PW` — **긴 비번**(14자 이상, 다른 곳에서 안 쓰는 것). 어디에도 적어 두지 말고 비번 관리 앱에.
+   - 알리고·웹훅 칸은 **비워 둬도 된다**(나중에 넣음)
+4. **Apply** → 3~5분 빌드 → `https://jcc-ccm-xxxx.onrender.com` 주소가 생긴다
 
-대시보드에 비밀번호 한 개로 로그인 게이트를 걸 수 있다.
-Render 대시보드 → **Environment** 에 아래를 넣으면 켜진다.
+`JCC_API_KEY`(CCM 기기 키)는 Render가 무작위로 만든다. 서비스 → **Environment** →
+`JCC_API_KEY` 값 보기 → 복사해 각 CCM의 `config.toml`에 넣는다:
 
-| 환경변수 | 설명 |
-|---|---|
-| `JCC_DASHBOARD_PW` | 대시보드 접속 비밀번호. **비워두면 로그인 없이 열린다**(지인 데모용). |
+```toml
+[transport.http]
+url = "https://jcc-ccm-xxxx.onrender.com/v1/telemetry"
+api_key = "(복사한 값)"
+```
 
-- 값을 넣으면 접속 시 로그인 화면이 뜨고, 맞으면 7일간 로그인 유지(쿠키).
-- 비밀번호는 쿠키를 서명하는 열쇠로만 쓰이며, **코드·저장소에 넣지 말고 환경변수로만** 둔다.
-- 로그아웃은 대시보드 **파일 → 로그아웃**.
-- 장비(CCM)가 보내는 텔레메트리(`/v1/telemetry`)는 이 비밀번호와 무관하게
-  기존 `JCC_API_KEY`(Bearer)로 인증한다.
-- 공개 데모 링크(Vercel/Artifact 정적판)는 서버가 없어 이 게이트가 적용되지 않는다.
-  검토 편의를 위해 데모는 열어 두고, 실제 운영 서버에만 비밀번호를 건다.
+### 3) 첫 로그인과 계정
+
+1. 주소 접속 → 터미널 로그인 화면 → 비상 관리자 아이디·비번
+2. **도구 → 계정 관리** → 고객사 추가 → (CCM이 붙은 뒤) 판넬 배정 → 담당자 계정 추가
+   → 임시 비번을 담당자에게 전달(첫 로그인 때 본인이 바꾼다)
+3. 직원용 JCC 관리자 계정도 여기서 만든다(비상 계정은 평소에 쓰지 않는다)
+
+### 운영 잠금이 하는 일 (`JCC_REQUIRE_AUTH=1`)
+
+- 비번을 빠뜨려도 **누구나 들어오는 서버가 되지 않는다** — 아무도 못 들어오는 잠긴 서버가 된다.
+- 기기 키가 없으면 CCM 데이터를 받지 않고 "JCC_API_KEY를 설정하라"고 답한다.
+
+### 바꾸면 안 되는 것
+
+- `JCC_DB=/var/data/jcc.db`, `JCC_OTA_DIR=/var/data/ota` — 영구 디스크 경로. 바꾸면 데이터가 사라진 것처럼 보인다.
+- 비상 비번을 바꾸면 그 계정으로 로그인된 화면은 모두 다시 로그인해야 한다(정상).
+
+### 데이터 백업 (월 1회 권장)
+
+Render 서비스 → **Disks** → **Snapshots**(Render가 매일 자동 스냅숏을 남긴다). 복원도 여기서.
 
 ### 자가치유 (자동 복구)
 

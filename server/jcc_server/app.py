@@ -55,6 +55,10 @@ def _run_discovery() -> dict:
 
 # 선택적 인증: 환경변수 JCC_API_KEY가 설정되면 POST에 Bearer 토큰을 요구한다.
 _API_KEY = os.environ.get("JCC_API_KEY", "")
+# 운영 서버 잠금: JCC_REQUIRE_AUTH=1이면 비번·기기 키를 깜빡해도 '누구나 열림'이 되지 않는다.
+#   대시보드 → 로그인 필수(비번도 계정도 없으면 아무도 못 들어옴 = 잠김),
+#   텔레메트리·OTA → JCC_API_KEY가 없으면 거부(503, 설정하라는 안내)
+_REQUIRE_AUTH = os.environ.get("JCC_REQUIRE_AUTH", "") == "1"
 
 # 대시보드 접근 계정(공용 1개). 환경변수 JCC_DASHBOARD_PW가 설정됐을 때만 인증이 켜진다.
 # 비워두면(개발·지인 데모) 인증 없이 바로 열린다.
@@ -180,7 +184,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _auth_on(self) -> bool:
         """인증이 켜졌나: 환경변수 비번이 있거나 DB 계정이 하나라도 있으면. 둘 다 없으면 개발 모드(전부 허용)."""
-        return bool(_DASH_PW) or self.storage.accounts.has_users()
+        return bool(_DASH_PW) or _REQUIRE_AUTH or self.storage.accounts.has_users()
 
     def _user(self):
         """이 요청의 사용자(없으면 None). {id, username, role, customer_id, customer, must_change}."""
@@ -202,6 +206,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def _authed(self) -> bool:
         return self._user() is not None
+
+    def _device_denied(self):
+        """기기(CCM) 인증. 통과면 None, 막으면 (응답, 상태). 키 비교는 상수시간."""
+        if not _API_KEY:
+            if _REQUIRE_AUTH:
+                return {"error": "서버에 기기 키(JCC_API_KEY)가 설정되지 않아 받지 않습니다"}, 503
+            return None
+        got = self.headers.get("Authorization", "")
+        if not hmac.compare_digest(got.encode("utf-8"), f"Bearer {_API_KEY}".encode("utf-8")):
+            return {"error": "unauthorized"}, 401
+        return None
 
     def _gate(self, method: str, path: str) -> bool:
         """권한 표로 요청을 거른다. 통과면 True, 막았으면 응답을 이미 보냈으므로 False."""
@@ -451,10 +466,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path != "/v1/telemetry":
             return self._json({"error": "not found"}, 404)
 
-        if _API_KEY:
-            auth = self.headers.get("Authorization", "")
-            if auth != f"Bearer {_API_KEY}":
-                return self._json({"error": "unauthorized"}, 401)
+        denied = self._device_denied()
+        if denied:
+            return self._json(*denied)
 
         length = int(self.headers.get("Content-Length", 0) or 0)
         if length <= 0 or length > 1_000_000:
@@ -830,8 +844,9 @@ class Handler(BaseHTTPRequestHandler):
     def _serve_ota(self, name: str) -> None:
         """CCM이 받아갈 OTA 번들. 대시보드 로그인이 아니라 기기 키(Bearer)로 막는다.
         번들 자체는 비밀이 아니다 — 위조는 CCM의 서명 검증이 막는다."""
-        if _API_KEY and self.headers.get("Authorization", "") != f"Bearer {_API_KEY}":
-            return self._json({"error": "unauthorized"}, 401)
+        denied = self._device_denied()
+        if denied:
+            return self._json(*denied)
         p = bundle_path(unquote(name))
         if not p:
             return self._json({"error": "not found"}, 404)

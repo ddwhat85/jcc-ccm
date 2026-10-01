@@ -1,32 +1,40 @@
-# Render 배포 청사진(Blueprint).
+# Render 배포 청사진(Blueprint) — 운영 서버.
 # Render 대시보드에서 이 저장소를 연결하면 이 파일을 읽어 서버를 자동으로 띄운다.
-#   New +  →  Blueprint  →  이 저장소 선택  →  Apply
+#   New +  →  Blueprint  →  이 저장소 선택  →  비번 입력  →  Apply
+# 따라 하는 순서는 docs/deploy.md.
 #
 # 우리 서버는 파이썬 표준 라이브러리만 쓰므로 설치할 의존성이 없다.
 #
-# ⚠ 무료 플랜 특성
-#   - 약 15분 미사용 시 잠들고, 다음 접속 때 30~50초 걸려 깨어난다.
-#   - 디스크가 재배포·재시작 때 초기화된다(SQLite DB가 비워짐).
-#     → 데모 모드가 켜져 있어 기동하면 자동 탐색으로 화면이 다시 채워진다.
-#     → 실제 현장 데이터를 영구 보관하려면 유료 플랜(퍼시스턴트 디스크)이나
-#        PostgreSQL로 옮겨야 한다.
+# ⚠ 운영엔 유료(Starter) + 영구 디스크가 필요하다.
+#   무료 플랜은 재시작·재배포 때 디스크가 지워져 계정·월간 리포트·설치 점검 기록·튜닝 이력이
+#   모두 사라진다. Starter(월 약 $7) + 디스크 1GB(월 약 $0.25).
+#   시연만 할 거면 서버 없이 도는 데모(아티팩트)를 쓴다.
 services:
   - type: web
     name: jcc-ccm
     runtime: python
-    plan: free
+    plan: starter
     rootDir: server
     buildCommand: "pip install -r requirements.txt"
     startCommand: "python -m jcc_server"
     healthCheckPath: /health          # Render가 이 경로로 생존 확인
+    disk:                             # SQLite DB·OTA 번들을 두는 영구 디스크(재배포에도 유지)
+      name: jcc-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: PYTHONUTF8
         value: "1"
-      # 데모 모드: 클라우드엔 실제 CCM이 없으므로 서버가 시뮬레이션 값을 자동 생성.
-      # 실제 CCM으로 운영할 땐 이 값을 지운다(진짜 텔레메트리만 받게).
-      - key: JCC_DEMO
+      - key: JCC_DB
+        value: /var/data/jcc.db
+      - key: JCC_OTA_DIR
+        value: /var/data/ota
+      # 운영 잠금: 비번·기기 키를 빠뜨려도 '누구나 열림'이 되지 않는다(빠뜨리면 잠김).
+      - key: JCC_REQUIRE_AUTH
         value: "1"
       # 감시 주기·타임아웃(초). 실기 운영 시 현장 전송주기에 맞춰 조정.
       - key: JCC_MONITOR_INTERVAL
@@ -38,25 +46,30 @@ services:
       # 미확인 경보를 몇 초 후 상향(에스컬레이션)할지
       - key: JCC_ESCALATE_AFTER
         value: "120"
-      # 이력 보존 기간(일). 무한 증가 방지.
+      # 이력 보존 기간(일). 무한 증가 방지. (월간 리포트는 발행 시점 스냅숏이라 보존 정리와 무관)
       - key: JCC_KEEP_READING_DAYS
         value: "14"
       - key: JCC_KEEP_EVENT_DAYS
         value: "90"
       # ── 접근 보안 ───────────────────────────────────────
-      # 비밀번호를 넣으면 대시보드 터미널 로그인이 진짜 서버 인증이 된다(비우면 데모 로그인).
-      # 같은 IP 5회 연속 실패 시 5분 잠금. CCM 텔레메트리는 JCC_API_KEY(Bearer)로 따로 막는다.
+      # 비상 관리자(JCC): Apply 때 Render가 물어본다 — 저장소에 남기지 않는다.
+      # 고객사·직원 계정은 로그인 후 도구 → 계정 관리에서 만든다.
       - key: JCC_DASHBOARD_USER
         sync: false
       - key: JCC_DASHBOARD_PW
         sync: false
+      # CCM 기기 키 — Render가 무작위로 만든다. Environment에서 값을 복사해 CCM config.toml
+      # [transport.http] api_key 에 넣는다.
       - key: JCC_API_KEY
-        sync: false
+        generateValue: true
+      # 원격 업데이트: 배포 대상(""=끔, "all", 또는 CCM 목록). 처음엔 꺼 둔다.
+      - key: JCC_OTA_TARGET
+        value: ""
       # ── 알림 채널(선택) ─────────────────────────────────
       # 값을 넣으면 그 채널로 경보가 발송된다. 비워두면 발송 안 함.
-      # Render 대시보드 → Environment 에서 직접 넣는 것을 권장(키는 코드에 넣지 말 것).
+      # Render 대시보드 → Environment 에서 직접 넣는다(키는 코드에 넣지 말 것).
       - key: JCC_WEBHOOK
-        sync: false                   # 대시보드에서 입력(저장소에 남기지 않음)
+        sync: false
       - key: JCC_ALIGO_KEY
         sync: false
       - key: JCC_ALIGO_USER
