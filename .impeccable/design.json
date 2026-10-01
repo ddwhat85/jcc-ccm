@@ -1,0 +1,176 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-01T00:00:00Z",
+  "title": "Design System: JCC-CCM 노드 모니터",
+  "extensions": {
+    "colorMeta": {
+      "accent": { "role": "primary", "displayName": "Drafting Ink", "canonical": "#15191c", "darkCounterpart": "accent-dark", "tonalRamp": ["oklch(15% 0.006 240)", "oklch(25% 0.006 240)", "oklch(35% 0.006 240)", "oklch(45% 0.006 240)", "oklch(55% 0.006 240)", "oklch(65% 0.006 240)", "oklch(80% 0.006 240)", "oklch(95% 0.004 240)"] },
+      "accent-dark": { "role": "primary", "displayName": "CAD Teal (model-space accent)", "canonical": "#1b7c96", "tonalRamp": ["oklch(15% 0.05 220)", "oklch(25% 0.07 220)", "oklch(35% 0.08 220)", "oklch(45% 0.09 220)", "oklch(55% 0.09 220)", "oklch(65% 0.09 220)", "oklch(80% 0.07 220)", "oklch(95% 0.03 220)"] },
+      "wire": { "role": "secondary", "displayName": "CAD Layer Teal", "canonical": "#1d6f87", "darkCounterpart": "wire-dark", "tonalRamp": ["oklch(15% 0.05 220)", "oklch(25% 0.07 220)", "oklch(35% 0.08 220)", "oklch(48% 0.09 220)", "oklch(58% 0.1 220)", "oklch(68% 0.1 220)", "oklch(80% 0.08 220)", "oklch(95% 0.03 220)"] },
+      "port-sensor": { "role": "tertiary", "displayName": "Port Sensor Green", "canonical": "#2a7048" },
+      "port-agg": { "role": "tertiary", "displayName": "Aggregator Violet", "canonical": "#5d4f86" },
+      "crit": { "role": "status", "displayName": "Revision Red", "canonical": "#c0231a", "darkCounterpart": "crit-dark", "tonalRamp": ["oklch(15% 0.06 28)", "oklch(25% 0.1 28)", "oklch(35% 0.14 28)", "oklch(45% 0.17 28)", "oklch(55% 0.19 28)", "oklch(65% 0.18 28)", "oklch(80% 0.1 28)", "oklch(95% 0.03 28)"] },
+      "warn": { "role": "status", "displayName": "Caution Amber", "canonical": "#8f6200", "darkCounterpart": "warn-dark", "tonalRamp": ["oklch(15% 0.04 75)", "oklch(25% 0.06 75)", "oklch(35% 0.08 75)", "oklch(48% 0.1 75)", "oklch(58% 0.12 75)", "oklch(70% 0.13 80)", "oklch(82% 0.12 85)", "oklch(95% 0.04 85)"] },
+      "ok": { "role": "status", "displayName": "Running Green", "canonical": "#22683f", "darkCounterpart": "ok-dark", "tonalRamp": ["oklch(15% 0.04 150)", "oklch(25% 0.06 150)", "oklch(35% 0.08 150)", "oklch(45% 0.1 150)", "oklch(55% 0.12 150)", "oklch(68% 0.13 150)", "oklch(80% 0.1 150)", "oklch(95% 0.03 150)"] },
+      "ground": { "role": "neutral", "displayName": "Plot Ground", "canonical": "#eceeec" },
+      "canvas": { "role": "neutral", "displayName": "Drafting Canvas", "canonical": "#f6f7f5" },
+      "surface": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
+      "surface-2": { "role": "neutral", "displayName": "Paper Shade", "canonical": "#eceeeb" },
+      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#111416", "tonalRamp": ["oklch(15% 0.005 230)", "oklch(25% 0.006 230)", "oklch(35% 0.008 230)", "oklch(45% 0.008 230)", "oklch(55% 0.008 230)", "oklch(65% 0.006 230)", "oklch(80% 0.005 230)", "oklch(95% 0.003 230)"] },
+      "ink-2": { "role": "neutral", "displayName": "Ink 2 (secondary text)", "canonical": "#3e4448" },
+      "ink-3": { "role": "neutral", "displayName": "Ink 3 (captions, coordinates)", "canonical": "#656c71" },
+      "rule": { "role": "neutral", "displayName": "Rule (standard line)", "canonical": "#c2c7ca" },
+      "rule-2": { "role": "neutral", "displayName": "Hairline", "canonical": "#dde0e1" },
+      "line-3": { "role": "neutral", "displayName": "Heavy Outline (2px)", "canonical": "#111416" },
+      "grid": { "role": "neutral", "displayName": "Drafting Grid minor (24px)", "canonical": "#e3e6e5" },
+      "grid-major": { "role": "neutral", "displayName": "Drafting Grid major (120px)", "canonical": "#d3d7d7" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Drawing name in the title block; one per sheet." },
+      "headline": { "displayName": "Headline", "purpose": "Inspector spotlight name; modal heads at 15px." },
+      "title": { "displayName": "Title", "purpose": "Panel name on a register row." },
+      "body": { "displayName": "Body", "purpose": "All running UI text; tabular figures on." },
+      "label": { "displayName": "Label", "purpose": "Section and group heads; sentence case Gothic A1, never monospace." },
+      "numeral-display": { "displayName": "Numeral Display", "purpose": "Spotlight measured value (B612), unit in mono ink-3." },
+      "numeral": { "displayName": "Numeral", "purpose": "Overview cells, value pills, fleet chips." },
+      "mono": { "displayName": "Mono", "purpose": "Codes, timestamps, connection state, shortcuts, wire labels." },
+      "coordinate": { "displayName": "Coordinate", "purpose": "Sheet zone numbers 1-8 and letters A-D." }
+    },
+    "shadows": [
+      { "name": "menu-lift", "value": "0 12px 28px rgba(8,10,12,.18), 0 2px 6px rgba(8,10,12,.10)", "purpose": "Dropdown menus floating above the sheet." },
+      { "name": "sheet-over-sheet", "value": "0 30px 70px -20px rgba(0,0,0,.5)", "purpose": "Modals, commissioning shell, quick-find; over a rgba(8,10,12,.58) scrim." },
+      { "name": "device-on-canvas", "value": "0 1px 0 rgba(8,10,12,.06), 0 6px 14px -8px rgba(8,10,12,.28)", "purpose": "Graph nodes at rest." },
+      { "name": "device-selected", "value": "0 0 0 1px var(--sel), 0 8px 18px -8px rgba(8,10,12,.35)", "purpose": "Selected graph node: teal ring plus lift." },
+      { "name": "sheet-double-rule", "value": "inset 0 0 0 6px var(--surface), inset 0 0 0 7px var(--rule)", "purpose": "Linework, not elevation: the inner rule of the fleet sheet border (4px/5px under 760px)." }
+    ],
+    "motion": [
+      { "name": "ease-reveal", "value": "cubic-bezier(.22,1,.36,1) 420ms", "purpose": "Node reveal-in on the canvas." },
+      { "name": "ease-meter", "value": "cubic-bezier(.16,1,.3,1) 700ms", "purpose": "Prediction meter fill." },
+      { "name": "state-quick", "value": "80-150ms ease", "purpose": "Hover border and color changes; port hover." },
+      { "name": "wire-flow", "value": "stroke-dasharray 5 6, 1s linear infinite", "purpose": "Live wire data flow." },
+      { "name": "alarm-pulse", "value": "1.5-1.6s ease-in-out infinite", "purpose": "Critical node and alarm bell pulse; disabled under prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "phone", "value": "640px" },
+      { "name": "sheet-compact", "value": "760px" },
+      { "name": "conn-text", "value": "900px" },
+      { "name": "register-rebalance", "value": "1000px" },
+      { "name": "clock", "value": "1040px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Stamped ink box for the main action in a dialog or panel.",
+      "html": "<button class=\"ds-btn-primary\">저장</button>",
+      "css": ".ds-btn-primary{font:600 12.5px var(--sans,'Gothic A1',sans-serif);background:var(--accent,#15191c);color:#fff;border:1px solid var(--accent,#15191c);border-radius:var(--r,2px);padding:7px 13px;min-height:36px;cursor:pointer;white-space:nowrap}.ds-btn-primary:hover{filter:brightness(1.12)}.ds-btn-primary:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:1px}.ds-btn-primary:active{transform:translateY(1px)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Paper box with a heavy outline for secondary dialog actions.",
+      "html": "<button class=\"ds-btn-secondary\">취소</button>",
+      "css": ".ds-btn-secondary{font:600 12.5px var(--sans,'Gothic A1',sans-serif);background:var(--surface,#fff);color:var(--ink,#111416);border:1px solid var(--line-3,#111416);border-radius:var(--r,2px);padding:7px 13px;min-height:36px;cursor:pointer;white-space:nowrap}.ds-btn-secondary:hover{background:var(--surface-2,#eceeeb)}.ds-btn-secondary:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:1px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Outlined red action that fills solid on hover (inspector destructive actions).",
+      "html": "<button class=\"ds-btn-danger\">경보 해제</button>",
+      "css": ".ds-btn-danger{font:600 12.5px var(--sans,'Gothic A1',sans-serif);background:var(--canvas,#f6f7f5);color:var(--crit,#c0231a);border:1px solid var(--crit,#c0231a);border-radius:var(--r,2px);padding:8px 14px;cursor:pointer}.ds-btn-danger:hover{background:var(--crit,#c0231a);color:#fff}.ds-btn-danger:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:1px}"
+    },
+    {
+      "name": "Segmented Filter",
+      "kind": "nav",
+      "refersTo": "segmented-option",
+      "description": "Ink-divided segmented control used for the view switch and fleet filters.",
+      "html": "<div class=\"ds-seg\" role=\"group\"><button aria-pressed=\"true\">전체</button><button aria-pressed=\"false\">손볼 곳</button><button aria-pressed=\"false\">연결 끊김</button></div>",
+      "css": ".ds-seg{display:inline-flex;border:1px solid var(--line-3,#111416);border-radius:var(--r,2px);overflow:hidden;background:var(--surface,#fff)}.ds-seg button{font:600 12px var(--sans,'Gothic A1',sans-serif);padding:6px 12px;min-height:32px;border:0;background:none;color:var(--ink-2,#3e4448);cursor:pointer}.ds-seg button+button{border-left:1px solid var(--line-3,#111416)}.ds-seg button:hover{background:var(--surface-2,#eceeeb)}.ds-seg button[aria-pressed=\"true\"]{background:var(--accent,#15191c);color:#fff}.ds-seg button:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:-2px}"
+    },
+    {
+      "name": "Search Field",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Paper field with a standard rule; focus is the 2px accent outline.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"판넬·고객사 찾기\">",
+      "css": ".ds-input{font:500 13px var(--sans,'Gothic A1',sans-serif);color:var(--ink,#111416);background:var(--surface,#fff);border:1px solid var(--rule,#c2c7ca);border-radius:var(--r,2px);padding:7px 10px;width:200px;max-width:100%}.ds-input::placeholder{color:var(--ink-3,#656c71)}.ds-input:hover{border-color:var(--ink-3,#656c71)}.ds-input:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:1px}"
+    },
+    {
+      "name": "Status Tags",
+      "kind": "chip",
+      "refersTo": "status-tag-crit",
+      "description": "Revision-mark status: word plus color, critical leads with the red revision triangle.",
+      "html": "<span class=\"ds-st ds-st-crit\">위험</span> <span class=\"ds-st ds-st-warn\">주의</span> <span class=\"ds-st ds-st-ok\">정상</span> <span class=\"ds-st ds-st-off\">연결 끊김</span>",
+      "css": ".ds-st{display:inline-flex;align-items:center;gap:6px;font:700 11px var(--sans,'Gothic A1',sans-serif);padding:2px 8px;border:1px solid currentColor;border-radius:var(--r,2px);white-space:nowrap;background:none}.ds-st-crit{color:var(--crit,#c0231a);background:var(--crit-soft,#fbe5e2)}.ds-st-crit::before{content:\"\";width:9px;height:8px;background:currentColor;clip-path:polygon(50% 0,100% 100%,0 100%)}.ds-st-warn{color:var(--warn,#8f6200);background:var(--warn-soft,#f7edd2)}.ds-st-ok{color:var(--ok,#22683f)}.ds-st-off{color:var(--ink-2,#3e4448)}"
+    },
+    {
+      "name": "Register Row",
+      "kind": "custom",
+      "refersTo": "fleet-row",
+      "description": "A drawing-register line per panel; critical rows get a 2px red underline.",
+      "html": "<button class=\"ds-row ds-row-crit\"><span class=\"ds-st ds-st-crit\">위험</span><span><b>MCC-01 판넬</b><small>CCM-0007</small></span><span>한빛화학 2공장</span><span>접점 과열 추세 — 전류 대비 온도 잔차 상승</span><span><small>점검 9/14</small></span></button>",
+      "css": ".ds-row{display:grid;grid-template-columns:84px minmax(0,1.5fr) minmax(0,1fr) minmax(0,1.6fr) minmax(0,.9fr);gap:3px 14px;align-items:center;width:100%;text-align:left;padding:12px 6px;border:0;border-bottom:1px solid var(--rule,#c2c7ca);border-radius:0;background:none;color:var(--ink,#111416);font:400 12.5px/1.4 var(--sans,'Gothic A1',sans-serif);cursor:pointer}.ds-row>span{min-width:0;display:flex;flex-direction:column;gap:2px}.ds-row b{font:800 14.5px var(--sans,'Gothic A1',sans-serif);letter-spacing:-.02em}.ds-row small{color:var(--ink-3,#656c71);font-size:11.5px}.ds-row:hover{background:var(--canvas,#f6f7f5)}.ds-row:focus-visible{outline:2px solid var(--accent,#15191c);outline-offset:1px}.ds-row-crit{border-bottom:2px solid var(--crit,#c0231a)}.ds-st{display:inline-flex;align-items:center;gap:6px;font:700 11px var(--sans,'Gothic A1',sans-serif);padding:2px 8px;border:1px solid currentColor;border-radius:2px;white-space:nowrap;justify-self:start}.ds-st-crit{color:var(--crit,#c0231a);background:var(--crit-soft,#fbe5e2)}.ds-st-crit::before{content:\"\";width:9px;height:8px;background:currentColor;clip-path:polygon(50% 0,100% 100%,0 100%)}"
+    },
+    {
+      "name": "Title Block",
+      "kind": "custom",
+      "refersTo": "title-block-cell",
+      "description": "Drawing title block: heavy frame, ruled cells, small field captions over values.",
+      "html": "<div class=\"ds-tb\"><div class=\"ds-tb-cell\"><small>도면명</small><h2>현장 목록</h2></div><div class=\"ds-tb-cell\"><small>판넬 현황</small><b>위험 1 · 주의 2 · 정상 14</b></div><div class=\"ds-tb-cell\"><small>작성</small><b>JCC Solution</b></div></div>",
+      "css": ".ds-tb{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,1fr);border:2px solid var(--line-3,#111416);background:var(--surface,#fff);color:var(--ink,#111416)}.ds-tb-cell{position:relative;padding:21px 12px 9px;border-right:1px solid var(--rule,#c2c7ca);display:flex;flex-direction:column;gap:3px;min-width:0}.ds-tb-cell:last-child{border-right:0}.ds-tb-cell>small{position:absolute;top:6px;left:12px;font:600 9.5px var(--sans,'Gothic A1',sans-serif);color:var(--ink-3,#656c71)}.ds-tb-cell h2{margin:0;font:800 22px/1.15 var(--sans,'Gothic A1',sans-serif);letter-spacing:-.03em}.ds-tb-cell b{font:700 13px var(--sans,'Gothic A1',sans-serif)}"
+    },
+    {
+      "name": "Value Pill",
+      "kind": "chip",
+      "refersTo": "value-pill",
+      "description": "Instrument reading on a graph node port; status switches wash, border and numeral color.",
+      "html": "<span class=\"ds-vp\"><span class=\"v\">41.8</span><span class=\"u\">°C</span></span> <span class=\"ds-vp ds-vp-crit\"><span class=\"v\">78.2</span><span class=\"u\">°C</span></span>",
+      "css": ".ds-vp{display:inline-flex;align-items:baseline;gap:2px;font:400 10.5px var(--num,'B612',monospace);padding:1px 6px;border:1px solid var(--rule,#c2c7ca);border-radius:var(--r,2px);background:var(--surface-2,#eceeeb);color:var(--ink,#111416);font-variant-numeric:tabular-nums;cursor:pointer}.ds-vp .u{font:400 8px var(--mono,'B612 Mono',monospace);color:var(--ink-3,#656c71)}.ds-vp:hover{border-color:var(--accent,#15191c)}.ds-vp-crit{background:var(--crit-soft,#fbe5e2);border-color:var(--crit,#c0231a)}.ds-vp-crit .v{color:var(--crit,#c0231a)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Living Electrical Drawing",
+    "overview": "The staff dashboard is one sheet of a live electrical drawing set. Every major screen sits inside a heavy sheet border with zone coordinates along the edges (1–8 across the top, A–D down the left), carries a title block (drawing name, panel status, author), and lists panels the way a drawing register lists sheets. State is spoken the way a drafter speaks it: with line weight, revision marks, and a written word, never with glow. The graph view continues the same world as a single-line diagram: inked device boxes on a drafting grid, teal wires on the CAD data layer.\n\nLight mode is a plotted sheet: white paper, black ink. Dark mode is CAD model space: ink-black ground, white linework, the data layer in bright teal. Both themes are first-class and toggleable. The density is a working drawing's density: small precise type, tight rows, lots of hairlines, numbers that read like an instrument cluster (Airbus cockpit faces B612 / B612 Mono). The world explicitly rejects the industry default of neon-dark SCADA and frosted glass cards; the build's own overrides strip the earlier glass menubar and gradient AI button down to flat ink.\n\nThe bar this system answers to (from PRODUCT.md) is premium instrument clusters, Siemens/Schneider control software, and measuring instruments: restraint, legibility under bright plant light and in dark electrical rooms, and status that never depends on color alone.",
+    "keyCharacteristics": [
+      "A sheet, not a card grid: double-ruled border, zone coordinates, title block, register rows.",
+      "Three line weights carry all hierarchy: hairline, standard rule, heavy 2px outline.",
+      "Square-cut geometry: 2px corners everywhere a corner exists.",
+      "Red means revision and danger only; teal means live data and selection only.",
+      "Numerals in B612 (proportional, compact decimals), codes and coordinates in B612 Mono, Korean in Gothic A1.",
+      "Every status is a word plus a color, and the critical status adds a red revision triangle and a heavy red underline."
+    ],
+    "rules": [
+      { "name": "The Two Hues Rule", "body": "Teal is the data layer and selection; red is revision and danger. Neither appears anywhere else. Amber and green appear only as status.", "section": "colors" },
+      { "name": "The Word-Plus-Color Rule", "body": "No status is ever color alone. Every status color is paired with a written label (위험, 주의, 정상, 연결 끊김), and the critical status additionally gets the revision triangle and a heavy red rule.", "section": "colors" },
+      { "name": "The Ink Inversion Rule", "body": "The accent is ink on paper and teal in model space. When designing a filled control, check it in both themes; never hard-code the light-theme black.", "section": "colors" },
+      { "name": "The Korean-Stays-Sans Rule", "body": "Any label that can contain Hangul is set in Gothic A1 at small tracking (0.02em max). Monospace tracking spreads Hangul apart, so the build moved every small heading off B612 Mono; keep it there.", "section": "typography" },
+      { "name": "The Instrument Numeral Rule", "body": "A measured value is set in B612, its unit smaller in mono ink-3, and it is never bolded for emphasis. Emphasis is the status color.", "section": "typography" },
+      { "name": "The Line-Weight Rule", "body": "Three weights only: hairline (rule-2, 1px), standard (rule, 1px), heavy (line-3, 2px). Heavy marks a boundary of a whole thing: the sheet, the title block, the menubar, the dock, a group, a modal head, a critical row.", "section": "elevation" },
+      { "name": "The Flat Sheet Rule", "body": "Nothing printed on the sheet casts a shadow. Only menus, modals and canvas nodes float.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do put every new staff screen inside the sheet grammar: heavy outer border, title block, ruled regions.",
+      "Do use only the three line weights (1px rule-2, 1px rule, 2px line-3) to build hierarchy.",
+      "Do keep corners at 2px (`--r`) and reference the token, not a literal.",
+      "Do pair every status color with its written word; give critical the revision triangle and the 2px red rule.",
+      "Do set measured values in B612 with a smaller mono unit in ink-3, and Hangul-bearing labels in Gothic A1.",
+      "Do use the line-icon set (24 viewBox, 1.8 stroke, round, currentColor) for every icon.",
+      "Do check every filled control in both themes; the accent changes from ink to teal.",
+      "Do give every looping or entrance animation a `prefers-reduced-motion` fallback, as the build does."
+    ],
+    "donts": [
+      "Don't use frosted glass, backdrop blur, gradients or ambient glow; the build removed them from the menubar, dropdowns and AI button. The one sanctioned halo is the selected wire's 3px teal drop-shadow.",
+      "Don't build the neon-dark SCADA look (glowing green-on-black dashboards); dark mode is CAD model space, not a control-room terminal.",
+      "Don't use teal or red for decoration, branding accents, or emphasis; they are data and danger.",
+      "Don't put drop shadows on anything printed on the sheet (rows, title block, spotlight, chips).",
+      "Don't set Hangul in monospace or track it wider than 0.02em.",
+      "Don't use emoji or Unicode glyphs as icons or status markers.",
+      "Don't hard-code color hexes in component CSS; use the theme tokens so both themes stay correct.",
+      "Don't remove a focus outline without replacing it with the 2px accent outline."
+    ]
+  }
+}

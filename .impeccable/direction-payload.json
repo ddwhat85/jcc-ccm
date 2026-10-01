@@ -1,0 +1,54 @@
+{
+  "title": "직원용 대시보드의 시각 세계 고르기",
+  "question": "배정된 방향은 '전기 도면 시트'입니다. 그대로 갈지, 다른 후보를 고를지, 다시 뽑을지 골라 주세요.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "전기 도면 시트",
+      "kicker": "배정된 방향",
+      "lineage": "KS·IEC 전기 설비 도면(단선 결선도·타이틀 블록)",
+      "thesis": "전기 엔지니어가 매일 읽는 도면의 정밀함을 화면 전체의 문법으로 — 장식 대신 선 굵기와 좌표가 고급스러움을 만든다.",
+      "palette": ["#f4f5f3", "#14171a", "#d42a20", "#2f6f8f", "#0f1113"],
+      "materials": ["플롯된 도면 용지(라이트)·CAD 모델 공간(다크)", "선 굵기 3단(0.18·0.35·0.7mm)", "타이틀 블록·구역 좌표·개정 표시"],
+      "viewport": "현장 목록이 도면 한 장처럼: 가장자리에 구역 좌표, 판넬은 도면번호처럼 정렬, 위험 판넬엔 빨간 개정 표시, 오른쪽 아래 타이틀 블록에 고객사·시각·담당.",
+      "risk": "선을 너무 가늘고 회색으로만 쓰면 차갑고 밋밋해 보일 수 있다 — 굵기 대비와 빨강으로 긴장을 줘야 함.",
+      "board": "",
+      "hero": ""
+    },
+    {
+      "id": "challenger-saville",
+      "label": "무광 블랙 카탈로그",
+      "lineage": "피터 새빌의 팩토리 레코드 카탈로그 디자인",
+      "thesis": "무광 검정 위 흰 선 하나 — 판넬마다 번호, 상태는 색 띠로 말한다.",
+      "case": "고급감은 가장 크지만, 이름 대신 코드로 말하는 문법이 현장 판독성을 해쳐서 약하게 섞임.",
+      "hero": "https://impeccable.style/worlds/cards/brand-identity-canon-saville-catalog-sleeve-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/brand-identity-canon-saville-catalog-sleeve.webp"
+    },
+    {
+      "id": "challenger-star-atlas",
+      "label": "성도(별자리 지도)",
+      "lineage": "천체 성도 — 등급을 점 크기로",
+      "thesis": "판넬을 별처럼: 위험도가 점 크기, 야간 관제용 붉은 손전등 색 주석.",
+      "case": "야간 관제실 감시와는 잘 맞지만, 전기 업계 사람에게는 연상이 낯섦.",
+      "hero": "https://impeccable.style/worlds/cards/notation-diagram-systems-star-atlas-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/notation-diagram-systems-star-atlas.webp"
+    },
+    {
+      "id": "challenger-crouwel",
+      "label": "격자 활자 견본",
+      "lineage": "빔 크라우얼의 격자 타이포그래피",
+      "thesis": "보이는 격자 위에 숫자를 세운다 — 계측값이 주인공.",
+      "case": "숫자 표현은 강하지만 업계 연상이 약하고, 촘촘한 목록과는 거칠게 섞임.",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp",
+      "board": "https://impeccable.style/worlds/cards/crouwel-grid-specimen.webp"
+    }
+  ],
+  "reroll": true,
+  "canon": true,
+  "canonCard": {
+    "label": "업계 표준을 최고 완성도로",
+    "thesis": "정제된 관제 대시보드 — 차분한 회색 바탕, 절제된 상태색, 리니어급 마감.",
+    "viewport": "현장 목록·상세의 익숙한 배치를 최고 완성도로."
+  },
+  "steer": true
+}
