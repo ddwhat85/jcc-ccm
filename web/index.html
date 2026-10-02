@@ -4535,7 +4535,16 @@ async function hoAuto(){
 }
 $("#btn-ho").onclick = openHandover;
 // 고객이 보는 화면(JCC GUARD)을 새 탭으로 — 머리에서 고객사를 골라 그대로 미리 본다
-$("#btn-guard").onclick = () => window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener");
+// 시연 아티팩트에는 guard.html 파일이 따로 없다 — 고객 화면 시연판(별도 아티팩트)으로 가는 진짜 링크로 바꾼다
+// (아티팩트 안에선 window.open이 막히고, 사용자가 누른 <a href>만 새 탭을 연다)
+const GUARD_DEMO_URL = "https://claude.ai/artifact/FFTNYX9sUNWGhywZEgrDQE";
+const ownHost = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname) || /vercel\.app$/.test(location.hostname) || location.protocol === "file:";
+if (window.JCC_DEMO && !ownHost){
+  const b = $("#btn-guard"), a = document.createElement("a");
+  a.className = b.className; a.id = "btn-guard"; a.href = GUARD_DEMO_URL; a.target = "_blank"; a.rel = "noopener";
+  a.textContent = b.textContent; a.style.textDecoration = "none"; a.style.color = "inherit"; a.addEventListener("click", () => closeMB());
+  b.replaceWith(a);
+} else $("#btn-guard").onclick = () => window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener");
 $("#ho-close").onclick = $("#ho-later").onclick = () => $("#ho-overlay").classList.remove("open");
 $("#ho-seen").onclick = async () => {
   try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
