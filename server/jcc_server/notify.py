@@ -70,6 +70,12 @@ def _receivers() -> list[str]:
     return [r.strip() for r in _env("JCC_ALIGO_RECEIVERS").split(",") if r.strip()]
 
 
+class _Keep(dict):
+    """str.format_map용 — 없는 치환자는 {이름} 그대로 남긴다."""
+    def __missing__(self, key):
+        return "{" + key + "}"
+
+
 def alarm_link(alarm: dict) -> str:
     """고객 화면에서 이 경보를 바로 여는 주소(JCC_PUBLIC_URL이 있을 때만)."""
     base = _env("JCC_PUBLIC_URL").rstrip("/")
@@ -82,14 +88,15 @@ def build_text(alarm: dict) -> str:
     custom = _env("JCC_ALIMTALK_TEXT")
     sev = {"crit": "위험", "warn": "주의"}.get(str(alarm.get("severity")), "알림")
     link = alarm_link(alarm)
-    text = (custom or _DEFAULT_TEXT).format(
+    # format_map + 모르는 치환자는 글자 그대로 — 템플릿 오타 하나로 경보 알림이 통째로 안 나가면 안 된다
+    text = (custom or _DEFAULT_TEXT).format_map(_Keep(
         severity=sev,
         panel=alarm.get("panel_name") or alarm.get("device_id") or "-",
         device=alarm.get("device_id") or "-",
         detail=alarm.get("detail") or alarm.get("kind") or "-",
         time=datetime.fromtimestamp(alarm.get("raised_at") or time.time(), KST).strftime("%m월 %d일 %H:%M"),
         link=link,
-    )
+    ))
     if not custom and link:
         text += f"\n자세히 보기: {link}"
     return text

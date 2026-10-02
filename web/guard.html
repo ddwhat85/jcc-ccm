@@ -68,6 +68,8 @@
   .gd-head .gd-k{flex:none}
   .gd-site{font:600 var(--t-body) var(--sans);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .gd-head .sp{flex:1}
+  .gd-brk{display:none}
+  @media (max-width:760px){.gd-brk{display:block}}
   .gd-ico{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;display:grid;place-items:center;cursor:pointer;color:var(--ink-2);flex:none}
   .gd-ico svg{width:17px;height:17px}
   .gd-pick{font:500 var(--t-cap) var(--sans);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-s);padding:7px 8px;max-width:180px}
@@ -220,6 +222,13 @@
   @media (max-width:760px){
     .gd-txt{display:none}
     .gd-txt.gd-ops{display:inline-flex}   /* 운영자 화면 길은 휴대폰에서도 */
+    /* 휴대폰: 고객사 고르기·운영자 화면·앱 설치는 머리 둘째 줄로(첫 줄은 이름·밤낮·로그아웃) — 가로 넘침 없게 */
+    .gd-head{flex-wrap:wrap;row-gap:8px}
+    .gd-brk{order:4;flex-basis:100%;height:0}
+    .gd-head .sp{display:none}
+    .gd-site{flex:1 1 0}   /* 첫 줄: 이름은 줄어들고(말줄임) 밤낮·로그아웃은 같은 줄에 */
+    .gd-pick,.gd-txt.gd-ops{order:5}
+    .gd-pick{flex:1 1 auto;max-width:none;min-width:0}
     .gd-app{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
     .gd-tab{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:30;
       background:var(--card);border-top:1px solid var(--line);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px))}
@@ -270,6 +279,7 @@
     <span class="gd-k">JCC GUARD</span>
     <span class="gd-site" id="gd-site"></span>
     <span class="sp"></span>
+    <span class="gd-brk" aria-hidden="true"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
     <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
     <button class="gd-txt gd-ops" id="gd-install" hidden>앱으로 설치</button>

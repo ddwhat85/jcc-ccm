@@ -2253,7 +2253,7 @@ function topoSignature(panels){
 }
 
 function refresh(){
-  fetch("/api/panels",{cache:"no-store"}).then(r=>{
+  return fetch("/api/panels",{cache:"no-store"}).then(r=>{
     if(!r.ok) throw 0; return r.json();
   }).then(data=>{
     setConn(true);
@@ -2261,7 +2261,8 @@ function refresh(){
     lastPanels = panels;
     $("#empty").style.display = panels.length ? "none" : "flex";
     gfOptions(panels);
-    if (GF.only && !panels.some(p => p.panel === GF.only)) setGraphOnly(null, true);   // 고른 판넬이 사라졌으면 전체로
+    // 고른 판넬이 목록에서 사라졌으면 전체로 — 서버가 잠깐 빈 목록을 줄 때(재시작 직후)는 고른 것을 지킨다
+    if (GF.only && panels.length && !panels.some(p => p.panel === GF.only)) setGraphOnly(null, true);
     // 배선 그림은 고른 판넬만(판넬이 많아도 크게), 값·연결 상태 집계는 전체로
     const gp = GF.only ? panels.filter(p => p.panel === GF.only) : panels;
     const sig = (GF.only || "*") + "#" + topoSignature(gp);
@@ -4961,10 +4962,10 @@ function setGraphOnly(pid, quiet){
 { const sel = $("#gf-only"); if (sel) sel.onchange = () => setGraphOnly(sel.value || null); }
 function openPanel(pid){
   focusPanel = pid; if (GF.only !== pid) setGraphOnly(pid, true);
-  setView("graph"); loadPredict(); loadRul(true); refresh();
-  const id = "panel:" + pid, n = nodes.get(id);
-  highlightNode(id);
-  if (n) n.el.scrollIntoView({block:"center", inline:"center"});
+  setView("graph"); loadPredict(); loadRul(true);
+  // 그래프를 그 판넬로 다시 그린 뒤에 강조·이동(먼저 하면 지워질 옛 노드에 걸린다)
+  refresh().then(() => { const id = "panel:" + pid, n = nodes.get(id);
+    highlightNode(id); if (n) n.el.scrollIntoView({block:"center", inline:"center"}); });
   setStatus(`${(fleetData.find(p => p.panel === pid) || {}).panel_name || pid} — 배선 보기`);
 }
 document.querySelectorAll(".mb-view [data-view]").forEach(b => b.onclick = () => b.dataset.view === "guard" ? openGuardView() : setView(b.dataset.view));

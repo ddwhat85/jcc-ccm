@@ -118,6 +118,13 @@ def run():
     check("알림 문구: 한국 시간·자세히 링크", "09월 21일 23:13" in txt and txt.endswith("자세히 보기: https://jcc.example.test/?alarm=7"), txt)
     os.environ.pop("JCC_PUBLIC_URL")
     check("링크 주소 없으면 링크 줄 없음", "자세히" not in notify.build_text({"id": 7, "device_id": "ccm-1", "severity": "warn"}))
+    os.environ["JCC_ALIMTALK_TEXT"] = "[JCC] {고객사} {severity} {panel}"
+    try:
+        t2 = notify.build_text({"id": 7, "device_id": "ccm-1", "severity": "crit", "panel_name": "1번"})
+        check("템플릿에 모르는 치환자가 있어도 알림은 나간다", t2 == "[JCC] {고객사} 위험 1번", t2)
+    except Exception as exc:  # noqa: BLE001
+        check("템플릿에 모르는 치환자가 있어도 알림은 나간다", False, repr(exc))
+    os.environ.pop("JCC_ALIMTALK_TEXT")
 
     srv = appmod.make_server("127.0.0.1", 0, st)
     base = f"http://127.0.0.1:{srv.server_address[1]}"
