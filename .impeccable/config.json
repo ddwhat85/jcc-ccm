@@ -1,7 +1,9 @@
 {
   "detector": {
     "ignoreRules": [],
-    "ignoreFiles": [],
+    "ignoreFiles": [
+      ".superpowers/**"
+    ],
     "ignoreValues": [
       {
         "rule": "codex-grid-background",

@@ -12,3 +12,4 @@ config/config.toml
 # OTA 번들·manifest는 빌드 산출물(tools/ota_build.py) — 서버 배포 폴더에만
 server/ota/*.tar.gz
 server/ota/*.json
+.superpowers/
