@@ -1473,6 +1473,9 @@
   .mb-check{border-radius:var(--r);border:1px solid var(--line-3);color:var(--ink);background:var(--surface)}
   .dc-heal{border-radius:var(--r)}
   .dock-fit{border-radius:var(--r);background:none;color:var(--ink);border-color:var(--line-3);font:600 11px var(--sans)}
+  .dock-sel{margin-left:auto;max-width:150px;height:24px;padding:0 6px;border:1px solid var(--line-3);border-radius:var(--r);
+    background:var(--surface);color:var(--ink);font:600 11px var(--sans);cursor:pointer}
+  .dock-sel + .dock-fit{margin-left:6px}
   /* 창(시트): 굵은 외곽선 + 머리띠 아래 굵은 선 */
   .overlay{background:rgba(8,10,12,.58)}
   .cmsn-shell,.modal,.qk-box{border-radius:var(--r);border:1px solid var(--line-3);box-shadow:0 30px 70px -20px rgba(8,10,12,.5)}
@@ -1759,6 +1762,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="dock">
     <div class="dock-log">
       <div class="dock-h"><span>실시간 데이터 로그</span>
+        <select class="dock-sel" id="gf-only" aria-label="배선 보기에 그릴 판넬" title="배선 보기에 그릴 판넬"><option value="">전체 판넬</option></select>
         <button class="dock-fit" id="btn-fit" title="모든 노드를 한 화면에 맞춤 ↔ 100%"><svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>전체 보기</button></div>
       <div class="ticker" id="ticker"></div>
     </div>
@@ -4360,8 +4364,11 @@ function severity(key,v,rec){ if(v===null||v===undefined) return "";
   if(key.includes("temp")) return v>=45 ? "crit" : (v>=38 ? "warn" : "");
   if(key.includes("vibr")) return v>=4 ? "crit" : (v>=2.5 ? "warn" : "");
   return ""; }
-function loadPos(){ try{ return JSON.parse(localStorage.getItem(LS_POS)||"{}"); }catch(e){ return {}; } }
-function savePos(p){ try{ localStorage.setItem(LS_POS, JSON.stringify(p)); }catch(e){} }
+// 배선 보기에서 판넬 하나만 볼 때(GF.only)는 그 판넬용 배치를 따로 기억한다 — 전체 보기 배치와 섞이지 않게
+const GF = { only: (() => { try { return localStorage.getItem("jcc-graph-only") || null; } catch(_){ return null; } })(), opts: "" };
+const posKey = () => GF.only ? LS_POS + ":" + GF.only : LS_POS;
+function loadPos(){ try{ return JSON.parse(localStorage.getItem(posKey())||"{}"); }catch(e){ return {}; } }
+function savePos(p){ try{ localStorage.setItem(posKey(), JSON.stringify(p)); }catch(e){} }
 
 // ── 상태 ──────────────────────────────────────────────
 let nodePos = loadPos();       // {nodeId: {x,y}}  사용자 배치
@@ -4435,14 +4442,18 @@ function refresh(){
     const panels = data.panels||[];
     lastPanels = panels;
     $("#empty").style.display = panels.length ? "none" : "flex";
-    const sig = topoSignature(panels);
+    gfOptions(panels);
+    if (GF.only && !panels.some(p => p.panel === GF.only)) setGraphOnly(null, true);   // 고른 판넬이 사라졌으면 전체로
+    // 배선 그림은 고른 판넬만(판넬이 많아도 크게), 값·연결 상태 집계는 전체로
+    const gp = GF.only ? panels.filter(p => p.panel === GF.only) : panels;
+    const sig = (GF.only || "*") + "#" + topoSignature(gp);
     // 연출 중 노드를 새로 만들면 연출이 잡고 있던 노드가 사라져 뒤엉킨다.
     // topoSig를 그대로 두므로 연출이 끝난 직후 정상적으로 재구성된다.
     if(sig !== topoSig && !revealing){
-      buildGraph(panels); topoSig = sig;
-      if(pendingReveal && panels.length){    // [AI 자동연결] 직후 한 번만 연출
+      buildGraph(gp); topoSig = sig;
+      if(pendingReveal && gp.length){        // [AI 자동연결] 직후 한 번만 연출
         pendingReveal = false;
-        runReveal(panels);
+        runReveal(gp);
         return;                              // 연출이 화면을 직접 그린다
       }
     }
@@ -7112,8 +7123,27 @@ function paintFleet(){
   }
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openPanel(b.dataset.open));
 }
+// ── 배선 보기: 판넬 하나만 그리기 ─────────────────────────
+function gfOptions(panels){
+  const sig = panels.map(p => p.panel + "=" + p.panel_name).join("|");
+  if (sig === GF.opts) return;
+  GF.opts = sig;
+  const sel = $("#gf-only"); if (!sel) return;
+  sel.innerHTML = `<option value="">전체 판넬 (${panels.length})</option>` +
+    panels.map(p => `<option value="${escapeHtml(p.panel)}">${escapeHtml(p.panel_name || p.panel)}</option>`).join("");
+  sel.value = GF.only || "";
+}
+function setGraphOnly(pid, quiet){
+  GF.only = pid || null;
+  try { GF.only ? localStorage.setItem("jcc-graph-only", GF.only) : localStorage.removeItem("jcc-graph-only"); } catch(_){}
+  const sel = $("#gf-only"); if (sel) sel.value = GF.only || "";
+  nodePos = loadPos(); topoSig = "";            // 그 보기의 배치로 다시 그린다
+  if (!quiet){ refresh(); setStatus(GF.only ? `배선 보기: ${(lastPanels.find(p => p.panel === GF.only) || {}).panel_name || GF.only}만` : "배선 보기: 전체 판넬"); }
+}
+{ const sel = $("#gf-only"); if (sel) sel.onchange = () => setGraphOnly(sel.value || null); }
 function openPanel(pid){
-  focusPanel = pid; setView("graph"); loadPredict(); loadRul(true);
+  focusPanel = pid; if (GF.only !== pid) setGraphOnly(pid, true);
+  setView("graph"); loadPredict(); loadRul(true); refresh();
   const id = "panel:" + pid, n = nodes.get(id);
   highlightNode(id);
   if (n) n.el.scrollIntoView({block:"center", inline:"center"});
