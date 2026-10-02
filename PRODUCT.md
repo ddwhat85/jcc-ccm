@@ -9,7 +9,7 @@ web
 ## Users
 
 - **Primary: JCC Solution staff** — control-room operators watching every customer's panels on an office monitor all day, and field technicians doing installation, periodic inspection, and repair in front of the panel on a phone (bright plant floors and dark electrical rooms alike). Office and field use are roughly equal (confirmed 2026-10-01).
-- **Secondary: customer accounts** (manager / viewer) who see only their own panels. A separate, friendlier customer UI with illustrations and emoji is planned later; this dashboard is the staff tool.
+- **Secondary: customer accounts** (manager / viewer) who see only their own panels, on their own screen **JCC GUARD** (`/guard`, `server/static/guard.html`): a premium instrument-cluster world (dark night + light day) built to make the customer feel the service is worth paying for, and shown to prospects as a sales demo with replayable "that night" stories (decided 2026-10-02; the earlier emoji/illustration plan is dropped). This dashboard (`index.html`) remains the staff tool; customer accounts that log in here are sent to `/guard`.
 
 ## Product Purpose
 

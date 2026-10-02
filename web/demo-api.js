@@ -176,11 +176,12 @@
       (kind === "humidity" && /humid/i.test(s.sensor_key))) && s.value != null) return s.value;
     return null;
   }
+  const gdRound = (v, d) => v == null ? null : Math.round(v * 10 ** d) / 10 ** d;
   function gdRows() {
     const t = now(), fl = fleetView()[0];
     const rows = [];
     if (fl) rows.push(Object.assign({}, fl, { panel: fl.panel, panel_name: "A동 배터리실 1번",
-      temp: gdKindVal(panelList()[0].ccms, "temp"), humidity: gdKindVal(panelList()[0].ccms, "humidity") }));
+      temp: gdRound(gdKindVal(panelList()[0].ccms, "temp"), 1), humidity: gdRound(gdKindVal(panelList()[0].ccms, "humidity"), 0) }));
     GD_VIRTUAL.forEach(([nm, tb, hb], i) => rows.push({ panel: "virt-" + i, panel_name: nm, status: "ok", why: [], ccm_online: 1, ccm_total: 1,
       alarms: { crit: 0, warn: 0, unacked: 0 }, predict: { fire: null, contact: i < 2 ? "normal" : null, dew: i === 4 ? "normal" : null, vent_open: false },
       life: null, next_inspection: t + (43 + i * 6) * 86400, last_seen: t - 2,
@@ -202,7 +203,8 @@
       if (p.next_inspection && p.next_inspection < t) items.push({ text: `${nm} 정기 점검 기한 지남`, minus: GD_PEN.overdue }); });
     items.sort((a, b) => b.minus - a.minus);
     const total = items.reduce((s, i) => s + i.minus, 0), nxt = Math.min(...rows.map(p => p.next_inspection || Infinity));
-    return { score: Math.max(0, 100 - total), color: crit ? "crit" : total ? "warn" : "ok", items,
+    const watching = rows.some(p => p.status !== "ok");
+    return { score: Math.max(0, 100 - total), color: crit ? "crit" : (total && watching) ? "warn" : "ok", items,
       checks: [{ label: "위험 경보", value: String(rows.reduce((s, p) => s + p.alarms.crit, 0)) }, { label: "끊긴 감시 장치", value: String(off) },
         { label: "정기 점검", value: nxt === Infinity ? "기록 없음" : nxt < t ? "기한 지남" : `D-${Math.floor((nxt - t) / 86400)}` }] };
   }

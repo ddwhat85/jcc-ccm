@@ -346,3 +346,19 @@ Device nodes are inked boxes: dark head band (node-head, `#15191c` / `#232a31`) 
 - **Don't** use emoji or Unicode glyphs as icons or status markers.
 - **Don't** hard-code color hexes in component CSS; use the theme tokens so both themes stay correct.
 - **Don't** remove a focus outline without replacing it with the 2px accent outline.
+
+## Customer surface — JCC GUARD (`server/static/guard.html`)
+
+A separate visual world for customer accounts and sales demos; the drawing-sheet rules above do not apply there.
+The tokens live in `guard.html` `:root` (day) with the dark night values under `prefers-color-scheme: dark` and `[data-theme="dark"]`.
+
+- **Concept:** premium car instrument cluster. One large ring "안심 지수" (0-100) is the hero; everything else is quiet.
+- **Color:** day ground `#f1efea`, card `#ffffff`, ink `#1b1a17`; night ground `#0b0d10`, card `#15191d`, ink `#e9e6df`.
+  State colors only: safe `#2f9a6c`/`#7fd1a8`, watch `#b9822a`/`#e9b45a`, danger `#c0362f`/`#ff6b60`.
+  Danger tints the whole ground (alert glow) and is the only time red appears.
+- **Type:** Gothic A1 only. Big figures weight 300 (64px ring, 30px month headline, 21-26px stats), headings 600, labels 11px with 0.14-0.16em tracking.
+  Text steps 11 / 12.5 / 14px.
+- **Shape:** radius tokens `--r-s` 10px (controls, small items), `--r` 14px (cards), `--r-l` 22px (big panels, sheets), `--pill` 999px.
+- **Motion:** ring fill 1.1s ease-out, color 0.6s, sheets slide up 0.32s; first paint has no transition (no green flash during an incident). Reduced motion turns all off.
+- **Don't** show a number that is not from real records; assumptions (the patrol comparison) are labeled "추정" with their basis.
+- **Don't** give customers output controls (vent, heater, fan). Viewing, acknowledging, and a phone call only.

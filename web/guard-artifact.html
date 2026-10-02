@@ -917,11 +917,12 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       (kind === "humidity" && /humid/i.test(s.sensor_key))) && s.value != null) return s.value;
     return null;
   }
+  const gdRound = (v, d) => v == null ? null : Math.round(v * 10 ** d) / 10 ** d;
   function gdRows() {
     const t = now(), fl = fleetView()[0];
     const rows = [];
     if (fl) rows.push(Object.assign({}, fl, { panel: fl.panel, panel_name: "A동 배터리실 1번",
-      temp: gdKindVal(panelList()[0].ccms, "temp"), humidity: gdKindVal(panelList()[0].ccms, "humidity") }));
+      temp: gdRound(gdKindVal(panelList()[0].ccms, "temp"), 1), humidity: gdRound(gdKindVal(panelList()[0].ccms, "humidity"), 0) }));
     GD_VIRTUAL.forEach(([nm, tb, hb], i) => rows.push({ panel: "virt-" + i, panel_name: nm, status: "ok", why: [], ccm_online: 1, ccm_total: 1,
       alarms: { crit: 0, warn: 0, unacked: 0 }, predict: { fire: null, contact: i < 2 ? "normal" : null, dew: i === 4 ? "normal" : null, vent_open: false },
       life: null, next_inspection: t + (43 + i * 6) * 86400, last_seen: t - 2,
@@ -943,7 +944,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p.next_inspection && p.next_inspection < t) items.push({ text: `${nm} 정기 점검 기한 지남`, minus: GD_PEN.overdue }); });
     items.sort((a, b) => b.minus - a.minus);
     const total = items.reduce((s, i) => s + i.minus, 0), nxt = Math.min(...rows.map(p => p.next_inspection || Infinity));
-    return { score: Math.max(0, 100 - total), color: crit ? "crit" : total ? "warn" : "ok", items,
+    const watching = rows.some(p => p.status !== "ok");
+    return { score: Math.max(0, 100 - total), color: crit ? "crit" : (total && watching) ? "warn" : "ok", items,
       checks: [{ label: "위험 경보", value: String(rows.reduce((s, p) => s + p.alarms.crit, 0)) }, { label: "끊긴 감시 장치", value: String(off) },
         { label: "정기 점검", value: nxt === Infinity ? "기록 없음" : nxt < t ? "기한 지남" : `D-${Math.floor((nxt - t) / 86400)}` }] };
   }
@@ -2519,8 +2521,11 @@ function paint(){
   const d = G.d, ix = d.index;
   $("#gd-site").textContent = d.site;
   document.title = `${ix.score} · ${d.site} — JCC GUARD`;
-  const ring = $("#gd-ring"); ring.className = "gd-ring " + ix.color;
-  $("#gd-arc").style.strokeDashoffset = String(C * (1 - ix.score / 100));
+  const ring = $("#gd-ring"), arc = $("#gd-arc"), first = !G.painted;
+  if (first) arc.style.transition = "none";   // 처음 열 때는 바로 그 상태로 — 위험 중에 초록이 번쩍이지 않게
+  ring.className = "gd-ring " + ix.color;
+  arc.style.strokeDashoffset = String(C * (1 - ix.score / 100));
+  if (first){ arc.getBoundingClientRect(); requestAnimationFrame(() => { arc.style.transition = ""; }); G.painted = true; }
   $("#gd-score").textContent = ix.score;
   $("#gd-why-hint").textContent = ix.items.length ? `−${100 - ix.score} · 이유 보기` : "눌러서 근거 보기";
   $("#gd-title").textContent = d.state.title; $("#gd-sub").textContent = d.state.sub;
@@ -2647,7 +2652,7 @@ function monthlyDoc(r){
     `<div class="gd-led"><div><span>미리 잡은 위험 징조</span><b>${s.precursors ?? 0}건</b></div><div><span>자동 환기</span><b>${s.vent_auto ?? 0}회</b></div>` +
     `<div><span>위험 경보 · 평균 대응</span><b>${s.alarms_crit ?? 0}건 · ${s.ack_min_avg == null ? "—" : s.ack_min_avg + "분"}</b></div><div><span>원격으로 해결</span><b>${s.self_heal ?? 0}건</b></div></div>` +
     ((rp.advice || []).length ? `<h5>JCC가 권하는 것</h5><ul>${rp.advice.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : "") +
-    `<p style="margin-top:16px"><button class="gd-btn" style="width:100%" onclick="window.print()">인쇄 · PDF로 저장</button></p></div>`);
+    printBtn() + `</div>`);
 }
 async function openInspections(){
   sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="sub">불러오는 중</div>`);
@@ -2667,7 +2672,7 @@ async function inspDoc(id){
     sheet(`<div class="gd-rep"><h4 id="gd-sheet-t">${esc(r.panel_name)} 정기 점검</h4><div class="sub">${fmtT(r.done_at)} · 점검 ${esc(r.by)} · 확인 ${esc(r.signer)}</div>` +
       (r.summary ? `<h5>특이사항·조치</h5><p>${esc(r.summary)}</p>` : "") + `<h5>점검 항목</h5><table>${rows}</table>` +
       `<h5>고객 확인</h5><img class="sign" src="${esc(r.signature)}" alt="${esc(r.signer)} 서명">` +
-      `<p style="margin-top:16px"><button class="gd-btn" style="width:100%" onclick="window.print()">인쇄 · PDF로 저장</button></p></div>`);
+      printBtn() + `</div>`);
   } catch(_){ toast("보고서를 열지 못했습니다"); }
 }
 
@@ -2695,6 +2700,9 @@ function story(){
     window.scrollTo({top: 0, behavior: "smooth"});
   });
 }
+
+// 보고서 인쇄·PDF 저장 — 시연판(공개 링크)은 인쇄 창을 열 수 없어 버튼을 두지 않는다
+const printBtn = () => window.JCC_DEMO ? "" : `<p style="margin-top:16px"><button class="gd-btn" style="width:100%" onclick="window.print()">인쇄 · PDF로 저장</button></p>`;
 
 // ── 시작 ─────────────────────────────────────────────────
 (async () => {

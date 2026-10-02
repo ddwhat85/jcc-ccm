@@ -64,7 +64,8 @@ def score(rows: list, now: float) -> dict:
               {"label": "끊긴 감시 장치", "value": str(off_total)},
               {"label": "정기 점검", "value": "기록 없음" if nxt is None else
                ("기한 지남" if nxt < now else f"D-{int((nxt - now) // 86400)}")}]
-    return {"score": max(0, 100 - total), "color": "crit" if crit_any else "warn" if total else "ok",
+    watching = any(p.get("status") not in (None, "ok") for p in rows)
+    return {"score": max(0, 100 - total), "color": "crit" if crit_any else "warn" if (total and watching) else "ok",
             "items": items, "checks": checks}
 
 
