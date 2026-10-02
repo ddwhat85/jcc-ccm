@@ -1442,6 +1442,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
   function findSensor(pred) {
     for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      if (panelOf(dev) !== SIM.panel) continue;   // 예지는 주 판넬 센서로만 — 다른 판넬 온습도가 섞이지 않게
       if (s.enabled && pred(s)) return [dev, s.key];
     }
     return null;
@@ -2322,7 +2323,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         let rows, name;
         if (p.endsWith("alarms.csv")) {
           rows = [["경보번호", "판넬", "기기", "센서", "종류", "심각도", "내용", "발생", "확인", "확인자", "원인", "조치 메모", "해제"]].concat(
-            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, S.panelNames[SIM.panel] || SIM.panel_name,
+            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, (panelList().find(p => p.panel === panelOf(a.device_id)) || {}).panel_name || SIM.panel_name,
               a.device_id, a.sensor_key || "", a.kind, a.severity === "crit" ? "위험" : "주의", a.detail || "", t(a.raised_at), t(a.acked_at),
               a.acked_by || "", CAUSE[a.cause] || "", a.ack_note || "", t(a.cleared_at)]));
           name = "jcc-alarms-demo.csv";
@@ -2503,6 +2504,7 @@ const fmtT = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {...KST, month:
 const ago = t => { if (!t) return ""; const s = Math.max(0, Date.now() / 1000 - t); return s < 60 ? "방금" : s < 3600 ? `${Math.floor(s / 60)}분 전` : s < 86400 ? `${Math.floor(s / 3600)}시간 전` : `${Math.floor(s / 86400)}일 전`; };
 const per = p => `${Number(p.slice(5, 7))}월`;
 const clean = s => String(s == null ? "" : s).replace(/[\p{Extended_Pictographic}\uFE0F]\s*/gu, "");   // 기록 문구의 그림 문자는 뺀다
+function setHTML(el, html){ if (el._html === html) return false; el._html = html; el.innerHTML = html; return true; }
 function toast(t){ const el = $("#gd-toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); }
 
 // ── 밤·낮: 시스템을 따르고, 직접 고르면 기억한다 ─────────────
@@ -2594,28 +2596,28 @@ function paint(){
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
   const m = d.month;
-  $("#gd-tri").innerHTML = m.building
+  setHTML($("#gd-tri"), m.building
     ? `<div><b>—</b><span>미리 잡은 징조<br>(기록 쌓이는 중)</span></div><div><b>—</b><span>스스로 한 조치</span></div><div><b>24시간</b><span>감시 중</span></div>`
     : `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
-      `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`;
+      `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`);
   const c = d.contact, who = c.engineer ? `담당 ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
-  $("#gd-contact").innerHTML = `<span class="av" aria-hidden="true">${esc((c.engineer || "JCC").slice(0, 1))}</span><span><b>${who}</b><br>이상하면 JCC가 먼저 연락드립니다 · ${due}</span>` +
-    (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC 관제실에 전화 ${esc(c.phone)}">전화 ${esc(c.phone)}</a>` : "");
+  setHTML($("#gd-contact"), `<span class="av" aria-hidden="true">${esc((c.engineer || "JCC").slice(0, 1))}</span><span><b>${who}</b><br>이상하면 JCC가 먼저 연락드립니다 · ${due}</span>` +
+    (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC 관제실에 전화 ${esc(c.phone)}">전화 ${esc(c.phone)}</a>` : ""));
   paintPanels(d.panels);
   if (!G.month || G.month.period === m.period){ G.month = m; paintMonth(); }
 }
 
 function paintIncident(inc){
   const box = $("#gd-inc");
-  if (!inc){ box.hidden = true; box.innerHTML = ""; return; }
+  if (!inc){ box.hidden = true; setHTML(box, ""); return; }
   const canAck = G.user && G.user.role === "manager" && !inc.acked_at;
   box.hidden = false;
-  box.innerHTML = `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
+  if (!setHTML(box, `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
     `<h2>${esc(inc.panel_name)}에서<br>${esc(inc.sensor_name)} 이상을 감지했습니다</h2><div class="d">${esc(clean(inc.detail))}</div>` +
     `<div class="gd-steps">${inc.steps.map(s => `<div class="gd-step"><i class="${s.done ? "ok" : "go"}" aria-hidden="true"></i><span>${esc(clean(s.text))}<small>${s.ts ? fmtT(s.ts) : "진행 중"}</small></span></div>`).join("")}</div>` +
     `<div class="gd-acts${G.d.contact.phone ? "" : " one"}">${G.d.contact.phone ? `<a class="p" href="tel:${esc(G.d.contact.phone.replace(/[^0-9+]/g, ""))}">JCC에 전화</a>` : ""}` +
-    (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`;
+    (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`)) return;
   const ack = $("#gd-ack");
   if (ack) ack.onclick = async () => { ack.disabled = true;
     const r = await fetch("/api/alarm/ack", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({alarm_id: inc.id, note: "고객 현장 확인", cause: ""})}).catch(() => null);
@@ -2625,16 +2627,24 @@ function paintIncident(inc){
 
 function paintPanels(ps){
   const box = $("#gd-panels");
-  if (!ps.length){ box.innerHTML = `<div class="gd-empty">아직 연결된 판넬이 없습니다.<br>설치가 끝나면 이곳에서 24시간 지켜봅니다.</div>`; return; }
-  box.innerHTML = ps.map(p => {
+  if (!ps.length){ setHTML(box, `<div class="gd-empty">아직 연결된 판넬이 없습니다.<br>설치가 끝나면 이곳에서 24시간 지켜봅니다.</div>`); box._ids = ""; return; }
+  const inner = p => {
     const third = p.contact !== "—" && p.contact !== "정상" ? ["단자 발열", p.contact] : p.fire !== "—" ? ["화재 징조", p.fire]
       : p.dew !== "—" ? ["결로", p.dew] : null;   // 판정할 센서가 없으면 칸을 비우지 않고 뺀다
-    return `<button class="gd-card ${p.status === "ok" ? "" : p.status === "offline" ? "" : p.status}" data-open="${esc(p.panel)}">` +
-      `<span class="h"><i class="gd-dot ${p.status}" aria-hidden="true"></i><b>${esc(p.panel_name)}</b><span>${esc(p.word)}</span></span>` +
+    return `<span class="h"><i class="gd-dot ${p.status}" aria-hidden="true"></i><b>${esc(p.panel_name)}</b><span>${esc(p.word)}</span></span>` +
       `<span class="v"><div><b>${p.temp == null ? "—" : p.temp + "℃"}</b><span>온도</span></div><div><b>${p.humidity == null ? "—" : p.humidity + "%"}</b><span>습도</span></div>` +
       (third ? `<div><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</span>` +
-      (p.why.length && p.status !== "ok" ? `<span class="why">${esc(p.why.slice(0, 2).join(" · "))}</span>` : "") + `</button>`;
-  }).join("");
+      (p.why.length && p.status !== "ok" ? `<span class="why">${esc(p.why.slice(0, 2).join(" · "))}</span>` : "");
+  };
+  const cls = p => "gd-card" + (p.status === "warn" || p.status === "crit" ? " " + p.status : "");
+  const ids = ps.map(p => p.panel).join("\n");
+  if (box._ids === ids){
+    // 판넬 구성이 그대로면 카드 틀은 두고 안쪽만 — 5초 갱신이 키보드 초점·마우스 올림을 날리지 않게
+    [...box.children].forEach((el, i) => { el.className = cls(ps[i]); setHTML(el, inner(ps[i])); });
+    return;
+  }
+  box._ids = ids; box._html = null;
+  box.innerHTML = ps.map(p => `<button class="${cls(p)}" data-open="${esc(p.panel)}">${inner(p)}</button>`).join("");
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openPanel(b.dataset.open));
 }
 
@@ -2655,8 +2665,8 @@ function paintMonth(){
       `<div><span>판넬이 스스로 한 조치<small>환기 ${m.actions.vent} · 히터·팬 ${m.actions.dew}</small></span><b>${m.actions.total}회</b></div>` +
       `<div><span>원격으로 해결<small>현장 출동 없이 다시 잇기</small></span><b>${m.remote}건</b></div>` +
       `<div><span>위험 경보 평균 대응</span><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b></div></div>`;
-  el.innerHTML = head + body + `<div class="gd-docs"><button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>열기 ›</span></button>` +
-    `<button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서 · 고객 서명</span><span>열기 ›</span></button></div>`;
+  if (!setHTML(el, head + body + `<div class="gd-docs"><button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>열기 ›</span></button>` +
+    `<button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서 · 고객 서명</span><span>열기 ›</span></button></div>`)) return;
   $("#gd-mprev").onclick = () => moveMonth(-1);
   $("#gd-mnext").onclick = () => moveMonth(1);
   $("#gd-docs-m").onclick = openMonthly; $("#gd-docs-i").onclick = openInspections;
@@ -2722,7 +2732,8 @@ function monthlyDoc(r){
 async function openInspections(){
   sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="sub">불러오는 중</div>`);
   try { const j = await (await fetch("/api/inspections", {cache:"no-store"})).json();
-    const list = (j.inspections || []).filter(x => x.status === "done");
+    const mine = new Set((G.d.panels || []).map(p => p.panel));   // 직원이 고객사를 골라 미리 볼 때 그 고객사 것만
+    const list = (j.inspections || []).filter(x => x.status === "done" && (!G.cid || mine.has(x.panel)));
     if (!list.length) return sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="gd-empty">아직 완료된 정기 점검이 없습니다.</div>`);
     const W = {ok:"이상 없음", fix:"현장 조치 완료", bad:"조치 필요 항목 있음"};
     sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="sub">고객 확인 서명까지 받은 기록</div><div class="gd-docs">` +

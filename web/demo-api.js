@@ -663,6 +663,7 @@
   }
   function findSensor(pred) {
     for (const dev in S.discovered) for (const s of S.discovered[dev]) {
+      if (panelOf(dev) !== SIM.panel) continue;   // 예지는 주 판넬 센서로만 — 다른 판넬 온습도가 섞이지 않게
       if (s.enabled && pred(s)) return [dev, s.key];
     }
     return null;
@@ -1543,7 +1544,7 @@
         let rows, name;
         if (p.endsWith("alarms.csv")) {
           rows = [["경보번호", "판넬", "기기", "센서", "종류", "심각도", "내용", "발생", "확인", "확인자", "원인", "조치 메모", "해제"]].concat(
-            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, S.panelNames[SIM.panel] || SIM.panel_name,
+            S.alarms.filter(a => a.raised_at >= since).sort((x, y) => y.raised_at - x.raised_at).map(a => [a.id, (panelList().find(p => p.panel === panelOf(a.device_id)) || {}).panel_name || SIM.panel_name,
               a.device_id, a.sensor_key || "", a.kind, a.severity === "crit" ? "위험" : "주의", a.detail || "", t(a.raised_at), t(a.acked_at),
               a.acked_by || "", CAUSE[a.cause] || "", a.ack_note || "", t(a.cleared_at)]));
           name = "jcc-alarms-demo.csv";
