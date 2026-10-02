@@ -860,9 +860,10 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     "ONOFF-HSD200": "온오프 HSD200", "SENSIRION-VOC": "Sensirion VOC", "GENERIC-CO": "CO 트랜스미터(미정)",
   };
 
-  // 스마트 판넬 1개 = CCM 4대 (scanner.py의 _SIM_PANEL과 동일)
+  // 가상 공장(평택 2공장): 주 판넬 1면 = CCM 4대(scanner.py의 _SIM_PANEL과 같은 구성 — 예지·이야기 재생이 여기서) +
+  // 평상시 판넬 5면(각 CCM 1대, 내장 온습도만, 무작위 소동 없음). 직원 화면(노드·현장 목록)과 고객 화면이 같은 6면을 본다.
   const SIM = {
-    panel: "panel-01", panel_name: "스마트 판넬", site: "인터배터리 데모",
+    panel: "panel-01", panel_name: "A동 배터리실 1번", site: "평택 2공장 · 가상 공장",
     ccms: [
       { device_id: "ccm-2661", bus: [
         { ident: "INFRASENSING-H2", address: 1 }, { ident: "SENSIRION-VOC", address: 7 },
@@ -875,8 +876,16 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         { ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "BANNER-QM30VT", address: 3 }] },
       { device_id: "ccm-2664", bus: [
         { ident: "ONOFF-HSD200", address: 4 }, { ident: "BANNER-S15S-T", address: 6 }] },
+      { device_id: "ccm-3101", panel: "panel-02", panel_name: "B동 수배전반", base: [33.0, 41], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
+      { device_id: "ccm-3102", panel: "panel-03", panel_name: "B동 MCC 1", base: [35.1, 39], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
+      { device_id: "ccm-3103", panel: "panel-04", panel_name: "A동 배터리실 2번", base: [29.6, 55], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
+      { device_id: "ccm-3104", panel: "panel-05", panel_name: "생산 라인 제어반", base: [29.8, 47], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
+      { device_id: "ccm-3105", panel: "panel-06", panel_name: "옥외 분전반", base: [22.6, 63], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
     ],
   };
+  const CCM_CFG = Object.fromEntries(SIM.ccms.map(c => [c.device_id, c]));
+  const panelOf = dev => (CCM_CFG[dev] && CCM_CFG[dev].panel) || SIM.panel;
+  const calmDev = dev => !!(CCM_CFG[dev] && CCM_CFG[dev].base);   // 평상시 판넬: 무작위 소동 없이
 
   // ── 상태 ────────────────────────────────────────────────────────────────
   const S = {
@@ -944,8 +953,6 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   // '가상 공장': 실제로 도는 시뮬레이션 판넬 1면(A동 배터리실 1번, 예지·경보·이야기 재생이 여기서 일어남)
   // + 늘 정상인 판넬 5면(값만 천천히 흔들림). 이번 달 장부는 시연용 예시 값(화면에 '가상 공장 · 시연'이라 적는다).
   const GD = { on: false };   // 고객 화면 시연이 켜졌나(평상시를 차분하게 — 직원 시연의 무작위 문 열림·값 고착 없이)
-  const GD_VIRTUAL = [["B동 수배전반", 33.0, 41], ["B동 MCC 1", 35.1, 39], ["A동 배터리실 2번", 29.6, 55],
-    ["생산 라인 제어반", 29.8, 47], ["옥외 분전반", 22.6, 63]];
   const GD_PEN = { crit: 20, warn: 5, offline: 10, fire_watch: 5, caution: 3, life: 3, overdue: 5 }, GD_CAP = { crit: 40, warn: 15 };
   const GD_WORD = { fire: { normal: "낮음", watch: "지켜보는 중", warning: "주의", danger: "위험", critical: "위험" },
     contact: { normal: "정상", watch: "지켜보는 중", warning: "주의", danger: "위험" },
@@ -958,17 +965,10 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   const gdRound = (v, d) => v == null ? null : Math.round(v * 10 ** d) / 10 ** d;
   const gdLife = l => !l ? "부품 점검 시기" : l.includes("접점") ? "단자 점검 시기" : l.includes("→") ? `${l.split("→")[0].trim()} 기준선까지` : l;   // guard.py life_plain
   function gdRows() {
-    const t = now(), fl = fleetView()[0];
-    const rows = [];
-    if (fl) rows.push(Object.assign({}, fl, { panel: fl.panel, panel_name: "A동 배터리실 1번",
-      temp: gdRound(gdKindVal(panelList()[0].ccms, "temp"), 1), humidity: gdRound(gdKindVal(panelList()[0].ccms, "humidity"), 0) }));
-    GD_VIRTUAL.forEach(([nm, tb, hb], i) => rows.push({ panel: "virt-" + i, panel_name: nm, status: "ok", why: [], ccm_online: 1, ccm_total: 1,
-      alarms: { crit: 0, warn: 0, unacked: 0 }, predict: { fire: null, contact: i < 2 ? "normal" : null, dew: i === 4 ? "normal" : null, vent_open: false },
-      life: null, next_inspection: t + (43 + i * 6) * 86400, last_seen: t - 2,
-      temp: Math.round((tb + Math.sin(t / 300 + i) * 0.4) * 10) / 10, humidity: Math.round(hb + Math.sin(t / 500 + i) * 2) }));
-    if (rows[0]) rows[0].next_inspection = t + 43 * 86400;
-    const rank = { crit: 0, offline: 1, warn: 2, ok: 3 };
-    return rows.sort((a, b) => rank[a.status] - rank[b.status]);
+    // 직원 화면 현장 목록(fleetView)과 같은 6면 — 이름·상태·경보가 두 화면에서 같다
+    const pl = Object.fromEntries(panelList().map(p => [p.panel, p]));
+    return fleetView().map(f => Object.assign({}, f, {
+      temp: gdRound(gdKindVal((pl[f.panel] || {}).ccms || [], "temp"), 1), humidity: gdRound(gdKindVal((pl[f.panel] || {}).ccms || [], "humidity"), 0) }));
   }
   function gdScore(rows, t) {
     const items = []; let crit = false, off = 0;
@@ -1023,24 +1023,24 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       .map(e => ({ ts: e.ts, text: e.etype === "escalate" ? "담당자에게 알림을 보냈습니다" : `판넬이 스스로 조치했습니다 — ${e.detail}`, done: true }));
     steps.push(a.acked_at ? { ts: a.acked_at, text: `JCC가 확인했습니다 · ${a.acked_by || ""}`, done: true } : { ts: null, text: "JCC 관제실이 확인하는 중입니다", done: false });
     steps.sort((x, y) => (x.ts == null) - (y.ts == null) || (x.ts || 0) - (y.ts || 0));
-    return { id: a.id, panel: rows[0] ? rows[0].panel : "", panel_name: "A동 배터리실 1번", sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
+    const pid = panelOf(a.device_id);
+    return { id: a.id, panel: pid, panel_name: (rows.find(r => r.panel === pid) || {}).panel_name || pid, sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
       detail: a.detail || a.kind, raised_at: a.raised_at, acked_at: a.acked_at, steps };
   }
   function guardDemo() {
     GD.on = true;
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
-    return { site: "평택 2공장 · 가상 공장 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
+    return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
       incident: gdIncident(rows), contact: { phone: "", engineer: "김현장", desk: "JCC 관제실" },
-      next_inspection: t + 43 * 86400, month: gdMonth(""), demo: true };
+      next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
   }
   function guardPanelDemo(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
-    const live = pid === (panelList()[0] || {}).panel;
+    const devs = new Set(((panelList().find(p => p.panel === pid) || {}).ccms || []).map(c => c.device_id).concat([pid]));
     const SELF = ["vent_open", "vent_close", "vent_hold", "dew_actuate", "edge_actuate"];
-    const tl = live ? S.events.filter(e => SELF.includes(e.etype) || e.etype === "ack" || ["fire", "contact", "dew", "alarm", "alarm_warn"].includes(e.etype))
-      .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: e.detail }))
-      : [{ ts: now() - 9 * 86400, who: "JCC 점검", text: "정기 점검 완료 · 이상 없음 (고객 확인 서명)" }];
+    const tl = S.events.filter(e => devs.has(e.device_id) && (SELF.includes(e.etype) || e.etype === "ack" || ["fire", "contact", "dew", "alarm", "alarm_warn"].includes(e.etype)))
+      .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: e.detail }));
     return { panel: gdModel(row), timeline: tl };
   }
   // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
@@ -1236,8 +1236,11 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
   const rnd = () => Math.random();
   const gauss = (m, s) => m + s * (Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd()));
-  function genValue(key, kind, t) {
-    if (!GD.on && rnd() < 0.03) return null;   // 고객 화면 시연(GD.on)은 무작위 소동 없이 — 이야기 재생만 화면을 움직인다
+  function genValue(key, kind, t, dev) {
+    const cfg = dev && CCM_CFG[dev], calm = GD.on || calmDev(dev);
+    if (cfg && cfg.base && kind === "temp") return Math.round((cfg.base[0] + Math.sin(t / 300 + cfg.base[1]) * 0.4) * 100) / 100;
+    if (cfg && cfg.base && kind === "humidity") return Math.round((cfg.base[1] + Math.sin(t / 500 + cfg.base[0]) * 2) * 100) / 100;
+    if (!calm && rnd() < 0.03) return null;   // 고객 화면 시연(GD.on)은 무작위 소동 없이 — 이야기 재생만 화면을 움직인다
     let v;
     if (key.includes("temp") || kind === "temp") v = 27 + 3 * Math.sin(t / 30) + (rnd() - 0.5) * 0.6;
     else if (key.includes("humid") || kind === "humidity") v = 45 + 8 * Math.sin(t / 45) + (rnd() - 0.5) * 2;
@@ -1249,7 +1252,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
     else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
     else v = Math.max(0, gauss(40, 3));
-    if (!GD.on && rnd() < 0.06) {
+    if (!calm && rnd() < 0.06) {
       for (const k in SPIKE) if (key.includes(k) || kind === k) return SPIKE[k];
     }
     return Math.round(v * 100) / 100;
@@ -1277,7 +1280,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (healDevAt[dev]) { delete healDevAt[dev]; delete ccmDrop[dev]; }
       // 드물게 CCM 전체가 한동안 침묵(게이트웨이 두절) → watchdog가 CCM 침묵으로 잡고 L2가 복구
       if (wall < (ccmDrop[dev] || 0)) continue;
-      if (!GD.on && rnd() < 0.0015) { ccmDrop[dev] = wall + 120; continue; }   // CCM마다 드물게(4대 합쳐 몇 분에 한 번꼴)
+      if (!GD.on && !calmDev(dev) && rnd() < 0.0015) { ccmDrop[dev] = wall + 120; continue; }   // CCM마다 드물게(4대 합쳐 몇 분에 한 번꼴)
       let sent = 0;
       for (const s of S.discovered[dev]) {
         if (!s.enabled) continue;
@@ -1286,15 +1289,15 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         // 자가치유(L1)가 이 채널을 재시작했으면 진행 중이던 일시 장애(침묵·고착·이상)를 해제
         if (healAt[sk]) { delete healAt[sk]; delete drop[sk]; delete stuckU[sk]; delete anomU[sk]; }
         if (wall < (drop[sk] || 0)) continue;                 // 침묵 구간
-        if (!GD.on && rnd() < 0.004) { drop[sk] = wall + 70; continue; } // 침묵 시작(드물게 — 잦으면 예지 입력이 자주 끊김)
-        let val = genValue(s.key, s.kind, t);
+        if (!GD.on && !calmDev(dev) && rnd() < 0.004) { drop[sk] = wall + 70; continue; } // 침묵 시작(드물게 — 잦으면 예지 입력이 자주 끊김)
+        let val = genValue(s.key, s.kind, t, dev);
         const ov = epiOverride(wall, s.key, s.kind, val);      // 예지 에피소드 오버라이드(임계 前 상승)
         if (ov != null) val = ov;
         else if (wall < (stuckU[sk] || 0)) val = stuckV[sk];        // 고착
         else if (wall < (anomU[sk] || 0)) val = Math.round(anomB[sk] * (1 + (rnd() - 0.5) * 0.06) * 100) / 100;
-        else if (!GD.on && rnd() < 0.008) {
+        else if (!GD.on && !calmDev(dev) && rnd() < 0.008) {
           for (const k in ANOM) if (s.key.includes(k) || s.kind === k) { anomU[sk] = wall + 40; anomB[sk] = ANOM[k]; val = ANOM[k]; break; }
-        } else if (!GD.on && rnd() < 0.01) { stuckU[sk] = wall + 50; stuckV[sk] = val; }
+        } else if (!GD.on && !calmDev(dev) && rnd() < 0.01) { stuckU[sk] = wall + 50; stuckV[sk] = val; }
 
         const arr = S.readings[sk] || (S.readings[sk] = []);
         arr.push({ value: val, ok: val != null ? 1 : 0, ts: wall });
@@ -1388,7 +1391,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
           else if (sprev == null) S.liveState[sk] = "down";
         }
         // 건강(고착·드리프트·이상) — 살아있는 센서만
-        if (!up || (t - lt) >= SEN_TO || GD.on) continue;
+        if (!up || (t - lt) >= SEN_TO || GD.on || calmDev(dev)) continue;
         const st = historyStats(dev, s.key);
         let state = "ok", anom = null;
         if (st.stuck && s.kind !== "smoke") state = "stuck";   // 접점(열연기)은 늘 0이 정상 — 고착 판정 제외
@@ -1589,7 +1592,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
   function incidentList(alarms) {
     const sensors = {}, panels = {};
-    for (const dev in S.discovered) { panels[dev] = SIM.panel; for (const s of S.discovered[dev]) sensors[dev + ":" + s.key] = s.kind || ""; }
+    for (const dev in S.discovered) { panels[dev] = panelOf(dev); for (const s of S.discovered[dev]) sensors[dev + ":" + s.key] = s.kind || ""; }
     return groupAlarms(alarms, sensors, panels);
   }
 
@@ -1615,8 +1618,9 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
           setpoint: us.setpoint != null ? us.setpoint : null, relays };
       });
       const ls = S.lastSeen[dev] || 0;
-      return { device_id: dev, site: SIM.site, panel: SIM.panel,
-        panel_name: S.panelNames[SIM.panel] || SIM.panel_name,
+      const pid = panelOf(dev);
+      return { device_id: dev, site: SIM.site, panel: pid,
+        panel_name: S.panelNames[pid] || (CCM_CFG[dev] && CCM_CFG[dev].panel_name) || SIM.panel_name,
         first_seen: S.t0, last_seen: ls, online: ls > 0 && (t - ls) < 60,
         discovered: true, latest: sensors };
     });
@@ -1624,8 +1628,10 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   function panelList() {
     const devs = deviceList();
     if (!devs.length) return [];
-    return [{ panel: SIM.panel, panel_name: S.panelNames[SIM.panel] || SIM.panel_name,
-      site: SIM.site, ccms: devs, online: devs.some(d => d.online), ccm_count: devs.length }];
+    const by = new Map();
+    devs.forEach(d => { if (!by.has(d.panel)) by.set(d.panel, []); by.get(d.panel).push(d); });
+    return [...by].map(([pid, ccms]) => ({ panel: pid, panel_name: ccms[0].panel_name, site: SIM.site, ccms,
+      online: ccms.some(d => d.online), ccm_count: ccms.length }));
   }
   function diagnose(dev, key, quiet) {
     const t = now(), d = deviceList().find(x => x.device_id === dev);
@@ -1992,14 +1998,18 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
 
   // ── 현장 목록 (데모: 서버 fleet.py와 같은 모양·규칙. 데모는 판넬 1개) ──
+  // 시연용 정기 점검 예정일(판넬마다 43일 뒤부터 6일 간격) — 점검 기록이 생기면 그 기록의 다음 예정일이 우선
+  function demoDue(pid) { const i = Math.max(0, SIM.ccms.filter(c => !c.panel || c.panel).map(c => c.panel || SIM.panel).filter((v, k, a) => a.indexOf(v) === k).indexOf(pid));
+    return (S.t0 || now()) + (43 + i * 6) * 86400; }
   function fleetView() {
     const t = now(), pv = predView()[0] || {}, life = (rulView()[0] || {}).items || [];
     return panelList().map(p => {
       const keys = new Set([p.panel, ...p.ccms.map(c => c.device_id)]);
       const al = S.alarms.filter(a => !a.cleared_at && keys.has(a.device_id));
       const crit = al.filter(a => a.severity === "crit").length, on = p.ccms.filter(c => c.online).length;
-      const f = pv.fire || {}, c = pv.contact || {}, d = pv.dew || {};
-      const near = life.find(i => i.status === "reached" || i.status === "ok");
+      const main = p.panel === SIM.panel;
+      const f = (main && pv.fire) || {}, c = (main && pv.contact) || {}, d = (main && pv.dew) || {};
+      const near = main ? life.find(i => i.status === "reached" || i.status === "ok") : null;
       let why = [], status;
       if (crit) why.push(`위험 경보 ${crit}`);
       if (["danger", "critical"].includes(f.stage)) why.push(`화재 징조(FRI ${f.fri})`);
@@ -2023,7 +2033,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         predict: { fire: f.stage, fri: f.fri, contact: c.stage, dew: d.stage, vent_open: !!(f.vent && f.vent.open) },
         life: near ? { label: near.label, say: near.say, days: near.days, status: near.status } : null,
         commission: cm ? { overall: cm.overall, ts: cm.ts } : null,
-        next_inspection: (PCHKD.list.filter(x => x.panel === p.panel && x.status === "done").sort((a, b) => b.done_at - a.done_at)[0] || {}).next_due || null,
+        next_inspection: (PCHKD.list.filter(x => x.panel === p.panel && x.status === "done").sort((a, b) => b.done_at - a.done_at)[0] || {}).next_due
+          || demoDue(p.panel),
         sensors: p.ccms.reduce((n, x) => n + (x.latest || []).length, 0), age: ls ? Math.round(t - ls) : null };
     });
   }
@@ -2179,7 +2190,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
   const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true }], owner: {}, receivers: {}, users: [], seq: 2 };
-  ACC.owner[SIM.panel] = 1;                      // 시연: 데모 판넬은 데모 고객사 소속
+  SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
   function accView() {
