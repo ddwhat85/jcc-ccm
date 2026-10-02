@@ -102,7 +102,7 @@ def _session_token() -> str:
 #   self   : 로그인만(비번 변경 전이어도)                read   : 모든 등급, 응답을 계정 범위로 거름
 #   operate: JCC 관리자·고객 담당자(대상이 범위 안일 때)  admin  : JCC 관리자만
 ROUTES = [
-    ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/predict-core.js", "public"),
+    ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/guard", "public"), ("GET", "/predict-core.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
     ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
     ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
@@ -129,6 +129,7 @@ ROUTES = [
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
     ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"), ("GET", "/api/alarms/history", "read"),
     ("GET", "/api/handover", "read"), ("POST", "/api/handover/seen", "read"),
+    ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -291,6 +292,34 @@ class Handler(BaseHTTPRequestHandler):
         return {"panels": set(self._scope()["panels"]) & every, "customer_id": u["customer_id"],
                 "blocked": "", "excluded": 0}
 
+    def _guard(self, path: str, q: dict, sc) -> None:
+        """고객 화면 데이터. 고객은 자기 고객사 판넬만, JCC 직원은 customer_id로 미리보기(없으면 전체)."""
+        from . import guard
+        from .monthly import valid_period
+        custs = {c["id"]: c["name"] for c in self.storage.accounts.list_customers()}
+        if sc is not None:
+            panels, site = set(sc["panels"]), custs.get(self._user().get("customer_id"), "우리 공장")
+        else:
+            try:
+                cid = int((q.get("customer_id") or [""])[0])
+            except ValueError:
+                cid = None
+            if cid in custs:
+                owner = self.storage.accounts.panel_owner_map()
+                panels, site = {p for p, c in owner.items() if c == cid}, custs[cid]
+            else:
+                panels, site = None, "전체 현장 · JCC 미리보기"
+        if path == "/api/guard":
+            return self._json(guard.guard_view(self.storage, panels, site))
+        if path == "/api/guard/month":
+            period = (q.get("period") or [""])[0]
+            if not valid_period(period):
+                return self._json({"error": "달은 YYYY-MM 형식입니다"}, 400)
+            return self._json(guard.month_view(self.storage, panels, period))
+        pid = (q.get("panel") or [""])[0]
+        d = guard.panel_detail(self.storage, pid) if panels is None or pid in panels else None
+        return self._json(d) if d else self._json({"error": "볼 수 없는 판넬입니다"}, 404)
+
     def _inspection(self, action: str) -> None:
         """정기 점검 쓰기(JCC 관리자): start·save·photo·photo_delete·complete."""
         from . import inspection as insp
@@ -391,6 +420,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             return self._serve_dashboard()
+        if path == "/guard":                    # 고객 화면(JCC GUARD) — 로그인 화면이 그 안에 있다
+            return self._serve_dashboard("guard.html")
         if path == "/predict-core.js":          # 판정 코어(JS) — 화면 코드일 뿐 현장 데이터는 없다
             return self._serve_static_js("predict-core.js")
         if path == "/health":
@@ -519,6 +550,8 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path in ("/api/guard", "/api/guard/month", "/api/guard/panel"):   # 고객 화면 데이터
+            return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
             from .handover import summary
             return self._json(summary(self.storage, self._user()["username"],
@@ -1315,13 +1348,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "not found"}, 404)
         self._text(src, 200, "application/javascript; charset=utf-8")
 
-    def _serve_dashboard(self) -> None:
-        index = os.path.join(_STATIC_DIR, "index.html")
+    def _serve_dashboard(self, name: str = "index.html") -> None:
+        index = os.path.join(_STATIC_DIR, name)
         try:
             with open(index, "r", encoding="utf-8") as fh:
                 html = fh.read()
         except OSError:
-            return self._text("대시보드 파일(static/index.html)이 없습니다.", 500)
+            return self._text(f"화면 파일(static/{name})이 없습니다.", 500)
         self._text(html, 200, "text/html; charset=utf-8")
 
 
