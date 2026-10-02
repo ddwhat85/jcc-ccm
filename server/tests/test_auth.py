@@ -54,7 +54,9 @@ def run():
     try:
         print("=== 운영 로그인 ===")
         s, html = call("/")
-        check("미로그인에도 화면 껍데기(터미널 로그인 포함)는 받음", s == 200 and 'id="boot"' in html)
+        check("첫 화면(/)은 고객 화면 JCC GUARD", s == 200 and "JCC GUARD" in html and 'id="gd-login"' in html)
+        s, html = call("/ops")
+        check("운영자 화면(/ops) 껍데기(터미널 로그인 포함)는 받음", s == 200 and 'id="boot"' in html)
         check("예전 별도 로그인 페이지는 없음", "접근 인증" not in html)
         s, _ = call("/api/panels")
         check("미로그인 데이터 API는 401", s == 401)

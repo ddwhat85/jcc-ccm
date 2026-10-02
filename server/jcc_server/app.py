@@ -9,7 +9,8 @@
   GET  /api/panels               판넬 단위로 묶은 목록 (판넬 1개 = CCM 여러 대)
   GET  /api/devices/{id}/history?sensor=KEY&limit=N   센서 이력
   GET  /health                   상태 확인
-  GET  /                         대시보드 (static/index.html)
+  GET  /                         고객 화면 JCC GUARD (static/guard.html) — 누구든 여기로 먼저
+  GET  /ops                      운영자 화면 (static/index.html) — 운영자 계정으로만 데이터가 열린다
 """
 from __future__ import annotations
 
@@ -102,7 +103,7 @@ def _session_token() -> str:
 #   self   : 로그인만(비번 변경 전이어도)                read   : 모든 등급, 응답을 계정 범위로 거름
 #   operate: JCC 관리자·고객 담당자(대상이 범위 안일 때)  admin  : JCC 관리자만
 ROUTES = [
-    ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/guard", "public"), ("GET", "/predict-core.js", "public"),
+    ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/guard", "public"), ("GET", "/ops", "public"), ("GET", "/predict-core.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
     ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
     ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
@@ -418,10 +419,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         sc = self._scope()
 
-        if path in ("/", "/index.html"):
-            return self._serve_dashboard()
-        if path == "/guard":                    # 고객 화면(JCC GUARD) — 로그인 화면이 그 안에 있다
+        if path in ("/", "/guard"):             # 첫 화면은 무조건 고객 화면(JCC GUARD) — 로그인이 그 안에 있다
             return self._serve_dashboard("guard.html")
+        if path in ("/ops", "/index.html"):     # 운영자 화면 — 껍데기는 공개, 데이터·조작은 운영자 로그인 뒤(고객 계정은 / 로 돌려보냄)
+            return self._serve_dashboard()
         if path == "/predict-core.js":          # 판정 코어(JS) — 화면 코드일 뿐 현장 데이터는 없다
             return self._serve_static_js("predict-core.js")
         if path == "/health":

@@ -4545,12 +4545,14 @@ $("#btn-ho").onclick = openHandover;
 // 시연판(build_web이 GUARD_SRC를 싣는다)은 같은 페이지 안에 고객 화면을 겹으로 띄운다 — 링크 하나로 두 화면,
 // 같은 데모 백엔드라 고객 화면에서 이야기를 재생하면 직원 화면에도 그 경보가 그대로 뜬다. 실서버는 새 탭 /guard.
 function openGuardView(){
-  if (!window.GUARD_SRC){ window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener"); return; }
+  if (!window.GUARD_SRC){ if (window.JCC_DEMO) window.open("guard.html", "_blank", "noopener"); else location.href = "/"; return; }
   if ($("#gv-layer")) return;
   const L = document.createElement("div"); L.className = "gv-layer"; L.id = "gv-layer";
   L.setAttribute("role", "dialog"); L.setAttribute("aria-modal", "true"); L.setAttribute("aria-label", "고객 화면 미리보기");
-  L.innerHTML = `<div class="gv-bar"><b>고객 화면</b><span class="gv-sp">JCC GUARD<span> — 고객 계정으로 로그인하면 이 화면이 보입니다</span></span>` +
-    `<button type="button" id="gv-close">직원 화면으로</button></div><iframe title="고객 화면 JCC GUARD"></iframe>`;
+  // 운영자 로그인 전(부팅 로그인이 남아 있음)이면 '운영자 접속', 로그인 뒤면 '운영자 화면으로'
+  const opsIn = !document.getElementById("boot");
+  L.innerHTML = `<div class="gv-bar"><b>고객 화면</b><span class="gv-sp">JCC GUARD<span> — 로그인하면 누구나 이 화면이 먼저 보입니다</span></span>` +
+    `<button type="button" id="gv-close">${opsIn ? "운영자 화면으로" : "운영자 접속"}</button></div><iframe title="고객 화면 JCC GUARD"></iframe>`;
   document.body.appendChild(L);
   L.querySelector("iframe").srcdoc = window.GUARD_SRC;
   document.querySelectorAll(".mb-view [data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === "guard")));
@@ -4561,6 +4563,8 @@ function openGuardView(){
   setTimeout(() => $("#gv-close").focus(), 30);
 }
 $("#btn-guard").onclick = openGuardView;
+// 시연판은 고객 화면이 먼저 — 노드·배선 같은 운영자 화면은 '운영자 접속'(시연 운영자 계정 로그인) 뒤에
+if (window.GUARD_SRC) openGuardView();
 $("#ho-close").onclick = $("#ho-later").onclick = () => $("#ho-overlay").classList.remove("open");
 $("#ho-seen").onclick = async () => {
   try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
@@ -5133,7 +5137,7 @@ const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 �
 const acctEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function applyAcct(u){
   // 고객 계정(담당자·보기 전용)은 고객 화면(JCC GUARD)으로 — 이 화면은 JCC 직원 도구다. 시연판은 그대로
-  if (u && u.role !== "admin" && !window.JCC_DEMO){ location.replace("/guard"); return; }
+  if (u && u.role !== "admin" && !window.JCC_DEMO){ location.replace("/"); return; }   // 운영자 화면은 운영자 계정만
   window.__jccUser = u || null;
   document.body.dataset.acct = u ? u.role : "admin";
   document.body.dataset.acctdb = u && !u.env ? "1" : "0";

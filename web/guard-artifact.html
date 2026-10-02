@@ -203,9 +203,11 @@
   /* 바로 가기 — 휴대폰은 아래 고정 메뉴, PC는 머리의 '보고서' 버튼 */
   .gd-txt{font:600 var(--t-cap) var(--sans);color:var(--ink);background:transparent;border:1px solid var(--line);
     border-radius:var(--pill);padding:0 16px;height:40px;cursor:pointer;flex:none}
+  .gd-ops{display:inline-flex;align-items:center;text-decoration:none}
   .gd-tab{display:none}
   @media (max-width:760px){
     .gd-txt{display:none}
+    .gd-txt.gd-ops{display:inline-flex}   /* 운영자 화면 길은 휴대폰에서도 */
     .gd-app{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
     .gd-tab{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;z-index:30;
       background:var(--card);border-top:1px solid var(--line);padding:4px 6px calc(4px + env(safe-area-inset-bottom,0px))}
@@ -257,6 +259,7 @@
     <span class="gd-site" id="gd-site"></span>
     <span class="sp"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
+    <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
     <button class="gd-txt" id="gd-docs-h">보고서</button>
     <button class="gd-ico" id="gd-theme" aria-label="밤·낮 화면 바꾸기" title="밤·낮 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
     <button class="gd-ico" id="gd-out" aria-label="로그아웃" title="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
@@ -2528,6 +2531,8 @@ async function start(s){
   $("#gd-login").hidden = true; $("#gd-app").hidden = false;
   const admin = !s.enabled || (s.user && s.user.role === "admin");
   if (window.JCC_DEMO) story(); else if (admin) pickers();
+  // 운영자 계정(실서버)만 운영자 화면으로 가는 길 — 시연판은 바깥 창의 '운영자 접속'을 쓴다
+  $("#gd-ops").hidden = !(s.enabled && s.user && s.user.role === "admin") || !!window.JCC_DEMO;
   $("#gd-out").hidden = !s.enabled;
   await load(); clearInterval(G.timer); G.timer = setInterval(load, 5000);
 }
