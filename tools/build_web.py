@@ -29,6 +29,31 @@ BANNER = (
 )
 
 
+def _artifact(html: str, core_js: str, tuning_js: str, api_src: str) -> str:
+    """호스팅 페이지(Artifact 등)용 자기완결 본문. 호스트가 <html>/<head>/<body> 뼈대를 씌우므로 그 태그를 빼고,
+    외부 스크립트(판정 코어·튜닝 데이터·데모 백엔드)는 통째로 인라인한다. 치환값은 함수로 넘긴다 —
+    문자열로 넘기면 JS 안의 역슬래시가 re 이스케이프로 해석된다."""
+    body = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.I)
+    for tag in ("html", "head", "body"):
+        body = re.sub(r"</?" + tag + r"[^>]*>", "", body, flags=re.I)
+    body = re.sub(r"<meta[^>]*>", "", body, flags=re.I)
+    body = re.sub(r"<!-- 이 파일은 tools/build_web\.py 가 생성합니다\..*?-->\n", "", body, count=1, flags=re.S).lstrip()
+    body = re.sub(r'<script src="predict-core\.js[^"]*"></script>',
+                  lambda _m: "<script>\n" + core_js + "\n</script>", body, count=1)
+    body = re.sub(r'<script src="tuning-data\.js[^"]*"></script>',
+                  lambda _m: "<script>\n" + tuning_js + "\n</script>", body, count=1)
+    if api_src:
+        body = re.sub(r'<script src="demo-api\.js[^"]*"></script>',
+                      lambda _m: "<script>\n" + api_src + "\n</script>", body, count=1)
+    # 인코딩 선언은 반드시 남긴다(위에서 <meta>를 전부 지웠다) — 호스트가 charset을 안 붙여도 한글이 안 깨지게
+    body = '<meta charset="utf-8">\n' + body.lstrip()
+    # 아티팩트는 글꼴 파일을 함께 올리지 않으므로 서버 보관 글꼴 블록을 구글 글꼴 불러오기로 바꾼다
+    return re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/",
+                  lambda _m: '@import url("https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;500;600;700;800'
+                             '&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");',
+                  body, count=1, flags=re.S)
+
+
 def main() -> int:
     if not os.path.isfile(SRC_HTML):
         print(f"원본을 찾을 수 없습니다: {SRC_HTML}")
@@ -96,38 +121,27 @@ def main() -> int:
         for name in os.listdir(src_fonts):
             shutil.copy2(os.path.join(src_fonts, name), os.path.join(dst_fonts, name))
 
-    # 호스팅 페이지(Artifact 등)는 자체 <html>/<head>/<body> 뼈대를 씌우므로,
-    # 그 태그를 뺀 본문 전용판도 만든다(title·style은 맨 앞에 유지).
-    body_only = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.I)
-    body_only = re.sub(r"</?html[^>]*>", "", body_only, flags=re.I)
-    body_only = re.sub(r"</?head[^>]*>", "", body_only, flags=re.I)
-    body_only = re.sub(r"</?body[^>]*>", "", body_only, flags=re.I)
-    body_only = re.sub(r"<meta[^>]*>", "", body_only, flags=re.I)
-    body_only = body_only.replace(BANNER, "", 1).lstrip()
-    # 아티팩트/호스팅 불확실성 제거: demo-api.js를 외부 참조 대신 통째로 인라인한다
-    # (별도 파일·쿼리스트링 처리에 의존하지 않는 자기완결형 페이지).
-    # 치환값은 함수로 넘긴다 — 문자열로 넘기면 JS 안의 역슬래시가 re 이스케이프로 해석된다.
-    body_only = re.sub(r'<script src="predict-core\.js[^"]*"></script>',
-                       lambda _m: "<script>\n" + core_js + "\n</script>", body_only, count=1)
-    body_only = re.sub(r'<script src="tuning-data\.js[^"]*"></script>',
-                       lambda _m: "<script>\n" + tuning_js + "\n</script>", body_only, count=1)
+    api_src = ""
     if os.path.isfile(api_path):
         with open(api_path, "r", encoding="utf-8") as fh:
             api_src = fh.read()
-        body_only = re.sub(
-            r'<script src="demo-api\.js[^"]*"></script>',
-            lambda _m: "<script>\n" + api_src + "\n</script>",
-            body_only, count=1)
-    # 인코딩 선언은 반드시 남긴다 — 위에서 <meta>를 전부 지웠으므로 charset을 다시 넣는다.
-    # (호스트가 UTF-8 charset을 안 붙여주는 환경에서 한글이 깨지는 것을 막는다.)
-    body_only = '<meta charset="utf-8">\n' + body_only.lstrip()
-    # 아티팩트는 글꼴 파일을 함께 올리지 않으므로 서버 보관 글꼴 블록을 구글 글꼴 불러오기로 바꾼다
-    body_only = re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/",
-                       lambda _m: '@import url("https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700;800'
-                                  '&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");',
-                       body_only, count=1, flags=re.S)
+    body_only = _artifact(html, core_js, tuning_js, api_src)
     with open(os.path.join(OUT, "artifact.html"), "w", encoding="utf-8") as fh:
         fh.write(body_only)
+
+    # 고객 화면(JCC GUARD) 시연판: 같은 데모 백엔드(판정 코어·튜닝 데이터 포함)를 첫 스크립트 앞에 끼운다
+    src_guard = os.path.join(ROOT, "server", "static", "guard.html")
+    if os.path.isfile(src_guard):
+        with open(src_guard, "r", encoding="utf-8") as fh:
+            g = fh.read()
+        gi = g.find("<script>")
+        g = (BANNER.replace("index.html", "guard.html") + g[:gi]
+             + f'<script src="predict-core.js{core_ver}"></script>\n<script src="tuning-data.js{tuning_ver}"></script>\n'
+             + f'<script src="demo-api.js{ver}"></script>\n' + g[gi:])
+        with open(os.path.join(OUT, "guard.html"), "w", encoding="utf-8") as fh:
+            fh.write(g)
+        with open(os.path.join(OUT, "guard-artifact.html"), "w", encoding="utf-8") as fh:
+            fh.write(_artifact(g, core_js, tuning_js, api_src))
 
     imgs = len(os.listdir(dst_img)) if os.path.isdir(dst_img) else 0
     print(f"빌드 완료 → {OUT}")

@@ -12,6 +12,9 @@ from datetime import datetime, timedelta, timezone
 
 KST = timezone(timedelta(hours=9))
 PENALTY = {"crit": 20, "warn": 5, "offline": 10, "fire_watch": 5, "caution": 3, "life": 3, "overdue": 5}
+# 한 판넬에서 경보가 줄줄이 나도(화재 때 여러 센서가 함께 넘음) 그 판넬 감점은 여기까지 — 0점은 고장난 화면처럼 보인다
+PANEL_CAP = {"crit": 40, "warn": 15}
+_INC_ORDER = {"fire": 0, "contact": 1, "actuator_fault": 2}   # 위험 순간 머리기사: 화재·단자 과열을 먼저
 LIFE_DAYS = 60                 # 남은 여유가 이 안이면 감점
 PATROLS_PER_DAY = 3            # 순찰 비교 추정의 기준(화면에 밝힌다)
 _WATCH = ("watch", "warning")
@@ -35,9 +38,9 @@ def score(rows: list, now: float) -> dict:
         nm, al, pr = p["panel_name"], p.get("alarms") or {}, p.get("predict") or {}
         if al.get("crit"):
             crit_any = True
-            items.append({"text": f"{nm} 위험 경보 {al['crit']}건", "minus": PENALTY["crit"] * al["crit"]})
+            items.append({"text": f"{nm} 위험 경보 {al['crit']}건", "minus": min(PANEL_CAP["crit"], PENALTY["crit"] * al["crit"])})
         if al.get("warn"):
-            items.append({"text": f"{nm} 주의 경보 {al['warn']}건", "minus": PENALTY["warn"] * al["warn"]})
+            items.append({"text": f"{nm} 주의 경보 {al['warn']}건", "minus": min(PANEL_CAP["warn"], PENALTY["warn"] * al["warn"])})
         off = max(0, (p.get("ccm_total") or 0) - (p.get("ccm_online") or 0))
         if off:
             off_total += off
@@ -130,7 +133,7 @@ def _incident(storage, rows, lat, panels):
     act = [a for a in storage.list_active_alarms() if a.get("severity") == "crit" and (keys is None or a.get("device_id") in keys)]
     if not act:
         return None
-    a = max(act, key=lambda x: x["raised_at"])
+    a = min(act, key=lambda x: (_INC_ORDER.get(x["kind"], 9), -x["raised_at"]))
     pid = next((pn for pn, d in lat.items() if a["device_id"] in d["keys"]), a["device_id"])
     pname = next((r["panel_name"] for r in rows if r["panel"] == pid), pid)
     names = (lat.get(pid) or {}).get("names", {})

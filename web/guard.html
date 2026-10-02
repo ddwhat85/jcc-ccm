@@ -1,3 +1,5 @@
+<!-- 이 파일은 tools/build_web.py 가 생성합니다. 직접 고치지 마세요.
+     화면을 바꾸려면 server/static/guard.html 을 고치고 다시 빌드하세요. -->
 <!doctype html>
 <html lang="ko">
 <head>
@@ -275,6 +277,9 @@
   <div id="gd-sheet-body"></div></div>
 <div class="gd-toast" id="gd-toast" role="status"></div>
 
+<script src="predict-core.js?v=715bbefa"></script>
+<script src="tuning-data.js?v=06a3f067"></script>
+<script src="demo-api.js?v=83213811"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));

@@ -1697,6 +1697,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
+        <button class="mb-item jcc-admin" id="btn-guard">고객 화면으로 보기</button>
         <div class="mb-div"></div>
         <button class="mb-item acct-db" id="btn-mypw">내 비번 변경</button>
         <button class="mb-item" id="btn-logout">로그아웃</button>
@@ -4403,7 +4404,7 @@ const QK_CMDS = [
   ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
   ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
   ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
-  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
+  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["고객 화면으로 보기 · JCC GUARD", () => $("#btn-guard").click(), true], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
   ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["기간 리포트", () => $("#btn-report").click()],
 ];
@@ -4529,6 +4530,8 @@ async function hoAuto(){
     $("#ho-overlay").classList.add("open"); hoPaint(d); } catch(_){}
 }
 $("#btn-ho").onclick = openHandover;
+// 고객이 보는 화면(JCC GUARD)을 새 탭으로 — 머리에서 고객사를 골라 그대로 미리 본다
+$("#btn-guard").onclick = () => window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener");
 $("#ho-close").onclick = $("#ho-later").onclick = () => $("#ho-overlay").classList.remove("open");
 $("#ho-seen").onclick = async () => {
   try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
@@ -5100,6 +5103,8 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#aiq-ov
 const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 전용"};
 const acctEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function applyAcct(u){
+  // 고객 계정(담당자·보기 전용)은 고객 화면(JCC GUARD)으로 — 이 화면은 JCC 직원 도구다. 시연판은 그대로
+  if (u && u.role !== "admin" && !window.JCC_DEMO){ location.replace("/guard"); return; }
   window.__jccUser = u || null;
   document.body.dataset.acct = u ? u.role : "admin";
   document.body.dataset.acctdb = u && !u.env ? "1" : "0";
