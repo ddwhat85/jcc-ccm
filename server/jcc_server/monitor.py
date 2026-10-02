@@ -88,9 +88,16 @@ def start(storage, interval: float = 10) -> None:
                     generate_due(storage, now)
                     from .rul import rollup                  # 남은 여유 예측: 하루 대표값 갱신(문자 없음)
                     rollup(storage, now)
-                if now - last_prune > 3600:                  # 1시간마다 보존 정리
+                if now - last_prune > 3600:                  # 1시간마다 보존 정리 + 오늘 자동 백업(하루 한 번)
                     last_prune = now
                     storage.prune(readings_days=keep_readings, events_days=keep_events)
+                    try:
+                        from .backup import daily
+                        made = daily(storage, now)
+                        if made:
+                            storage.log_event("", "", "account", f"데이터 자동 백업: {made['name']}", source="system")
+                    except Exception:  # noqa: BLE001 - 백업 실패가 감시를 멈추면 안 된다
+                        pass
             except Exception:  # noqa: BLE001 - 감시는 죽지 않아야 한다
                 pass
             time.sleep(interval)

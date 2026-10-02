@@ -31,7 +31,7 @@ GETS = [
     "/api/fleet", "/api/panels", "/api/devices", "/api/incidents", "/api/alarms/history?days=30",
     "/api/report?days=7", "/api/monthly", "/api/commission/reports", "/api/inspections",
     "/api/inspection?panel=p1", "/api/predict", "/api/rul", "/api/events", "/api/ai/status",
-    "/api/admin/accounts", "/api/tuning/config", "/api/tuning/params", "/api/tuning/scenarios",
+    "/api/admin/accounts", "/api/admin/backups", "/api/tuning/config", "/api/tuning/params", "/api/tuning/scenarios",
     "/api/sensor/profiles", "/api/sensor/manual?device_id=ccm-1", "/api/heal/config",
     "/api/devices/ccm-1/history?sensor=t",
     "/api/export/alarms.csv?days=7", "/api/export/readings.csv?days=1&device_id=ccm-1&sensor=t",

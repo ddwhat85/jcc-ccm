@@ -1430,6 +1430,7 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "backup_now") return [{ error: "시연판에는 서버가 없어 백업을 만들 수 없습니다 — 운영 서버에서는 매일 자동으로 남습니다" }, 400];
     if (action === "contact") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
       if (ph && (dg < 9 || dg > 13)) return [{ error: "전화번호를 확인하세요 (숫자 9~13자리)" }, 400];
@@ -1530,6 +1531,7 @@
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/admin/backups") return Promise.resolve(J({ backups: [], keep_days: 7, demo: true }));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));

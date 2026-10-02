@@ -1693,6 +1693,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
+        <button class="mb-item jcc-admin" id="btn-bk">데이터 백업</button>
         <button class="mb-item jcc-admin" id="btn-guard">고객 화면으로 보기</button>
         <div class="mb-div"></div>
         <button class="mb-item acct-db" id="btn-mypw">내 비번 변경</button>
@@ -1889,6 +1890,21 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="cmsn-x" id="ho-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
       <div class="cmsn-body" id="ho-body"></div>
       <div class="ho-foot"><button class="cmsn-btn" id="ho-later">나중에</button><button class="cmsn-btn primary" id="ho-seen">확인함 — 다음 인계는 지금부터</button></div>
+    </section>
+  </div>
+
+  <!-- 데이터 백업: 매일 자동 사본(7일) + 지금 백업 + 내려받기(회사 PC·USB에 따로 보관) -->
+  <div class="overlay" id="bk-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="bk-title" style="width:min(560px,calc(100vw - 32px))">
+      <h3 id="bk-title">데이터 백업</h3>
+        <button class="cmsn-x" id="bk-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="cmsn-body">
+        <p class="acct-note">서버가 매일 한 번 데이터 전체(판넬·경보·점검·계정)를 사본으로 남기고 최근 <b id="bk-keep">7</b>일 치를 보관합니다.
+          한 달에 한 번은 내려받아 회사 PC나 USB에 따로 두세요 — 호스팅에 문제가 생겨도 데이터가 남습니다.</p>
+        <div class="pchk-row"><button class="cmsn-btn primary" id="bk-now">지금 백업</button></div>
+        <div id="bk-list"></div>
+        <div class="cmsn-msg" id="bk-msg" aria-live="polite"></div>
+      </div>
     </section>
   </div>
 
@@ -3995,6 +4011,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "backup_now") return [{ error: "시연판에는 서버가 없어 백업을 만들 수 없습니다 — 운영 서버에서는 매일 자동으로 남습니다" }, 400];
     if (action === "contact") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
       if (ph && (dg < 9 || dg > 13)) return [{ error: "전화번호를 확인하세요 (숫자 9~13자리)" }, 400];
@@ -4095,6 +4112,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/admin/backups") return Promise.resolve(J({ backups: [], keep_days: 7, demo: true }));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
@@ -6595,7 +6613,7 @@ const QK_CMDS = [
   ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
   ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
   ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
-  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["고객 화면으로 보기 · JCC GUARD", () => $("#btn-guard").click(), true], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
+  ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["데이터 백업 · 사본 내려받기", () => $("#btn-bk").click(), true], ["고객 화면으로 보기 · JCC GUARD", () => $("#btn-guard").click(), true], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
   ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["기간 리포트", () => $("#btn-report").click()],
 ];
@@ -6750,6 +6768,31 @@ $("#ho-seen").onclick = async () => {
   try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
     if (!r.ok) throw new Error(); $("#ho-overlay").classList.remove("open"); setStatus("인계 확인 — 다음 요약은 지금부터"); }
   catch(_){ setStatus("인계 확인을 저장하지 못했습니다 — 연결 확인"); } };
+
+// ── 데이터 백업 ─────────────────────────────────────────
+function bkMsg(t, bad){ const m = $("#bk-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function bkLoad(){
+  try { const r = await fetch("/api/admin/backups", {cache:"no-store"}); const j = await r.json(); if (!r.ok) throw new Error(j.error || `불러오지 못함 (${r.status})`);
+    $("#bk-keep").textContent = j.keep_days || 7;
+    const kb = n => n > 1048576 ? (n / 1048576).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1024)) + " KB";
+    $("#bk-list").innerHTML = j.demo ? `<p class="acct-note">시연판에는 서버가 없어 백업 사본이 없습니다. 운영 서버에서는 여기에 날짜별 사본이 쌓입니다.</p>`
+      : (j.backups || []).length ? `<table class="pchk-tbl"><thead><tr><th>사본</th><th>만든 때</th><th>크기</th><th></th></tr></thead><tbody>` +
+        j.backups.map(b => `<tr><td>${escapeHtml(b.name)}${b.manual ? " <small>(지금 백업)</small>" : ""}</td>` +
+          `<td>${new Date(b.ts * 1000).toLocaleString("ko-KR", {hour12:false})}</td><td>${kb(b.size)}</td>` +
+          `<td><a class="cmsn-btn" href="/api/admin/backup/${encodeURIComponent(b.name)}" download>내려받기</a></td></tr>`).join("") + `</tbody></table>`
+      : `<p class="acct-note">아직 사본이 없습니다. 서버가 켜진 뒤 한 시간 안에 첫 자동 백업이 생깁니다 — 지금 바로 만들려면 '지금 백업'.</p>`;
+  } catch(e){ bkMsg(e.message, true); }
+}
+$("#btn-bk").onclick = () => { $("#bk-overlay").classList.add("open"); bkMsg(""); bkLoad(); };
+$("#bk-close").onclick = () => $("#bk-overlay").classList.remove("open");
+$("#bk-now").onclick = async () => {
+  const b = $("#bk-now"); b.disabled = true; bkMsg("만드는 중…");
+  try { const r = await fetch("/api/admin/backup_now", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `실패 (${r.status})`);
+    bkMsg(`${j.name} 만들었습니다`); await bkLoad();
+  } catch(e){ bkMsg(e.message, true); }
+  b.disabled = false;
+};
 
 // ── 경보 이력 ─────────────────────────────────────────
 // 지난 경보를 기간·원인으로 거르고, 확인 없이 해제된 경보에도 원인·조치 메모를 단다(원인은 나중에 아는 일이 많다).
@@ -8143,7 +8186,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","bk-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }

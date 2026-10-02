@@ -124,6 +124,7 @@ ROUTES = [
     ("POST", "/api/notify/test", "admin"), ("POST", "/api/panel/name", "admin"),
     ("POST", "/api/predict/baseline", "admin"),
     ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z_/]+", "admin"),
+    ("GET", "/api/admin/backups", "admin"), ("GET", r"/api/admin/backup/[A-Za-z0-9_.-]+", "admin"),
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
@@ -604,6 +605,26 @@ class Handler(BaseHTTPRequestHandler):
             return self._ai_status()
         if path == "/api/commission/reports":
             return self._json({"reports": self.storage.list_commission_reports(None if sc is None else sc["panels"])})
+        if path == "/api/admin/backups":              # 데이터 백업 목록(운영자)
+            from . import backup
+            return self._json({"backups": backup.list_backups(self.storage), "keep_days": backup._keep(),
+                               "dir": backup.backup_dir(self.storage)})
+        mb = re.fullmatch(r"/api/admin/backup/([A-Za-z0-9_.-]+)", path)
+        if mb:                                        # 사본 내려받기 — 이름 형식·존재 확인(경로 탈출 차단)
+            from . import backup
+            fp = backup.path_for(self.storage, mb.group(1))
+            if not fp:
+                return self._json({"error": "없는 백업입니다"}, 404)
+            with open(fp, "rb") as fh:
+                blob = fh.read()
+            self.storage.log_event("", "", "account", f"데이터 백업 내려받음: {mb.group(1)} ({self._user()['username']})", source="user")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Disposition", f'attachment; filename="{mb.group(1)}"')
+            self.send_header("Content-Length", str(len(blob)))
+            self.end_headers()
+            self.wfile.write(blob)
+            return
         if path == "/api/admin/accounts":
             ac = self.storage.accounts
             owner = ac.panel_owner_map()
@@ -1278,6 +1299,14 @@ class Handler(BaseHTTPRequestHandler):
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
+            if action == "backup_now":            # 위험한 작업 전 등 — 지금 사본 하나
+                from . import backup
+                try:
+                    got = backup.make_backup(self.storage, manual=True)
+                except OSError as exc:            # 디스크 가득 참 등 — 연결을 끊지 말고 이유를
+                    return self._json({"error": f"백업을 만들지 못했습니다({exc.__class__.__name__}) — 디스크 공간을 확인하세요"}, 500)
+                audit(f"데이터 백업 만듦: {got['name']}")
+                return self._json(dict(got, ok=True))
             if action == "contact":               # 고객 화면 담당 엔지니어·연락처
                 cid = as_id(b.get("customer_id"))
                 if cid is None or not ac.customer_exists(cid):
