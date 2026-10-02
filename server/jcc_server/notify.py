@@ -18,7 +18,9 @@
   JCC_ALIGO_SENDERKEY  카카오 발신프로필 키(알림톡용)
   JCC_ALIGO_TPL        승인된 알림톡 템플릿 코드
   JCC_ALIMTALK_TEXT    알림톡 본문 틀. 승인된 템플릿과 **글자까지 동일**해야 한다.
-                       치환자: {severity} {device} {detail} {time}
+                       치환자: {severity} {panel} {device} {detail} {time} {link}
+  JCC_PUBLIC_URL       서버 주소(예: https://jcc-ccm.onrender.com). 있으면 문구 끝에 '자세히' 링크 —
+                       누르면 고객 화면에서 그 경보가 바로 열린다(로그인 뒤).
   JCC_WEBHOOK          웹훅 URL
 
 ⚠ 알림톡은 카카오 심사를 통과한 템플릿만 발송된다. 본문이 템플릿과 한 글자라도
@@ -29,6 +31,9 @@ from __future__ import annotations
 import json
 import os
 import time
+from datetime import datetime, timedelta, timezone
+
+KST = timezone(timedelta(hours=9))   # 서버가 UTC(Render 등)여도 시각은 한국 시간으로
 import urllib.parse
 import urllib.request
 
@@ -36,10 +41,9 @@ _ALIGO_SMS = "https://apis.aligo.in/send/"
 _ALIGO_TOKEN = "https://kakaoapi.aligo.in/akv10/token/create/30/s/"
 _ALIGO_ALIMTALK = "https://kakaoapi.aligo.in/akv10/alimtalk/send/"
 
-_DEFAULT_TEXT = ("[JCC-CCM] {severity} 경보\n"
-                 "장비: {device}\n"
-                 "내용: {detail}\n"
-                 "시각: {time}")
+_DEFAULT_TEXT = ("[JCC GUARD] {severity} — {panel}\n"
+                 "{detail}\n"
+                 "{time}")
 
 
 def _env(name: str) -> str:
@@ -66,16 +70,29 @@ def _receivers() -> list[str]:
     return [r.strip() for r in _env("JCC_ALIGO_RECEIVERS").split(",") if r.strip()]
 
 
+def alarm_link(alarm: dict) -> str:
+    """고객 화면에서 이 경보를 바로 여는 주소(JCC_PUBLIC_URL이 있을 때만)."""
+    base = _env("JCC_PUBLIC_URL").rstrip("/")
+    return f"{base}/?alarm={alarm['id']}" if base and alarm.get("id") else ""
+
+
 def build_text(alarm: dict) -> str:
-    """경보 하나를 사람이 읽는 문구로. 알림톡 템플릿과 문자 본문에 공통 사용."""
-    tpl = _env("JCC_ALIMTALK_TEXT") or _DEFAULT_TEXT
+    """경보 하나를 사람이 읽는 문구로. 알림톡 템플릿과 문자 본문에 공통 사용.
+    장비 번호(ccm-2661) 대신 판넬 이름을 앞에 — 받는 사람은 어느 판넬인지가 먼저 궁금하다."""
+    custom = _env("JCC_ALIMTALK_TEXT")
     sev = {"crit": "위험", "warn": "주의"}.get(str(alarm.get("severity")), "알림")
-    return tpl.format(
+    link = alarm_link(alarm)
+    text = (custom or _DEFAULT_TEXT).format(
         severity=sev,
+        panel=alarm.get("panel_name") or alarm.get("device_id") or "-",
         device=alarm.get("device_id") or "-",
         detail=alarm.get("detail") or alarm.get("kind") or "-",
-        time=time.strftime("%m-%d %H:%M:%S", time.localtime(alarm.get("raised_at") or time.time())),
+        time=datetime.fromtimestamp(alarm.get("raised_at") or time.time(), KST).strftime("%m월 %d일 %H:%M"),
+        link=link,
     )
+    if not custom and link:
+        text += f"\n자세히 보기: {link}"
+    return text
 
 
 # ── 채널별 발송 ────────────────────────────────────────────

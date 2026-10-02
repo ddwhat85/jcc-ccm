@@ -754,6 +754,20 @@ class Storage:
             return "0", []
         return "device_id IN (" + ",".join("?" * len(devs)) + ")", devs
 
+    def panel_label(self, device_id: str) -> str:
+        """알림 문구용 '고객사 판넬 이름' — 경보의 device_id(CCM 또는 판넬)에서. 모르면 device_id."""
+        try:
+            owner = self.accounts.panel_owner_map()
+            names = {c["id"]: c["name"] for c in self.accounts.list_customers()}
+        except Exception:  # noqa: BLE001 - 계정 기능이 없어도 문구는 만든다
+            owner, names = {}, {}
+        for d in self.list_devices():
+            pid = d.get("panel") or d["device_id"]
+            if device_id in (d["device_id"], pid):
+                cust = names.get(owner.get(pid), "")
+                return f"{cust} {d.get('panel_name') or pid}".strip()
+        return device_id
+
     def receivers_for_device(self, device_id: str) -> list:
         """경보가 난 기기(또는 판넬) → 판넬 → 고객사의 알림 번호. 미배정이면 빈 목록(JCC 운영 번호만)."""
         try:

@@ -131,6 +131,7 @@ ROUTES = [
     ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"), ("GET", "/api/alarms/history", "read"),
     ("GET", "/api/handover", "read"), ("POST", "/api/handover/seen", "read"),
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
+    ("GET", "/api/guard/alarm", "read"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -320,6 +321,15 @@ class Handler(BaseHTTPRequestHandler):
             if not valid_period(period):
                 return self._json({"error": "달은 YYYY-MM 형식입니다"}, 400)
             return self._json(guard.month_view(self.storage, panels, period))
+        if path == "/api/guard/alarm":           # 알림 링크로 들어온 경보 한 건(고객은 자기 범위만)
+            try:
+                aid = int((q.get("id") or [""])[0])
+            except ValueError:
+                return self._json({"error": "경보 번호를 확인하세요"}, 400)
+            a = guard.alarm_view(self.storage, aid)
+            if a is None or (panels is not None and a["panel"] not in panels):
+                return self._json({"error": "볼 수 없는 경보입니다"}, 404)
+            return self._json(a)
         pid = (q.get("panel") or [""])[0]
         d = guard.panel_detail(self.storage, pid) if panels is None or pid in panels else None
         return self._json(d) if d else self._json({"error": "볼 수 없는 판넬입니다"}, 404)
@@ -554,7 +564,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        if path in ("/api/guard", "/api/guard/month", "/api/guard/panel"):   # 고객 화면 데이터
+        if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
             from .handover import summary

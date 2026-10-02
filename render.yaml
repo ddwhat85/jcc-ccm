@@ -80,6 +80,11 @@ services:
       # Render 대시보드 → Environment 에서 직접 넣는다(키는 코드에 넣지 말 것).
       - key: JCC_WEBHOOK
         sync: false
+      # 서버 주소(예: https://jcc-ccm-xxxx.onrender.com) — 알림 문구 끝 '자세히 보기' 링크와 고객 문의 번호
+      - key: JCC_PUBLIC_URL
+        sync: false
+      - key: JCC_SUPPORT_PHONE
+        sync: false
       - key: JCC_ALIGO_KEY
         sync: false
       - key: JCC_ALIGO_USER

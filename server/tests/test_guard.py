@@ -109,6 +109,16 @@ def run():
     check("판넬 상세: 타임라인에 환기", any("벤트" in t["text"] for t in d["timeline"]), str(d["timeline"][:3]))
     check("없는 판넬은 None", guard.panel_detail(st, "zz") is None)
 
+    # 알림 문구: 판넬 이름·한국 시간·자세히 링크
+    from jcc_server import notify
+    os.environ["JCC_PUBLIC_URL"] = "https://jcc.example.test/"
+    txt = notify.build_text({"id": 7, "device_id": "ccm-1", "severity": "crit", "detail": "수소 위험",
+                             "raised_at": 1790000000, "panel_name": st.panel_label("ccm-1")})
+    check("알림 문구: 고객사·판넬 이름이 앞에", txt.startswith("[JCC GUARD] 위험 — 평택 2공장 A동 배터리실"), txt)
+    check("알림 문구: 한국 시간·자세히 링크", "09월 21일 23:13" in txt and txt.endswith("자세히 보기: https://jcc.example.test/?alarm=7"), txt)
+    os.environ.pop("JCC_PUBLIC_URL")
+    check("링크 주소 없으면 링크 줄 없음", "자세히" not in notify.build_text({"id": 7, "device_id": "ccm-1", "severity": "warn"}))
+
     srv = appmod.make_server("127.0.0.1", 0, st)
     base = f"http://127.0.0.1:{srv.server_address[1]}"
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -156,6 +166,13 @@ def run():
         s, j = cu("/api/guard")
         check("고객 화면에 이 고객사 담당·번호", j["contact"]["engineer"] == "김현장" and j["contact"]["phone"] == "010-1234-5678"
               and j["contact"]["assigned"] is True, str(j["contact"]))
+        al1 = next(a["id"] for a in st.alarms_since(0, {"ccm-1"}, 10))
+        s, j = cu(f"/api/guard/alarm?id={al1}")
+        check("알림 링크: 자기 판넬 경보 한 건", s == 200 and j["panel_name"] == "A동 배터리실" and j["sensor_name"] == "함내 온도", str(j)[:200])
+        st.raise_alarm("ccm-2", "cabinet_temp", "alarm", "남의 판넬")
+        al2 = next(a["id"] for a in st.alarms_since(0, {"ccm-2"}, 10))
+        check("알림 링크: 남의 판넬 경보 404", cu(f"/api/guard/alarm?id={al2}")[0] == 404)
+        check("알림 링크: 잘못된 번호 400", cu("/api/guard/alarm?id=abc")[0] == 400)
         adm("/api/admin/contact", {"customer_id": cid, "engineer": "", "phone": ""})
         s, j = cu("/api/guard")
         check("비우면 공통 번호로", j["contact"]["phone"] == "02-0000-0000" and j["contact"]["assigned"] is False, str(j["contact"]))

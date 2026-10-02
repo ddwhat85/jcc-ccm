@@ -225,6 +225,22 @@ def month_view(storage, panels: set | None, period: str, now: float | None = Non
     return out
 
 
+def alarm_view(storage, alarm_id: int):
+    """알림 링크(?alarm=ID)로 들어온 경보 한 건 — 판넬·센서 이름과 지금 상태(진행 중/해제)."""
+    a = storage.get_alarm(alarm_id)
+    if not a:
+        return None
+    lat = _latest(storage)
+    pid = next((pn for pn, d in lat.items() if a["device_id"] in d["keys"]), a["device_id"])
+    pname = next((p["panel_name"] for p in storage.list_panels() if p["panel"] == pid), pid)
+    names = (lat.get(pid) or {}).get("names", {})
+    return {"id": a["id"], "panel": pid, "panel_name": pname, "device_id": a["device_id"],
+            "sensor_name": names.get((a["device_id"], a.get("sensor_key") or ""), a.get("sensor_key") or "CCM"),
+            "detail": a.get("detail") or a["kind"], "severity": a.get("severity"), "raised_at": a["raised_at"],
+            "acked_at": a.get("acked_at"), "acked_by": a.get("acked_by"), "cleared_at": a.get("cleared_at"),
+            "cause": a.get("cause"), "note": a.get("ack_note")}
+
+
 def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     from .fleet import fleet
     now = time.time() if now is None else now

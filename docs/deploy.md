@@ -126,10 +126,13 @@ Render 대시보드 → 서비스 선택 → **Environment** → 아래 값 입�
 | `JCC_ALIGO_SENDERKEY` | 카카오 발신프로필 키 (알림톡만) | `xxxxxxxx` |
 | `JCC_ALIGO_TPL` | 승인된 템플릿 코드 (알림톡만) | `TJ_0001` |
 | `JCC_ALIMTALK_TEXT` | 승인 템플릿과 **똑같은** 본문 틀 | 위 예시 문구 |
+| `JCC_PUBLIC_URL` | 서버 주소 — 넣으면 알림 끝에 '자세히 보기' 링크(누르면 고객 화면에서 그 경보가 바로 열림) | `https://jcc-ccm-xxxx.onrender.com` |
+| `JCC_SUPPORT_PHONE` | 고객 화면 공통 문의 번호(고객사별 담당 번호를 안 정했을 때) | `02-1234-5678` |
 
 - `SENDERKEY` + `TPL` 을 넣으면 **알림톡**으로 발송되고, 실패 시 **문자로 자동 대체발송**된다.
 - 둘을 비워두면 **문자(SMS/LMS)** 로만 발송된다. (90바이트 초과 시 자동 LMS)
 - `JCC_WEBHOOK` 에 URL을 넣으면 슬랙·사내 서버로도 같이 보낸다.
+- 기본 문구: `[JCC GUARD] 위험 — 평택 2공장 A동 배터리실 1번` / 내용 / 한국 시간 / `자세히 보기: 링크`. 알림톡 템플릿을 새로 심사받을 때는 치환자 `{severity} {panel} {detail} {time} {link}` 로 만든다.
 
 ### 연결 확인
 

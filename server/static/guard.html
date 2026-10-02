@@ -368,6 +368,7 @@ async function start(s){
   $("#gd-ops").hidden = !(s.enabled && s.user && s.user.role === "admin") || !!window.JCC_DEMO;
   $("#gd-out").hidden = !s.enabled;
   await load(); clearInterval(G.timer); G.timer = setInterval(load, 5000);
+  openAlarmLink();
 }
 async function pickers(){
   // JCC 직원: 고객사를 골라 그 고객이 보는 화면 그대로 미리 본다(주소의 ?customer_id= 도 받는다)
@@ -599,6 +600,30 @@ function story(){
 
 // 보고서 인쇄·PDF 저장 — 시연판(공개 링크)은 인쇄 창을 열 수 없어 버튼을 두지 않는다
 const printBtn = () => window.JCC_DEMO ? "" : `<p style="margin-top:16px"><button class="gd-btn" style="width:100%" onclick="window.print()">인쇄 · PDF로 저장</button></p>`;
+
+// ── 알림 링크(?alarm=번호)로 들어오면 그 경보를 바로 — 로그인이 필요하면 로그인 뒤에 ─────────────
+G.alarmParam = new URLSearchParams(location.search).get("alarm");
+async function openAlarmLink(){
+  const id = G.alarmParam; if (!id) return;
+  G.alarmParam = null;
+  try { history.replaceState(null, "", location.pathname); } catch(_){}   // 새로 고침해도 다시 열리지 않게
+  try {
+    const r = await fetch(`/api/guard/alarm?id=${encodeURIComponent(id)}&${q()}`, {cache:"no-store"});
+    if (!r.ok) throw new Error();
+    const a = await r.json();
+    const now = !a.cleared_at, crit = a.severity === "crit";
+    sheet(`<h4 id="gd-sheet-t">알림 받은 경보</h4><div class="sub">${esc(a.panel_name)} · ${esc(a.sensor_name)}</div>` +
+      `<div class="gd-ded">` +
+      `<div><span>내용</span><b class="z">${esc(clean(a.detail))}</b></div>` +
+      `<div><span>등급</span><b${crit ? "" : ' class="z"'}>${crit ? "위험" : "주의"}</b></div>` +
+      `<div><span>발생</span><b class="z">${fmtT(a.raised_at)}</b></div>` +
+      `<div><span>지금 상태</span><b${now ? "" : ' class="z"'}>${now ? "아직 이어지는 중" : "해제됨 · " + fmtT(a.cleared_at)}</b></div>` +
+      `<div><span>JCC 확인</span><b class="z">${a.acked_at ? esc(a.acked_by || "확인") + " · " + fmtT(a.acked_at) : "확인하는 중"}</b></div>` +
+      (a.note ? `<div><span>조치 메모</span><b class="z">${esc(a.note)}</b></div>` : "") + `</div>` +
+      `<div class="gd-docs"><button class="gd-doc" id="gd-al-panel"><span>${esc(a.panel_name)} 자세히 보기</span><span>›</span></button></div>`);
+    $("#gd-al-panel").onclick = () => openPanel(a.panel);
+  } catch(_){ toast("이 경보는 볼 수 없습니다 — 받은 계정으로 로그인했는지 확인해 주세요"); }
+}
 
 // ── 보고서 고르기 · 바로 가기(휴대폰 아래 메뉴) ─────────────────
 function openDocs(){
