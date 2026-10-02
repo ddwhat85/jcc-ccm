@@ -104,6 +104,7 @@ def _session_token() -> str:
 #   operate: JCC 관리자·고객 담당자(대상이 범위 안일 때)  admin  : JCC 관리자만
 ROUTES = [
     ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/guard", "public"), ("GET", "/ops", "public"), ("GET", "/predict-core.js", "public"),
+    ("GET", "/manifest.webmanifest", "public"), ("GET", "/sw.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
     ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
     ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
@@ -438,6 +439,14 @@ class Handler(BaseHTTPRequestHandler):
             return self._serve_dashboard()
         if path == "/predict-core.js":          # 판정 코어(JS) — 화면 코드일 뿐 현장 데이터는 없다
             return self._serve_static_js("predict-core.js")
+        if path == "/sw.js":                    # 고객 화면 홈 화면 앱(껍데기만 보관 — 데이터는 저장 안 함)
+            return self._serve_static_js("sw.js")
+        if path == "/manifest.webmanifest":
+            try:
+                with open(os.path.join(_STATIC_DIR, "manifest.webmanifest"), "r", encoding="utf-8") as fh:
+                    return self._text(fh.read(), 200, "application/manifest+json; charset=utf-8")
+            except OSError:
+                return self._json({"error": "not found"}, 404)
         if path == "/health":
             return self._json({"ok": True, "ts": time.time()})
         if path == "/api/devices":

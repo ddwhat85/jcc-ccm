@@ -33,6 +33,11 @@ GOOGLE_FONTS = ('@import url("https://fonts.googleapis.com/css2?family=Gothic+A1
                 '600;700;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");')
 
 
+def _no_pwa(html: str) -> str:
+    """고객 화면의 홈 화면 앱 블록(manifest·아이콘 링크)을 뺀다 — 시연판에는 그 파일들이 없다."""
+    return re.sub(r"<!--@PWA.*?<!--@PWA-END-->\n?", "", html, count=1, flags=re.S)
+
+
 def _artifact(html: str, core_js: str, tuning_js: str, api_src: str) -> str:
     """호스팅 페이지(Artifact 등)용 자기완결 본문. 호스트가 <html>/<head>/<body> 뼈대를 씌우므로 그 태그를 빼고,
     외부 스크립트(판정 코어·튜닝 데이터·데모 백엔드)는 통째로 인라인한다. 치환값은 함수로 넘긴다 —
@@ -112,7 +117,7 @@ def main() -> int:
     src_guard = os.path.join(ROOT, "server", "static", "guard.html")
     if os.path.isfile(src_guard):
         with open(src_guard, "r", encoding="utf-8") as fh:
-            gsrc = fh.read()
+            gsrc = _no_pwa(fh.read())
         gsrc = re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/", lambda _m: GOOGLE_FONTS, gsrc, count=1, flags=re.S)
         gi = gsrc.find("<script>")
         gsrc = (gsrc[:gi] + "<script>/* 직원 시연판 안의 고객 화면 — 부모 창의 데모 백엔드를 쓴다 */"
@@ -152,7 +157,7 @@ def main() -> int:
     src_guard = os.path.join(ROOT, "server", "static", "guard.html")
     if os.path.isfile(src_guard):
         with open(src_guard, "r", encoding="utf-8") as fh:
-            g = fh.read()
+            g = _no_pwa(fh.read())
         gi = g.find("<script>")
         g = (BANNER.replace("index.html", "guard.html") + g[:gi]
              + f'<script src="predict-core.js{core_ver}"></script>\n<script src="tuning-data.js{tuning_ver}"></script>\n'

@@ -1,0 +1,17 @@
+{
+  "name": "JCC GUARD",
+  "short_name": "JCC GUARD",
+  "description": "판넬 안 화재 징조·단자 과열·결로를 24시간 먼저 알아채는 JCC 감시 서비스",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    {"src": "/img/gd-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/img/gd-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/img/gd-icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}

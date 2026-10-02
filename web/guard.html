@@ -272,6 +272,7 @@
     <span class="sp"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
     <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
+    <button class="gd-txt gd-ops" id="gd-install" hidden>앱으로 설치</button>
     <button class="gd-txt" id="gd-docs-h">보고서</button>
     <button class="gd-ico" id="gd-theme" aria-label="밤·낮 화면 바꾸기" title="밤·낮 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
     <button class="gd-ico" id="gd-out" aria-label="로그아웃" title="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
@@ -330,7 +331,7 @@ const ago = t => { if (!t) return ""; const s = Math.max(0, Date.now() / 1000 - 
 const per = p => `${Number(p.slice(5, 7))}월`;
 const clean = s => String(s == null ? "" : s).replace(/[\p{Extended_Pictographic}\uFE0F]\s*/gu, "");   // 기록 문구의 그림 문자는 뺀다
 function setHTML(el, html){ if (el._html === html) return false; el._html = html; el.innerHTML = html; return true; }
-function toast(t){ const el = $("#gd-toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), 2600); }
+function toast(t){ const el = $("#gd-toast"); el.textContent = t; el.classList.add("on"); clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("on"), t.length > 30 ? 5000 : 2600); }
 
 // ── 밤·낮: 시스템을 따르고, 직접 고르면 기억한다 ─────────────
 function theme(t){ if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme"); }
@@ -373,7 +374,7 @@ async function start(s){
   $("#gd-ops").hidden = !(s.enabled && s.user && s.user.role === "admin") || !!window.JCC_DEMO;
   $("#gd-out").hidden = !s.enabled;
   await load(); clearInterval(G.timer); G.timer = setInterval(load, 5000);
-  openAlarmLink();
+  openAlarmLink(); iosHint();
 }
 async function pickers(){
   // JCC 직원: 고객사를 골라 그 고객이 보는 화면 그대로 미리 본다(주소의 ?customer_id= 도 받는다)
@@ -664,6 +665,22 @@ $("#gd-pw-eye").onclick = () => {
   const i = $("#gd-pw"), show = i.type === "password";
   i.type = show ? "text" : "password"; $("#gd-pw-eye").textContent = show ? "숨기기" : "보기"; $("#gd-pw-eye").setAttribute("aria-pressed", String(show));
 };
+
+// ── 홈 화면 앱 ──────────────────────────────────────────
+// 안드로이드 크롬: 설치 가능해지면 '앱으로 설치' 버튼. 아이폰 사파리: 처음 한 번만 '공유 → 홈 화면에 추가' 안내.
+// 서비스 워커는 화면 껍데기만 보관한다(데이터는 늘 서버에서). 시연판(JCC_DEMO)에서는 쓰지 않는다.
+if (!window.JCC_DEMO && "serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost"))
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+let installEvt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("#gd-install").hidden = false; });
+$("#gd-install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); try { await installEvt.userChoice; } catch(_){} installEvt = null; $("#gd-install").hidden = true; };
+addEventListener("appinstalled", () => { $("#gd-install").hidden = true; toast("홈 화면에 JCC GUARD를 설치했습니다"); });
+function iosHint(){
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent), standalone = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  if (!ios || standalone || window.JCC_DEMO) return;
+  try { if (localStorage.getItem("gd-ios-hint")) return; localStorage.setItem("gd-ios-hint", "1"); } catch(_){ return; }
+  setTimeout(() => toast("사파리 아래 공유 버튼 → '홈 화면에 추가'로 앱처럼 쓸 수 있습니다"), 4000);
+}
 
 // ── 시작 ─────────────────────────────────────────────────
 (async () => {

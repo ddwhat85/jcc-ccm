@@ -143,6 +143,12 @@ def run():
         s, body = anon("/guard")
         check("/guard 화면은 공개", s == 200 and b"JCC GUARD" in body, str(s))
         check("/api/guard 로그인 전 401", anon("/api/guard")[0] == 401)
+        s, body = anon("/manifest.webmanifest")
+        mf = json.loads(body) if isinstance(body, (bytes, str)) else body
+        check("홈 화면 앱: manifest 공개·이름·아이콘", s == 200 and mf["name"] == "JCC GUARD" and len(mf["icons"]) == 3, str(s))
+        s, body = anon("/sw.js")
+        check("홈 화면 앱: 서비스 워커 공개, /api 는 저장 안 함", s == 200 and b'startsWith("/api/")' in body)
+        check("홈 화면 앱: 아이콘", anon("/img/gd-icon-192.png")[0] == 200)
         adm = client()
         adm("/api/login", {"user": "jccops", "password": "env-admin-pw"})
         s, j = adm("/api/guard")
