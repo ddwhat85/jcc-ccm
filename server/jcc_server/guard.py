@@ -30,6 +30,20 @@ def _kst(ts) -> str:
     return datetime.fromtimestamp(ts, KST).strftime("%m월 %d일 %H:%M") if ts else ""
 
 
+def life_plain(label: str) -> str:
+    """남은 여유 항목 이름을 고객 말로 — 직원용 '접점 발열 잔차 → 위험 기준 11°C'는 고객에게 뜻이 없다."""
+    label = label or ""
+    if "접점" in label:
+        return "단자 점검 시기"
+    if "→" in label:
+        return f"{label.split('→')[0].strip()} 기준선까지"
+    return label or "부품 점검 시기"
+
+
+def _life(lf):
+    return dict(lf, label=life_plain(lf.get("label"))) if lf else None
+
+
 # ── 안심 지수(투명한 감점식) ───────────────────────────────
 def score(rows: list, now: float) -> dict:
     items, crit_any = [], False
@@ -53,7 +67,7 @@ def score(rows: list, now: float) -> dict:
             items.append({"text": f"{nm} 결로 주의", "minus": PENALTY["caution"]})
         lf = p.get("life")
         if lf and (lf.get("status") == "reached" or (lf.get("days") is not None and lf["days"] <= LIFE_DAYS)):
-            items.append({"text": f"{nm} {lf['label']} 여유 {lf['say']}", "minus": PENALTY["life"]})
+            items.append({"text": f"{nm} {life_plain(lf['label'])} {lf['say']}", "minus": PENALTY["life"]})
         if p.get("next_inspection") and p["next_inspection"] < now:
             items.append({"text": f"{nm} 정기 점검 기한 지남", "minus": PENALTY["overdue"]})
     items.sort(key=lambda i: -i["minus"])
@@ -124,7 +138,7 @@ def _panel_model(p, lat) -> dict:
             "temp": (lat or {}).get("temp"), "humidity": (lat or {}).get("humidity"),
             "fire": _WORD["fire"].get(pr.get("fire") or "", "—"), "contact": _WORD["contact"].get(pr.get("contact") or "", "—"),
             "dew": _WORD["dew"].get(pr.get("dew") or "", "—"), "vent_open": bool(pr.get("vent_open")),
-            "life": p.get("life"), "alarms": p.get("alarms"), "next_inspection": p.get("next_inspection"),
+            "life": _life(p.get("life")), "alarms": p.get("alarms"), "next_inspection": p.get("next_inspection"),
             "ccm_online": p.get("ccm_online"), "ccm_total": p.get("ccm_total"), "last_seen": p.get("last_seen")}
 
 

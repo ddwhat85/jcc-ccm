@@ -177,6 +177,7 @@
     return null;
   }
   const gdRound = (v, d) => v == null ? null : Math.round(v * 10 ** d) / 10 ** d;
+  const gdLife = l => !l ? "부품 점검 시기" : l.includes("접점") ? "단자 점검 시기" : l.includes("→") ? `${l.split("→")[0].trim()} 기준선까지` : l;   // guard.py life_plain
   function gdRows() {
     const t = now(), fl = fleetView()[0];
     const rows = [];
@@ -199,7 +200,7 @@
       if (["watch", "warning"].includes(pr.fire)) items.push({ text: `${nm} 화재 징조 지켜보는 중`, minus: GD_PEN.fire_watch });
       if (["watch", "warning", "danger"].includes(pr.contact)) items.push({ text: `${nm} 단자 발열 주의`, minus: GD_PEN.caution });
       if (["watch", "warning", "danger"].includes(pr.dew)) items.push({ text: `${nm} 결로 주의`, minus: GD_PEN.caution });
-      if (p.life && (p.life.status === "reached" || (p.life.days != null && p.life.days <= 60))) items.push({ text: `${nm} ${p.life.label} 여유 ${p.life.say}`, minus: GD_PEN.life });
+      if (p.life && (p.life.status === "reached" || (p.life.days != null && p.life.days <= 60))) items.push({ text: `${nm} ${gdLife(p.life.label)} ${p.life.say}`, minus: GD_PEN.life });
       if (p.next_inspection && p.next_inspection < t) items.push({ text: `${nm} 정기 점검 기한 지남`, minus: GD_PEN.overdue }); });
     items.sort((a, b) => b.minus - a.minus);
     const total = items.reduce((s, i) => s + i.minus, 0), nxt = Math.min(...rows.map(p => p.next_inspection || Infinity));
@@ -220,7 +221,7 @@
     return { panel: p.panel, panel_name: p.panel_name, site: "", status: p.status,
       word: { crit: "위험", offline: "연결 끊김", warn: "지켜보는 중", ok: "정상" }[p.status], why: p.why, temp: p.temp, humidity: p.humidity,
       fire: GD_WORD.fire[pr.fire] || "—", contact: GD_WORD.contact[pr.contact] || "—", dew: GD_WORD.dew[pr.dew] || "—", vent_open: !!pr.vent_open,
-      life: p.life, alarms: p.alarms, next_inspection: p.next_inspection, ccm_online: p.ccm_online, ccm_total: p.ccm_total, last_seen: p.last_seen };
+      life: p.life ? Object.assign({}, p.life, { label: gdLife(p.life.label) }) : null, alarms: p.alarms, next_inspection: p.next_inspection, ccm_online: p.ccm_online, ccm_total: p.ccm_total, last_seen: p.last_seen };
   }
   function gdMonth(period) {
     const t = now(), d = new Date(t * 1000), cur = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;

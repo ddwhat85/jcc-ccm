@@ -62,6 +62,8 @@ def unit(now):
     st = guard.state_line([row("A동", crit=1, status="crit", why=["화재 징조(FRI 72)"])])
     check("상태 문장: 위험", st["title"].startswith("위험") and "A동" in st["title"], str(st))
     check("상태 문장: 판넬 없음", "아직" in guard.state_line([])["title"])
+    check("남은 여유 이름을 고객 말로", guard.life_plain("접점 발열 잔차 → 위험 기준 11°C") == "단자 점검 시기"
+          and guard.life_plain("함내 온도 → 경고선 40") == "함내 온도 기준선까지")
 
 
 def run():

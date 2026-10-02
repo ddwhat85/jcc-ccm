@@ -1,61 +1,311 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-01T00:00:00Z",
+  "generatedAt": "2026-10-02T01:16:29.643173+00:00",
   "title": "Design System: JCC-CCM 노드 모니터",
   "extensions": {
     "colorMeta": {
-      "accent": { "role": "primary", "displayName": "Drafting Ink", "canonical": "#15191c", "darkCounterpart": "accent-dark", "tonalRamp": ["oklch(15% 0.006 240)", "oklch(25% 0.006 240)", "oklch(35% 0.006 240)", "oklch(45% 0.006 240)", "oklch(55% 0.006 240)", "oklch(65% 0.006 240)", "oklch(80% 0.006 240)", "oklch(95% 0.004 240)"] },
-      "accent-dark": { "role": "primary", "displayName": "CAD Teal (model-space accent)", "canonical": "#1b7c96", "tonalRamp": ["oklch(15% 0.05 220)", "oklch(25% 0.07 220)", "oklch(35% 0.08 220)", "oklch(45% 0.09 220)", "oklch(55% 0.09 220)", "oklch(65% 0.09 220)", "oklch(80% 0.07 220)", "oklch(95% 0.03 220)"] },
-      "wire": { "role": "secondary", "displayName": "CAD Layer Teal", "canonical": "#1d6f87", "darkCounterpart": "wire-dark", "tonalRamp": ["oklch(15% 0.05 220)", "oklch(25% 0.07 220)", "oklch(35% 0.08 220)", "oklch(48% 0.09 220)", "oklch(58% 0.1 220)", "oklch(68% 0.1 220)", "oklch(80% 0.08 220)", "oklch(95% 0.03 220)"] },
-      "port-sensor": { "role": "tertiary", "displayName": "Port Sensor Green", "canonical": "#2a7048" },
-      "port-agg": { "role": "tertiary", "displayName": "Aggregator Violet", "canonical": "#5d4f86" },
-      "crit": { "role": "status", "displayName": "Revision Red", "canonical": "#c0231a", "darkCounterpart": "crit-dark", "tonalRamp": ["oklch(15% 0.06 28)", "oklch(25% 0.1 28)", "oklch(35% 0.14 28)", "oklch(45% 0.17 28)", "oklch(55% 0.19 28)", "oklch(65% 0.18 28)", "oklch(80% 0.1 28)", "oklch(95% 0.03 28)"] },
-      "warn": { "role": "status", "displayName": "Caution Amber", "canonical": "#8f6200", "darkCounterpart": "warn-dark", "tonalRamp": ["oklch(15% 0.04 75)", "oklch(25% 0.06 75)", "oklch(35% 0.08 75)", "oklch(48% 0.1 75)", "oklch(58% 0.12 75)", "oklch(70% 0.13 80)", "oklch(82% 0.12 85)", "oklch(95% 0.04 85)"] },
-      "ok": { "role": "status", "displayName": "Running Green", "canonical": "#22683f", "darkCounterpart": "ok-dark", "tonalRamp": ["oklch(15% 0.04 150)", "oklch(25% 0.06 150)", "oklch(35% 0.08 150)", "oklch(45% 0.1 150)", "oklch(55% 0.12 150)", "oklch(68% 0.13 150)", "oklch(80% 0.1 150)", "oklch(95% 0.03 150)"] },
-      "ground": { "role": "neutral", "displayName": "Plot Ground", "canonical": "#eceeec" },
-      "canvas": { "role": "neutral", "displayName": "Drafting Canvas", "canonical": "#f6f7f5" },
-      "surface": { "role": "neutral", "displayName": "Paper", "canonical": "#ffffff" },
-      "surface-2": { "role": "neutral", "displayName": "Paper Shade", "canonical": "#eceeeb" },
-      "ink": { "role": "neutral", "displayName": "Ink", "canonical": "#111416", "tonalRamp": ["oklch(15% 0.005 230)", "oklch(25% 0.006 230)", "oklch(35% 0.008 230)", "oklch(45% 0.008 230)", "oklch(55% 0.008 230)", "oklch(65% 0.006 230)", "oklch(80% 0.005 230)", "oklch(95% 0.003 230)"] },
-      "ink-2": { "role": "neutral", "displayName": "Ink 2 (secondary text)", "canonical": "#3e4448" },
-      "ink-3": { "role": "neutral", "displayName": "Ink 3 (captions, coordinates)", "canonical": "#656c71" },
-      "rule": { "role": "neutral", "displayName": "Rule (standard line)", "canonical": "#c2c7ca" },
-      "rule-2": { "role": "neutral", "displayName": "Hairline", "canonical": "#dde0e1" },
-      "line-3": { "role": "neutral", "displayName": "Heavy Outline (2px)", "canonical": "#111416" },
-      "grid": { "role": "neutral", "displayName": "Drafting Grid minor (24px)", "canonical": "#e3e6e5" },
-      "grid-major": { "role": "neutral", "displayName": "Drafting Grid major (120px)", "canonical": "#d3d7d7" }
+      "accent": {
+        "role": "primary",
+        "displayName": "Drafting Ink",
+        "canonical": "#15191c",
+        "darkCounterpart": "accent-dark",
+        "tonalRamp": [
+          "oklch(15% 0.006 240)",
+          "oklch(25% 0.006 240)",
+          "oklch(35% 0.006 240)",
+          "oklch(45% 0.006 240)",
+          "oklch(55% 0.006 240)",
+          "oklch(65% 0.006 240)",
+          "oklch(80% 0.006 240)",
+          "oklch(95% 0.004 240)"
+        ]
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "CAD Teal (model-space accent)",
+        "canonical": "#1b7c96",
+        "tonalRamp": [
+          "oklch(15% 0.05 220)",
+          "oklch(25% 0.07 220)",
+          "oklch(35% 0.08 220)",
+          "oklch(45% 0.09 220)",
+          "oklch(55% 0.09 220)",
+          "oklch(65% 0.09 220)",
+          "oklch(80% 0.07 220)",
+          "oklch(95% 0.03 220)"
+        ]
+      },
+      "wire": {
+        "role": "secondary",
+        "displayName": "CAD Layer Teal",
+        "canonical": "#1d6f87",
+        "darkCounterpart": "wire-dark",
+        "tonalRamp": [
+          "oklch(15% 0.05 220)",
+          "oklch(25% 0.07 220)",
+          "oklch(35% 0.08 220)",
+          "oklch(48% 0.09 220)",
+          "oklch(58% 0.1 220)",
+          "oklch(68% 0.1 220)",
+          "oklch(80% 0.08 220)",
+          "oklch(95% 0.03 220)"
+        ]
+      },
+      "port-sensor": {
+        "role": "tertiary",
+        "displayName": "Port Sensor Green",
+        "canonical": "#2a7048"
+      },
+      "port-agg": {
+        "role": "tertiary",
+        "displayName": "Aggregator Violet",
+        "canonical": "#5d4f86"
+      },
+      "crit": {
+        "role": "status",
+        "displayName": "Revision Red",
+        "canonical": "#c0231a",
+        "darkCounterpart": "crit-dark",
+        "tonalRamp": [
+          "oklch(15% 0.06 28)",
+          "oklch(25% 0.1 28)",
+          "oklch(35% 0.14 28)",
+          "oklch(45% 0.17 28)",
+          "oklch(55% 0.19 28)",
+          "oklch(65% 0.18 28)",
+          "oklch(80% 0.1 28)",
+          "oklch(95% 0.03 28)"
+        ]
+      },
+      "warn": {
+        "role": "status",
+        "displayName": "Caution Amber",
+        "canonical": "#8f6200",
+        "darkCounterpart": "warn-dark",
+        "tonalRamp": [
+          "oklch(15% 0.04 75)",
+          "oklch(25% 0.06 75)",
+          "oklch(35% 0.08 75)",
+          "oklch(48% 0.1 75)",
+          "oklch(58% 0.12 75)",
+          "oklch(70% 0.13 80)",
+          "oklch(82% 0.12 85)",
+          "oklch(95% 0.04 85)"
+        ]
+      },
+      "ok": {
+        "role": "status",
+        "displayName": "Running Green",
+        "canonical": "#22683f",
+        "darkCounterpart": "ok-dark",
+        "tonalRamp": [
+          "oklch(15% 0.04 150)",
+          "oklch(25% 0.06 150)",
+          "oklch(35% 0.08 150)",
+          "oklch(45% 0.1 150)",
+          "oklch(55% 0.12 150)",
+          "oklch(68% 0.13 150)",
+          "oklch(80% 0.1 150)",
+          "oklch(95% 0.03 150)"
+        ]
+      },
+      "ground": {
+        "role": "neutral",
+        "displayName": "Plot Ground",
+        "canonical": "#eceeec"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Drafting Canvas",
+        "canonical": "#f6f7f5"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "#ffffff"
+      },
+      "surface-2": {
+        "role": "neutral",
+        "displayName": "Paper Shade",
+        "canonical": "#eceeeb"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#111416",
+        "tonalRamp": [
+          "oklch(15% 0.005 230)",
+          "oklch(25% 0.006 230)",
+          "oklch(35% 0.008 230)",
+          "oklch(45% 0.008 230)",
+          "oklch(55% 0.008 230)",
+          "oklch(65% 0.006 230)",
+          "oklch(80% 0.005 230)",
+          "oklch(95% 0.003 230)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2 (secondary text)",
+        "canonical": "#3e4448"
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3 (captions, coordinates)",
+        "canonical": "#656c71"
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Rule (standard line)",
+        "canonical": "#c2c7ca"
+      },
+      "rule-2": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#dde0e1"
+      },
+      "line-3": {
+        "role": "neutral",
+        "displayName": "Heavy Outline (2px)",
+        "canonical": "#111416"
+      },
+      "grid": {
+        "role": "neutral",
+        "displayName": "Drafting Grid minor (24px)",
+        "canonical": "#e3e6e5"
+      },
+      "grid-major": {
+        "role": "neutral",
+        "displayName": "Drafting Grid major (120px)",
+        "canonical": "#d3d7d7"
+      }
     },
     "typographyMeta": {
-      "display": { "displayName": "Display", "purpose": "Drawing name in the title block; one per sheet." },
-      "headline": { "displayName": "Headline", "purpose": "Inspector spotlight name; modal heads at 15px." },
-      "title": { "displayName": "Title", "purpose": "Panel name on a register row." },
-      "body": { "displayName": "Body", "purpose": "All running UI text; tabular figures on." },
-      "label": { "displayName": "Label", "purpose": "Section and group heads; sentence case Gothic A1, never monospace." },
-      "numeral-display": { "displayName": "Numeral Display", "purpose": "Spotlight measured value (B612), unit in mono ink-3." },
-      "numeral": { "displayName": "Numeral", "purpose": "Overview cells, value pills, fleet chips." },
-      "mono": { "displayName": "Mono", "purpose": "Codes, timestamps, connection state, shortcuts, wire labels." },
-      "coordinate": { "displayName": "Coordinate", "purpose": "Sheet zone numbers 1-8 and letters A-D." }
+      "display": {
+        "displayName": "Display",
+        "purpose": "Drawing name in the title block; one per sheet."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Inspector spotlight name; modal heads at 15px."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Panel name on a register row."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "All running UI text; tabular figures on."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Section and group heads; sentence case Gothic A1, never monospace."
+      },
+      "numeral-display": {
+        "displayName": "Numeral Display",
+        "purpose": "Spotlight measured value (B612), unit in mono ink-3."
+      },
+      "numeral": {
+        "displayName": "Numeral",
+        "purpose": "Overview cells, value pills, fleet chips."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "Codes, timestamps, connection state, shortcuts, wire labels."
+      },
+      "coordinate": {
+        "displayName": "Coordinate",
+        "purpose": "Sheet zone numbers 1-8 and letters A-D."
+      }
     },
     "shadows": [
-      { "name": "menu-lift", "value": "0 12px 28px rgba(8,10,12,.18), 0 2px 6px rgba(8,10,12,.10)", "purpose": "Dropdown menus floating above the sheet." },
-      { "name": "sheet-over-sheet", "value": "0 30px 70px -20px rgba(0,0,0,.5)", "purpose": "Modals, commissioning shell, quick-find; over a rgba(8,10,12,.58) scrim." },
-      { "name": "device-on-canvas", "value": "0 1px 0 rgba(8,10,12,.06), 0 6px 14px -8px rgba(8,10,12,.28)", "purpose": "Graph nodes at rest." },
-      { "name": "device-selected", "value": "0 0 0 1px var(--sel), 0 8px 18px -8px rgba(8,10,12,.35)", "purpose": "Selected graph node: teal ring plus lift." },
-      { "name": "sheet-double-rule", "value": "inset 0 0 0 6px var(--surface), inset 0 0 0 7px var(--rule)", "purpose": "Linework, not elevation: the inner rule of the fleet sheet border (4px/5px under 760px)." }
+      {
+        "name": "menu-lift",
+        "value": "0 12px 28px rgba(8,10,12,.18), 0 2px 6px rgba(8,10,12,.10)",
+        "purpose": "Dropdown menus floating above the sheet."
+      },
+      {
+        "name": "sheet-over-sheet",
+        "value": "0 30px 70px -20px rgba(0,0,0,.5)",
+        "purpose": "Modals, commissioning shell, quick-find; over a rgba(8,10,12,.58) scrim."
+      },
+      {
+        "name": "device-on-canvas",
+        "value": "0 1px 0 rgba(8,10,12,.06), 0 6px 14px -8px rgba(8,10,12,.28)",
+        "purpose": "Graph nodes at rest."
+      },
+      {
+        "name": "device-selected",
+        "value": "0 0 0 1px var(--sel), 0 8px 18px -8px rgba(8,10,12,.35)",
+        "purpose": "Selected graph node: teal ring plus lift."
+      },
+      {
+        "name": "sheet-double-rule",
+        "value": "inset 0 0 0 6px var(--surface), inset 0 0 0 7px var(--rule)",
+        "purpose": "Linework, not elevation: the inner rule of the fleet sheet border (4px/5px under 760px)."
+      }
     ],
     "motion": [
-      { "name": "ease-reveal", "value": "cubic-bezier(.22,1,.36,1) 420ms", "purpose": "Node reveal-in on the canvas." },
-      { "name": "ease-meter", "value": "cubic-bezier(.16,1,.3,1) 700ms", "purpose": "Prediction meter fill." },
-      { "name": "state-quick", "value": "80-150ms ease", "purpose": "Hover border and color changes; port hover." },
-      { "name": "wire-flow", "value": "stroke-dasharray 5 6, 1s linear infinite", "purpose": "Live wire data flow." },
-      { "name": "alarm-pulse", "value": "1.5-1.6s ease-in-out infinite", "purpose": "Critical node and alarm bell pulse; disabled under prefers-reduced-motion." }
+      {
+        "name": "ease-reveal",
+        "value": "cubic-bezier(.22,1,.36,1) 420ms",
+        "purpose": "Node reveal-in on the canvas."
+      },
+      {
+        "name": "ease-meter",
+        "value": "cubic-bezier(.16,1,.3,1) 700ms",
+        "purpose": "Prediction meter fill."
+      },
+      {
+        "name": "state-quick",
+        "value": "80-150ms ease",
+        "purpose": "Hover border and color changes; port hover."
+      },
+      {
+        "name": "wire-flow",
+        "value": "stroke-dasharray 5 6, 1s linear infinite",
+        "purpose": "Live wire data flow."
+      },
+      {
+        "name": "alarm-pulse",
+        "value": "1.5-1.6s ease-in-out infinite",
+        "purpose": "Critical node and alarm bell pulse; disabled under prefers-reduced-motion."
+      },
+      {
+        "name": "guard-ring",
+        "value": "stroke-dashoffset 1.1s cubic-bezier(.2,.7,.2,1)",
+        "purpose": "고객 화면 안심 지수 링 채우기(처음 그릴 때는 전환 없음)."
+      }
     ],
     "breakpoints": [
-      { "name": "phone", "value": "640px" },
-      { "name": "sheet-compact", "value": "760px" },
-      { "name": "conn-text", "value": "900px" },
-      { "name": "register-rebalance", "value": "1000px" },
-      { "name": "clock", "value": "1040px" }
+      {
+        "name": "phone",
+        "value": "640px"
+      },
+      {
+        "name": "sheet-compact",
+        "value": "760px"
+      },
+      {
+        "name": "conn-text",
+        "value": "900px"
+      },
+      {
+        "name": "register-rebalance",
+        "value": "1000px"
+      },
+      {
+        "name": "clock",
+        "value": "1040px"
+      },
+      {
+        "name": "guard-phone",
+        "value": "760px"
+      },
+      {
+        "name": "guard-two-column",
+        "value": "960px"
+      }
     ]
   },
   "components": [
@@ -130,6 +380,46 @@
       "description": "Instrument reading on a graph node port; status switches wash, border and numeral color.",
       "html": "<span class=\"ds-vp\"><span class=\"v\">41.8</span><span class=\"u\">°C</span></span> <span class=\"ds-vp ds-vp-crit\"><span class=\"v\">78.2</span><span class=\"u\">°C</span></span>",
       "css": ".ds-vp{display:inline-flex;align-items:baseline;gap:2px;font:400 10.5px var(--num,'B612',monospace);padding:1px 6px;border:1px solid var(--rule,#c2c7ca);border-radius:var(--r,2px);background:var(--surface-2,#eceeeb);color:var(--ink,#111416);font-variant-numeric:tabular-nums;cursor:pointer}.ds-vp .u{font:400 8px var(--mono,'B612 Mono',monospace);color:var(--ink-3,#656c71)}.ds-vp:hover{border-color:var(--accent,#15191c)}.ds-vp-crit{background:var(--crit-soft,#fbe5e2);border-color:var(--crit,#c0231a)}.ds-vp-crit .v{color:var(--crit,#c0231a)}"
+    },
+    {
+      "name": "GUARD Ring Gauge",
+      "kind": "custom",
+      "refersTo": "guard-ring",
+      "description": "고객 화면의 주인공 — 안심 지수 링. 누르면 깎인 이유 시트가 열린다. 초록=안전, 호박=지켜보는 중, 빨강=위험.",
+      "html": "<button class=\"ds-gd-ring\" aria-label=\"안심 지수 — 눌러서 이유 보기\"><svg viewBox=\"0 0 200 200\"><circle cx=\"100\" cy=\"100\" r=\"88\" fill=\"none\" stroke=\"#23282e\" stroke-width=\"8\"/><circle cx=\"100\" cy=\"100\" r=\"88\" fill=\"none\" stroke=\"#7fd1a8\" stroke-width=\"8\" stroke-linecap=\"round\" stroke-dasharray=\"552.92\" stroke-dashoffset=\"16.6\" transform=\"rotate(-90 100 100)\"/></svg><span><b>97</b><i>안심 지수</i><small>눌러서 이유 보기</small></span></button>",
+      "css": ":host{--g-bg:#0b0d10;--g-card:#15191d;--g-line:#2a2e33;--g-ink:#e9e6df;--g-ink3:#8d8a83;--g-ok:#7fd1a8;--g-warn:#e9b45a;--g-crit:#ff6b60;--g-btn:#e9e6df;--g-btn-ink:#0b0d10}.ds-gd-ring{position:relative;width:200px;height:200px;border:0;background:var(--g-bg);border-radius:50%;cursor:pointer;color:var(--g-ink);padding:0}.ds-gd-ring svg{position:absolute;inset:0}.ds-gd-ring span{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Gothic A1',sans-serif}.ds-gd-ring b{font:300 64px/1 'Gothic A1',sans-serif;letter-spacing:-.05em}.ds-gd-ring i{font-style:normal;margin-top:8px;font-size:12px;letter-spacing:.14em;color:var(--g-ink3)}.ds-gd-ring small{font-size:12px;color:var(--g-ink3)}.ds-gd-ring:focus-visible{outline:2px solid var(--g-ink);outline-offset:4px}"
+    },
+    {
+      "name": "GUARD Panel Card",
+      "kind": "card",
+      "refersTo": "guard-card",
+      "description": "판넬 한 면 — 상태 점·이름·상태 말, 온도·습도·(있으면) 예지 한 가지. 누르면 상세 시트.",
+      "html": "<button class=\"ds-gd-card\"><span class=\"h\"><i></i><b>A동 배터리실 1번</b><em>정상</em></span><span class=\"v\"><span><b>27.4℃</b>온도</span><span><b>46%</b>습도</span><span><b>낮음</b>화재 징조</span></span></button>",
+      "css": ":host{--g-bg:#0b0d10;--g-card:#15191d;--g-line:#2a2e33;--g-ink:#e9e6df;--g-ink3:#8d8a83;--g-ok:#7fd1a8;--g-warn:#e9b45a;--g-crit:#ff6b60;--g-btn:#e9e6df;--g-btn-ink:#0b0d10}.ds-gd-card{display:block;width:300px;text-align:left;padding:15px 16px;border-radius:14px;background:var(--g-card);border:1px solid var(--g-line);color:var(--g-ink);font-family:'Gothic A1',sans-serif;cursor:pointer}.ds-gd-card:hover{border-color:#3a3f45}.ds-gd-card:focus-visible{outline:2px solid var(--g-ink);outline-offset:2px}.ds-gd-card .h{display:flex;align-items:center;gap:8px}.ds-gd-card .h i{width:8px;height:8px;border-radius:50%;background:var(--g-ok)}.ds-gd-card .h b{font-weight:600;font-size:15px}.ds-gd-card .h em{margin-left:auto;font-style:normal;font-size:12px;color:var(--g-ink3)}.ds-gd-card .v{display:flex;gap:18px;margin-top:12px;font-size:12px;color:var(--g-ink3)}.ds-gd-card .v b{display:block;font:300 24px 'Gothic A1',sans-serif;color:var(--g-ink)}"
+    },
+    {
+      "name": "GUARD Primary Button",
+      "kind": "button",
+      "refersTo": "guard-btn",
+      "description": "들어가기·JCC에 전화 같은 한 화면의 주 동작.",
+      "html": "<button class=\"ds-gd-btn\">들어가기</button>",
+      "css": ":host{--g-bg:#0b0d10;--g-card:#15191d;--g-line:#2a2e33;--g-ink:#e9e6df;--g-ink3:#8d8a83;--g-ok:#7fd1a8;--g-warn:#e9b45a;--g-crit:#ff6b60;--g-btn:#e9e6df;--g-btn-ink:#0b0d10}.ds-gd-btn{padding:15px 28px;border-radius:14px;border:0;background:var(--g-btn);color:var(--g-btn-ink);font:700 15px 'Gothic A1',sans-serif;cursor:pointer}.ds-gd-btn:hover{filter:brightness(1.06)}.ds-gd-btn:focus-visible{outline:2px solid var(--g-ink);outline-offset:2px}.ds-gd-btn:disabled{opacity:.5}"
+    },
+    {
+      "name": "GUARD Bottom Bar",
+      "kind": "nav",
+      "refersTo": "guard-tab",
+      "description": "휴대폰 아래 고정 메뉴 — 현황·판넬·지켜낸 것·보고서. 지금 보는 구역은 진한 글자.",
+      "html": "<nav class=\"ds-gd-tab\"><button aria-current=\"page\">현황</button><button>판넬</button><button>지켜낸 것</button><button>보고서</button></nav>",
+      "css": ":host{--g-bg:#0b0d10;--g-card:#15191d;--g-line:#2a2e33;--g-ink:#e9e6df;--g-ink3:#8d8a83;--g-ok:#7fd1a8;--g-warn:#e9b45a;--g-crit:#ff6b60;--g-btn:#e9e6df;--g-btn-ink:#0b0d10}.ds-gd-tab{display:grid;grid-template-columns:repeat(4,1fr);width:375px;background:var(--g-card);border-top:1px solid var(--g-line);padding:4px 6px}.ds-gd-tab button{min-height:56px;border:0;background:transparent;color:var(--g-ink3);font:600 12px 'Gothic A1',sans-serif;cursor:pointer;border-radius:10px}.ds-gd-tab button[aria-current=page]{color:var(--g-ink)}.ds-gd-tab button:focus-visible{outline:2px solid var(--g-ink)}"
+    },
+    {
+      "name": "GUARD Incident Card",
+      "kind": "custom",
+      "refersTo": "guard-inc",
+      "description": "위험이 생긴 순간 — 무엇을 감지했나 → 판넬이 한 일 → JCC가 한 일. 겁주지 않고 이미 대응 중임을 보여 준다.",
+      "html": "<div class=\"ds-gd-inc\"><span class=\"pill\">위험 · 방금</span><h2>A동 배터리실 1번에서<br>수소 농도 이상을 감지했습니다</h2><div class=\"step\">판넬이 스스로 환기를 열었습니다</div><div class=\"step go\">JCC 관제실이 확인하는 중입니다</div></div>",
+      "css": ":host{--g-bg:#0b0d10;--g-card:#15191d;--g-line:#2a2e33;--g-ink:#e9e6df;--g-ink3:#8d8a83;--g-ok:#7fd1a8;--g-warn:#e9b45a;--g-crit:#ff6b60;--g-btn:#e9e6df;--g-btn-ink:#0b0d10}.ds-gd-inc{width:340px;padding:18px;border-radius:22px;background:#2a1717;border:1px solid #5a2a28;color:var(--g-ink);font-family:'Gothic A1',sans-serif}.ds-gd-inc .pill{display:inline-block;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;background:#5a1d1b;color:#ffb4ab}.ds-gd-inc h2{font:600 19px/1.38 'Gothic A1',sans-serif;margin:12px 0}.ds-gd-inc .step{padding:11px 12px;border-radius:10px;background:rgba(233,230,223,.05);font-size:15px;margin-top:8px}.ds-gd-inc .step.go{color:var(--g-warn)}"
     }
   ],
   "narrative": {
@@ -144,13 +434,56 @@
       "Every status is a word plus a color, and the critical status adds a red revision triangle and a heavy red underline."
     ],
     "rules": [
-      { "name": "The Two Hues Rule", "body": "Teal is the data layer and selection; red is revision and danger. Neither appears anywhere else. Amber and green appear only as status.", "section": "colors" },
-      { "name": "The Word-Plus-Color Rule", "body": "No status is ever color alone. Every status color is paired with a written label (위험, 주의, 정상, 연결 끊김), and the critical status additionally gets the revision triangle and a heavy red rule.", "section": "colors" },
-      { "name": "The Ink Inversion Rule", "body": "The accent is ink on paper and teal in model space. When designing a filled control, check it in both themes; never hard-code the light-theme black.", "section": "colors" },
-      { "name": "The Korean-Stays-Sans Rule", "body": "Any label that can contain Hangul is set in Gothic A1 at small tracking (0.02em max). Monospace tracking spreads Hangul apart, so the build moved every small heading off B612 Mono; keep it there.", "section": "typography" },
-      { "name": "The Instrument Numeral Rule", "body": "A measured value is set in B612, its unit smaller in mono ink-3, and it is never bolded for emphasis. Emphasis is the status color.", "section": "typography" },
-      { "name": "The Line-Weight Rule", "body": "Three weights only: hairline (rule-2, 1px), standard (rule, 1px), heavy (line-3, 2px). Heavy marks a boundary of a whole thing: the sheet, the title block, the menubar, the dock, a group, a modal head, a critical row.", "section": "elevation" },
-      { "name": "The Flat Sheet Rule", "body": "Nothing printed on the sheet casts a shadow. Only menus, modals and canvas nodes float.", "section": "elevation" }
+      {
+        "name": "The Two Hues Rule",
+        "body": "Teal is the data layer and selection; red is revision and danger. Neither appears anywhere else. Amber and green appear only as status.",
+        "section": "colors"
+      },
+      {
+        "name": "The Word-Plus-Color Rule",
+        "body": "No status is ever color alone. Every status color is paired with a written label (위험, 주의, 정상, 연결 끊김), and the critical status additionally gets the revision triangle and a heavy red rule.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Inversion Rule",
+        "body": "The accent is ink on paper and teal in model space. When designing a filled control, check it in both themes; never hard-code the light-theme black.",
+        "section": "colors"
+      },
+      {
+        "name": "The Korean-Stays-Sans Rule",
+        "body": "Any label that can contain Hangul is set in Gothic A1 at small tracking (0.02em max). Monospace tracking spreads Hangul apart, so the build moved every small heading off B612 Mono; keep it there.",
+        "section": "typography"
+      },
+      {
+        "name": "The Instrument Numeral Rule",
+        "body": "A measured value is set in B612, its unit smaller in mono ink-3, and it is never bolded for emphasis. Emphasis is the status color.",
+        "section": "typography"
+      },
+      {
+        "name": "The Line-Weight Rule",
+        "body": "Three weights only: hairline (rule-2, 1px), standard (rule, 1px), heavy (line-3, 2px). Heavy marks a boundary of a whole thing: the sheet, the title block, the menubar, the dock, a group, a modal head, a critical row.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "Nothing printed on the sheet casts a shadow. Only menus, modals and canvas nodes float.",
+        "section": "elevation"
+      },
+      {
+        "name": "GUARD: Real numbers only",
+        "section": "colors",
+        "body": "고객 화면(JCC GUARD)의 숫자는 실제 기록에서만. 가정이 든 값(순찰 비교)은 '추정'과 기준을 함께 쓴다."
+      },
+      {
+        "name": "GUARD: Type steps",
+        "section": "typography",
+        "body": "고객 화면 글자는 12 · 15 · 19 · 24 · 30 · 64px 토큰만(단계마다 1.25배 이상). 읽는 글은 15."
+      },
+      {
+        "name": "GUARD: Easy by default",
+        "section": "elevation",
+        "body": "휴대폰은 아래 고정 메뉴, 손가락 크기(40px 이상) 버튼, 마지막 갱신 시각, 지표마다 한 줄 풀이, 직원 용어는 고객 말로."
+      }
     ],
     "dos": [
       "Do put every new staff screen inside the sheet grammar: heavy outer border, title block, ruled regions.",
@@ -160,7 +493,9 @@
       "Do set measured values in B612 with a smaller mono unit in ink-3, and Hangul-bearing labels in Gothic A1.",
       "Do use the line-icon set (24 viewBox, 1.8 stroke, round, currentColor) for every icon.",
       "Do check every filled control in both themes; the accent changes from ink to teal.",
-      "Do give every looping or entrance animation a `prefers-reduced-motion` fallback, as the build does."
+      "Do give every looping or entrance animation a `prefers-reduced-motion` fallback, as the build does.",
+      "Do (GUARD) explain every metric in one plain line and show when the data was last updated.",
+      "Do (GUARD) keep red for real danger only; management items alone leave the ring green."
     ],
     "donts": [
       "Don't use frosted glass, backdrop blur, gradients or ambient glow; the build removed them from the menubar, dropdowns and AI button. The one sanctioned halo is the selected wire's 3px teal drop-shadow.",
@@ -170,7 +505,9 @@
       "Don't set Hangul in monospace or track it wider than 0.02em.",
       "Don't use emoji or Unicode glyphs as icons or status markers.",
       "Don't hard-code color hexes in component CSS; use the theme tokens so both themes stay correct.",
-      "Don't remove a focus outline without replacing it with the 2px accent outline."
+      "Don't remove a focus outline without replacing it with the 2px accent outline.",
+      "Don't (GUARD) put a small label above a heading; let the heading or a working control carry it.",
+      "Don't (GUARD) give customers output controls (vent, heater, fan)."
     ]
   }
 }

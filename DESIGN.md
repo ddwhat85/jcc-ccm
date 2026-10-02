@@ -357,8 +357,11 @@ The tokens live in `guard.html` `:root` (day) with the dark night values under `
   State colors only: safe `#2f9a6c`/`#7fd1a8`, watch `#b9822a`/`#e9b45a`, danger `#c0362f`/`#ff6b60`.
   Danger tints the whole ground (alert glow) and is the only time red appears.
 - **Type:** Gothic A1 only. Big figures weight 300 (64px ring, 30px month headline, 21-26px stats), headings 600, labels 11px with 0.14-0.16em tracking.
-  Text steps 11 / 12.5 / 14px.
+  Type steps are tokens `--t-cap` 12 / `--t-body` 15 / `--t-h` 19 / `--t-fig` 24 / `--t-big` 30 / `--t-ring` 64px (each step at least 1.25x); reading text (timelines, reports) uses body 15.
 - **Shape:** radius tokens `--r-s` 10px (controls, small items), `--r` 14px (cards), `--r-l` 22px (big panels, sheets), `--pill` 999px.
 - **Motion:** ring fill 1.1s ease-out, color 0.6s, sheets slide up 0.32s; first paint has no transition (no green flash during an incident). Reduced motion turns all off.
+- **Ease of use:** phones get a fixed bottom bar (현황 · 판넬 · 지켜낸 것 · 보고서), PC a 보고서 button in the header; every control is at least 40px;
+  the state line shows the last update time; panel metrics carry a one-line plain explanation; staff wording (e.g. 접점 발열 잔차) is rewritten for customers;
+  Korean breaks between words (`word-break: keep-all`); no small label above a heading (the month header is a working month switcher).
 - **Don't** show a number that is not from real records; assumptions (the patrol comparison) are labeled "추정" with their basis.
 - **Don't** give customers output controls (vent, heater, fan). Viewing, acknowledging, and a phone call only.
