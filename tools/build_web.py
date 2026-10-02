@@ -29,6 +29,10 @@ BANNER = (
 )
 
 
+GOOGLE_FONTS = ('@import url("https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;500;'
+                '600;700;800&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");')
+
+
 def _artifact(html: str, core_js: str, tuning_js: str, api_src: str) -> str:
     """호스팅 페이지(Artifact 등)용 자기완결 본문. 호스트가 <html>/<head>/<body> 뼈대를 씌우므로 그 태그를 빼고,
     외부 스크립트(판정 코어·튜닝 데이터·데모 백엔드)는 통째로 인라인한다. 치환값은 함수로 넘긴다 —
@@ -102,6 +106,21 @@ def main() -> int:
     tuning_ver = "?v=" + hashlib.sha1(tuning_js.encode("utf-8")).hexdigest()[:8]
     html = html.replace(f'<script src="demo-api.js{ver}"></script>',
                         f'<script src="tuning-data.js{tuning_ver}"></script>\n<script src="demo-api.js{ver}"></script>', 1)
+
+    # 고객 화면(JCC GUARD)을 직원 시연판 안 겹(iframe srcdoc)으로 — 링크 하나로 두 화면을 보이고, 같은 데모 백엔드를 쓴다.
+    # 겹 안의 고객 화면은 부모 창의 fetch(데모 백엔드)와 JCC_DEMO를 빌려 쓴다. 글꼴은 구글 글꼴로(파일 경로 없이).
+    src_guard = os.path.join(ROOT, "server", "static", "guard.html")
+    if os.path.isfile(src_guard):
+        with open(src_guard, "r", encoding="utf-8") as fh:
+            gsrc = fh.read()
+        gsrc = re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/", lambda _m: GOOGLE_FONTS, gsrc, count=1, flags=re.S)
+        gi = gsrc.find("<script>")
+        gsrc = (gsrc[:gi] + "<script>/* 직원 시연판 안의 고객 화면 — 부모 창의 데모 백엔드를 쓴다 */"
+                "window.JCC_DEMO = parent.JCC_DEMO; window.fetch = (...a) => parent.fetch(...a);</script>" + gsrc[gi:])
+        # '<'를 전부 <로 — 아티팩트 변환이 태그(<html>·<meta> 등)를 지울 때 이 문자열 안까지 건드리지 않게, </script>로 끊기지도 않게
+        guard_js = "window.GUARD_SRC = " + json.dumps(gsrc, ensure_ascii=False).replace("<", "\\u003c") + ";"
+        html = html.replace(f'<script src="demo-api.js{ver}"></script>',
+                            f'<script>{guard_js}</script>' + chr(10) + f'<script src="demo-api.js{ver}"></script>', 1)
 
     with open(os.path.join(OUT, "index.html"), "w", encoding="utf-8") as fh:
         fh.write(html)

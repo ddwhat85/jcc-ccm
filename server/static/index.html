@@ -175,6 +175,17 @@
   .mb-view button+button{border-left:1px solid var(--rule)}
   .mb-view button[aria-pressed="true"]{background:var(--accent);color:#fff}
   .mb-view button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+  /* 고객 화면 겹(시연판) — 직원 화면 위에 고객이 보는 화면을 그대로. 같은 데모 백엔드를 쓴다 */
+  .gv-layer{position:fixed;inset:0;z-index:300;display:flex;flex-direction:column;background:var(--ground)}
+  .gv-bar{flex:none;display:flex;align-items:center;gap:12px;min-height:48px;padding:6px 12px 6px 16px;background:var(--surface);
+    border-bottom:2px solid var(--line-3);font:500 13px var(--sans);color:var(--ink-2)}
+  .gv-bar b{font:700 14px var(--sans);color:var(--ink)}
+  .gv-bar .gv-sp{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .gv-bar button{flex:none;height:36px;padding:0 14px;border:1px solid var(--line-3);border-radius:var(--r);background:var(--accent);
+    color:#fff;font:600 13px var(--sans);cursor:pointer}
+  .gv-bar button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .gv-layer iframe{flex:1;width:100%;border:0;background:var(--ground)}
+  @media (max-width:760px){.gv-bar .gv-sp span{display:none}}
   @media (max-width:760px){
     .fleet-in{padding:14px 16px 40px}
     .fleet-tools{margin-left:0;width:100%} #fleet-q{flex:1 1 140px;width:auto}
@@ -1655,7 +1666,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <span id="brand-text">JCC<b>·</b>CCM</span>
     </div>
     <div class="mb-view" role="group" aria-label="보기">
-      <button type="button" data-view="list" aria-pressed="true">현장<span class="mbv-l"> 목록</span></button><button type="button" data-view="graph" aria-pressed="false">배선<span class="mbv-l"> 보기</span></button>
+      <button type="button" data-view="list" aria-pressed="true">현장<span class="mbv-l"> 목록</span></button><button type="button" data-view="graph" aria-pressed="false">배선<span class="mbv-l"> 보기</span></button><button type="button" data-view="guard" class="jcc-admin" aria-pressed="false" title="고객이 보는 화면(JCC GUARD)">고객<span class="mbv-l"> 화면</span></button>
     </div>
 
     <div class="mb-menu jcc-admin" data-menu="edit">
@@ -4531,16 +4542,25 @@ async function hoAuto(){
 }
 $("#btn-ho").onclick = openHandover;
 // 고객이 보는 화면(JCC GUARD)을 새 탭으로 — 머리에서 고객사를 골라 그대로 미리 본다
-// 시연 아티팩트에는 guard.html 파일이 따로 없다 — 고객 화면 시연판(별도 아티팩트)으로 가는 진짜 링크로 바꾼다
-// (아티팩트 안에선 window.open이 막히고, 사용자가 누른 <a href>만 새 탭을 연다)
-const GUARD_DEMO_URL = "https://claude.ai/artifact/FFTNYX9sUNWGhywZEgrDQE";
-const ownHost = /^(localhost|127\.|192\.168\.|10\.)/.test(location.hostname) || /vercel\.app$/.test(location.hostname) || location.protocol === "file:";
-if (window.JCC_DEMO && !ownHost){
-  const b = $("#btn-guard"), a = document.createElement("a");
-  a.className = b.className; a.id = "btn-guard"; a.href = GUARD_DEMO_URL; a.target = "_blank"; a.rel = "noopener";
-  a.textContent = b.textContent; a.style.textDecoration = "none"; a.style.color = "inherit"; a.addEventListener("click", () => closeMB());
-  b.replaceWith(a);
-} else $("#btn-guard").onclick = () => window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener");
+// 시연판(build_web이 GUARD_SRC를 싣는다)은 같은 페이지 안에 고객 화면을 겹으로 띄운다 — 링크 하나로 두 화면,
+// 같은 데모 백엔드라 고객 화면에서 이야기를 재생하면 직원 화면에도 그 경보가 그대로 뜬다. 실서버는 새 탭 /guard.
+function openGuardView(){
+  if (!window.GUARD_SRC){ window.open(window.JCC_DEMO ? "guard.html" : "/guard", "_blank", "noopener"); return; }
+  if ($("#gv-layer")) return;
+  const L = document.createElement("div"); L.className = "gv-layer"; L.id = "gv-layer";
+  L.setAttribute("role", "dialog"); L.setAttribute("aria-modal", "true"); L.setAttribute("aria-label", "고객 화면 미리보기");
+  L.innerHTML = `<div class="gv-bar"><b>고객 화면</b><span class="gv-sp">JCC GUARD<span> — 고객 계정으로 로그인하면 이 화면이 보입니다</span></span>` +
+    `<button type="button" id="gv-close">직원 화면으로</button></div><iframe title="고객 화면 JCC GUARD"></iframe>`;
+  document.body.appendChild(L);
+  L.querySelector("iframe").srcdoc = window.GUARD_SRC;
+  document.querySelectorAll(".mb-view [data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === "guard")));
+  const close = () => { L.remove(); try { window.JCC_DEMO && window.JCC_DEMO.calm && window.JCC_DEMO.calm(false); } catch(_){}
+    document.querySelectorAll(".mb-view [data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === VIEW))); };
+  $("#gv-close").onclick = close;
+  L.addEventListener("keydown", e => { if (e.key === "Escape") close(); });
+  setTimeout(() => $("#gv-close").focus(), 30);
+}
+$("#btn-guard").onclick = openGuardView;
 $("#ho-close").onclick = $("#ho-later").onclick = () => $("#ho-overlay").classList.remove("open");
 $("#ho-seen").onclick = async () => {
   try { const r = await fetch("/api/handover/seen", {method:"POST", headers:{"Content-Type":"application/json"}, body:"{}"});
@@ -4872,7 +4892,7 @@ function openPanel(pid){
   if (n) n.el.scrollIntoView({block:"center", inline:"center"});
   setStatus(`${(fleetData.find(p => p.panel === pid) || {}).panel_name || pid} — 배선 보기`);
 }
-document.querySelectorAll(".mb-view [data-view]").forEach(b => b.onclick = () => setView(b.dataset.view));
+document.querySelectorAll(".mb-view [data-view]").forEach(b => b.onclick = () => b.dataset.view === "guard" ? openGuardView() : setView(b.dataset.view));
 document.querySelectorAll(".fleet-seg [data-ff]").forEach(b => b.onclick = () => {
   fleetFilter = b.dataset.ff;
   document.querySelectorAll(".fleet-seg [data-ff]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));

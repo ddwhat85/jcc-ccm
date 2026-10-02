@@ -2471,6 +2471,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       const w = now(); EPI.kind = kind; EPI.t0 = w; EPI.until = w + EPI_DUR;
       return `예지 에피소드 시작: ${kind} (${EPI_DUR}초)`;
     },
+    calm(on) { GD.on = !!on; },   // 고객 화면 겹을 닫으면 false — 직원 시연의 무작위 움직임으로 돌아간다
     // 파이썬 코어와의 일치 검사용(server/tests/test_parity.py) — 미러가 갈라지면 테스트가 잡는다
     _core: { groupAlarms },   // 예지 코어는 window.JCCPredict
   };
