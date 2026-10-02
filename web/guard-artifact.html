@@ -1032,7 +1032,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
-      incident: gdIncident(rows), contact: { phone: "", engineer: "김현장", desk: "JCC 관제실" },
+      incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
       next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
   }
   function guardPanelDemo(pid) {
@@ -2190,7 +2190,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "" }], owner: {}, receivers: {}, users: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
@@ -2209,6 +2209,11 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "contact") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
+      if (ph && (dg < 9 || dg > 13)) return [{ error: "전화번호를 확인하세요 (숫자 9~13자리)" }, 400];
+      c.engineer = String(b.engineer || "").trim().slice(0, 40); c.engineer_phone = ph;
+      return [{ ok: true, engineer: c.engineer, engineer_phone: c.engineer_phone }, 200]; }
     if (action === "ai") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
@@ -2600,7 +2605,7 @@ function paint(){
     ? `<div><b>—</b><span>미리 잡은 징조<br>(기록 쌓이는 중)</span></div><div><b>—</b><span>스스로 한 조치</span></div><div><b>24시간</b><span>감시 중</span></div>`
     : `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
       `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`);
-  const c = d.contact, who = c.engineer ? `담당 ${esc(c.engineer)}` : esc(c.desk);
+  const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
   setHTML($("#gd-contact"), `<span class="av" aria-hidden="true">${esc((c.engineer || "JCC").slice(0, 1))}</span><span><b>${who}</b><br>이상하면 JCC가 먼저 연락드립니다 · ${due}</span>` +
     (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC 관제실에 전화 ${esc(c.phone)}">전화 ${esc(c.phone)}</a>` : ""));

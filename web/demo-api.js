@@ -253,7 +253,7 @@
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
-      incident: gdIncident(rows), contact: { phone: "", engineer: "김현장", desk: "JCC 관제실" },
+      incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
       next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
   }
   function guardPanelDemo(pid) {
@@ -1411,7 +1411,7 @@
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "" }], owner: {}, receivers: {}, users: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
@@ -1430,6 +1430,11 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "contact") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
+      if (ph && (dg < 9 || dg > 13)) return [{ error: "전화번호를 확인하세요 (숫자 9~13자리)" }, 400];
+      c.engineer = String(b.engineer || "").trim().slice(0, 40); c.engineer_phone = ph;
+      return [{ ok: true, engineer: c.engineer, engineer_phone: c.engineer_phone }, 200]; }
     if (action === "ai") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];

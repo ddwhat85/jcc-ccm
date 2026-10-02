@@ -81,6 +81,12 @@ class Accounts:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} INTEGER DEFAULT 0")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
+            #   engineer·engineer_phone: 고객 화면에 보이는 이 고객사 담당 엔지니어와 연락처(없으면 공통 관제실 번호)
+            for col in ("engineer", "engineer_phone"):
+                try:
+                    self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} TEXT DEFAULT ''")
+                except Exception:  # noqa: BLE001 - 이미 있음
+                    pass
             self._conn.commit()
 
     # ── 고객사·판넬 ─────────────────────────────────────────
@@ -95,10 +101,22 @@ class Accounts:
 
     def list_customers(self) -> list:
         with self._lock:
-            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled "
+            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, engineer, engineer_phone "
                                       "FROM customers ORDER BY id").fetchall()
-        return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]))
-                for r in rows]
+        return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]),
+                     engineer=r["engineer"] or "", engineer_phone=r["engineer_phone"] or "") for r in rows]
+
+    def set_contact(self, customer_id: int, engineer: str, phone: str) -> dict:
+        """고객 화면의 담당 엔지니어·연락처. 전화는 숫자·+·- 만 남긴다(9~13자리, 비우면 공통 번호)."""
+        engineer = str(engineer or "").strip()[:40]
+        phone = "".join(ch for ch in str(phone or "") if ch.isdigit() or ch in "+-")[:20]
+        digits = sum(ch.isdigit() for ch in phone)
+        if phone and not 9 <= digits <= 13:
+            raise ValueError("전화번호를 확인하세요 (숫자 9~13자리)")
+        with self._lock:
+            self._conn.execute("UPDATE customers SET engineer=?, engineer_phone=? WHERE id=?", (engineer, phone, customer_id))
+            self._conn.commit()
+        return {"engineer": engineer, "engineer_phone": phone}
 
     def set_monthly_notify(self, customer_id: int, on: bool) -> None:
         with self._lock:

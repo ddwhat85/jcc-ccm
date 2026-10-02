@@ -169,7 +169,8 @@ def _incident(storage, rows, lat, panels):
             "steps": steps}
 
 
-def guard_view(storage, panels: set | None, site: str, now: float | None = None) -> dict:
+def guard_view(storage, panels: set | None, site: str, now: float | None = None, customer: dict | None = None) -> dict:
+    """customer = 고객사 행(담당 엔지니어·연락처). 정해 두지 않았으면 마지막 정기 점검자와 공통 관제실 번호."""
     from .fleet import fleet
     from .inspection import history as insp_history
     now = time.time() if now is None else now
@@ -178,11 +179,13 @@ def guard_view(storage, panels: set | None, site: str, now: float | None = None)
     model = [_panel_model(p, lat.get(p["panel"])) for p in rows]
     dues = [p["next_inspection"] for p in rows if p.get("next_inspection")]
     last = next(iter(insp_history(storage, panels, include_drafts=False, limit=1)), None)
-    phone = os.environ.get("JCC_SUPPORT_PHONE", "").strip()
+    cu = customer or {}
+    phone = (cu.get("engineer_phone") or "").strip() or os.environ.get("JCC_SUPPORT_PHONE", "").strip()
     return {
         "site": site, "now": now, "index": score(rows, now), "state": state_line(rows), "panels": model,
         "incident": _incident(storage, rows, lat, panels),
-        "contact": {"phone": phone, "engineer": (last or {}).get("by") or "", "desk": "JCC 관제실"},
+        "contact": {"phone": phone, "engineer": (cu.get("engineer") or "").strip() or (last or {}).get("by") or "",
+                    "desk": "JCC 관제실", "assigned": bool((cu.get("engineer") or "").strip())},
         "next_inspection": min(dues) if dues else None,
         "month": month_view(storage, panels, datetime.fromtimestamp(now, KST).strftime("%Y-%m"), now),
     }

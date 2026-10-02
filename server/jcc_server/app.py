@@ -297,9 +297,12 @@ class Handler(BaseHTTPRequestHandler):
         """고객 화면 데이터. 고객은 자기 고객사 판넬만, JCC 직원은 customer_id로 미리보기(없으면 전체)."""
         from . import guard
         from .monthly import valid_period
-        custs = {c["id"]: c["name"] for c in self.storage.accounts.list_customers()}
+        rows = {c["id"]: c for c in self.storage.accounts.list_customers()}
+        custs = {k: v["name"] for k, v in rows.items()}
+        cust = None
         if sc is not None:
             panels, site = set(sc["panels"]), custs.get(self._user().get("customer_id"), "우리 공장")
+            cust = rows.get(self._user().get("customer_id"))
         else:
             try:
                 cid = int((q.get("customer_id") or [""])[0])
@@ -307,11 +310,11 @@ class Handler(BaseHTTPRequestHandler):
                 cid = None
             if cid in custs:
                 owner = self.storage.accounts.panel_owner_map()
-                panels, site = {p for p, c in owner.items() if c == cid}, custs[cid]
+                panels, site, cust = {p for p, c in owner.items() if c == cid}, custs[cid], rows[cid]
             else:
                 panels, site = None, "전체 현장 · JCC 미리보기"
         if path == "/api/guard":
-            return self._json(guard.guard_view(self.storage, panels, site))
+            return self._json(guard.guard_view(self.storage, panels, site, customer=cust))
         if path == "/api/guard/month":
             period = (q.get("period") or [""])[0]
             if not valid_period(period):
@@ -1256,6 +1259,16 @@ class Handler(BaseHTTPRequestHandler):
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
+            if action == "contact":               # 고객 화면 담당 엔지니어·연락처
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                try:
+                    got = ac.set_contact(cid, b.get("engineer", ""), b.get("phone", ""))
+                except ValueError as exc:
+                    return self._json({"error": str(exc)}, 400)
+                audit(f"고객사 #{cid} 담당·연락처: {got['engineer'] or '-'} {got['engineer_phone'] or '(공통 번호)'}")
+                return self._json(dict(got, ok=True))
             if action == "ai":
                 cid = as_id(b.get("customer_id"))
                 if cid is None or not ac.customer_exists(cid):

@@ -420,7 +420,7 @@ function paint(){
     ? `<div><b>—</b><span>미리 잡은 징조<br>(기록 쌓이는 중)</span></div><div><b>—</b><span>스스로 한 조치</span></div><div><b>24시간</b><span>감시 중</span></div>`
     : `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
       `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`);
-  const c = d.contact, who = c.engineer ? `담당 ${esc(c.engineer)}` : esc(c.desk);
+  const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
   setHTML($("#gd-contact"), `<span class="av" aria-hidden="true">${esc((c.engineer || "JCC").slice(0, 1))}</span><span><b>${who}</b><br>이상하면 JCC가 먼저 연락드립니다 · ${due}</span>` +
     (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC 관제실에 전화 ${esc(c.phone)}">전화 ${esc(c.phone)}</a>` : ""));

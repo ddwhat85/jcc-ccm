@@ -149,6 +149,16 @@ def run():
         check("고객: 남의 판넬 상세 404", cu("/api/guard/panel?panel=p2")[0] == 404)
         check("고객: 자기 판넬 상세 200", cu("/api/guard/panel?panel=p1")[0] == 200)
         check("이번 달 경로", cu("/api/guard/month?period=" + time.strftime("%Y-%m"))[0] == 200)
+        s, j = adm("/api/admin/contact", {"customer_id": cid, "engineer": "김현장", "phone": "010-1234-5678"})
+        check("직원: 고객사 담당·연락처 저장", s == 200 and j.get("engineer_phone") == "010-1234-5678", str(j))
+        check("잘못된 전화번호 400", adm("/api/admin/contact", {"customer_id": cid, "engineer": "x", "phone": "12"})[0] == 400)
+        check("고객은 담당 지정 못 함", cu("/api/admin/contact", {"customer_id": cid, "engineer": "x", "phone": ""})[0] == 403)
+        s, j = cu("/api/guard")
+        check("고객 화면에 이 고객사 담당·번호", j["contact"]["engineer"] == "김현장" and j["contact"]["phone"] == "010-1234-5678"
+              and j["contact"]["assigned"] is True, str(j["contact"]))
+        adm("/api/admin/contact", {"customer_id": cid, "engineer": "", "phone": ""})
+        s, j = cu("/api/guard")
+        check("비우면 공통 번호로", j["contact"]["phone"] == "02-0000-0000" and j["contact"]["assigned"] is False, str(j["contact"]))
         check("잘못된 달 400", cu("/api/guard/month?period=abc")[0] == 400)
     finally:
         srv.shutdown()
