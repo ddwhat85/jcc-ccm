@@ -73,6 +73,24 @@ def run():
         s, body = call("/api/login", {"user": "ops", "password": "s3cret-pw"})
         check("맞는 아이디·비번 → 로그인", s == 200 and any(c.name == "jcc_session" for c in jar))
         check("로그인 후 데이터 API 200", call("/api/panels")[0] == 200)
+        import http.client as hc
+
+        def raw_login(remember, https=False):
+            c = hc.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+            hdr = {"Content-Type": "application/json"}
+            if https:
+                hdr["X-Forwarded-Proto"] = "https"
+            c.request("POST", "/api/login", json.dumps({"user": "ops", "password": "s3cret-pw", "remember": remember}), hdr)
+            r = c.getresponse()
+            r.read()
+            ck = r.getheader("Set-Cookie") or ""
+            c.close()
+            return ck
+        ck = raw_login(False)
+        check("로그인 상태 유지 끄면 브라우저 닫을 때까지(Max-Age 없음)", "jcc_session=" in ck and "Max-Age" not in ck, ck[:90])
+        ck = raw_login(True, https=True)
+        check("유지 켜면 7일·https(프록시 뒤)면 Secure", "Max-Age=604800" in ck and "Secure" in ck, ck[-60:])
+        check("상태 응답에 공통 문의 번호 칸(로그인 화면 안내용)", "support_phone" in json.loads(call("/api/auth/status")[1]))
         check("인증 상태: 로그인됨", json.loads(call("/api/auth/status")[1])["authed"] is True)
         check("쿠키 없는 요청은 여전히 401", call("/api/panels", use_jar=False)[0] == 401)
 

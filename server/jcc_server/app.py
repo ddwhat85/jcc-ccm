@@ -486,7 +486,9 @@ class Handler(BaseHTTPRequestHandler):
             pub = None if u is None else dict({k: u[k] for k in ("username", "role", "customer", "must_change")},
                                                env=bool(u.get("env")))
             return self._json({"enabled": self._auth_on(), "authed": u is not None, "user": pub,
-                               "role": u["role"] if u else None, "customer": u["customer"] if u else None})
+                               "role": u["role"] if u else None, "customer": u["customer"] if u else None,
+                               # 로그인 화면의 '아이디·비밀번호 찾기' 안내용 공통 문의 번호(공개 정보)
+                               "support_phone": os.environ.get("JCC_SUPPORT_PHONE", "").strip()})
         if path == "/api/notify/status":
             from .notify import configured_channels
             return self._json({"channels": configured_channels()})
@@ -1244,9 +1246,12 @@ class Handler(BaseHTTPRequestHandler):
         out = json.dumps({"ok": True, "user": pub}, ensure_ascii=False).encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        # 7일 유지. HttpOnly로 JS 접근 차단, SameSite=Lax로 CSRF 완화.
-        self.send_header("Set-Cookie",
-                         f"jcc_session={tok}; HttpOnly; Path=/; Max-Age=604800; SameSite=Lax")
+        # '로그인 상태 유지'면 7일, 아니면 브라우저를 닫을 때까지(공용 PC). HttpOnly로 JS 접근 차단,
+        # SameSite=Lax로 CSRF 완화, https(Render 등 프록시 뒤)면 Secure.
+        remember = body.get("remember", True) is not False
+        https = (self.headers.get("X-Forwarded-Proto", "") or "").lower() == "https"
+        self.send_header("Set-Cookie", f"jcc_session={tok}; HttpOnly; Path=/; SameSite=Lax"
+                         + ("; Max-Age=604800" if remember else "") + ("; Secure" if https else ""))
         self.send_header("Content-Length", str(len(out)))
         self.end_headers()
         self.wfile.write(out)
