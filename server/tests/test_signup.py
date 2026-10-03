@@ -162,6 +162,12 @@ def run():
         for i in range(appmod.SIGNUP_MAX + 1):
             codes.append(call(client(), "/api/signup", {"agree": True, "username": f"spam{i}", "password": "x"})[0])
         check("같은 곳에서 연달아 가입 시도하면 잠시 막음", codes[-1] == 429 and 429 not in codes[:-1], str(codes))
+        appmod._signup_hits.clear()
+        code3 = call(ops, "/api/admin/signup_code", {"customer_id": cid, "on": True})[1]["code"]
+        many = [call(client(), "/api/signup", {"agree": True, "code": code3, "username": f"staff{i}", "name": "직원",
+                                                "phone": "010-1111-2222", "password": "staff-pass-01"})[0]
+                for i in range(appmod.SIGNUP_MAX + 3)]
+        check("한 사무실(같은 IP) 직원 여럿이 코드로 가입해도 막히지 않음", many == [200] * (appmod.SIGNUP_MAX + 3), str(many))
     finally:
         srv.shutdown()
         try:

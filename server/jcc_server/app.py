@@ -184,7 +184,8 @@ def _login_locked(ip: str, now: float, limit: int = LOGIN_MAX_FAILS) -> float:
     return 0.0
 
 
-# 회원가입 남용 방지: 같은 IP에서 SIGNUP_WINDOW초 안에 SIGNUP_MAX번까지(성공·실패 모두 셈)
+# 회원가입 남용 방지: 같은 IP에서 SIGNUP_WINDOW초 안에 '실패(틀린 코드 등)·가입 신청'이 SIGNUP_MAX번이면 막는다.
+# 코드로 성공한 가입은 세지 않는다 — 공장 직원들은 대개 한 인터넷 주소를 같이 쓰므로 여럿이 연달아 가입해도 막히지 않게.
 SIGNUP_MAX = 6
 SIGNUP_WINDOW = 3600.0
 _signup_hits: dict = {}
@@ -193,12 +194,13 @@ _signup_hits: dict = {}
 def _signup_allowed(ip: str, now: float) -> bool:
     with _login_lock:
         hits = [t for t in _signup_hits.get(ip, []) if now - t < SIGNUP_WINDOW]
-        if len(hits) >= SIGNUP_MAX:
-            _signup_hits[ip] = hits
-            return False
-        hits.append(now)
         _signup_hits[ip] = hits
-        return True
+        return len(hits) < SIGNUP_MAX
+
+
+def _signup_count(ip: str, now: float) -> None:
+    with _login_lock:
+        _signup_hits.setdefault(ip, []).append(now)
 
 
 def _signup_on() -> bool:
@@ -1331,10 +1333,15 @@ class Handler(BaseHTTPRequestHandler):
         code = str(body.get("code", "") or "").strip()
         try:
             if code:
-                got = ac.signup_with_code(code, username, pw, body.get("name", ""), body.get("phone", ""))
+                try:
+                    got = ac.signup_with_code(code, username, pw, body.get("name", ""), body.get("phone", ""))
+                except ValueError:
+                    _signup_count(ip, now)
+                    raise
                 self.storage.log_event("", "", "account", f"회원가입(가입 코드): {username} → {got['customer']} 보기 전용",
                                        source="user")
                 return self._json({"ok": True, "mode": "created", "customer": got["customer"]})
+            _signup_count(ip, now)                 # 신청은 성공해도 센다(관리자 목록을 장난 신청으로 채우지 못하게)
             ac.signup_request(username, pw, body.get("name", ""), body.get("phone", ""), body.get("company", ""))
             self.storage.log_event("", "", "account", f"가입 신청: {username} ({str(body.get('company', ''))[:40]})",
                                    source="user")
