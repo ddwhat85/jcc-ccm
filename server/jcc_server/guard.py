@@ -142,6 +142,24 @@ def _panel_model(p, lat) -> dict:
             "ccm_online": p.get("ccm_online"), "ccm_total": p.get("ccm_total"), "last_seen": p.get("last_seen")}
 
 
+def _events(storage, keys, since: float, until: float | None = None, limit: int = 300, newest: bool = False) -> list:
+    """고객 화면용 활동 기록: [since, until] 구간, '벤트 열림 유지'(몇 초마다 쌓이는 상태 기록)는 빼고.
+    newest=False면 오래된 것부터(사건 흐름), True면 최신부터(판넬 상세 최근 기록)."""
+    q = "SELECT id, ts, device_id, sensor_key, etype, detail, source FROM events WHERE ts >= ? AND etype != 'vent_hold'"
+    args: list = [since]
+    if until is not None:
+        q += " AND ts <= ?"
+        args.append(until)
+    if keys is not None:
+        frag, fa = storage._in_devices(keys)
+        q += " AND " + frag
+        args.extend(fa)
+    q += f" ORDER BY ts {'DESC' if newest else 'ASC'} LIMIT ?"
+    args.append(limit)
+    with storage._lock:
+        return [dict(r) for r in storage._conn.execute(q, args).fetchall()]
+
+
 def _incident(storage, rows, lat, panels):
     """가장 최근 활성 위험 경보 → 감지 · 판넬이 한 일 · JCC가 한 일 · 알림."""
     keys = None if panels is None else set().union(*(lat.get(p, {}).get("keys", {p}) for p in panels)) if panels else set()
@@ -153,9 +171,7 @@ def _incident(storage, rows, lat, panels):
     pname = next((r["panel_name"] for r in rows if r["panel"] == pid), pid)
     names = (lat.get(pid) or {}).get("names", {})
     steps = []
-    for e in reversed(storage.events_since(a["raised_at"] - 30, (lat.get(pid) or {}).get("keys", {a["device_id"]}), 200)):
-        if e["etype"] == "vent_hold":      # '열림 유지'는 새 조치가 아니다(몇 초마다 남는 기록)
-            continue
+    for e in _events(storage, (lat.get(pid) or {}).get("keys", {a["device_id"]}), a["raised_at"] - 30):
         if e["etype"] in _SELF:
             steps.append({"ts": e["ts"], "text": f"판넬이 스스로 조치했습니다 — {_plain(e['detail'])}", "done": True})
         elif e["etype"] == "escalate":
@@ -241,7 +257,7 @@ def alarm_view(storage, alarm_id: int):
     pid = next((pn for pn, d in lat.items() if a["device_id"] in d["keys"]), a["device_id"])
     pname = next((p["panel_name"] for p in storage.list_panels() if p["panel"] == pid), pid)
     names = (lat.get(pid) or {}).get("names", {})
-    return {"id": a["id"], "panel": pid, "panel_name": pname, "device_id": a["device_id"], "sensor_key": a.get("sensor_key") or "",
+    return {"id": a["id"], "panel": pid, "panel_name": pname, "device_id": a["device_id"], "sensor_key": a.get("sensor_key") or "", "kind": a["kind"],
             "sensor_name": names.get((a["device_id"], a.get("sensor_key") or ""), a.get("sensor_key") or "CCM"),
             "detail": a.get("detail") or a["kind"], "severity": a.get("severity"), "raised_at": a["raised_at"],
             "acked_at": a.get("acked_at"), "acked_by": a.get("acked_by"), "cleared_at": a.get("cleared_at"),
@@ -337,19 +353,16 @@ def incident_report(storage, alarm_id: int, now: float | None = None):
     t0 = a["raised_at"]
     t1 = a["cleared_at"] or now
     tl = []
-    for e in reversed(storage.events_since(t0 - 600, keys, 400)):
-        if e["ts"] > t1 + 300:
-            continue
+    clear_types = {a["kind"] + "_clear"} | ({"alarm_clear"} if a["kind"] in ("alarm", "alarm_warn") else set())
+    for e in _events(storage, keys, t0 - 600, t1 + 300, 400):    # '열림 유지'는 새 조치가 아니라 DB에서 이미 뺐다
         et = e["etype"]
-        if et == "vent_hold":                 # '열림 유지'는 새 조치가 아니다 — 몇 초마다 남는 기록이라 세지 않는다
-            continue
         if et in _SELF:
             tl.append({"ts": e["ts"], "who": "판넬이 스스로", "text": _plain(e["detail"]), "kind": "self"})
         elif et == "escalate":
             tl.append({"ts": e["ts"], "who": "알림 발송", "text": "담당자에게 경보 알림을 보냈습니다", "kind": "notify"})
         elif et == "ack":
             tl.append({"ts": e["ts"], "who": "JCC 확인", "text": _plain(e["detail"]), "kind": "ack"})
-        elif et.endswith("_clear") and e.get("sensor_key", "") == (a.get("sensor_key") or e.get("sensor_key", "")):
+        elif et in clear_types and (e.get("sensor_key") or "") == (a.get("sensor_key") or ""):   # 이 경보의 회복만
             tl.append({"ts": e["ts"], "who": "정상 회복", "text": _plain(e["detail"]), "kind": "clear"})
     # 경보 발생은 맨 앞에 늘 넣는다(감지 기록이 events에 없어도)
     tl.insert(0, {"ts": t0, "who": "감지", "text": f"{a['sensor_name']} — {_plain(a['detail'])}", "kind": "detect"})
@@ -392,10 +405,8 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     from .storage import Storage as _S
     alarm_kinds = set(_S._SEVERITY)
     tl = []
-    for e in storage.events_since(now - 7 * 86400, keys, 200):
+    for e in _events(storage, keys, now - 7 * 86400, None, 200, newest=True):
         et = e["etype"]
-        if et == "vent_hold":
-            continue
         if et in _SELF:
             who = "판넬이 스스로"
         elif et == "ack":

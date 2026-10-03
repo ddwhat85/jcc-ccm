@@ -73,6 +73,15 @@ def run():
     check("화요일엔 안 보냄", weekly.generate_due(st, nxt + 86400 + 3600, send) == 0)
     check("다음 주 월요일엔 또", weekly.generate_due(st, nxt + 7 * 86400, send) == 1 and len(sent) == 2)
     check("발송 기록이 남음", any(e["etype"] == "weekly" for e in st.events_since(0, None, 50)))
+    wk3 = nxt + 14 * 86400
+    check("발송 실패면 표시 안 하고 다음 점검에 다시", weekly.generate_due(st, wk3, lambda t, n: {"ok": False}) == 0
+          and weekly.generate_due(st, wk3 + 3600, send) == 1, str(len(sent)))
+    wk4 = nxt + 21 * 86400
+    check("문자 설정이 없으면 '발송'으로 세지 않음", weekly.generate_due(st, wk4, lambda t, n: {"skipped": True}) == 0
+          and any("문자 설정 없음" in e["detail"] for e in st.events_since(0, None, 50)))
+    st.raise_alarm("ccm-1", "", "silent", "CCM 응답 없음")
+    r = weekly.build(st, cid, mon10)
+    check("감시 장치 끊김(침묵)은 '위험 경보'로 세지 않음", r["crit"] == 1, str(r["crit"]))
 
     print("--- 운영자 화면 ---")
     srv = appmod.make_server("127.0.0.1", 0, st)

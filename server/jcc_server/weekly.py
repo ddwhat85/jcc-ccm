@@ -38,7 +38,7 @@ def _week_range(now: float):
 def build(storage, customer_id: int, now: float | None = None, so_far: bool = False) -> dict | None:
     """고객사 한 곳의 지난주 요약(문구 포함). 판넬이 없으면 None.
     so_far=True: 운영자 미리 보기용 — 이번 주 월요일부터 지금까지(다음 월요일에 나갈 문자의 모양)."""
-    from .monthly import _alarm_stats, _downtime
+    from .monthly import _downtime
     now = time.time() if now is None else now
     cust = next((c for c in storage.accounts.list_customers() if c["id"] == customer_id), None)
     if cust is None:
@@ -59,7 +59,12 @@ def build(storage, customer_id: int, now: float | None = None, so_far: bool = Fa
     keys = devs | panels
     base = storage.build_report(devices=keys, since=start, until=end)
     pr = base["summary"]["predict"]
-    al = _alarm_stats(storage, keys, start, end)
+    # 경보 건수는 고객 화면 사건 목록과 같은 기준 — 감시 장치 끊김(침묵)은 '위험 경보'가 아니라 가동률로 보인다
+    frag, fa = storage._in_devices(keys)
+    with storage._lock:
+        rows = storage._conn.execute(f"SELECT severity FROM alarms WHERE raised_at >= ? AND raised_at < ? AND kind != 'silent' "
+                                     f"AND {frag}", (since, end, *fa)).fetchall()
+    al = {"crit": sum(1 for r in rows if r["severity"] == "crit"), "warn": sum(1 for r in rows if r["severity"] == "warn")}
     down = sum(_downtime(storage, devs, start, end).values())
     uptime = round(max(0.0, 1.0 - down / max(1.0, (end - since) * len(devs))) * 100, 1)
     if 99.95 <= uptime < 100:
@@ -101,13 +106,26 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
             continue
         nums = storage.accounts.receivers_for(c["id"])
         rep = build(storage, c["id"], now) if nums else None
-        with storage._lock:                 # 번호·판넬이 없어도 이번 주는 처리한 것으로(매시간 다시 보지 않게)
-            storage._conn.execute("INSERT OR IGNORE INTO weekly_sent (customer_id, week, ts) VALUES (?, ?, ?)", (c["id"], wk, now))
-            storage._conn.commit()
-        if rep is None:
+        if rep is None:                     # 번호·판넬이 없으면 이번 주는 넘어간 것으로(매시간 다시 보지 않게)
+            _mark(storage, c["id"], wk, now)
             continue
         from .notify import send_sms
-        (send or send_sms)(rep["text"], nums)
+        res = (send or send_sms)(rep["text"], nums)
+        res = res if isinstance(res, dict) else {"ok": True}
+        if res.get("skipped"):              # 문자 설정(알리고 키) 없음 — 보낸 척하지 않는다
+            _mark(storage, c["id"], wk, now)
+            storage.log_event("", "", "weekly", f"{c['name']} 주간 안전 요약 못 보냄 — 문자 설정 없음", source="system")
+            continue
+        if not res.get("ok"):               # 일시 오류면 표시하지 않고 다음 점검(1시간 뒤)에 다시 — 월요일이 지나면 그만
+            storage.log_event("", "", "weekly", f"{c['name']} 주간 안전 요약 발송 실패 — 다시 시도", source="system")
+            continue
+        _mark(storage, c["id"], wk, now)
         storage.log_event("", "", "weekly", f"{c['name']} 주간 안전 요약 발송 ({len(nums)}명)", source="system")
         n += 1
     return n
+
+
+def _mark(storage, cid: int, wk: str, now: float) -> None:
+    with storage._lock:
+        storage._conn.execute("INSERT OR IGNORE INTO weekly_sent (customer_id, week, ts) VALUES (?, ?, ?)", (cid, wk, now))
+        storage._conn.commit()

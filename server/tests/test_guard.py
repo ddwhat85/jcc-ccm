@@ -91,7 +91,7 @@ def run():
     # 위험 순간: 위험 경보 → 판넬이 스스로 환기(이벤트) → JCC 확인
     st.raise_alarm("ccm-1", "cabinet_temp", "alarm", "함내 온도 61C — 위험(55 초과)")
     st.log_event("ccm-1", "", "vent_open", "화재 징조 → 벤트 자동 개방", source="system")
-    for _ in range(3):        # 몇 초마다 남는 '열림 유지' 기록 — 사건 보고서에서 조치로 세면 안 된다
+    for _ in range(450):      # 위험이 오래 이어지면 '열림 유지'가 몇 초마다 수백 줄 쌓인다 — 첫 '자동 개방'이 밀려나면 안 된다
         st.log_event("ccm-1", "", "vent_hold", "극한 위험 유지 — 벤트 개방 유지 (FRI 100)", source="system")
     aid = next(a["id"] for a in st.list_active_alarms())
     st.ack_alarm(aid, "김현장")
@@ -99,6 +99,7 @@ def run():
     inc = vi["incident"]
     check("위험 순간: 판넬·센서·내용", inc and inc["panel_name"] == "A동 배터리실" and inc["sensor_name"] == "함내 온도", str(inc))
     texts = [s["text"] for s in inc["steps"]]
+    check("위험 순간: '열림 유지'가 수백 줄 쌓여도 첫 자동 개방이 남음", any("자동 개방" in t for t in texts), str(texts))
     check("단계: 판넬이 스스로 → JCC 확인", any("스스로" in t for t in texts) and any("김현장" in t for t in texts), str(texts))
     check("위험이면 지수 빨강", vi["index"]["color"] == "crit" and vi["index"]["score"] <= 80)
     check("다른 고객 범위엔 위험 안 보임", guard.guard_view(st, {"p2"}, "x")["incident"] is None)
@@ -108,7 +109,7 @@ def run():
     check("이번 달: 스스로 한 조치에 환기 1", m["actions"]["total"] >= 1 and m["actions"]["vent"] >= 1, str(m["actions"]))
     check("이번 달: 순찰 추정은 하루 3회 기준", m["patrols"]["per_day"] == 3)
     d = guard.panel_detail(st, "p1")
-    check("판넬 상세: 타임라인에 환기", any("벤트" in t["text"] for t in d["timeline"]), str(d["timeline"][:3]))
+    check("판넬 상세: '열림 유지' 수백 줄에도 첫 자동 개방이 보임", any("자동 개방" in t["text"] for t in d["timeline"]), str(d["timeline"][:3]))
     check("없는 판넬은 None", guard.panel_detail(st, "zz") is None)
     check("이번 달: 감시 가동률(끊김 없으면 100%)", m["uptime"] == 100.0 and m["down_min"] == 0, str(m.get("uptime")))
 
