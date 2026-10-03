@@ -105,6 +105,29 @@ def run():
         appmod._login_fails.clear()               # 잠금 창이 지난 것으로
         check("잠금 해제 후 로그인", call("/api/login", {"user": "ops", "password": "s3cret-pw"})[0] == 200)
 
+        # 프록시(Render) 뒤: 소켓 주소는 모두 프록시 — 손님 IP는 X-Forwarded-For로. 한 손님이 틀려도 남은 안 잠긴다
+        def xlogin(ip, user, pw):
+            c = hc.HTTPConnection("127.0.0.1", srv.server_address[1], timeout=5)
+            c.request("POST", "/api/login", json.dumps({"user": user, "password": pw}),
+                      {"Content-Type": "application/json", "X-Forwarded-For": ip})
+            r = c.getresponse()
+            r.read()
+            c.close()
+            return r.status
+        os.environ["JCC_TRUST_PROXY"] = "1"
+        try:
+            appmod._login_fails.clear()
+            bad = [xlogin("203.0.113.7", "nobody", f"g{i}") for i in range(5)]
+            check("프록시 뒤: 틀린 손님 IP만 잠김", bad == [401] * 5 and xlogin("203.0.113.7", "ops", "s3cret-pw") == 429
+                  and xlogin("198.51.100.9", "ops", "s3cret-pw") == 200)
+            appmod._login_fails.clear()
+            spread = [xlogin(f"192.0.2.{i}", "ops", f"g{i}") for i in range(appmod.LOGIN_USER_MAX)]
+            check("IP를 바꿔 가며 틀려도 같은 아이디는 잠김", spread == [401] * appmod.LOGIN_USER_MAX
+                  and xlogin("192.0.2.200", "ops", "s3cret-pw") == 429)
+        finally:
+            os.environ.pop("JCC_TRUST_PROXY", None)
+            appmod._login_fails.clear()
+
         # 기기 텔레메트리는 대시보드 로그인과 별개(Bearer 키) — 로그인 없이도 수집은 된다
         s, _ = call("/v1/telemetry", {"device_id": "ccm-x", "readings": []}, use_jar=False)
         check("CCM 텔레메트리는 대시보드 로그인과 무관", s == 200)

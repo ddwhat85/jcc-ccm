@@ -26,6 +26,7 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse, parse_qs, unquote
 
+from .accounts import MIN_PW
 from .ota_server import bundle_path, offer_for
 from .storage import Storage
 
@@ -106,7 +107,7 @@ ROUTES = [
     ("GET", "/", "public"), ("GET", "/index.html", "public"), ("GET", "/guard", "public"), ("GET", "/ops", "public"), ("GET", "/predict-core.js", "public"),
     ("GET", "/manifest.webmanifest", "public"), ("GET", "/sw.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
-    ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
+    ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("POST", "/api/signup", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
     ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
     ("POST", "/api/me/password", "self"),
     ("GET", "/api/devices", "read"), ("GET", "/api/panels", "read"), ("GET", "/api/alarms", "read"),
@@ -154,14 +155,55 @@ def route_policy(method: str, path: str):
 _ROLE_OK = {"read": ("admin", "manager", "viewer"), "operate": ("admin", "manager"), "admin": ("admin",)}
 
 
-def _login_locked(ip: str, now: float) -> float:
-    """잠겨 있으면 남은 초, 아니면 0."""
+# 같은 아이디로는 IP가 달라도 LOGIN_USER_MAX번 틀리면 잠근다(프록시 헤더를 속여 IP 잠금을 피해도 막히게)
+LOGIN_USER_MAX = 10
+
+
+def _trust_proxy() -> bool:
+    """Render 등 프록시 뒤인가. 그렇다면 소켓 주소는 프록시라 모든 손님이 한 IP로 보인다."""
+    return bool(os.environ.get("RENDER")) or os.environ.get("JCC_TRUST_PROXY", "").strip() in ("1", "on", "true")
+
+
+def client_ip(handler) -> str:
+    """잠금·남용 방지용 손님 IP. 프록시 뒤면 X-Forwarded-For 맨 앞(손님) — 아니면 소켓 주소.
+    (그 값은 손님이 속일 수 있으므로 아이디별 잠금을 함께 건다.)"""
+    if _trust_proxy():
+        first = (handler.headers.get("X-Forwarded-For", "") or "").split(",")[0].strip()
+        if first and len(first) <= 64:
+            return first
+    return handler.client_address[0]
+
+
+def _login_locked(ip: str, now: float, limit: int = LOGIN_MAX_FAILS) -> float:
+    """잠겨 있으면 남은 초, 아니면 0. (ip 자리에 'u:아이디'를 넣으면 아이디별 잠금)"""
     with _login_lock:
         fails = [t for t in _login_fails.get(ip, []) if now - t < LOGIN_WINDOW]
         _login_fails[ip] = fails
-        if len(fails) >= LOGIN_MAX_FAILS:
+        if len(fails) >= limit:
             return LOGIN_WINDOW - (now - fails[0])
     return 0.0
+
+
+# 회원가입 남용 방지: 같은 IP에서 SIGNUP_WINDOW초 안에 SIGNUP_MAX번까지(성공·실패 모두 셈)
+SIGNUP_MAX = 6
+SIGNUP_WINDOW = 3600.0
+_signup_hits: dict = {}
+
+
+def _signup_allowed(ip: str, now: float) -> bool:
+    with _login_lock:
+        hits = [t for t in _signup_hits.get(ip, []) if now - t < SIGNUP_WINDOW]
+        if len(hits) >= SIGNUP_MAX:
+            _signup_hits[ip] = hits
+            return False
+        hits.append(now)
+        _signup_hits[ip] = hits
+        return True
+
+
+def _signup_on() -> bool:
+    """회원가입 받기(기본 켬). 끄려면 JCC_SIGNUP=off."""
+    return os.environ.get("JCC_SIGNUP", "on").strip().lower() not in ("off", "0", "false", "no")
 
 
 def _login_record(ip: str, ok: bool, now: float) -> None:
@@ -488,7 +530,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"enabled": self._auth_on(), "authed": u is not None, "user": pub,
                                "role": u["role"] if u else None, "customer": u["customer"] if u else None,
                                # 로그인 화면의 '아이디·비밀번호 찾기' 안내용 공통 문의 번호(공개 정보)
-                               "support_phone": os.environ.get("JCC_SUPPORT_PHONE", "").strip()})
+                               "support_phone": os.environ.get("JCC_SUPPORT_PHONE", "").strip(),
+                               "signup": self._auth_on() and _signup_on(), "min_pw": MIN_PW})
         if path == "/api/notify/status":
             from .notify import configured_channels
             return self._json({"channels": configured_channels()})
@@ -635,7 +678,8 @@ class Handler(BaseHTTPRequestHandler):
             panels = [{"panel": p["panel"], "panel_name": p["panel_name"], "customer_id": owner.get(p["panel"]),
                        "online": p["online"]} for p in self.storage.list_panels()]
             return self._json({"customers": custs, "users": ac.list_users(), "panels": panels,
-                               "env_admin": bool(_DASH_PW) and _DASH_USER})
+                               "env_admin": bool(_DASH_PW) and _DASH_USER,
+                               "signup_requests": ac.list_signup_requests(), "signup_on": _signup_on()})
         if path == "/api/tuning/params":
             from .params import registry_view
             return self._json(registry_view())
@@ -689,6 +733,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._login()
         if parsed.path == "/api/logout":
             return self._logout()
+        if parsed.path == "/api/signup":
+            return self._signup()
         # 그 밖은 권한 표로(장비 텔레메트리는 Bearer 키로 따로 인증)
         if not self._gate("POST", parsed.path):
             return
@@ -1222,18 +1268,23 @@ class Handler(BaseHTTPRequestHandler):
             body = {}
         if not self._auth_on():                # 인증 비활성(개발 모드)이면 그냥 통과
             return self._json({"ok": True, "auth": False})
-        ip, now = self.client_address[0], time.time()
-        wait = _login_locked(ip, now)
+        ip, now = client_ip(self), time.time()
+        user, pw = str(body.get("user", "")), str(body.get("password", ""))
+        ukey = "u:" + user.strip().lower()[:64]
+        wait = max(_login_locked(ip, now), _login_locked(ukey, now, LOGIN_USER_MAX))
         if wait > 0:
             return self._json({"error": f"로그인 시도가 너무 많습니다 — {int(wait) + 1}초 뒤 다시 시도하세요",
                                "retry_after": int(wait) + 1}, 429)
-        user, pw = str(body.get("user", "")), str(body.get("password", ""))
         # 비상 admin(환경변수): 아이디·비번 둘 다 항상 비교(시간 차로도 어느 쪽이 틀렸는지 새지 않게)
         env_ok = (bool(_DASH_PW) and hmac.compare_digest(user.encode("utf-8"), _DASH_USER.encode("utf-8"))
                   and hmac.compare_digest(pw.encode("utf-8"), _DASH_PW.encode("utf-8")))
         acct = None if env_ok else self.storage.accounts.authenticate(user, pw)
         _login_record(ip, bool(env_ok or acct), now)
+        _login_record(ukey, bool(env_ok or acct), now)
         if not (env_ok or acct):
+            if self.storage.accounts.signup_state(user, pw) == "pending":
+                return self._json({"error": "가입 신청을 확인하고 있습니다 — JCC가 승인하면 이 아이디로 로그인할 수 있습니다",
+                                   "pending": True}, 403)
             left = LOGIN_MAX_FAILS - len(_login_fails.get(ip, []))
             return self._json({"error": "아이디 또는 비밀번호가 올바르지 않습니다"
                                         + (f" (남은 시도 {left}회)" if 0 < left <= 2 else "")}, 401)
@@ -1255,6 +1306,41 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(out)))
         self.end_headers()
         self.wfile.write(out)
+
+    def _signup(self) -> None:
+        """회원가입: 가입 코드가 맞으면 그 고객사 '보기 전용' 계정을 바로, 코드가 없으면 가입 신청(승인 대기)."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        raw = self.rfile.read(length) if 0 < length <= 10000 else b""
+        try:
+            body = json.loads(raw.decode("utf-8")) if raw else {}
+        except (ValueError, UnicodeDecodeError):
+            body = None
+        if not isinstance(body, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        if not (self._auth_on() and _signup_on()):
+            return self._json({"error": "지금은 회원가입을 받지 않습니다 — JCC에 문의해 주세요"}, 403)
+        if not body.get("agree"):
+            return self._json({"error": "개인정보 수집·이용에 동의해 주세요"}, 400)
+        ip, now = client_ip(self), time.time()
+        if not _signup_allowed(ip, now):
+            return self._json({"error": "가입 시도가 너무 많습니다 — 한 시간 뒤 다시 시도하거나 JCC에 문의해 주세요"}, 429)
+        ac = self.storage.accounts
+        username, pw = str(body.get("username", "")).strip(), body.get("password", "")
+        if bool(_DASH_PW) and username == _DASH_USER:
+            return self._json({"error": "이미 있는 아이디입니다 — 다른 아이디를 정해 주세요"}, 400)
+        code = str(body.get("code", "") or "").strip()
+        try:
+            if code:
+                got = ac.signup_with_code(code, username, pw, body.get("name", ""), body.get("phone", ""))
+                self.storage.log_event("", "", "account", f"회원가입(가입 코드): {username} → {got['customer']} 보기 전용",
+                                       source="user")
+                return self._json({"ok": True, "mode": "created", "customer": got["customer"]})
+            ac.signup_request(username, pw, body.get("name", ""), body.get("phone", ""), body.get("company", ""))
+            self.storage.log_event("", "", "account", f"가입 신청: {username} ({str(body.get('company', ''))[:40]})",
+                                   source="user")
+            return self._json({"ok": True, "mode": "requested"})
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
 
     def _logout(self) -> None:
         tok = self._cookies().get("jcc_session", "")
@@ -1346,6 +1432,27 @@ class Handler(BaseHTTPRequestHandler):
                 uid, temp = ac.create_user(str(b.get("username", "")), str(b.get("role", "")), cid)
                 audit(f"계정 추가: {b.get('username')} ({b.get('role')})")
                 return self._json({"ok": True, "id": uid, "temp_password": temp})   # 이번 한 번만 보여 준다
+            if action == "signup_code":            # 고객사 가입 코드 발급·새로 발급·끄기
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                code = ac.set_signup_code(cid, bool(b.get("on")))
+                audit(f"고객사 #{cid} 가입 코드 " + ("새로 발급" if code else "끔"))
+                return self._json({"ok": True, "code": code})
+            if action in ("signup/approve", "signup/reject"):
+                rid = as_id(b.get("request_id"))
+                if rid is None:
+                    return self._json({"error": "신청을 확인하세요"}, 400)
+                if action == "signup/reject":
+                    name = ac.reject_signup(rid)
+                    audit(f"가입 신청 거절: {name}")
+                    return self._json({"ok": True})
+                cid = as_id(b.get("customer_id"))
+                if cid is None:
+                    return self._json({"error": "고객사를 골라 주세요"}, 400)
+                got = ac.approve_signup(rid, cid, str(b.get("role", "viewer")))
+                audit(f"가입 신청 승인: {got['username']} → 고객사 #{cid} ({b.get('role', 'viewer')})")
+                return self._json(dict(got, ok=True))
             uid = as_id(b.get("user_id"))
             target = ac.get_user(uid) if uid is not None else None
             if target is None:

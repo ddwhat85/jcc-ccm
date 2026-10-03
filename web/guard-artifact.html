@@ -83,6 +83,16 @@
     font:700 var(--t-body) var(--sans);cursor:pointer;letter-spacing:.02em}
   .gd-btn:disabled{opacity:.5;cursor:default}
   .gd-err{min-height:18px;margin-top:12px;font-size:13px;line-height:1.5;color:var(--crit-ink)}
+  .gd-lg-alt{margin:18px 0 0;text-align:center;font-size:13px;color:var(--ink-3)}
+  .gd-lg-alt .gd-lg-link{margin-left:4px;color:var(--ink)}
+  .gd-opt{margin-left:6px;font-weight:500;color:var(--ink-3)}
+  .gd-fld small{font:500 var(--t-cap)/1.5 var(--sans);color:var(--ink-3)}
+  .gd-su-two{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .gd-su-agree input{flex:none}
+  .gd-su-body,.gd-su-done{display:flex;flex-direction:column}
+  .gd-su-done i{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;color:var(--ok);margin-bottom:18px}
+  .gd-su-done i svg{width:22px;height:22px}
+  @media (max-width:420px){ .gd-su-two{grid-template-columns:1fr} }
   .gd-lg-foot{width:min(400px,100%);display:flex;justify-content:space-between;gap:12px;font:500 var(--t-cap) var(--sans);color:var(--ink-3)}
   .gd-lg-foot a{color:var(--ink-3)}
   .gd-lg-foot a:hover{color:var(--ink)}
@@ -325,7 +335,7 @@
       <label class="gd-fld">아이디<input id="gd-user" name="username" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="아이디 입력" required></label>
       <label class="gd-fld">비밀번호<span class="gd-pw"><input id="gd-pw" name="password" type="password" autocomplete="current-password" placeholder="비밀번호 입력" required>
         <button type="button" id="gd-pw-eye" aria-controls="gd-pw" aria-pressed="false">보기</button></span></label>
-      <div id="gd-newpw-wrap" hidden><label class="gd-fld">새 비밀번호 (처음 로그인 — 8자 이상)<input id="gd-newpw" type="password" autocomplete="new-password" minlength="8" placeholder="새 비밀번호 입력"></label></div>
+      <div id="gd-newpw-wrap" hidden><label class="gd-fld">새 비밀번호 (처음 로그인 — <span class="gd-minpw">10</span>자 이상)<input id="gd-newpw" type="password" autocomplete="new-password" minlength="10" placeholder="새 비밀번호 입력"></label></div>
       <div class="gd-caps" id="gd-caps" role="status" hidden>Caps Lock이 켜져 있습니다</div>
       <div class="gd-lg-row">
         <label class="gd-lg-chk"><input type="checkbox" id="gd-remember" checked>로그인 상태 유지</label>
@@ -334,6 +344,43 @@
       <div class="gd-lg-help" id="gd-forgot-box" hidden></div>
       <button class="gd-btn" id="gd-login-btn" type="submit">로그인</button>
       <div class="gd-err" id="gd-login-err" role="alert"></div>
+      <p class="gd-lg-alt" id="gd-to-su-row" hidden>아직 계정이 없으신가요?<button type="button" class="gd-lg-link" id="gd-to-su">회원가입</button></p>
+    </form>
+    <form class="gd-lg-card" id="gd-su-form" autocomplete="on" novalidate hidden>
+      <div class="gd-su-body" id="gd-su-body">
+        <h2>회원가입</h2>
+        <p class="gd-lg-sub">JCC 담당자에게 받은 가입 코드가 있으면 바로 쓰실 수 있습니다. 코드가 없으면 가입 신청으로 접수되고, JCC가 확인한 뒤 열어 드립니다.</p>
+        <div class="gd-lg-demo" id="gd-su-demo" hidden><span>시연판 가입 코드는 <b>DEMO-7K3P</b>입니다. 비워 두면 가입 신청으로 접수되어, 운영자 화면 → 계정 관리에서 승인해 볼 수 있습니다.</span></div>
+        <label class="gd-fld">가입 코드<input id="gd-su-code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="예: K7QM-3XPA (없으면 비워 두세요)"></label>
+        <label class="gd-fld" id="gd-su-co-wrap">회사명<input id="gd-su-co" autocomplete="organization" maxlength="80" placeholder="회사·공장 이름"></label>
+        <div class="gd-su-two">
+          <label class="gd-fld">이름<input id="gd-su-name" autocomplete="name" maxlength="40" placeholder="이름"></label>
+          <label class="gd-fld">휴대폰<input id="gd-su-phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="010-0000-0000"></label>
+        </div>
+        <label class="gd-fld">아이디<input id="gd-su-user" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="40" placeholder="영문·숫자 3자 이상"></label>
+        <label class="gd-fld">비밀번호<span class="gd-pw"><input id="gd-su-pw" type="password" autocomplete="new-password" placeholder="10자 이상">
+          <button type="button" id="gd-su-eye" aria-controls="gd-su-pw" aria-pressed="false">보기</button></span></label>
+        <label class="gd-fld">비밀번호 확인<input id="gd-su-pw2" type="password" autocomplete="new-password" placeholder="한 번 더 입력"></label>
+        <div class="gd-caps" id="gd-su-caps" role="status" hidden>Caps Lock이 켜져 있습니다</div>
+        <div class="gd-lg-row">
+          <label class="gd-lg-chk gd-su-agree"><input type="checkbox" id="gd-su-agree"><span>[필수] 개인정보 수집·이용 동의</span></label>
+          <button type="button" class="gd-lg-link" id="gd-su-terms" aria-expanded="false" aria-controls="gd-su-terms-box">내용 보기</button>
+        </div>
+        <div class="gd-lg-help" id="gd-su-terms-box" hidden>
+          <b>수집 항목</b> 이름, 휴대폰 번호, 회사명(가입 신청 때), 아이디<br>
+          <b>이용 목적</b> 가입 확인, 계정 관리, 설비 이상·경보에 관한 연락<br>
+          <b>보관 기간</b> 계정을 없앨 때까지. 가입 신청이 거절되면 바로 지웁니다.<br>
+          동의하지 않으실 수 있지만, 그러면 가입할 수 없습니다.</div>
+        <button class="gd-btn" id="gd-su-btn" type="submit">가입 신청하기</button>
+        <div class="gd-err" id="gd-su-err" role="alert"></div>
+        <p class="gd-lg-alt">이미 계정이 있으신가요?<button type="button" class="gd-lg-link" id="gd-to-login">로그인</button></p>
+      </div>
+      <div class="gd-su-done" id="gd-su-done" hidden>
+        <i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></i>
+        <h2 tabindex="-1" id="gd-su-done-h">가입 신청이 접수되었습니다</h2>
+        <p class="gd-lg-sub" id="gd-su-done-t"></p>
+        <button class="gd-btn" type="button" id="gd-su-back">로그인 화면으로</button>
+      </div>
     </form>
     <div class="gd-lg-foot"><span>JCC Solution</span><a href="/ops" id="gd-ops-login">운영자 로그인</a></div>
   </div>
@@ -2278,18 +2325,55 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "" }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "",
+    signup_code: "DEMO-7K3P" }], owner: {}, receivers: {}, users: [], requests: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
   function accView() {
     return { customers: ACC.customers.map(c => Object.assign({}, c, {
         panels: Object.keys(ACC.owner).filter(p => ACC.owner[p] === c.id).sort(), receivers: ACC.receivers[c.id] || [] })),
-      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false,
+      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false, signup_on: true,
+      signup_requests: ACC.requests.map(r => Object.assign({}, r)),
       panels: panelList().map(p => ({ panel: p.panel, panel_name: p.panel_name, customer_id: ACC.owner[p.panel] ?? null, online: p.online })) };
+  }
+  // 회원가입(시연): 서버 accounts.py와 같은 규칙 — 코드면 '보기 전용' 바로, 없으면 가입 신청
+  function accCode(c) { return String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function accSignup(b) {
+    if (!b || !b.agree) return [{ error: "개인정보 수집·이용에 동의해 주세요" }, 400];
+    const name = String(b.username || "").trim(), fn = String(b.name || "").trim().slice(0, 40);
+    const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
+    const code = accCode(b.code), c = code ? ACC.customers.find(x => x.signup_code && accCode(x.signup_code) === code) : null;
+    if (code && !c) return [{ error: "가입 코드가 맞지 않습니다 — JCC 담당자에게 받은 코드를 확인해 주세요" }, 400];
+    if (!/^[A-Za-z0-9._@-]{3,40}$/.test(name)) return [{ error: "아이디는 3~40자 영문·숫자·._@- 만 됩니다" }, 400];
+    if (String(b.password || "").length < 10) return [{ error: "비밀번호는 10자 이상이어야 합니다" }, 400];
+    if (!fn) return [{ error: "이름을 입력해 주세요" }, 400];
+    if (dg < 9 || dg > 13) return [{ error: "휴대폰 번호를 확인해 주세요" }, 400];
+    if (ACC.users.some(u => u.username === name) || ACC.requests.some(r => r.username === name))
+      return [{ error: "이미 있는 아이디입니다 — 다른 아이디를 정해 주세요" }, 400];
+    if (c) { ACC.users.push({ id: ACC.seq++, username: name, role: "viewer", customer_id: c.id, customer: c.name, must_change: false,
+        disabled: false, full_name: fn, phone: ph }); logEvent("", "", "account", `회원가입(가입 코드): ${name} → ${c.name} 보기 전용 (데모)`, "user");
+      return [{ ok: true, mode: "created", customer: c.name }, 200]; }
+    const co = String(b.company || "").trim().slice(0, 80); if (!co) return [{ error: "회사명을 입력해 주세요" }, 400];
+    ACC.requests.push({ id: ACC.seq++, username: name, full_name: fn, phone: ph, company: co, created_at: now() });
+    logEvent("", "", "account", `가입 신청: ${name} (${co}) (데모)`, "user");
+    return [{ ok: true, mode: "requested" }, 200];
   }
   function accAdmin(action, b) {
     const cust = id => ACC.customers.find(c => c.id === id);
+    if (action === "signup_code") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      const A = "ACDEFGHJKLMNPQRTUVWXY34679"; let r = ""; for (let i = 0; i < 8; i++) r += A[Math.floor(Math.random() * A.length)];
+      c.signup_code = b.on ? r.slice(0, 4) + "-" + r.slice(4) : ""; return [{ ok: true, code: c.signup_code }, 200]; }
+    if (action === "signup/approve" || action === "signup/reject") {
+      const i = ACC.requests.findIndex(r => r.id === b.request_id); if (i < 0) return [{ error: "이미 처리했거나 없는 신청입니다" }, 400];
+      const r = ACC.requests[i];
+      if (action === "signup/reject") { ACC.requests.splice(i, 1); return [{ ok: true }, 200]; }
+      const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 골라 주세요" }, 400];
+      if (["manager", "viewer"].indexOf(b.role) < 0) return [{ error: "등급은 담당자·보기 전용 중 하나" }, 400];
+      ACC.requests.splice(i, 1);
+      ACC.users.push({ id: ACC.seq++, username: r.username, role: b.role, customer_id: c.id, customer: c.name, must_change: false,
+        disabled: false, full_name: r.full_name, phone: r.phone });
+      return [{ ok: true, username: r.username }, 200]; }
     if (action === "customer") { const name = String(b.name || "").trim(); if (!name) return [{ error: "고객사 이름이 필요합니다" }, 400];
       const c = { id: ACC.seq++, name, created_at: now() }; ACC.customers.push(c); logEvent("", "", "account", `고객사 추가: ${name} (데모)`, "user");
       return [{ ok: true, id: c.id }, 200]; }
@@ -2455,6 +2539,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
       if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
+      if (p === "/api/signup" && method === "POST") { const [obj, st] = accSignup(body); return Promise.resolve(J(obj, st)); }
       const ma = p.match(/^\/api\/admin\/([a-z_/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));
@@ -2592,7 +2677,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const G = { d: null, user: null, period: null, month: null, timer: null, cid: "" };
+const G = { d: null, user: null, period: null, month: null, timer: null, cid: "", signup: false, minPw: 10 };
 const C = 2 * Math.PI * 88;
 const KST = { timeZone: "Asia/Seoul" };
 const fmtT = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {...KST, month:"long", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false}) : "";
@@ -2620,8 +2705,89 @@ function showLogin(msg){
   document.body.classList.remove("gd-alert"); document.title = "JCC GUARD";   // 탭 제목에 앞 화면의 현장 이름이 남지 않게
   $("#gd-app").hidden = true; $("#gd-login").hidden = false; $("#gd-login-err").textContent = msg || "";
   $("#gd-demo-hint").hidden = !window.JCC_DEMO; $("#gd-ops-login").hidden = !!window.JCC_DEMO;
+  $("#gd-to-su-row").hidden = !(G.signup || window.JCC_DEMO);
+  document.querySelectorAll(".gd-minpw").forEach(e => { e.textContent = G.minPw; }); $("#gd-newpw").minLength = G.minPw;
+  // 가입 링크(/?signup=코드)로 왔으면 가입 화면을 코드를 채운 채로 연다 — 한 번만
+  const join = G.join; G.join = null;
+  if (join !== null && (G.signup || window.JCC_DEMO)){
+    suView(true, true); $("#gd-su-code").value = join.slice(0, 12); suCode();
+    try { history.replaceState(null, "", location.pathname); } catch(_){}
+    return setTimeout(() => $(join ? "#gd-su-name" : "#gd-su-code").focus(), 50);
+  }
+  suView(false, true);
   setTimeout(() => $("#gd-user").focus(), 50);
 }
+
+// ── 회원가입 ─────────────────────────────────────────────
+// 가입 코드가 있으면 그 고객사 '보기 전용' 계정이 바로 생기고 로그인까지, 없으면 '가입 신청'으로 JCC 승인을 기다린다.
+function suView(on, quiet){
+  $("#gd-login-form").hidden = on; $("#gd-su-form").hidden = !on;
+  if (!on) return;
+  $("#gd-su-body").hidden = false; $("#gd-su-done").hidden = true; $("#gd-su-err").textContent = "";
+  $("#gd-su-demo").hidden = !window.JCC_DEMO; $("#gd-su-pw").placeholder = `${G.minPw}자 이상`;
+  suCode();
+  if (!quiet) setTimeout(() => $("#gd-su-code").focus(), 50);
+}
+function suCode(){
+  const has = !!$("#gd-su-code").value.trim();
+  $("#gd-su-co-wrap").hidden = has; $("#gd-su-btn").textContent = has ? "가입하기" : "가입 신청하기";
+}
+$("#gd-to-su").onclick = () => suView(true);
+$("#gd-to-login").onclick = () => { suView(false); setTimeout(() => $("#gd-user").focus(), 50); };
+$("#gd-su-back").onclick = () => { suView(false); setTimeout(() => $("#gd-user").focus(), 50); };
+$("#gd-su-code").addEventListener("input", suCode);
+$("#gd-su-terms").onclick = () => { const b = $("#gd-su-terms-box"), open = b.hidden; b.hidden = !open; $("#gd-su-terms").setAttribute("aria-expanded", String(open)); $("#gd-su-terms").textContent = open ? "접기" : "내용 보기"; };
+$("#gd-su-eye").onclick = () => { const i = $("#gd-su-pw"), show = i.type === "password";
+  i.type = show ? "text" : "password"; $("#gd-su-pw2").type = i.type; $("#gd-su-eye").textContent = show ? "숨기기" : "보기"; $("#gd-su-eye").setAttribute("aria-pressed", String(show)); };
+["#gd-su-pw", "#gd-su-pw2"].forEach(id => { ["keydown", "keyup"].forEach(ev => $(id).addEventListener(ev, e => {
+  if (e.getModifierState) $("#gd-su-caps").hidden = !e.getModifierState("CapsLock"); }));
+  $(id).addEventListener("blur", () => { $("#gd-su-caps").hidden = true; }); });
+["#gd-su-code", "#gd-su-co", "#gd-su-name", "#gd-su-phone", "#gd-su-user", "#gd-su-pw", "#gd-su-pw2"].forEach(id =>
+  $(id).addEventListener("input", () => $(id).removeAttribute("aria-invalid")));
+$("#gd-su-form").addEventListener("submit", async e => {
+  e.preventDefault(); const b = $("#gd-su-btn"); if (b.disabled) return;
+  const v = id => $(id).value.trim(), err = $("#gd-su-err");
+  const code = v("#gd-su-code"), body = {code, company: code ? "" : v("#gd-su-co"), name: v("#gd-su-name"), phone: v("#gd-su-phone"),
+    username: v("#gd-su-user"), password: $("#gd-su-pw").value, agree: $("#gd-su-agree").checked};
+  const digits = body.phone.replace(/\D/g, "").length;
+  const bad = [
+    [!code && !body.company, "#gd-su-co", "회사명을 입력해 주세요"],
+    [!body.name, "#gd-su-name", "이름을 입력해 주세요"],
+    [digits < 9 || digits > 13, "#gd-su-phone", "휴대폰 번호를 확인해 주세요"],
+    [!/^[A-Za-z0-9._@-]{3,40}$/.test(body.username), "#gd-su-user", "아이디는 3~40자 영문·숫자·._@- 만 됩니다"],
+    [body.password.length < G.minPw, "#gd-su-pw", `비밀번호는 ${G.minPw}자 이상이어야 합니다`],
+    [body.password !== $("#gd-su-pw2").value, "#gd-su-pw2", "비밀번호 확인이 다릅니다"],
+    [!body.agree, "#gd-su-agree", "개인정보 수집·이용에 동의해 주세요"],
+  ].find(x => x[0]);
+  if (bad){ err.textContent = bad[2]; $(bad[1]).setAttribute("aria-invalid", "true"); $(bad[1]).focus(); return; }
+  err.textContent = ""; b.disabled = true; const label = b.textContent; b.textContent = "보내는 중…";
+  try {
+    const r = await fetch("/api/signup", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok){
+      if (/가입 코드/.test(j.error || "")) $("#gd-su-code").setAttribute("aria-invalid", "true");
+      if (/아이디/.test(j.error || "")) $("#gd-su-user").setAttribute("aria-invalid", "true");
+      throw new Error(j.error || "가입하지 못했습니다 — 잠시 뒤 다시 시도해 주세요");
+    }
+    $("#gd-su-pw").value = ""; $("#gd-su-pw2").value = "";
+    if (j.mode === "created"){                       // 가입 코드: 바로 로그인
+      toast(`${j.customer || ""} 계정이 만들어졌습니다`);
+      if (window.JCC_DEMO) return demoEnter();
+      const lr = await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({user: body.username, password: body.password, remember: true})});
+      if (!lr.ok){ suView(false); $("#gd-user").value = body.username; $("#gd-login-err").textContent = "가입했습니다 — 정하신 비밀번호로 로그인해 주세요"; return; }
+      if (G.d) return location.reload();
+      return start(await status());
+    }
+    const ph = (G.support || "").trim();
+    $("#gd-su-done-t").innerHTML = `JCC가 소속 회사를 확인한 뒤 계정을 열어 드립니다. 승인되면 정하신 아이디 <b>${esc(body.username)}</b>로 로그인하실 수 있습니다.` +
+      (ph ? ` 급하시면 JCC 관제실(<a href="tel:${esc(ph.replace(/[^0-9+]/g, ""))}">${esc(ph)}</a>)로 연락해 주세요.` : " 급하시면 담당 엔지니어에게 연락해 주세요.") +
+      (window.JCC_DEMO ? " (시연판 — 운영자 화면 → 계정 관리에서 이 신청을 승인해 볼 수 있습니다.)" : "");
+    $("#gd-su-body").hidden = true; $("#gd-su-done").hidden = false; $("#gd-user").value = body.username;
+    setTimeout(() => $("#gd-su-done-h").focus(), 50);
+  } catch(er){ err.textContent = er.message; }
+  finally { b.disabled = false; b.textContent = label; }
+});
 // 아이디·비밀번호 찾기 — 계정은 JCC가 만들어 주므로 '연락처'를 보여 준다(관제실 번호는 서버 설정 JCC_SUPPORT_PHONE)
 $("#gd-forgot").onclick = () => {
   const box = $("#gd-forgot-box"), open = box.hidden;
@@ -2918,6 +3084,7 @@ const printBtn = () => window.JCC_DEMO ? "" : `<p style="margin-top:16px"><butto
 
 // ── 알림 링크(?alarm=번호)로 들어오면 그 경보를 바로 — 로그인이 필요하면 로그인 뒤에 ─────────────
 G.alarmParam = new URLSearchParams(location.search).get("alarm");
+G.join = new URLSearchParams(location.search).get("signup");      // 가입 링크: /?signup=코드
 async function openAlarmLink(){
   const id = G.alarmParam; if (!id) return;
   G.alarmParam = null;
@@ -2993,7 +3160,7 @@ function iosHint(){
 
 // ── 시작 ─────────────────────────────────────────────────
 (async () => {
-  try { const s = await status(); G.support = s.support_phone || "";
+  try { const s = await status(); G.support = s.support_phone || ""; G.signup = !!s.signup; G.minPw = s.min_pw || 10;
     if (window.JCC_DEMO && !demoIn()) return showLogin();
     if (!s.enabled || s.authed){
       if (s.user && s.user.must_change) return showLogin("처음 로그인입니다 — 새 비밀번호를 정해 주세요");

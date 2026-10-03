@@ -1087,6 +1087,13 @@
   .acct-users td{padding:6px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
   .acct-users td.u{font:600 12px var(--mono)}
   .acct-users .off{color:var(--ink-3)}
+  .acct-users td.u small{display:block;font:500 10.5px var(--sans);color:var(--ink-3);margin-top:1px}
+  .acct-users select{font:500 12px var(--sans);color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:4px 6px;max-width:150px}
+  .acct-cust.acct-req{border-color:var(--warn)}
+  .acct-cust.acct-req small{color:var(--warn)}
+  .mb-item .acct-badge{opacity:1;color:var(--warn);font-weight:700}
+  .acct-code{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .acct-code code{font:700 15px var(--mono);letter-spacing:.08em;padding:6px 10px;border:1px dashed var(--rule);border-radius:2px;color:var(--ink)}
   .acct-users td.act{text-align:right;white-space:nowrap}
   .acct-users td.act .acct-btn{padding:4px 9px;font-size:11px}
   .acct-temp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:2px;background:var(--warn-soft);
@@ -1709,7 +1716,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item aiq-gate" id="btn-ask">AI에게 물어보기</button>
         <div class="mb-div jcc-admin"></div>
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
-        <button class="mb-item jcc-admin" id="btn-accounts">계정 관리</button>
+        <button class="mb-item jcc-admin" id="btn-accounts">계정 관리<span class="sc acct-badge" id="acct-badge" hidden></span></button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
         <button class="mb-item jcc-admin" id="btn-bk">데이터 백업</button>
         <button class="mb-item jcc-admin" id="btn-guard">고객 화면으로 보기</button>
@@ -5207,6 +5214,11 @@ document.addEventListener("keydown", e => { if (e.key === "Escape" && $("#aiq-ov
 // 권한은 서버가 쥔다(권한 표). 화면은 등급에 맞춰 메뉴를 숨길 뿐 — 숨긴 걸 눌러도 서버가 403.
 const ROLE_WORD = {admin:"JCC 관리자", manager:"담당자", viewer:"보기 전용"};
 const acctEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function acctBadge(n){ const b = $("#acct-badge"); if (!b) return; b.hidden = !n; b.textContent = n ? `신청 ${n}` : ""; }
+async function acctCount(){
+  try { const r = await fetch("/api/admin/accounts", {cache:"no-store"}); if (!r.ok) return;
+    acctBadge(((await r.json()).signup_requests || []).length); } catch(_){}
+}
 function applyAcct(u){
   // 고객 계정(담당자·보기 전용)은 고객 화면(JCC GUARD)으로 — 이 화면은 JCC 직원 도구다. 시연판은 그대로
   if (u && u.role !== "admin" && !window.JCC_DEMO){ location.replace("/"); return; }   // 운영자 화면은 운영자 계정만
@@ -5215,6 +5227,7 @@ function applyAcct(u){
   document.body.dataset.acctdb = u && !u.env ? "1" : "0";
   const w = $("#acct-who");
   if (w) w.innerHTML = u && !u.env ? `<b>${acctEsc(u.username)}</b> · ${acctEsc(u.customer || "JCC")} ${acctEsc(ROLE_WORD[u.role] || "")}` : "";
+  if (!u || u.role === "admin"){ acctCount(); clearInterval(applyAcct.t); applyAcct.t = setInterval(acctCount, 120000); }   // 가입 신청이 들어오면 메뉴에 표시
 }
 function openPw(force){
   const ov = $("#acct-pw-overlay"); ov.classList.add("open"); ov.dataset.force = force ? "1" : "";
@@ -5250,7 +5263,7 @@ async function acctLoad(){
     if (!r.ok) throw new Error(r.status);
     ACCT.data = await r.json();
   } catch(e){ acctMsg(`계정 정보를 불러오지 못했습니다 (${e.message})`, true); return; }
-  if (ACCT.sel !== "jcc" && !ACCT.data.customers.some(c => c.id === ACCT.sel)) ACCT.sel = "jcc";
+  if (ACCT.sel !== "jcc" && ACCT.sel !== "req" && !ACCT.data.customers.some(c => c.id === ACCT.sel)) ACCT.sel = "jcc";
   acctRender();
 }
 function acctMsg(t, bad){ const m = $("#acct-msg"); m.textContent = t || ""; m.className = "acct-msg" + (bad ? " bad" : t ? " ok" : ""); }
@@ -5263,19 +5276,48 @@ async function acctPost(path, body){
 function acctRender(){
   const d = ACCT.data, users = d.users;
   const admins = users.filter(u => u.role === "admin");
+  const reqs = d.signup_requests || [];
+  acctBadge(reqs.length);
   $("#acct-custs").innerHTML =
+    (reqs.length || ACCT.sel === "req" ? `<button class="acct-cust acct-req" data-sel="req" aria-current="${ACCT.sel === "req"}">가입 신청<small>${reqs.length ? `승인 기다림 ${reqs.length}건` : "기다리는 신청 없음"}</small></button>` : "") +
     `<button class="acct-cust" data-sel="jcc" aria-current="${ACCT.sel === "jcc"}">JCC 관리자<small>계정 ${admins.length + (d.env_admin ? 1 : 0)}</small></button>` +
     d.customers.map(c => `<button class="acct-cust" data-sel="${c.id}" aria-current="${ACCT.sel === c.id}">${acctEsc(c.name)}` +
       `<small>판넬 ${c.panels.length} · 계정 ${users.filter(u => u.customer_id === c.id).length}</small></button>`).join("");
   $("#acct-custs").querySelectorAll(".acct-cust").forEach(b => b.onclick = () => {
-    ACCT.sel = b.dataset.sel === "jcc" ? "jcc" : Number(b.dataset.sel); acctMsg(""); acctRender(); });
+    ACCT.sel = b.dataset.sel === "jcc" || b.dataset.sel === "req" ? b.dataset.sel : Number(b.dataset.sel); acctMsg(""); acctRender(); });
   const main = $("#acct-main");
   const table = list => list.length ? `<table class="acct-users"><thead><tr><th>아이디</th><th>등급</th><th>상태</th><th></th></tr></thead><tbody>` +
-    list.map(u => `<tr><td class="u">${acctEsc(u.username)}</td><td>${ROLE_WORD[u.role]}</td>` +
+    list.map(u => `<tr><td class="u">${acctEsc(u.username)}${u.full_name || u.phone ? `<small>${acctEsc([u.full_name, u.phone].filter(Boolean).join(" · "))}</small>` : ""}</td><td>${ROLE_WORD[u.role]}</td>` +
       `<td class="${u.disabled ? "off" : ""}">${u.disabled ? "꺼짐" : u.must_change ? "임시 비번(첫 로그인 전)" : "사용 중"}</td>` +
       `<td class="act"><button class="acct-btn" data-reset="${u.id}">비번 초기화</button> ` +
       `<button class="acct-btn warn" data-dis="${u.id}" data-off="${u.disabled ? 0 : 1}">${u.disabled ? "켜기" : "끄기"}</button></td></tr>`).join("") +
     `</tbody></table>` : `<p class="acct-note">아직 계정이 없습니다.</p>`;
+  if (ACCT.sel === "req"){
+    const opts = sel => `<option value="">고객사 고르기</option>` + d.customers.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${acctEsc(c.name)}</option>`).join("");
+    const guess = r => { const co = (r.company || "").replace(/\s/g, ""); const hit = d.customers.find(c => c.name.replace(/\s/g, "") === co); return hit ? hit.id : null; };
+    main.innerHTML = `<div><h4>가입 신청<span>가입 코드 없이 들어온 신청 — 소속 고객사를 확인하고(전화 등) 승인하세요. 승인하면 신청자가 정한 비번으로 바로 로그인됩니다</span></h4>` +
+      (reqs.length ? `<table class="acct-users"><thead><tr><th>신청자</th><th>적은 회사</th><th>고객사</th><th>등급</th><th></th></tr></thead><tbody>` +
+        reqs.map(r => `<tr><td class="u">${acctEsc(r.username)}<small>${acctEsc(r.full_name)} · ${acctEsc(r.phone)} · ${new Date(r.created_at * 1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})}</small></td>` +
+          `<td>${acctEsc(r.company)}</td><td><select data-rc="${r.id}" aria-label="${acctEsc(r.username)} 고객사">${opts(guess(r))}</select></td>` +
+          `<td><select data-rr="${r.id}" aria-label="${acctEsc(r.username)} 등급"><option value="viewer">보기 전용</option><option value="manager">담당자</option></select></td>` +
+          `<td class="act"><button class="acct-btn primary" data-ok="${r.id}">승인</button> <button class="acct-btn warn" data-no="${r.id}">거절</button></td></tr>`).join("") +
+        `</tbody></table>` : `<p class="acct-note">기다리는 신청이 없습니다.</p>`) +
+      `<p class="acct-note">거절하면 신청(이름·휴대폰 포함)은 바로 지워집니다. 고객사 직원이 여럿이면 고객사 화면의 '가입 코드'를 건네는 편이 빠릅니다.</p></div>`;
+    main.querySelectorAll("[data-ok]").forEach(b => b.onclick = async () => {
+      const id = Number(b.dataset.ok), cid = Number(main.querySelector(`[data-rc="${id}"]`).value), role = main.querySelector(`[data-rr="${id}"]`).value;
+      if (!cid){ acctMsg("어느 고객사 직원인지 골라 주세요", true); main.querySelector(`[data-rc="${id}"]`).focus(); return; }
+      try { const j = await acctPost("signup/approve", {request_id: id, customer_id: cid, role});
+        acctMsg(`${j.username} 승인 — 이제 로그인할 수 있습니다`); await acctLoad(); } catch(e){ acctMsg(e.message, true); }
+    });
+    main.querySelectorAll("[data-no]").forEach(b => b.onclick = async () => {
+      const id = Number(b.dataset.no);
+      if (ACCT.armed !== "n" + id){ ACCT.armed = "n" + id; b.classList.add("armed"); b.textContent = "한 번 더";
+        setTimeout(() => { if (ACCT.armed === "n" + id){ ACCT.armed = null; b.classList.remove("armed"); b.textContent = "거절"; } }, 4000); return; }
+      ACCT.armed = null;
+      try { await acctPost("signup/reject", {request_id: id}); acctMsg("신청을 거절했습니다(신청 정보는 지웠습니다)"); await acctLoad(); } catch(e){ acctMsg(e.message, true); }
+    });
+    return;
+  }
   if (ACCT.sel === "jcc"){
     main.innerHTML = `<div><h4>JCC 관리자 계정<span>모든 판넬·기능</span></h4>${table(admins)}` +
       (d.env_admin ? `<p class="acct-note">비상 계정 <b>${acctEsc(d.env_admin)}</b> — 서버 환경변수로 관리합니다(여기서 바꿀 수 없음).</p>` : "") + `</div>` +
@@ -5303,6 +5345,11 @@ function acctRender(){
       `<div><h4>AI에게 물어보기<span>기본 꺼짐 — 질문할 때 이 고객사 판넬 기록이 외부 AI(Anthropic)로 전송됩니다</span></h4>` +
       `<label class="acct-panel"><input type="checkbox" id="acct-ai" ${c.ai_enabled ? "checked" : ""}>` +
       `<span>이 고객사에서 AI에게 물어보기 사용<small>계약서·고객 동의를 확인한 뒤 켜세요. 꺼져 있으면 JCC 관리자가 물어도 이 고객사 판넬 기록은 보내지 않습니다.</small></span></label></div>` +
+      `<div><h4>가입 코드<span>이 코드를 고객사 담당자에게 건네면 직원들이 고객 화면에서 직접 가입합니다(보기 전용) — 새어 나갔으면 새로 발급하세요</span></h4>` +
+      (d.signup_on === false ? `<p class="acct-note">서버 설정(JCC_SIGNUP=off)으로 회원가입이 꺼져 있습니다.</p>` : "") +
+      `<div class="acct-code">${c.signup_code ? `<code id="acct-code">${acctEsc(c.signup_code)}</code><button class="acct-btn" id="acct-code-copy">복사</button>` +
+        `<button class="acct-btn" id="acct-link-copy">가입 링크 복사</button><button class="acct-btn" id="acct-code-new">새로 발급</button><button class="acct-btn warn" id="acct-code-off">끄기</button>`
+        : `<span class="acct-note">코드 없음 — 코드 가입이 꺼져 있습니다.</span><button class="acct-btn primary" id="acct-code-new">가입 코드 만들기</button>`}</div></div>` +
       `<div><h4>계정<span>담당자: 경보 확인·수동 조작 · 보기 전용: 화면·리포트만</span></h4>${table(users.filter(u => u.customer_id === c.id))}</div>` +
       `<form class="acct-add" id="acct-user-form"><input id="acct-user-name" maxlength="40" placeholder="새 아이디 (예: kim.a)" aria-label="새 아이디">` +
       `<select id="acct-user-role" aria-label="등급"><option value="manager">담당자</option><option value="viewer">보기 전용</option></select>` +
@@ -5328,6 +5375,19 @@ function acctRender(){
         acctMsg(`${c.name}: 담당 ${j.engineer || "(미지정)"} · ${j.engineer_phone || "공통 번호"}`); await acctLoad();
       } catch(err){ acctMsg(err.message, true); }
     });
+    const codeSet = async on => {
+      try { const j = await acctPost("signup_code", {customer_id: c.id, on});
+        acctMsg(on ? `${c.name} 가입 코드: ${j.code} — 예전 코드는 이제 못 씁니다` : `${c.name} 가입 코드를 껐습니다`); await acctLoad();
+      } catch(e){ acctMsg(e.message, true); }
+    };
+    $("#acct-code-new").onclick = () => codeSet(true);
+    // 가입 링크: 문자·카톡으로 보내면 누르는 순간 코드가 채워진 가입 화면이 열린다
+    if ($("#acct-link-copy")) $("#acct-link-copy").onclick = () => {
+      const url = `${location.origin}/?signup=${encodeURIComponent(c.signup_code)}`;
+      try { navigator.clipboard.writeText(url); acctMsg(`가입 링크를 복사했습니다 — ${url}`); } catch(_){ acctMsg(`복사가 막혀 있습니다 — ${url}`, true); } };
+    if ($("#acct-code-off")) $("#acct-code-off").onclick = () => codeSet(false);
+    if ($("#acct-code-copy")) $("#acct-code-copy").onclick = () => {
+      try { navigator.clipboard.writeText(c.signup_code); acctMsg("가입 코드를 복사했습니다"); } catch(_){ acctMsg("복사가 막혀 있습니다 — 직접 적어 주세요", true); } };
     $("#acct-rcv-save").onclick = async () => {
       try { const j = await acctPost("receivers", {customer_id: c.id, numbers: $("#acct-rcv").value.split(/[\n,]/)});
         acctMsg(`알림 번호 ${j.numbers.length}개 저장`); await acctLoad();

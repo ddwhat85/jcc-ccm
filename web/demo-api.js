@@ -1411,18 +1411,55 @@
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "" }], owner: {}, receivers: {}, users: [], seq: 2 };
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "",
+    signup_code: "DEMO-7K3P" }], owner: {}, receivers: {}, users: [], requests: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
   function accView() {
     return { customers: ACC.customers.map(c => Object.assign({}, c, {
         panels: Object.keys(ACC.owner).filter(p => ACC.owner[p] === c.id).sort(), receivers: ACC.receivers[c.id] || [] })),
-      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false,
+      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false, signup_on: true,
+      signup_requests: ACC.requests.map(r => Object.assign({}, r)),
       panels: panelList().map(p => ({ panel: p.panel, panel_name: p.panel_name, customer_id: ACC.owner[p.panel] ?? null, online: p.online })) };
+  }
+  // 회원가입(시연): 서버 accounts.py와 같은 규칙 — 코드면 '보기 전용' 바로, 없으면 가입 신청
+  function accCode(c) { return String(c || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  function accSignup(b) {
+    if (!b || !b.agree) return [{ error: "개인정보 수집·이용에 동의해 주세요" }, 400];
+    const name = String(b.username || "").trim(), fn = String(b.name || "").trim().slice(0, 40);
+    const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
+    const code = accCode(b.code), c = code ? ACC.customers.find(x => x.signup_code && accCode(x.signup_code) === code) : null;
+    if (code && !c) return [{ error: "가입 코드가 맞지 않습니다 — JCC 담당자에게 받은 코드를 확인해 주세요" }, 400];
+    if (!/^[A-Za-z0-9._@-]{3,40}$/.test(name)) return [{ error: "아이디는 3~40자 영문·숫자·._@- 만 됩니다" }, 400];
+    if (String(b.password || "").length < 10) return [{ error: "비밀번호는 10자 이상이어야 합니다" }, 400];
+    if (!fn) return [{ error: "이름을 입력해 주세요" }, 400];
+    if (dg < 9 || dg > 13) return [{ error: "휴대폰 번호를 확인해 주세요" }, 400];
+    if (ACC.users.some(u => u.username === name) || ACC.requests.some(r => r.username === name))
+      return [{ error: "이미 있는 아이디입니다 — 다른 아이디를 정해 주세요" }, 400];
+    if (c) { ACC.users.push({ id: ACC.seq++, username: name, role: "viewer", customer_id: c.id, customer: c.name, must_change: false,
+        disabled: false, full_name: fn, phone: ph }); logEvent("", "", "account", `회원가입(가입 코드): ${name} → ${c.name} 보기 전용 (데모)`, "user");
+      return [{ ok: true, mode: "created", customer: c.name }, 200]; }
+    const co = String(b.company || "").trim().slice(0, 80); if (!co) return [{ error: "회사명을 입력해 주세요" }, 400];
+    ACC.requests.push({ id: ACC.seq++, username: name, full_name: fn, phone: ph, company: co, created_at: now() });
+    logEvent("", "", "account", `가입 신청: ${name} (${co}) (데모)`, "user");
+    return [{ ok: true, mode: "requested" }, 200];
   }
   function accAdmin(action, b) {
     const cust = id => ACC.customers.find(c => c.id === id);
+    if (action === "signup_code") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      const A = "ACDEFGHJKLMNPQRTUVWXY34679"; let r = ""; for (let i = 0; i < 8; i++) r += A[Math.floor(Math.random() * A.length)];
+      c.signup_code = b.on ? r.slice(0, 4) + "-" + r.slice(4) : ""; return [{ ok: true, code: c.signup_code }, 200]; }
+    if (action === "signup/approve" || action === "signup/reject") {
+      const i = ACC.requests.findIndex(r => r.id === b.request_id); if (i < 0) return [{ error: "이미 처리했거나 없는 신청입니다" }, 400];
+      const r = ACC.requests[i];
+      if (action === "signup/reject") { ACC.requests.splice(i, 1); return [{ ok: true }, 200]; }
+      const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 골라 주세요" }, 400];
+      if (["manager", "viewer"].indexOf(b.role) < 0) return [{ error: "등급은 담당자·보기 전용 중 하나" }, 400];
+      ACC.requests.splice(i, 1);
+      ACC.users.push({ id: ACC.seq++, username: r.username, role: b.role, customer_id: c.id, customer: c.name, must_change: false,
+        disabled: false, full_name: r.full_name, phone: r.phone });
+      return [{ ok: true, username: r.username }, 200]; }
     if (action === "customer") { const name = String(b.name || "").trim(); if (!name) return [{ error: "고객사 이름이 필요합니다" }, 400];
       const c = { id: ACC.seq++, name, created_at: now() }; ACC.customers.push(c); logEvent("", "", "account", `고객사 추가: ${name} (데모)`, "user");
       return [{ ok: true, id: c.id }, 200]; }
@@ -1588,6 +1625,7 @@
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);
       if (mc && method === "POST") { const [obj, st] = cmPost(mc[1], body); return Promise.resolve(J(obj, st)); }
+      if (p === "/api/signup" && method === "POST") { const [obj, st] = accSignup(body); return Promise.resolve(J(obj, st)); }
       const ma = p.match(/^\/api\/admin\/([a-z_/]+)$/);
       if (ma && method === "POST") { const [obj, st] = accAdmin(ma[1], body); return Promise.resolve(J(obj, st)); }
       if (p === "/api/tuning/params") return Promise.resolve(tuneData() ? J(tuneData().params) : J({ error: "튜닝 데이터 없음" }, 503));

@@ -38,7 +38,30 @@ CREATE TABLE IF NOT EXISTS users (
     created_at REAL);
 CREATE TABLE IF NOT EXISTS sessions (
     token_hash TEXT PRIMARY KEY, user_id INTEGER NOT NULL, created_at REAL, expires_at REAL);
+CREATE TABLE IF NOT EXISTS signup_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL, pw_hash TEXT NOT NULL,
+    full_name TEXT DEFAULT '', phone TEXT DEFAULT '', company TEXT DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending', created_at REAL, decided_at REAL, customer_id INTEGER);
 """
+
+# 회원가입
+#   가입 코드: JCC가 고객사마다 발급해 담당자에게 건넨다. 코드로 가입하면 그 고객사 '보기 전용' 계정이 바로 생긴다.
+#   코드 없이: '가입 신청'으로 남고, JCC 관리자가 어느 고객사인지 골라 승인해야 로그인된다.
+_CODE_ALPHA = "ACDEFGHJKLMNPQRTUVWXY34679"       # 헷갈리는 글자(0·O·1·I·B·8·S·5·Z·2) 제외
+PENDING_MAX = 200                                   # 대기 중 신청 상한(장난 신청으로 DB가 차지 않게)
+
+
+def norm_code(code) -> str:
+    return re.sub(r"[^A-Z0-9]", "", str(code or "").upper())
+
+
+def _new_code() -> str:
+    raw = "".join(secrets.choice(_CODE_ALPHA) for _ in range(8))
+    return raw[:4] + "-" + raw[4:]
+
+
+def _clean_phone(phone) -> str:
+    return "".join(ch for ch in str(phone or "") if ch.isdigit() or ch in "+-")[:20]
 
 
 def hash_pw(pw: str) -> str:
@@ -82,9 +105,16 @@ class Accounts:
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
             #   engineer·engineer_phone: 고객 화면에 보이는 이 고객사 담당 엔지니어와 연락처(없으면 공통 관제실 번호)
-            for col in ("engineer", "engineer_phone"):
+            #   signup_code: 고객사 가입 코드(비면 코드 가입 꺼짐)
+            for col in ("engineer", "engineer_phone", "signup_code"):
                 try:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} TEXT DEFAULT ''")
+                except Exception:  # noqa: BLE001 - 이미 있음
+                    pass
+            #   full_name·phone: 가입할 때 받은 이름·휴대폰(계정 관리에서 누구인지 알아보게)
+            for col in ("full_name", "phone"):
+                try:
+                    self._conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT ''")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
             self._conn.commit()
@@ -101,10 +131,11 @@ class Accounts:
 
     def list_customers(self) -> list:
         with self._lock:
-            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, engineer, engineer_phone "
-                                      "FROM customers ORDER BY id").fetchall()
+            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, engineer, engineer_phone, "
+                                      "signup_code FROM customers ORDER BY id").fetchall()
         return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]),
-                     engineer=r["engineer"] or "", engineer_phone=r["engineer_phone"] or "") for r in rows]
+                     engineer=r["engineer"] or "", engineer_phone=r["engineer_phone"] or "",
+                     signup_code=r["signup_code"] or "") for r in rows]
 
     def set_contact(self, customer_id: int, engineer: str, phone: str) -> dict:
         """고객 화면의 담당 엔지니어·연락처. 전화는 숫자·+·- 만 남긴다(9~13자리, 비우면 공통 번호)."""
@@ -183,8 +214,11 @@ class Accounts:
         if r["customer_id"] is not None:
             c = self._conn.execute("SELECT name FROM customers WHERE id=?", (r["customer_id"],)).fetchone()
             name = c["name"] if c else None
+        keys = r.keys()
         return {"id": r["id"], "username": r["username"], "role": r["role"], "customer_id": r["customer_id"],
-                "customer": name, "must_change": bool(r["must_change"]), "disabled": bool(r["disabled"])}
+                "customer": name, "must_change": bool(r["must_change"]), "disabled": bool(r["disabled"]),
+                "full_name": (r["full_name"] if "full_name" in keys else "") or "",
+                "phone": (r["phone"] if "phone" in keys else "") or ""}
 
     def create_user(self, username: str, role: str, customer_id):
         """새 계정 + 임시 비번(한 번만 돌려줌). admin은 고객사 없음, 고객 등급은 고객사 필수."""
@@ -265,6 +299,132 @@ class Accounts:
             return None
         with self._lock:
             return self._user_view(r)
+
+    # ── 회원가입 ───────────────────────────────────────────
+    def set_signup_code(self, customer_id: int, on: bool) -> str:
+        """가입 코드 새로 발급(on) 또는 끄기. 새로 발급하면 예전 코드는 바로 못 쓴다."""
+        with self._lock:
+            code = ""
+            if on:
+                for _ in range(20):
+                    code = _new_code()
+                    if not self._conn.execute("SELECT 1 FROM customers WHERE signup_code=?", (code,)).fetchone():
+                        break
+            self._conn.execute("UPDATE customers SET signup_code=? WHERE id=?", (code, customer_id))
+            self._conn.commit()
+        return code
+
+    def customer_by_code(self, code):
+        """가입 코드 → (고객사 id, 이름). 맞는 코드가 없으면 None. 하이픈·대소문자는 무시."""
+        want = norm_code(code)
+        if len(want) != 8:
+            return None
+        with self._lock:
+            rows = self._conn.execute("SELECT id, name, signup_code FROM customers WHERE signup_code != ''").fetchall()
+        for r in rows:
+            if secrets.compare_digest(norm_code(r["signup_code"]), want):
+                return r["id"], r["name"]
+        return None
+
+    def _taken(self, username: str) -> bool:
+        return (self._conn.execute("SELECT 1 FROM users WHERE username=?", (username,)).fetchone() is not None or
+                self._conn.execute("SELECT 1 FROM signup_requests WHERE username=? AND status='pending'",
+                                   (username,)).fetchone() is not None)
+
+    def _signup_fields(self, username, pw, full_name, phone):
+        username = str(username or "").strip()
+        if not _USER_RE.match(username):
+            raise ValueError("아이디는 3~40자 영문·숫자·._@- 만 됩니다")
+        if not isinstance(pw, str) or len(pw) < MIN_PW:
+            raise ValueError(f"비밀번호는 {MIN_PW}자 이상이어야 합니다")
+        if pw.strip().lower() == username.lower():
+            raise ValueError("비밀번호를 아이디와 다르게 정해 주세요")
+        full_name = str(full_name or "").strip()[:40]
+        if not full_name:
+            raise ValueError("이름을 입력해 주세요")
+        phone = _clean_phone(phone)
+        if not 9 <= sum(ch.isdigit() for ch in phone) <= 13:
+            raise ValueError("휴대폰 번호를 확인해 주세요")
+        return username, full_name, phone
+
+    def signup_with_code(self, code, username, pw, full_name, phone) -> dict:
+        """가입 코드로 가입 — 그 고객사 '보기 전용' 계정을 바로 만든다(본인이 정한 비번이라 첫 변경 없음)."""
+        hit = self.customer_by_code(code)
+        if hit is None:
+            raise ValueError("가입 코드가 맞지 않습니다 — JCC 담당자에게 받은 코드를 확인해 주세요")
+        username, full_name, phone = self._signup_fields(username, pw, full_name, phone)
+        with self._lock:
+            if self._taken(username):
+                raise ValueError("이미 있는 아이디입니다 — 다른 아이디를 정해 주세요")
+            cur = self._conn.execute(
+                "INSERT INTO users (username, pw_hash, role, customer_id, must_change, disabled, created_at, full_name, phone) "
+                "VALUES (?, ?, 'viewer', ?, 0, 0, ?, ?, ?)", (username, hash_pw(pw), hit[0], time.time(), full_name, phone))
+            self._conn.commit()
+            return {"id": cur.lastrowid, "customer_id": hit[0], "customer": hit[1]}
+
+    def signup_request(self, username, pw, full_name, phone, company) -> int:
+        """코드 없이 가입 신청 — JCC 관리자가 고객사를 골라 승인해야 로그인된다."""
+        username, full_name, phone = self._signup_fields(username, pw, full_name, phone)
+        company = str(company or "").strip()[:80]
+        if not company:
+            raise ValueError("회사명을 입력해 주세요")
+        with self._lock:
+            if self._taken(username):
+                raise ValueError("이미 있는 아이디입니다 — 다른 아이디를 정해 주세요")
+            n = self._conn.execute("SELECT COUNT(*) FROM signup_requests WHERE status='pending'").fetchone()[0]
+            if n >= PENDING_MAX:
+                raise ValueError("지금은 가입 신청을 받을 수 없습니다 — JCC에 전화로 문의해 주세요")
+            cur = self._conn.execute(
+                "INSERT INTO signup_requests (username, pw_hash, full_name, phone, company, status, created_at) "
+                "VALUES (?, ?, ?, ?, ?, 'pending', ?)", (username, hash_pw(pw), full_name, phone, company, time.time()))
+            self._conn.commit()
+            return cur.lastrowid
+
+    def list_signup_requests(self) -> list:
+        with self._lock:
+            rows = self._conn.execute("SELECT id, username, full_name, phone, company, created_at FROM signup_requests "
+                                      "WHERE status='pending' ORDER BY id").fetchall()
+        return [dict(r) for r in rows]
+
+    def approve_signup(self, rid: int, customer_id: int, role: str) -> dict:
+        """신청 승인 — 신청자가 정한 비번 그대로 계정을 만든다."""
+        if role not in ("manager", "viewer"):
+            raise ValueError("등급은 담당자·보기 전용 중 하나")
+        if not self.customer_exists(customer_id):
+            raise ValueError("고객사를 골라 주세요")
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM signup_requests WHERE id=? AND status='pending'", (rid,)).fetchone()
+            if not r:
+                raise ValueError("이미 처리했거나 없는 신청입니다")
+            if self._conn.execute("SELECT 1 FROM users WHERE username=?", (r["username"],)).fetchone():
+                raise ValueError("그 아이디로 이미 계정이 있습니다 — 신청을 거절하고 다른 아이디로 다시 신청받으세요")
+            cur = self._conn.execute(
+                "INSERT INTO users (username, pw_hash, role, customer_id, must_change, disabled, created_at, full_name, phone) "
+                "VALUES (?, ?, ?, ?, 0, 0, ?, ?, ?)",
+                (r["username"], r["pw_hash"], role, customer_id, time.time(), r["full_name"], r["phone"]))
+            self._conn.execute("UPDATE signup_requests SET status='approved', decided_at=?, customer_id=?, pw_hash='' "
+                               "WHERE id=?", (time.time(), customer_id, rid))
+            self._conn.commit()
+            return {"id": cur.lastrowid, "username": r["username"]}
+
+    def reject_signup(self, rid: int) -> str:
+        with self._lock:
+            r = self._conn.execute("SELECT username FROM signup_requests WHERE id=? AND status='pending'", (rid,)).fetchone()
+            if not r:
+                raise ValueError("이미 처리했거나 없는 신청입니다")
+            # 거절하면 신청(이름·휴대폰·비번 해시)을 통째로 지운다 — 동의서의 '거절되면 지체 없이 삭제'
+            self._conn.execute("DELETE FROM signup_requests WHERE id=?", (rid,))
+            self._conn.commit()
+            return r["username"]
+
+    def signup_state(self, username: str, pw: str):
+        """로그인이 안 될 때 안내용: 비번까지 맞는 대기 중 신청이면 'pending'. 아이디만으로는 알려 주지 않는다."""
+        with self._lock:
+            r = self._conn.execute("SELECT pw_hash FROM signup_requests WHERE username=? AND status='pending' "
+                                   "ORDER BY id DESC LIMIT 1", ((username or "").strip(),)).fetchone()
+        if r and r["pw_hash"] and check_pw(pw or "", r["pw_hash"]):
+            return "pending"
+        return None
 
     # ── 세션 ───────────────────────────────────────────────
     def new_session(self, uid: int) -> str:
