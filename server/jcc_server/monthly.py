@@ -206,6 +206,13 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
             nums = storage.accounts.receivers_for(c["id"])
             if nums:
                 from .notify import send_sms
-                text = f"[JCC] {c['name']} {int(period[5:])}월 판넬 리포트가 준비됐습니다. 대시보드 → 도구 → 월간 리포트"
-                (send or send_sms)(text, nums)
+                # 고객이 여는 곳은 고객 화면(JCC GUARD) — 직원 화면 메뉴 경로를 알려 주면 못 찾는다
+                import os
+                url = os.environ.get("JCC_PUBLIC_URL", "").strip().rstrip("/")
+                text = (f"[JCC GUARD] {c['name']} {int(period[5:])}월 월간 보고서가 나왔습니다. "
+                        f"고객 화면 → 지켜낸 것 → 월간 보고서" + (f" {url}/" if url else ""))
+                if send:
+                    send(text, nums)
+                else:
+                    send_sms(text, nums, title="JCC GUARD 월간 보고서")
     return n

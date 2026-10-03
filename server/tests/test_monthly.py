@@ -94,6 +94,7 @@ def run():
     n = M.generate_due(st, now=e + 1 * H, send=lambda text, nums: sent.append((text, nums)))
     check("10/1에 고객사마다 9월 발행", n == 2 and st.has_monthly(ca, "2026-09") and st.has_monthly(cb, "2026-09"))
     check("알림은 켠 A에만 한 통", len(sent) == 1 and sent[0][1] == ["01011112222"] and "9월" in sent[0][0], str(sent))
+    check("알림 문구는 고객 화면 길로(직원 메뉴 경로 아님)", "고객 화면 → 지켜낸 것" in sent[0][0] and "대시보드" not in sent[0][0], sent[0][0])
     n = M.generate_due(st, now=e + 2 * H, send=lambda text, nums: sent.append((text, nums)))
     check("다시 돌아도 중복 발행·중복 알림 없음", n == 0 and len(sent) == 1)
     saved = st.list_monthly(ca)

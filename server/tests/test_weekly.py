@@ -83,6 +83,21 @@ def run():
     r = weekly.build(st, cid, mon10)
     check("감시 장치 끊김(침묵)은 '위험 경보'로 세지 않음", r["crit"] == 1, str(r["crit"]))
 
+    # 장문 제목: 주간 요약이 '경보' 제목으로 가면 안 된다 — 실제 전송 함수를 가짜로 바꿔 필드만 본다(네트워크 없음)
+    from jcc_server import notify
+    got = {}
+    real_post = notify._post_form
+    notify._post_form = lambda url, fields, timeout=8: (got.update(fields), {"result_code": "1"})[1]
+    try:
+        assert notify._post_form is not real_post
+        os.environ.update({"JCC_ALIGO_KEY": "test-key", "JCC_ALIGO_USER": "test-user", "JCC_ALIGO_SENDER": "0200000000"})
+        weekly.generate_due(st, nxt + 28 * 86400)
+    finally:
+        notify._post_form = real_post
+        for k in ("JCC_ALIGO_KEY", "JCC_ALIGO_USER", "JCC_ALIGO_SENDER"):
+            os.environ.pop(k, None)
+    check("주간 요약 장문 제목은 '경보'가 아님", got.get("msg_type") == "LMS" and got.get("title") == "JCC GUARD 주간 안전 요약", str(got.get("title")))
+
     print("--- 운영자 화면 ---")
     srv = appmod.make_server("127.0.0.1", 0, st)
     base = f"http://127.0.0.1:{srv.server_address[1]}"

@@ -126,8 +126,8 @@ def _merge(extra) -> list[str]:
     return out
 
 
-def send_sms(text: str, rcv: list | None = None) -> dict:
-    """문자 발송. 90바이트 초과면 자동으로 LMS(장문)로 보낸다."""
+def send_sms(text: str, rcv: list | None = None, title: str = "JCC GUARD 경보") -> dict:
+    """문자 발송. 90바이트 초과면 자동으로 LMS(장문)로 보낸다. title = 장문일 때 제목(경보가 아닌 안내는 바꿔 부른다)."""
     key, user, sender = _env("JCC_ALIGO_KEY"), _env("JCC_ALIGO_USER"), _env("JCC_ALIGO_SENDER")
     rcv = _receivers() if rcv is None else rcv
     if not (key and user and sender and rcv):
@@ -138,7 +138,7 @@ def send_sms(text: str, rcv: list | None = None) -> dict:
             "key": key, "user_id": user, "sender": sender,
             "receiver": ",".join(rcv), "msg": text,
             "msg_type": "LMS" if long_msg else "SMS",
-            "title": "JCC-CCM 경보" if long_msg else None,
+            "title": title if long_msg else None,
         })
         ok = str(res.get("result_code")) == "1"
         return {"channel": "sms", "ok": ok, "resp": res.get("message"), "sent": len(rcv)}
@@ -173,9 +173,9 @@ def send_alimtalk(text: str, rcv: list | None = None) -> dict:
     }
     for i, num in enumerate(rcv[:100], start=1):   # 알리고 1회 최대 100건
         fields[f"receiver_{i}"] = num
-        fields[f"subject_{i}"] = "JCC-CCM 경보"
+        fields[f"subject_{i}"] = "JCC GUARD 경보"
         fields[f"message_{i}"] = text
-        fields[f"fsubject_{i}"] = "JCC-CCM 경보"   # 대체 문자 제목/본문
+        fields[f"fsubject_{i}"] = "JCC GUARD 경보"   # 대체 문자 제목/본문
         fields[f"fmessage_{i}"] = text
     try:
         res = _post_form(_ALIGO_ALIMTALK, fields)

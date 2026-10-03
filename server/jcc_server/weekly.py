@@ -110,7 +110,7 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
             _mark(storage, c["id"], wk, now)
             continue
         from .notify import send_sms
-        res = (send or send_sms)(rep["text"], nums)
+        res = send(rep["text"], nums) if send else send_sms(rep["text"], nums, title="JCC GUARD 주간 안전 요약")
         res = res if isinstance(res, dict) else {"ok": True}
         if res.get("skipped"):              # 문자 설정(알리고 키) 없음 — 보낸 척하지 않는다
             _mark(storage, c["id"], wk, now)
