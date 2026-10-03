@@ -99,7 +99,8 @@ class Accounts:
             # 구버전 DB 열 추가(이미 있으면 넘어감)
             #   monthly_notify: 월간 리포트 알림(기본 꺼짐 — 실제 문자가 나가므로 JCC가 켠 고객사만)
             #   ai_enabled    : AI에게 물어보기(기본 꺼짐 — 데이터가 외부 AI로 나가므로 계약·동의 확인 후 JCC가 켬)
-            for col in ("monthly_notify", "ai_enabled"):
+            #   weekly_notify : 주간 안전 요약 문자(기본 꺼짐 — 실제 발송·비용)
+            for col in ("monthly_notify", "ai_enabled", "weekly_notify"):
                 try:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} INTEGER DEFAULT 0")
                 except Exception:  # noqa: BLE001 - 이미 있음
@@ -131,9 +132,10 @@ class Accounts:
 
     def list_customers(self) -> list:
         with self._lock:
-            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, engineer, engineer_phone, "
-                                      "signup_code FROM customers ORDER BY id").fetchall()
+            rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, weekly_notify, engineer, "
+                                      "engineer_phone, signup_code FROM customers ORDER BY id").fetchall()
         return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]),
+                     weekly_notify=bool(r["weekly_notify"]),
                      engineer=r["engineer"] or "", engineer_phone=r["engineer_phone"] or "",
                      signup_code=r["signup_code"] or "") for r in rows]
 
@@ -152,6 +154,11 @@ class Accounts:
     def set_monthly_notify(self, customer_id: int, on: bool) -> None:
         with self._lock:
             self._conn.execute("UPDATE customers SET monthly_notify=? WHERE id=?", (1 if on else 0, customer_id))
+            self._conn.commit()
+
+    def set_weekly_notify(self, customer_id: int, on: bool) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE customers SET weekly_notify=? WHERE id=?", (1 if on else 0, customer_id))
             self._conn.commit()
 
     def set_ai(self, customer_id: int, on: bool) -> None:

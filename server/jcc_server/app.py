@@ -124,7 +124,7 @@ ROUTES = [
     ("POST", "/api/device/command", "admin"), ("POST", "/api/diagnose", "admin"),
     ("POST", "/api/notify/test", "admin"), ("POST", "/api/panel/name", "admin"),
     ("POST", "/api/predict/baseline", "admin"),
-    ("GET", "/api/admin/accounts", "admin"), ("POST", r"/api/admin/[a-z_/]+", "admin"),
+    ("GET", "/api/admin/accounts", "admin"), ("GET", "/api/admin/weekly_preview", "admin"), ("POST", r"/api/admin/[a-z_/]+", "admin"),
     ("GET", "/api/admin/backups", "admin"), ("GET", r"/api/admin/backup/[A-Za-z0-9_.-]+", "admin"),
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
@@ -687,6 +687,14 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(blob)
             return
+        if path == "/api/admin/weekly_preview":      # 주간 안전 요약 미리 보기(보내지 않는다)
+            from .weekly import build
+            try:
+                cid = int((parse_qs(parsed.query).get("customer_id") or [""])[0])
+            except ValueError:
+                return self._json({"error": "고객사를 확인하세요"}, 400)
+            rep = build(self.storage, cid, so_far=True)
+            return self._json(rep or {"text": "", "empty": True})
         if path == "/api/admin/accounts":
             ac = self.storage.accounts
             owner = ac.panel_owner_map()
@@ -1411,6 +1419,14 @@ class Handler(BaseHTTPRequestHandler):
                 on = bool(b.get("on"))
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
+                return self._json({"ok": True})
+            if action == "weekly_notify":         # 주간 안전 요약 문자(실제 발송 — 켠 고객사만)
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                on = bool(b.get("on"))
+                ac.set_weekly_notify(cid, on)
+                audit(f"고객사 #{cid} 주간 안전 요약 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
             if action == "backup_now":            # 위험한 작업 전 등 — 지금 사본 하나
                 from . import backup

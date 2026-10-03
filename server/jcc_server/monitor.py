@@ -86,6 +86,8 @@ def start(storage, interval: float = 10) -> None:
                     last_monthly = now
                     from .monthly import generate_due
                     generate_due(storage, now)
+                    from .weekly import generate_due as weekly_due   # 월요일 오전: 켠 고객사에 주간 안전 요약(주 1회)
+                    weekly_due(storage, now)
                     from .rul import rollup                  # 남은 여유 예측: 하루 대표값 갱신(문자 없음)
                     rollup(storage, now)
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리 + 오늘 자동 백업(하루 한 번)

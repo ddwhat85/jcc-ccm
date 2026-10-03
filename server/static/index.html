@@ -1092,6 +1092,8 @@
   .acct-cust.acct-req{border-color:var(--warn)}
   .acct-cust.acct-req small{color:var(--warn)}
   .mb-item .acct-badge{opacity:1;color:var(--warn);font-weight:700}
+  .acct-wprev{margin:0 0 10px;padding:9px 11px;border:1px dashed var(--rule);border-radius:2px;white-space:pre-wrap;
+    font:500 11.5px/1.55 var(--sans);color:var(--ink-2);background:var(--canvas)}
   .acct-code{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .acct-code code{font:700 15px var(--mono);letter-spacing:.08em;padding:6px 10px;border:1px dashed var(--rule);border-radius:2px;color:var(--ink)}
   .acct-users td.act{text-align:right;white-space:nowrap}
@@ -5340,6 +5342,9 @@ function acctRender(){
       `<div><h4>알림 받을 번호<span>한 줄에 하나 — 이 고객사 판넬 경보를 JCC 운영 번호와 함께 받습니다</span></h4>` +
       `<label class="acct-panel" style="margin-bottom:8px"><input type="checkbox" id="acct-mnotify" ${c.monthly_notify ? "checked" : ""}>` +
       `<span>월간 리포트 알림<small>매달 1일 리포트가 발행되면 아래 번호로 문자 한 통(실제 발송)</small></span></label>` +
+      `<label class="acct-panel" style="margin-bottom:8px"><input type="checkbox" id="acct-wnotify" ${c.weekly_notify ? "checked" : ""}>` +
+      `<span>주간 안전 요약<small>매주 월요일 오전 지난주 요약 문자 한 통(실제 발송·건당 비용) — 아래 미리 보기</small></span></label>` +
+      `<pre class="acct-wprev" id="acct-wprev" aria-label="주간 안전 요약 미리 보기">불러오는 중…</pre>` +
       `<textarea class="acct-rcv" id="acct-rcv" aria-label="알림 받을 번호">${acctEsc(c.receivers.join("\n"))}</textarea>` +
       `<div class="acct-actions"><button class="acct-btn" id="acct-rcv-save">번호 저장</button></div></div>` +
       `<div><h4>AI에게 물어보기<span>기본 꺼짐 — 질문할 때 이 고객사 판넬 기록이 외부 AI(Anthropic)로 전송됩니다</span></h4>` +
@@ -5364,6 +5369,14 @@ function acctRender(){
         acctMsg(e.target.checked ? `${c.name}: 월간 리포트 알림 켬` : `${c.name}: 월간 리포트 알림 끔`); await acctLoad();
       } catch(err){ acctMsg(err.message, true); e.target.checked = !e.target.checked; }
     };
+    $("#acct-wnotify").onchange = async e => {
+      try { await acctPost("weekly_notify", {customer_id: c.id, on: e.target.checked});
+        acctMsg(e.target.checked ? `${c.name}: 주간 안전 요약 켬 — 다음 월요일 오전부터` : `${c.name}: 주간 안전 요약 끔`); await acctLoad();
+      } catch(err){ acctMsg(err.message, true); e.target.checked = !e.target.checked; }
+    };
+    fetch(`/api/admin/weekly_preview?customer_id=${c.id}`, {cache:"no-store"}).then(r => r.json()).then(j => {
+      const el = $("#acct-wprev"); if (el) el.textContent = j.text || "판넬이 배정되면 미리 보기가 나옵니다.";
+    }).catch(() => { const el = $("#acct-wprev"); if (el) el.textContent = "미리 보기를 불러오지 못했습니다"; });
     $("#acct-ai").onchange = async e => {
       try { await acctPost("ai", {customer_id: c.id, on: e.target.checked});
         acctMsg(e.target.checked ? `${c.name}: AI에게 물어보기 켬` : `${c.name}: AI에게 물어보기 끔`); await acctLoad(); aiqRefresh();

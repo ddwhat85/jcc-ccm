@@ -1513,6 +1513,8 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "weekly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      c.weekly_notify = !!b.on; return [{ ok: true }, 200]; }
     if (action === "backup_now") return [{ error: "시연판에는 서버가 없어 백업을 만들 수 없습니다 — 운영 서버에서는 매일 자동으로 남습니다" }, 400];
     if (action === "contact") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       const ph = String(b.phone || "").replace(/[^0-9+-]/g, "").slice(0, 20), dg = ph.replace(/\D/g, "").length;
@@ -1614,6 +1616,11 @@
       }
       if (p === "/api/predict") return Promise.resolve(J({ panels: predView() }));
       if (p === "/api/admin/accounts") return Promise.resolve(J(accView()));
+      if (p === "/api/admin/weekly_preview") {   // 시연: 같은 모양의 문구(시연 기록 기준 — 실제 발송 없음)
+        const c = ACC.customers.find(x => x.id === parseInt(qs.get("customer_id") || "0", 10)), n = Object.values(ACC.owner).filter(v => c && v === c.id).length;
+        if (!c || !n) return Promise.resolve(J({ text: "", empty: true }));
+        const d = new Date(), a = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)), z = d;   // 서버와 같게: 이번 주 월요일~지금
+        return Promise.resolve(J({ text: `[JCC GUARD] ${c.name} 주간 안전 요약 (${a.getMonth() + 1}/${a.getDate()}~${z.getMonth() + 1}/${z.getDate()} 지금까지)\n판넬 ${n}면 — 한 주 동안 이상 없었습니다.\n판넬이 스스로 한 조치 2회\n감시 가동률 99.9%\n(시연 예시 — 실제로 보내지 않습니다)` })); }
       if (p === "/api/admin/backups") return Promise.resolve(J({ backups: [], keep_days: 7, demo: true }));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
