@@ -2616,7 +2616,8 @@ async function status(){ return (await fetch("/api/auth/status", {cache:"no-stor
 const DEMO_IN = "gd-demo-in";
 const demoIn = v => { try { if (v === undefined) return !!sessionStorage.getItem(DEMO_IN); v ? sessionStorage.setItem(DEMO_IN, "1") : sessionStorage.removeItem(DEMO_IN); } catch(_){} return false; };
 function showLogin(msg){
-  document.body.classList.remove("gd-alert");
+  clearInterval(G.timer); G.timer = null; storyTimers.forEach(clearTimeout); storyTimers = []; unsheet();
+  document.body.classList.remove("gd-alert"); document.title = "JCC GUARD";   // 탭 제목에 앞 화면의 현장 이름이 남지 않게
   $("#gd-app").hidden = true; $("#gd-login").hidden = false; $("#gd-login-err").textContent = msg || "";
   $("#gd-demo-hint").hidden = !window.JCC_DEMO; $("#gd-ops-login").hidden = !!window.JCC_DEMO;
   setTimeout(() => $("#gd-user").focus(), 50);
@@ -2639,7 +2640,7 @@ $("#gd-forgot").onclick = () => {
 function demoEnter(){ demoIn(true); $("#gd-pw").value = ""; start({enabled:false}); }
 $("#gd-demo-go").onclick = demoEnter;
 $("#gd-login-form").addEventListener("submit", async e => {
-  e.preventDefault(); const b = $("#gd-login-btn"); $("#gd-login-err").textContent = "";
+  e.preventDefault(); const b = $("#gd-login-btn"); if (b.disabled) return; $("#gd-login-err").textContent = "";
   const user = $("#gd-user").value.trim(), pw = $("#gd-pw").value, np = $("#gd-newpw").value, remember = $("#gd-remember").checked;
   $("#gd-user").setAttribute("aria-invalid", String(!user)); $("#gd-pw").setAttribute("aria-invalid", String(!pw));
   if (!user || !pw){ $("#gd-login-err").textContent = !user ? "아이디를 입력해 주세요" : "비밀번호를 입력해 주세요"; $(!user ? "#gd-user" : "#gd-pw").focus(); return; }
@@ -2647,7 +2648,8 @@ $("#gd-login-form").addEventListener("submit", async e => {
   b.disabled = true; b.textContent = "확인하는 중…";
   try {
     let r = await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({user, password: pw, remember})});
-    let j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "로그인하지 못했습니다");
+    let j = await r.json().catch(() => ({}));
+    if (!r.ok){ const er = new Error(j.error || "로그인하지 못했습니다"); er.cred = r.status === 401; throw er; }
     let s = await status();
     if (s.user && s.user.must_change){
       if (!np){ $("#gd-newpw-wrap").hidden = false; $("#gd-newpw").focus(); throw new Error("처음 로그인입니다 — 새 비밀번호를 정해 주세요"); }
@@ -2656,15 +2658,17 @@ $("#gd-login-form").addEventListener("submit", async e => {
       await fetch("/api/login", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({user, password: np, remember})});
       s = await status();
     }
-    $("#gd-pw").value = ""; $("#gd-newpw").value = ""; start(s);
-  } catch(err){ $("#gd-login-err").textContent = err.message; $("#gd-pw").setAttribute("aria-invalid", "true"); }
+    $("#gd-pw").value = ""; $("#gd-newpw").value = "";
+    if (G.d) return location.reload();                     // 앞 사람이 보던 화면이 메모리에 남아 있다 — 새로 시작
+    start(s);
+  } catch(err){ $("#gd-login-err").textContent = err.message; if (err.cred) $("#gd-pw").setAttribute("aria-invalid", "true"); }
   b.disabled = false; b.textContent = "로그인";
 });
 ["#gd-user", "#gd-pw"].forEach(id => $(id).addEventListener("input", () => $(id).removeAttribute("aria-invalid")));
 $("#gd-out").onclick = async () => {
   clearInterval(G.timer);
   if (window.JCC_DEMO){ demoIn(false); return showLogin(); }
-  await fetch("/api/logout", {method:"POST"}).catch(() => {}); if (G.auth) showLogin(); else location.reload();
+  await fetch("/api/logout", {method:"POST"}).catch(() => {}); location.reload();   // 화면에 남은 데이터까지 비운다
 };
 
 async function start(s){
@@ -2690,11 +2694,14 @@ async function pickers(){
 const q = () => G.cid ? `customer_id=${encodeURIComponent(G.cid)}` : "";
 
 // ── 데이터 ───────────────────────────────────────────────
+const onLogin = () => !$("#gd-login").hidden;
 async function load(){
+  if (onLogin()) return;                                   // 로그인 화면 뒤에서 그리지 않는다(붉은 배경·옛 화면 방지)
   try { const r = await fetch("/api/guard?" + q(), {cache:"no-store"});
+    if (onLogin()) return;
     if (r.status === 401) return showLogin("다시 로그인해 주세요");
     if (!r.ok) throw new Error(); G.d = await r.json(); G.at = Date.now(); paint(); fresh(); }
-  catch(_){ offline(); }
+  catch(_){ if (!onLogin()) offline(); }
 }
 function offline(){
   const ring = $("#gd-ring"); ring.className = "gd-ring off";
