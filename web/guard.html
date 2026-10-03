@@ -41,7 +41,6 @@
   body.gd-alert{--bg:var(--alert-bg);--glow:var(--alert-glow)}
   button{font:inherit;color:inherit}
   [hidden]{display:none!important}
-  .gd-k{font:500 var(--t-cap) var(--sans);letter-spacing:.16em;color:var(--ink-3);text-transform:uppercase}
   .gd-mut{color:var(--ink-3)}
   :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 
@@ -124,8 +123,10 @@
   /* 머리 */
   .gd-app{max-width:1240px;margin:0 auto;padding:16px 18px 48px}
   .gd-head{display:flex;align-items:center;gap:12px;min-height:40px}
-  .gd-head .gd-k{flex:none}
-  .gd-site{font:600 var(--t-body) var(--sans);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .gd-brand{display:inline-flex;align-items:center;gap:9px;flex:none;font:700 var(--t-cap) var(--sans);letter-spacing:.16em;color:var(--ink)}
+  .gd-brand svg{width:22px;height:22px}
+  .gd-site{font:500 var(--t-body) var(--sans);color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+    padding-left:12px;border-left:1px solid var(--line);line-height:1.2}
   .gd-head .sp{flex:1}
   .gd-brk{display:none}
   @media (max-width:760px){.gd-brk{display:block}}
@@ -152,15 +153,20 @@
   .gd-state{text-align:center;margin-top:6px}
   .gd-state h2{margin:0;font:600 var(--t-h)/1.4 var(--sans);letter-spacing:-.01em}
   .gd-state p{margin:4px 0 0;font-size:var(--t-cap);color:var(--ink-3);line-height:1.5}
-  .gd-tri{display:grid;grid-template-columns:repeat(3,1fr);margin-top:20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
-  .gd-tri div{padding:13px 4px;text-align:center;border-left:1px solid var(--line)}
-  .gd-tri div:first-child{border-left:0}
+  .gd-tri{display:grid;grid-template-columns:repeat(3,1fr);margin-top:24px;border-top:1px solid var(--line)}
+  .gd-tri div{padding:16px 4px 4px;text-align:center}
   .gd-tri b{display:block;font:300 var(--t-fig) var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
   .gd-tri span{display:block;margin-top:2px;font-size:var(--t-cap);line-height:1.35;color:var(--ink-3)}
-  .gd-contact{margin-top:14px;display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:var(--r);border:1px solid var(--line);font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
-  .gd-contact .av{width:34px;height:34px;border-radius:50%;background:var(--card-2);border:1px solid var(--line);flex:none;display:grid;place-items:center;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
-  .gd-contact b{color:var(--ink);font-weight:600}
-  .gd-contact a{margin-left:auto;flex:none;font:600 var(--t-cap) var(--sans);color:var(--ink);text-decoration:none;padding:8px 12px;border-radius:var(--r-l);border:1px solid var(--line)}
+  .gd-contact{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
+  .gd-contact>span{min-width:0;flex:1}
+  .gd-contact:empty{display:none}
+  .gd-contact b{display:block;font:600 var(--t-body)/1.4 var(--sans);color:var(--ink)}
+  .gd-contact small{display:block;margin-top:2px;font-size:var(--t-cap);line-height:1.5;color:var(--ink-3)}
+  .gd-contact a{flex:none;display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 15px;border-radius:var(--pill);
+    background:var(--btn);color:var(--btn-ink);font:600 var(--t-cap) var(--sans);text-decoration:none;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .gd-contact a svg{width:15px;height:15px}
+  .gd-inst{display:block;margin:14px auto 0;min-height:40px;padding:0 12px;border:0;background:none;cursor:pointer;
+    font:600 var(--t-cap) var(--sans);color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
 
   /* 위험 순간 */
   .gd-inc{border-radius:var(--r-l);padding:18px;background:color-mix(in srgb,var(--crit) 10%,var(--card));border:1px solid color-mix(in srgb,var(--crit) 35%,var(--line))}
@@ -187,23 +193,25 @@
   .gd-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}
   @media (min-width:700px){.gd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (min-width:1180px){.gd-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  .gd-card{text-align:left;padding:15px 16px;border-radius:var(--r);background:var(--card);border:1px solid var(--line-2);box-shadow:var(--shadow);cursor:pointer;width:100%;display:block}
+  .gd-card{text-align:left;padding:18px 18px 16px;border-radius:var(--r);background:var(--card);border:1px solid transparent;box-shadow:var(--shadow);
+    cursor:pointer;width:100%;display:block;transition:border-color .15s ease}
   .gd-card:hover{border-color:var(--line)}
   .gd-card.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
   .gd-card.crit{border-color:color-mix(in srgb,var(--crit) 55%,var(--line))}
   .gd-card .h{display:flex;align-items:center;gap:8px}
   .gd-card .h b{font:600 var(--t-body) var(--sans);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .gd-card .h span{margin-left:auto;flex:none;font-size:var(--t-cap);color:var(--ink-3)}
+  .gd-card.warn .h span{color:var(--warn);font-weight:600} .gd-card.crit .h span{color:var(--crit-ink);font-weight:600}
   .gd-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
   .gd-dot.warn{background:var(--warn)} .gd-dot.crit{background:var(--crit)} .gd-dot.offline{background:var(--ink-3)}
-  .gd-card .v{display:flex;gap:18px;margin-top:12px}
+  .gd-card .v{display:flex;gap:22px;margin-top:14px}
   .gd-card .v div{min-width:0}
   .gd-card .v b{display:block;font:300 var(--t-fig) var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap}
   .gd-card .v span{font-size:var(--t-cap);color:var(--ink-3)}
   .gd-card .why{margin-top:10px;font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
 
   /* 이번 달 */
-  .gd-month{padding:20px;border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);box-shadow:var(--shadow)}
+  .gd-month{padding:22px 24px;border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);box-shadow:var(--shadow)}
   .gd-month .nav{display:flex;align-items:center;gap:6px}
   .gd-month .nav .gd-ico{width:40px;height:40px}
   .gd-month .nav .gd-ico:disabled{opacity:.35;cursor:default}
@@ -217,6 +225,9 @@
   .gd-docs{margin-top:14px;display:flex;flex-direction:column;gap:8px}
   .gd-doc{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:var(--r-s);background:var(--card-2);border:1px solid var(--line-2);font-size:var(--t-body);cursor:pointer;width:100%;text-align:left}
   .gd-doc span:last-child{color:var(--ink-3);font-size:var(--t-cap)}
+  .gd-month .gd-docs{margin-top:20px;gap:0;border-top:1px solid var(--line-2)}
+  .gd-month .gd-doc{background:none;border:0;border-bottom:1px solid var(--line-2);border-radius:0;padding:15px 2px;min-height:48px}
+  .gd-month .gd-doc:hover span:first-child{text-decoration:underline;text-underline-offset:3px}
   .gd-empty{padding:28px 10px;text-align:center;color:var(--ink-3);font-size:var(--t-body);line-height:1.6}
 
   /* 시트(휴대폰 아래에서 올라옴 / PC 가운데) */
@@ -400,14 +411,12 @@
 
 <div class="gd-app" id="gd-app" hidden>
   <header class="gd-head">
-    <span class="gd-k">JCC GUARD</span>
+    <span class="gd-brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="var(--line)" stroke-width="3"/><path d="M16 3a13 13 0 1 1-12.4 9" stroke="var(--ok)" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="var(--ok)"/></svg>JCC GUARD</span>
     <span class="gd-site" id="gd-site"></span>
     <span class="sp"></span>
     <span class="gd-brk" aria-hidden="true"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
     <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
-    <button class="gd-txt gd-ops" id="gd-install" hidden>앱으로 설치</button>
-    <button class="gd-txt" id="gd-docs-h">보고서</button>
     <button class="gd-ico" id="gd-theme" aria-label="밤·낮 화면 바꾸기" title="밤·낮 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
     <button class="gd-ico" id="gd-out" aria-label="로그아웃" title="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
   </header>
@@ -429,8 +438,9 @@
         <span class="mid"><b id="gd-score">—</b><span>안심 지수</span><small id="gd-why-hint">눌러서 이유 보기</small></span>
       </button>
       <div class="gd-state"><h2 id="gd-title">불러오는 중</h2><p id="gd-sub"></p><p class="gd-fresh" id="gd-fresh" aria-live="polite"></p></div>
-      <div class="gd-tri" id="gd-tri"></div>
+      <div class="gd-tri" id="gd-tri" hidden></div>
       <div class="gd-contact" id="gd-contact"></div>
+      <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
     </div>
     <div class="gd-right">
       <section class="gd-sec" id="gd-sec-panels"><div class="gd-sec-h"><h3>판넬</h3><span class="gd-mut">문제 있는 것부터</span></div><div class="gd-grid" id="gd-panels"></div></section>
@@ -660,7 +670,7 @@ function fresh(off){
   // 지금 보이는 값이 언제 것인지 — 고객이 '지금 값이 맞나' 의심하지 않게
   const el = $("#gd-fresh"); if (!el) return;
   el.classList.toggle("off", !!off);
-  el.textContent = off ? (G.at ? `연결 끊김 · 마지막 갱신 ${hms(G.at)}` : "서버에 연결하는 중") : `마지막 갱신 ${hms(G.at)} · 5초마다 새로 고침`;
+  el.textContent = off ? (G.at ? `연결 끊김 · 마지막 갱신 ${hms(G.at)}` : "서버에 연결하는 중") : `${hms(G.at)} 갱신`;
 }
 
 function paint(){
@@ -678,14 +688,15 @@ function paint(){
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
   const m = d.month;
-  setHTML($("#gd-tri"), m.building
-    ? `<div><b>—</b><span>미리 잡은 징조<br>(기록 쌓이는 중)</span></div><div><b>—</b><span>스스로 한 조치</span></div><div><b>24시간</b><span>감시 중</span></div>`
-    : `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
+  // 기록이 쌓이기 전에는 빈 숫자(—)를 늘어놓지 않는다 — '지켜낸 것' 카드가 같은 말을 한다
+  $("#gd-tri").hidden = !!m.building;
+  if (!m.building) setHTML($("#gd-tri"),
+    `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
       `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`);
   const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
-  setHTML($("#gd-contact"), `<span class="av" aria-hidden="true">${esc((c.engineer || "JCC").slice(0, 1))}</span><span><b>${who}</b><br>이상하면 JCC가 먼저 연락드립니다 · ${due}</span>` +
-    (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC 관제실에 전화 ${esc(c.phone)}">전화 ${esc(c.phone)}</a>` : ""));
+  setHTML($("#gd-contact"), `<span><b>${who}</b><small>${due}</small></span>` +
+    (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC에 전화 ${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>${esc(c.phone)}</a>` : ""));
   paintPanels(d.panels);
   if (!G.month || G.month.period === m.period){ G.month = m; paintMonth(); }
 }
@@ -894,7 +905,6 @@ function openDocs(){
     `<button class="gd-doc" id="gd-d-i"><span>정기 점검 보고서</span><span>고객 서명 포함 ›</span></button></div>`);
   $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections;
 }
-$("#gd-docs-h").onclick = openDocs;
 const TAB_TARGET = { panels: "#gd-sec-panels", month: "#gd-sec-month" };
 document.querySelectorAll("#gd-tab [data-go]").forEach(b => b.onclick = () => {
   const go = b.dataset.go;
