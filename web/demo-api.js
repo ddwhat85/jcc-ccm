@@ -232,8 +232,10 @@
       patrols: { count: Math.round(Math.max(1, day) * 3 * 6), per_day: 3 },
       precursors: Object.assign(prec, { total: prec.fire + prec.contact + prec.dew }),
       actions: { vent: 2 + (isCur ? live : 0), dew: 5 + (isCur ? dew : 0), total: 7 + (isCur ? live + dew : 0) },
-      remote: 5, ack_min_avg: 4.2, demo: true };
+      remote: 5, ack_min_avg: 4.2, uptime: 99.8, down_min: Math.round(Math.max(1, day) * 24 * 60 * 0.002), demo: true };
   }
+  // 기록 문구를 고객 말로(서버 guard._plain과 같은 규칙): 내부 지수(FRI)·'…/분' 상승 속도 조각을 뺀다
+  function gdPlain(x) { const t = String(x || "").replace(/\s*\(FRI [\d.]+\)/g, ""); return t.split(" — ").filter(p => !p.includes("/분")).join(" — ").trim() || t.trim(); }
   function gdIncident(rows) {
     const ORD = { fire: 0, contact: 1, actuator_fault: 2 };
     const act = S.alarms.filter(a => !a.cleared_at && a.severity === "crit").sort((a, b) => ((ORD[a.kind] ?? 9) - (ORD[b.kind] ?? 9)) || b.raised_at - a.raised_at);
@@ -241,12 +243,12 @@
     const a = act[0], names = {};
     panelList().forEach(p => p.ccms.forEach(c => c.latest.forEach(s => { names[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; })));
     const steps = S.events.filter(e => e.ts >= a.raised_at - 30 && ["vent_open", "vent_close", "dew_actuate", "edge_actuate", "escalate"].includes(e.etype))
-      .map(e => ({ ts: e.ts, text: e.etype === "escalate" ? "담당자에게 알림을 보냈습니다" : `판넬이 스스로 조치했습니다 — ${e.detail}`, done: true }));
+      .map(e => ({ ts: e.ts, text: e.etype === "escalate" ? "담당자에게 알림을 보냈습니다" : `판넬이 스스로 조치했습니다 — ${gdPlain(e.detail)}`, done: true }));
     steps.push(a.acked_at ? { ts: a.acked_at, text: `JCC가 확인했습니다 · ${a.acked_by || ""}`, done: true } : { ts: null, text: "JCC 관제실이 확인하는 중입니다", done: false });
     steps.sort((x, y) => (x.ts == null) - (y.ts == null) || (x.ts || 0) - (y.ts || 0));
     const pid = panelOf(a.device_id);
     return { id: a.id, panel: pid, panel_name: (rows.find(r => r.panel === pid) || {}).panel_name || pid, sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
-      detail: a.detail || a.kind, raised_at: a.raised_at, acked_at: a.acked_at, steps };
+      detail: gdPlain(a.detail || a.kind), raised_at: a.raised_at, acked_at: a.acked_at, steps };
   }
   function guardDemo() {
     GD.on = true;
@@ -256,12 +258,56 @@
       incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
       next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
   }
+  // 사건 보고서(서버 guard.py incidents·incident_report와 같은 모양) — 시연 경보 기록에서
+  const GD_SEV = { crit: "위험", warn: "주의" };
+  const GD_CAUSE = { real: "실제 이상 — 조치했습니다", false: "센서 오작동(오경보)으로 확인했습니다", work: "현장 작업·시험 중에 난 경보로 확인했습니다", other: "그 밖의 원인" };
+  function gdNames() { const n = {}, pn = {}; panelList().forEach(p => p.ccms.forEach(c => { pn[c.device_id] = p.panel_name; c.latest.forEach(s => { n[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; }); })); return { n, pn }; }
+  function gdIncidents(period) {
+    seedPastAlarms();
+    const { n, pn } = gdNames(), [y, m] = (period || "").split("-").map(Number);
+    const a0 = new Date(y, m - 1, 1).getTime() / 1000, a1 = new Date(y, m, 1).getTime() / 1000;
+    return { period, items: S.alarms.filter(a => a.raised_at >= a0 && a.raised_at < a1 && a.kind !== "silent" && GD_SEV[a.severity])
+      .sort((a, b) => b.raised_at - a.raised_at).slice(0, 100).map(a => ({ id: a.id, panel: panelOf(a.device_id), panel_name: pn[a.device_id] || a.device_id,
+        sensor_name: n[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "감시 장치", severity: a.severity, word: GD_SEV[a.severity],
+        detail: a.detail || a.kind, raised_at: a.raised_at, acked_at: a.acked_at, cleared_at: a.cleared_at })) };
+  }
+  function gdIncidentReport(id) {
+    seedPastAlarms();
+    const a = S.alarms.find(x => x.id === id); if (!a) return null;
+    const { n, pn } = gdNames(), t = now(), t0 = a.raised_at, t1 = a.cleared_at || t, pid = panelOf(a.device_id);
+    const devs = new Set(((panelList().find(p => p.panel === pid) || {}).ccms || []).map(c => c.device_id).concat([pid]));
+    const SELF = ["vent_open", "vent_close", "vent_hold", "dew_actuate", "edge_actuate"], sn = n[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "감시 장치";
+    const plain = x => { const t = String(x || "").replace(/\s*\(FRI [\d.]+\)/g, ""); return t.split(" — ").filter(p => !p.includes("/분")).join(" — ").trim() || t.trim(); };
+    let tl = [{ ts: t0, who: "감지", text: `${sn} — ${plain(a.detail || a.kind)}`, kind: "detect" }];
+    S.events.filter(e => devs.has(e.device_id) && e.ts >= t0 - 600 && e.ts <= t1 + 300 && e.etype !== "vent_hold").forEach(e => {
+      if (SELF.includes(e.etype)) tl.push({ ts: e.ts, who: "판넬이 스스로", text: plain(e.detail), kind: "self" });
+      else if (e.etype === "escalate") tl.push({ ts: e.ts, who: "알림 발송", text: "담당자에게 경보 알림을 보냈습니다", kind: "notify" });
+      else if (e.etype === "ack") tl.push({ ts: e.ts, who: "JCC 확인", text: e.detail, kind: "ack" });
+      else if (/_clear$/.test(e.etype) && (e.sensor_key || "") === (a.sensor_key || "")) tl.push({ ts: e.ts, who: "정상 회복", text: e.detail, kind: "clear" }); });
+    if (a.acked_at && !tl.some(x => x.kind === "ack")) tl.push({ ts: a.acked_at, who: "JCC 확인", text: `${a.acked_by || "JCC"} 확인${a.ack_note ? " — " + a.ack_note : ""}`, kind: "ack" });
+    if (a.cleared_at && !tl.some(x => x.kind === "clear")) tl.push({ ts: a.cleared_at, who: "정상 회복", text: `${sn} 정상 범위로 돌아옴`, kind: "clear" });
+    tl.sort((x, y) => x.ts - y.ts);
+    const sq = []; tl.forEach(x => { const l = sq[sq.length - 1]; if (l && l.kind === x.kind && l.text === x.text) l.n = (l.n || 1) + 1; else sq.push(Object.assign({}, x)); });
+    sq.forEach(x => { if ((x.n || 1) > 1) x.text += ` (${x.n}회)`; }); tl = sq;
+    const nSelf = tl.filter(x => x.kind === "self").reduce((s, x) => s + (x.n || 1), 0), r1 = v => Math.round(v * 10) / 10;
+    const ack = a.acked_at ? r1((a.acked_at - t0) / 60) : null, clr = a.cleared_at ? r1((a.cleared_at - t0) / 60) : null;
+    const mins = m => m < 1 ? `${Math.max(1, Math.round(m * 60))}초` : m < 120 ? `${m < 10 ? m : Math.round(m)}분` : `${(m / 60).toFixed(1)}시간`;
+    const parts = [`${pn[a.device_id] || pid}의 ${sn}에서 이상을 감지했습니다`];
+    if (nSelf) parts.push(`판넬이 스스로 ${nSelf}번 조치했습니다`);
+    if (ack != null) parts.push(`JCC가 ${mins(ack)} 만에 확인했습니다`);
+    parts.push(clr != null ? `${mins(clr)} 뒤 정상으로 돌아왔습니다` : "아직 지켜보고 있습니다");
+    return { id: a.id, panel: pid, panel_name: pn[a.device_id] || pid, device_id: a.device_id, sensor_key: a.sensor_key || "", sensor_name: sn,
+      detail: plain(a.detail || a.kind), severity: a.severity, severity_word: GD_SEV[a.severity] || "", raised_at: t0, acked_at: a.acked_at, acked_by: a.acked_by,
+      cleared_at: a.cleared_at, cause: a.cause, note: a.ack_note, timeline: tl, self_actions: nSelf, ack_min: ack, clear_min: clr,
+      first: null, peak: null,   // 시연판엔 그때 값 기록이 없다 — 지어내지 않는다
+      cause_say: GD_CAUSE[a.cause] || "", summary: parts.join(" · ") + ".", issued_at: t, open: !a.cleared_at };
+  }
   function guardPanelDemo(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
     const devs = new Set(((panelList().find(p => p.panel === pid) || {}).ccms || []).map(c => c.device_id).concat([pid]));
-    const SELF = ["vent_open", "vent_close", "vent_hold", "dew_actuate", "edge_actuate"];
+    const SELF = ["vent_open", "vent_close", "dew_actuate", "edge_actuate"];   // vent_hold('열림 유지')는 새 조치가 아니라 뺀다
     const tl = S.events.filter(e => devs.has(e.device_id) && (SELF.includes(e.etype) || e.etype === "ack" || ["fire", "contact", "dew", "alarm", "alarm_warn"].includes(e.etype)))
-      .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: e.detail }));
+      .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: gdPlain(e.detail) }));
     return { panel: gdModel(row), timeline: tl };
   }
   // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
@@ -512,7 +558,7 @@
         if (wall < (drop[sk] || 0)) continue;                 // 침묵 구간
         if (!GD.on && !calmDev(dev) && rnd() < 0.004) { drop[sk] = wall + 70; continue; } // 침묵 시작(드물게 — 잦으면 예지 입력이 자주 끊김)
         let val = genValue(s.key, s.kind, t, dev);
-        const ov = epiOverride(wall, s.key, s.kind, val);      // 예지 에피소드 오버라이드(임계 前 상승)
+        const ov = calmDev(dev) ? null : epiOverride(wall, s.key, s.kind, val);   // 예지 에피소드는 이야기의 판넬에만(평상시 판넬 5면은 그대로)
         if (ov != null) val = ov;
         else if (wall < (stuckU[sk] || 0)) val = stuckV[sk];        // 고착
         else if (wall < (anomU[sk] || 0)) val = Math.round(anomB[sk] * (1 + (rnd() - 0.5) * 0.06) * 100) / 100;
@@ -1575,6 +1621,8 @@
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
+      if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));
+      if (p === "/api/guard/incident") { const d = gdIncidentReport(parseInt(qs.get("id") || "0", 10)); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 경보입니다" }, 404)); }
       if (p === "/api/guard/panel") { const d = guardPanelDemo(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/handover" && method !== "POST") return Promise.resolve(J(handoverView()));
       if (p === "/api/handover/seen") { S.hoSeen = now(); return Promise.resolve(J({ ok: true, ts: S.hoSeen })); }

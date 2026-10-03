@@ -154,8 +154,10 @@ def _incident(storage, rows, lat, panels):
     names = (lat.get(pid) or {}).get("names", {})
     steps = []
     for e in reversed(storage.events_since(a["raised_at"] - 30, (lat.get(pid) or {}).get("keys", {a["device_id"]}), 200)):
+        if e["etype"] == "vent_hold":      # '열림 유지'는 새 조치가 아니다(몇 초마다 남는 기록)
+            continue
         if e["etype"] in _SELF:
-            steps.append({"ts": e["ts"], "text": f"판넬이 스스로 조치했습니다 — {e['detail']}", "done": True})
+            steps.append({"ts": e["ts"], "text": f"판넬이 스스로 조치했습니다 — {_plain(e['detail'])}", "done": True})
         elif e["etype"] == "escalate":
             steps.append({"ts": e["ts"], "text": "담당자에게 알림을 보냈습니다", "done": True})
     if a.get("acked_at"):
@@ -163,9 +165,11 @@ def _incident(storage, rows, lat, panels):
     else:
         steps.append({"ts": None, "text": "JCC 관제실이 확인하는 중입니다", "done": False})
     steps.sort(key=lambda s: (s["ts"] is None, s["ts"] or 0))
+    steps = [dict(x, kind="s") for x in steps]
+    steps = [{k: v for k, v in x.items() if k not in ("kind", "n")} for x in _squash(steps)]
     return {"id": a["id"], "panel": pid, "panel_name": pname,
             "sensor_name": names.get((a["device_id"], a.get("sensor_key") or ""), a.get("sensor_key") or "CCM"),
-            "detail": a.get("detail") or a["kind"], "raised_at": a["raised_at"], "acked_at": a.get("acked_at"),
+            "detail": _plain(a.get("detail") or a["kind"]), "raised_at": a["raised_at"], "acked_at": a.get("acked_at"),
             "steps": steps}
 
 
@@ -206,7 +210,8 @@ def month_view(storage, panels: set | None, period: str, now: float | None = Non
     out = {"period": period, "range": [start, end], "building": span < 3 * 86400,
            "hours": 0, "patrols": {"count": 0, "per_day": PATROLS_PER_DAY},
            "precursors": {"total": 0, "fire": 0, "contact": 0, "dew": 0},
-           "actions": {"total": 0, "vent": 0, "dew": 0}, "remote": 0, "ack_min_avg": None}
+           "actions": {"total": 0, "vent": 0, "dew": 0}, "remote": 0, "ack_min_avg": None,
+           "uptime": None, "down_min": 0, "devices": len(devs)}
     if not devs or span <= 0:
         return out
     base = storage.build_report(devices=keys, since=start, until=until)
@@ -221,7 +226,9 @@ def month_view(storage, panels: set | None, period: str, now: float | None = Non
         precursors={"total": pr["fire"]["detected"] + pr["contact"]["detected"] + pr["dew"]["detected"],
                     "fire": pr["fire"]["detected"], "contact": pr["contact"]["detected"], "dew": pr["dew"]["detected"]},
         actions={"total": vent + dew_act, "vent": vent, "dew": dew_act},
-        remote=heal["auto_fixed"], ack_min_avg=_alarm_stats(storage, keys, start, end)["ack_min_avg"])
+        remote=heal["auto_fixed"], ack_min_avg=_alarm_stats(storage, keys, start, end)["ack_min_avg"],
+        # 감시 가동률: 감시 장치(CCM)가 서버에 값을 보낸 시간 / 지난 시간. 끊긴 시간 = 'CCM 침묵' 경보 구간의 합(장치별)
+        uptime=round(frac * 100, 1), down_min=int(round(down / 60)))
     return out
 
 
@@ -234,11 +241,144 @@ def alarm_view(storage, alarm_id: int):
     pid = next((pn for pn, d in lat.items() if a["device_id"] in d["keys"]), a["device_id"])
     pname = next((p["panel_name"] for p in storage.list_panels() if p["panel"] == pid), pid)
     names = (lat.get(pid) or {}).get("names", {})
-    return {"id": a["id"], "panel": pid, "panel_name": pname, "device_id": a["device_id"],
+    return {"id": a["id"], "panel": pid, "panel_name": pname, "device_id": a["device_id"], "sensor_key": a.get("sensor_key") or "",
             "sensor_name": names.get((a["device_id"], a.get("sensor_key") or ""), a.get("sensor_key") or "CCM"),
             "detail": a.get("detail") or a["kind"], "severity": a.get("severity"), "raised_at": a["raised_at"],
             "acked_at": a.get("acked_at"), "acked_by": a.get("acked_by"), "cleared_at": a.get("cleared_at"),
             "cause": a.get("cause"), "note": a.get("ack_note")}
+
+
+# 사건 보고서 — 경보 한 건을 고객이 윗선에 그대로 올릴 수 있게 한 장으로(모든 숫자는 실제 기록)
+_CAUSE_SAY = {"real": "실제 이상 — 조치했습니다", "false": "센서 오작동(오경보)으로 확인했습니다",
+              "work": "현장 작업·시험 중에 난 경보로 확인했습니다", "other": "그 밖의 원인"}
+_SEV_WORD = {"crit": "위험", "warn": "주의"}
+
+
+def _plain(text: str) -> str:
+    """기록 문구를 고객 말로: 내부 지수(FRI)와 '…/분' 상승 속도처럼 직원용 숫자 조각은 뺀다(나머지 실제 값은 그대로)."""
+    import re
+    t = re.sub(r"\s*\(FRI [\d.]+\)", "", str(text or ""))
+    parts = [x for x in t.split(" — ") if "/분" not in x]
+    return " — ".join(parts).strip() or t.strip()
+
+
+def _squash(tl: list) -> list:
+    """같은 사람이 같은 일을 연달아 기록했으면 한 줄로(… 2회)."""
+    out = []
+    for x in tl:
+        if out and out[-1]["kind"] == x["kind"] and out[-1]["text"] == x["text"]:
+            out[-1]["n"] = out[-1].get("n", 1) + 1
+            continue
+        out.append(dict(x))
+    for x in out:
+        if x.get("n", 1) > 1:
+            x["text"] += f" ({x['n']}회)"
+    return out
+
+
+def _panel_of(lat, dev):
+    return next((pn for pn, d in lat.items() if dev in d["keys"]), dev)
+
+
+def incidents(storage, panels: set | None, period: str, now: float | None = None) -> dict:
+    """그 달의 경보(위험·주의) 목록 — 사건 보고서 고르기용. 감시 장치 끊김(침묵)은 가동률에서 따로 보인다."""
+    from .monthly import month_bounds
+    now = time.time() if now is None else now
+    start, end = month_bounds(period)
+    lat = _latest(storage)
+    names = {p["panel"]: p["panel_name"] for p in storage.list_panels()}
+    keys = None if panels is None else set().union(*(lat.get(p, {}).get("keys", {p}) for p in panels)) if panels else set()
+    if keys is not None and not keys:
+        return {"period": period, "items": []}
+    q = ("SELECT id, device_id, sensor_key, kind, detail, severity, raised_at, acked_at, cleared_at FROM alarms "
+         "WHERE raised_at >= ? AND raised_at < ? AND kind != 'silent' AND severity IN ('crit', 'warn')")
+    args: list = [start, min(end, now + 1)]
+    if keys is not None:
+        frag, fa = storage._in_devices(keys)
+        q += " AND " + frag
+        args.extend(fa)
+    with storage._lock:
+        rows = storage._conn.execute(q + " ORDER BY raised_at DESC LIMIT 100", args).fetchall()
+    items = []
+    for r in rows:
+        pid = _panel_of(lat, r["device_id"])
+        sn = (lat.get(pid) or {}).get("names", {}).get((r["device_id"], r["sensor_key"] or ""), r["sensor_key"] or "감시 장치")
+        items.append({"id": r["id"], "panel": pid, "panel_name": names.get(pid, pid), "sensor_name": sn,
+                      "severity": r["severity"], "word": _SEV_WORD.get(r["severity"], ""), "detail": r["detail"] or r["kind"],
+                      "raised_at": r["raised_at"], "acked_at": r["acked_at"], "cleared_at": r["cleared_at"]})
+    return {"period": period, "items": items}
+
+
+def _value_at(storage, dev, key, since, until, peak=False):
+    if not key:
+        return None
+    with storage._lock:
+        if peak:
+            r = storage._conn.execute("SELECT MAX(value) AS v FROM readings WHERE device_id=? AND sensor_key=? AND ok=1 "
+                                      "AND ts >= ? AND ts <= ?", (dev, key, since, until)).fetchone()
+        else:
+            r = storage._conn.execute("SELECT value AS v FROM readings WHERE device_id=? AND sensor_key=? AND ok=1 "
+                                      "AND ts >= ? AND ts <= ? ORDER BY ts LIMIT 1", (dev, key, since, until)).fetchone()
+        u = storage._conn.execute("SELECT unit FROM readings WHERE device_id=? AND sensor_key=? ORDER BY ts DESC LIMIT 1",
+                                  (dev, key)).fetchone()
+    if not r or r["v"] is None:
+        return None
+    return {"value": round(r["v"], 2), "unit": (u["unit"] if u else "") or ""}
+
+
+def incident_report(storage, alarm_id: int, now: float | None = None):
+    """경보 한 건의 사건 보고서: 무엇을·언제 감지 → 판넬이 스스로 한 일 → 알림 → JCC 확인 → 정상 회복."""
+    now = time.time() if now is None else now
+    a = alarm_view(storage, alarm_id)
+    if a is None:
+        return None
+    lat = _latest(storage)
+    keys = (lat.get(a["panel"]) or {}).get("keys", {a["device_id"]})
+    t0 = a["raised_at"]
+    t1 = a["cleared_at"] or now
+    tl = []
+    for e in reversed(storage.events_since(t0 - 600, keys, 400)):
+        if e["ts"] > t1 + 300:
+            continue
+        et = e["etype"]
+        if et == "vent_hold":                 # '열림 유지'는 새 조치가 아니다 — 몇 초마다 남는 기록이라 세지 않는다
+            continue
+        if et in _SELF:
+            tl.append({"ts": e["ts"], "who": "판넬이 스스로", "text": _plain(e["detail"]), "kind": "self"})
+        elif et == "escalate":
+            tl.append({"ts": e["ts"], "who": "알림 발송", "text": "담당자에게 경보 알림을 보냈습니다", "kind": "notify"})
+        elif et == "ack":
+            tl.append({"ts": e["ts"], "who": "JCC 확인", "text": _plain(e["detail"]), "kind": "ack"})
+        elif et.endswith("_clear") and e.get("sensor_key", "") == (a.get("sensor_key") or e.get("sensor_key", "")):
+            tl.append({"ts": e["ts"], "who": "정상 회복", "text": _plain(e["detail"]), "kind": "clear"})
+    # 경보 발생은 맨 앞에 늘 넣는다(감지 기록이 events에 없어도)
+    tl.insert(0, {"ts": t0, "who": "감지", "text": f"{a['sensor_name']} — {_plain(a['detail'])}", "kind": "detect"})
+    tl.sort(key=lambda x: x["ts"])
+    tl = _squash(tl)
+    n_self = sum(x.get("n", 1) for x in tl if x["kind"] == "self")
+    ack_min = round((a["acked_at"] - t0) / 60, 1) if a.get("acked_at") else None
+    clear_min = round((a["cleared_at"] - t0) / 60, 1) if a.get("cleared_at") else None
+    first = _value_at(storage, a["device_id"], a.get("sensor_key"), t0 - 120, t0 + 120)
+    peak = _value_at(storage, a["device_id"], a.get("sensor_key"), t0 - 120, t1, peak=True)
+    parts = [f"{a['panel_name']}의 {a['sensor_name']}에서 이상을 감지했습니다"]
+    if n_self:
+        parts.append(f"판넬이 스스로 {n_self}번 조치했습니다")
+    if ack_min is not None:
+        parts.append(f"JCC가 {_mins(ack_min)} 만에 확인했습니다")
+    parts.append(f"{_mins(clear_min)} 뒤 정상으로 돌아왔습니다" if clear_min is not None else "아직 지켜보고 있습니다")
+    a = dict(a, detail=_plain(a["detail"]))
+    return dict(a, severity_word=_SEV_WORD.get(a.get("severity"), ""), timeline=tl, self_actions=n_self,
+                ack_min=ack_min, clear_min=clear_min, first=first, peak=peak,
+                cause_say=_CAUSE_SAY.get(a.get("cause") or "", ""), summary=" · ".join(parts) + ".",
+                issued_at=now, open=not a.get("cleared_at"))
+
+
+def _mins(m: float) -> str:
+    if m < 1:
+        return f"{max(1, int(round(m * 60)))}초"
+    if m < 120:
+        return f"{m:g}분" if m < 10 else f"{int(round(m))}분"
+    return f"{m / 60:.1f}시간"
 
 
 def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
@@ -254,6 +394,8 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     tl = []
     for e in storage.events_since(now - 7 * 86400, keys, 200):
         et = e["etype"]
+        if et == "vent_hold":
+            continue
         if et in _SELF:
             who = "판넬이 스스로"
         elif et == "ack":
@@ -266,5 +408,5 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
             who = "감지"
         else:
             continue
-        tl.append({"ts": e["ts"], "who": who, "text": e["detail"]})
+        tl.append({"ts": e["ts"], "who": who, "text": _plain(e["detail"])})
     return {"panel": _panel_model(rows[0], lat.get(panel)), "timeline": tl[:20]}

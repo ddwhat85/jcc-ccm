@@ -91,6 +91,8 @@ def run():
     # 위험 순간: 위험 경보 → 판넬이 스스로 환기(이벤트) → JCC 확인
     st.raise_alarm("ccm-1", "cabinet_temp", "alarm", "함내 온도 61C — 위험(55 초과)")
     st.log_event("ccm-1", "", "vent_open", "화재 징조 → 벤트 자동 개방", source="system")
+    for _ in range(3):        # 몇 초마다 남는 '열림 유지' 기록 — 사건 보고서에서 조치로 세면 안 된다
+        st.log_event("ccm-1", "", "vent_hold", "극한 위험 유지 — 벤트 개방 유지 (FRI 100)", source="system")
     aid = next(a["id"] for a in st.list_active_alarms())
     st.ack_alarm(aid, "김현장")
     vi = guard.guard_view(st, {"p1"}, "평택 2공장")
@@ -108,6 +110,25 @@ def run():
     d = guard.panel_detail(st, "p1")
     check("판넬 상세: 타임라인에 환기", any("벤트" in t["text"] for t in d["timeline"]), str(d["timeline"][:3]))
     check("없는 판넬은 None", guard.panel_detail(st, "zz") is None)
+    check("이번 달: 감시 가동률(끊김 없으면 100%)", m["uptime"] == 100.0 and m["down_min"] == 0, str(m.get("uptime")))
+
+    # 사건 보고서: 감지 → 판넬이 스스로 → JCC 확인 → 정상 회복, 숫자는 실제 기록
+    r = guard.incident_report(st, aid)
+    kinds = [t["kind"] for t in r["timeline"]]
+    check("사건 보고서: 감지·스스로·확인 순서", kinds[0] == "detect" and "self" in kinds and "ack" in kinds, str(kinds))
+    check("사건 보고서: 확인까지 걸린 분·감지 때 값", r["ack_min"] is not None and r["first"] and r["first"]["value"] == 31.2, str(r["first"]))
+    check("사건 보고서: '열림 유지'는 조치로 안 셈·내부 지수(FRI) 안 보임", r["self_actions"] == 1
+          and not any("FRI" in t["text"] or "유지" in t["text"] for t in r["timeline"]), str(r["self_actions"]))
+    check("사건 보고서: 진행 중이면 '지켜보고'", r["open"] is True and "지켜보고" in r["summary"], r["summary"])
+    st.clear_alarm("ccm-1", "cabinet_temp", "alarm", "alarm_clear", "함내 온도 정상 회복")
+    r = guard.incident_report(st, aid)
+    check("사건 보고서: 해제되면 회복 시간·정상 회복 줄", r["open"] is False and r["clear_min"] is not None
+          and any(t["kind"] == "clear" for t in r["timeline"]) and "정상으로" in r["summary"], r["summary"])
+    check("없는 경보는 None", guard.incident_report(st, 99999) is None)
+    per = time.strftime("%Y-%m", time.localtime(now))
+    li = guard.incidents(st, {"p1"}, per)["items"]
+    check("이번 달 사건 목록: 자기 판넬 경보", len(li) == 1 and li[0]["id"] == aid and li[0]["word"] == "위험", str(li))
+    check("이번 달 사건 목록: 남의 범위엔 없음", guard.incidents(st, {"p2"}, per)["items"] == [])
 
     # 알림 문구: 판넬 이름·한국 시간·자세히 링크
     from jcc_server import notify
@@ -186,6 +207,12 @@ def run():
         al2 = next(a["id"] for a in st.alarms_since(0, {"ccm-2"}, 10))
         check("알림 링크: 남의 판넬 경보 404", cu(f"/api/guard/alarm?id={al2}")[0] == 404)
         check("알림 링크: 잘못된 번호 400", cu("/api/guard/alarm?id=abc")[0] == 400)
+        s, j = cu(f"/api/guard/incident?id={al1}")
+        check("사건 보고서 경로: 자기 판넬", s == 200 and j["panel_name"] == "A동 배터리실" and j["timeline"], str(s))
+        check("사건 보고서 경로: 남의 판넬 404", cu(f"/api/guard/incident?id={al2}")[0] == 404)
+        s, j = cu("/api/guard/incidents?period=" + time.strftime("%Y-%m"))
+        check("사건 목록 경로: 자기 판넬만", s == 200 and j["items"] and all(i["panel"] == "p1" for i in j["items"]), str(j)[:200])
+        check("사건 목록: 잘못된 달 400", cu("/api/guard/incidents?period=x")[0] == 400)
         adm("/api/admin/contact", {"customer_id": cid, "engineer": "", "phone": ""})
         s, j = cu("/api/guard")
         check("비우면 공통 번호로", j["contact"]["phone"] == "02-0000-0000" and j["contact"]["assigned"] is False, str(j["contact"]))
