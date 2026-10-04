@@ -1898,19 +1898,31 @@ class Storage:
                 for c in cmds if now - c["ts"] <= self.EDGE_CMD_TTL]
 
     # ── 보존 정리 (상시 운영용) ─────────────────────────────
-    def prune(self, readings_days: float = 14, events_days: float = 90) -> dict:
+    def prune(self, readings_days: float = 14, events_days: float = 90, long: dict | None = None,
+              now: float | None = None) -> dict:
         """오래된 이력을 지운다. 상시 운영에서 DB가 무한정 커지는 것을 막는다.
-        해제된 경보도 함께 정리하되, 열린 경보는 절대 건드리지 않는다."""
-        now = time.time()
+        해제된 경보도 함께 정리하되, 열린 경보는 절대 건드리지 않는다.
+        long = {기기·판넬 키: 보관 일수} — 장기 보관 고객사의 경보·활동 기록은 그 일수까지 남긴다(retention.long_keep)."""
+        now = time.time() if now is None else now
+        long = {k: d for k, d in (long or {}).items() if d > events_days}
+        groups: dict = {}
+        for k, d in long.items():
+            groups.setdefault(d, []).append(k)
         with self._lock:
             cur = self._conn.cursor()
             n1 = cur.execute("DELETE FROM readings WHERE ts < ?",
                              (now - readings_days * 86400,)).rowcount
-            n2 = cur.execute("DELETE FROM events WHERE ts < ?",
-                             (now - events_days * 86400,)).rowcount
-            n3 = cur.execute(
-                "DELETE FROM alarms WHERE cleared_at IS NOT NULL AND cleared_at < ?",
-                (now - events_days * 86400,)).rowcount
+            ex = ""
+            if long:
+                ex = " AND device_id NOT IN (" + ",".join("?" * len(long)) + ")"
+            n2 = cur.execute("DELETE FROM events WHERE ts < ?" + ex, (now - events_days * 86400, *long)).rowcount
+            n3 = cur.execute("DELETE FROM alarms WHERE cleared_at IS NOT NULL AND cleared_at < ?" + ex,
+                             (now - events_days * 86400, *long)).rowcount
+            for days, keys in groups.items():
+                inn = " AND device_id IN (" + ",".join("?" * len(keys)) + ")"
+                n2 += cur.execute("DELETE FROM events WHERE ts < ?" + inn, (now - days * 86400, *keys)).rowcount
+                n3 += cur.execute("DELETE FROM alarms WHERE cleared_at IS NOT NULL AND cleared_at < ?" + inn,
+                                  (now - days * 86400, *keys)).rowcount
             self._conn.commit()
         return {"readings": n1, "events": n2, "alarms": n3}
 

@@ -143,6 +143,7 @@ ROUTES = [
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
     ("GET", "/api/export/alarms.csv", "read"), ("GET", "/api/export/readings.csv", "read"),
+    ("GET", "/api/export/events.csv", "read"), ("GET", "/api/export/hourly.csv", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -671,17 +672,31 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(ph[1])
             return
-        if path in ("/api/export/alarms.csv", "/api/export/readings.csv"):
+        if path in ("/api/export/alarms.csv", "/api/export/readings.csv", "/api/export/events.csv", "/api/export/hourly.csv"):
             from . import export
+            from .retention import plan
             q = parse_qs(parsed.query)
+            if sc is None:
+                cap = 5 * 365 + 5.0                    # JCC: 남아 있는 만큼
+            else:                                      # 고객: 자기 고객사 보관 기간만큼(기본 1년까지)
+                yrs = next((c.get("keep_years") or 0 for c in self.storage.accounts.list_customers()
+                            if c["id"] == self._user().get("customer_id")), 0)
+                cap = max(366.0, plan(yrs)["events_days"])
             try:
-                days = min(366.0, max(1.0, float((q.get("days") or ["30"])[0])))
+                days = min(cap, max(1.0, float((q.get("days") or ["30"])[0])))
             except ValueError:
                 days = 30.0
             stamp = time.strftime("%Y%m%d")
+            keys = None if sc is None else (sc["devices"] | sc["panels"])
             if path.endswith("alarms.csv"):
-                body = export.alarms_csv(self.storage, days, None if sc is None else (sc["devices"] | sc["panels"]))
+                body = export.alarms_csv(self.storage, days, keys)
                 fname = f"jcc-alarms-{stamp}.csv"
+            elif path.endswith("events.csv"):
+                body = export.events_csv(self.storage, days, keys)
+                fname = f"jcc-events-{stamp}.csv"
+            elif path.endswith("hourly.csv"):
+                body = export.hourly_csv(self.storage, days, keys)
+                fname = f"jcc-hourly-{stamp}.csv"
             else:
                 dev, key = (q.get("device_id") or [""])[0], (q.get("sensor") or [""])[0]
                 if not dev or not key:
@@ -1614,6 +1629,16 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": str(exc)}, 400)
                 audit(f"고객사 #{cid} 담당·연락처: {got['engineer'] or '-'} {got['engineer_phone'] or '(공통 번호)'}")
                 return self._json(dict(got, ok=True))
+            if action == "keep_years":
+                cid = as_id(b.get("customer_id"))
+                if cid is None or not ac.customer_exists(cid):
+                    return self._json({"error": "고객사를 확인하세요"}, 400)
+                try:
+                    ac.set_keep_years(cid, b.get("years") if isinstance(b.get("years"), int) else -1)
+                except ValueError as exc:
+                    return self._json({"error": str(exc)}, 400)
+                audit(f"고객사 #{cid} 데이터 보관 {b['years'] or '기본'}{'년' if b['years'] else ''}")
+                return self._json({"ok": True})
             if action == "ai":
                 cid = as_id(b.get("customer_id"))
                 if cid is None or not ac.customer_exists(cid):

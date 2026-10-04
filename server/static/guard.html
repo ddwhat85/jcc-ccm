@@ -225,7 +225,7 @@
     transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s ease}
   .gd-c-docs .gd-doc.gd-dtile span:last-child{color:var(--ink);font-size:var(--t-body)}
   .gd-c-docs .gd-doc.gd-dtile:hover{transform:translateY(-3px);border-color:var(--line)}
-  @media (min-width:960px){.gd-c-docs .gd-docs.gd-docs-c{grid-template-columns:repeat(5,minmax(0,1fr))}}
+  @media (min-width:960px){.gd-c-docs .gd-docs.gd-docs-c{grid-template-columns:repeat(6,minmax(0,1fr))}}
   /* 힘 싣기 — 굵은 제목·큰 바탕 그림·깊이, 이번 달은 초록 밤 판 */
   .gd-c:not(.gd-c-state){position:relative;overflow:hidden;isolation:isolate}
   .gd-c:not(.gd-c-state) .gd-q,.gd-c-panels .gd-q{font:700 var(--t-h)/1.3 var(--sans);letter-spacing:-.02em;color:var(--ink)}
@@ -275,6 +275,15 @@
   .gd-card.offline{border-color:var(--line)}
   .gd-snl b{display:inline-flex;align-items:center;gap:6px}
   .gd-snl .gd-st{width:16px;height:16px}
+  /* 기록 내려받기 */
+  .gd-keep{display:flex;flex-direction:column;gap:3px;margin:14px 0;padding:14px 0;border-top:1px solid var(--line-2);border-bottom:1px solid var(--line-2)}
+  .gd-keep b{font:700 var(--t-body) var(--sans)}
+  .gd-keep span{font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
+  .gd-keep small{font-size:var(--t-cap);color:var(--ink-3)}
+  .gd-xp-span{display:flex;align-items:center;gap:10px;margin-bottom:12px;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
+  .gd-xp-span select{height:40px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-s);background:var(--card);color:var(--ink);font:500 var(--t-body) var(--sans)}
+  a.gd-doc{text-decoration:none;color:inherit}
+  a.gd-doc span:first-child small{display:block;margin-top:2px;font-size:var(--t-cap);color:var(--ink-3)}
   /* 안전 관리 확인서 — 제출용 문서라 표는 작고 촘촘하게, 머리·서명은 문서답게 */
   .gd-cert-h{padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:14px}
   .gd-cert-h small{font-size:var(--t-cap);color:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -288,7 +297,6 @@
   .gd-kpi4 span{display:block;margin-top:4px;font-size:var(--t-cap);color:var(--ink-3)}
   .gd-cert-sig{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:20px;padding-top:12px;border-top:1px solid var(--line);font-size:var(--t-cap);color:var(--ink-3)}
   .gd-cert-sig b{font:700 var(--t-h) var(--sans);color:var(--ink);letter-spacing:.02em}
-  @media (max-width:959px){.gd-c-docs .gd-docs.gd-docs-c .gd-dtile:last-child{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center}}
   /* 위험 알림 받는 사람 */
   .gd-rcv-link{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:44px;margin-top:4px;padding:10px 0 0;border:0;
     border-top:1px solid var(--line-2);background:none;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
@@ -771,6 +779,7 @@
         <button class="gd-doc gd-dtile" id="gd-docs-x"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/></svg></span><span>사건 보고서</span></button>
         <button class="gd-doc gd-dtile" id="gd-docs-o"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4"/><path d="M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/><path d="M4 4l16 16"/></svg></span><span>감시 끊김 기록</span></button>
         <button class="gd-doc gd-dtile" id="gd-docs-c"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="M9.2 13.7L7.8 21l4.2-2.4 4.2 2.4-1.4-7.3"/><path d="M9.8 9l1.5 1.5 3-3"/></svg></span><span>안전 관리 확인서</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-d"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M4 17v2.5h16V17"/></svg></span><span>기록 내려받기</span></button>
       </div></section>
     <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
   </main>
@@ -1347,6 +1356,26 @@ function monthlyDoc(r){
     ((rp.advice || []).length ? `<h5>JCC가 권하는 것</h5><ul>${rp.advice.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : "") +
     printBtn() + `</div>`);
 }
+// 기록 내려받기 — 엑셀에서 열리는 CSV. 받을 수 있는 기간 = 이 고객사 보관 기간(장기 보관이면 3·5년)
+const dayWord = d => d >= 365 ? `${Math.round(d / 365)}년` : `${Math.round(d)}일`;
+function openExport(){
+  const k = (G.d && G.d.keep) || {years: 0, readings_days: 14, events_days: 90, hourly_days: 1100};
+  const max = Math.max(366, k.events_days);
+  const spans = [[30, "최근 30일"], [90, "최근 90일"], [365, "최근 1년"], [1095, "최근 3년"], [1825, "최근 5년"]].filter(([d]) => d <= max);
+  const kinds = [["alarms", "경보 기록", "언제·어느 판넬·무슨 경보, 누가 확인했는지"],
+                 ["events", "활동 기록", "판넬이 스스로 한 조치·자동 복구·확인"],
+                 ["hourly", "시간별 센서 값", "센서마다 1시간 평균·최저·최고"]];
+  sheet(`<h4 id="gd-sheet-t">기록 내려받기</h4><div class="sub">엑셀에서 바로 열리는 CSV 파일입니다.</div>` +
+    `<div class="gd-keep"><b>${k.years ? `장기 보관 ${k.years}년` : "기본 보관"}</b><span>경보·활동 기록 ${dayWord(k.events_days)} · 시간별 센서 값 ${dayWord(k.hourly_days)} · 원본 측정값 ${dayWord(k.readings_days)}</span>` +
+      (k.years ? "" : `<small>더 오래 남기려면 JCC 담당자에게 장기 보관(3년·5년)을 문의하세요.</small>`) + `</div>` +
+    `<label class="gd-xp-span">기간 <select id="gd-xp-days">${spans.map(([d, t], i) => `<option value="${d}"${i === 1 ? " selected" : ""}>${t}</option>`).join("")}</select></label>` +
+    `<div class="gd-docs">${kinds.map(([id, t, s]) => `<a class="gd-doc" data-xp="${id}" href="/api/export/${id}.csv?days=90" download><span>${t}<small>${s}</small></span><span>CSV ›</span></a>`).join("")}</div>`);
+  const sync = () => document.querySelectorAll("#gd-sheet-body [data-xp]").forEach(a => { a.href = `/api/export/${a.dataset.xp}.csv?days=${$("#gd-xp-days").value}`; });
+  $("#gd-xp-days").onchange = sync;
+  document.querySelectorAll("#gd-sheet-body [data-xp]").forEach(a => a.addEventListener("click", e => {
+    if (window.JCC_DEMO){ e.preventDefault(); toast("시연판에서는 내려받기가 막혀 있습니다 — 실제 서버에서는 CSV 파일로 받습니다"); }
+  }));
+}
 // 안전 관리 확인서 — 분기·연간, JCC가 기록을 검토해 발행(보험·감사·윗선 보고용). 숫자는 발행 때 그대로
 async function openCerts(){
   sheet(`<h4 id="gd-sheet-t">안전 관리 확인서</h4><div class="sub">불러오는 중</div>`);
@@ -1580,6 +1609,7 @@ async function openAlarmLink(){
 document.querySelectorAll(".gd-tile").forEach(t => t.addEventListener("click", e => { if (e.target.closest("a,button")) return; const b = t.querySelector(".gd-more"); if (b) b.click(); }));
 $("#gd-docs-m").onclick = () => openMonthly(); $("#gd-docs-i").onclick = () => openInspections();
 $("#gd-docs-c").onclick = () => openCerts();
+$("#gd-docs-d").onclick = () => openExport();
 $("#gd-docs-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-docs-o").onclick = () => openOutages((G.month || G.d.month).period);
 $("#gd-state-more").onclick = () => $("#gd-ring").click();
 function openDocs(){

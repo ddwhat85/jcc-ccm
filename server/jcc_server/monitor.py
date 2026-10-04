@@ -98,11 +98,13 @@ def start(storage, interval: float = 10) -> None:
                     rollup(storage, now)
                     from . import forecast                   # 온도 예측용 시간별 평균(원본은 14일, 이건 3년 보관)
                     forecast.rollup(storage, now, hourly_back)
-                    forecast.prune(storage, now)
+                    from .retention import long_keep
+                    forecast.prune(storage, now, long_keep(storage))   # 장기 보관 고객사는 그 햇수만큼
                     hourly_back = 48
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리 + 오늘 자동 백업(하루 한 번)
                     last_prune = now
-                    storage.prune(readings_days=keep_readings, events_days=keep_events)
+                    from .retention import long_keep
+                    storage.prune(readings_days=keep_readings, events_days=keep_events, long=long_keep(storage))
                     try:
                         from .backup import daily
                         made = daily(storage, now)

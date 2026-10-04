@@ -331,7 +331,13 @@ def guard_view(storage, panels: set | None, site: str, now: float | None = None,
         "next_inspection": min(dues) if dues else None,
         "month": month_view(storage, panels, datetime.fromtimestamp(now, KST).strftime("%Y-%m"), now),
         "todo": todo(storage, model, panels, dues, now),
+        "keep": _keep_plan(cu),
     }
+
+
+def _keep_plan(cu: dict) -> dict:
+    from .retention import plan
+    return plan(int(cu.get("keep_years") or 0))
 
 
 _TODO_CACHE: dict = {}

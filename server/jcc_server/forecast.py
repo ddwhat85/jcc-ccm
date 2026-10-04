@@ -58,12 +58,21 @@ def rollup(storage, now: float | None = None, hours: int = 48) -> int:
     return len(rows)
 
 
-def prune(storage, now: float | None = None) -> int:
+def prune(storage, now: float | None = None, long: dict | None = None) -> int:
+    """long = {기기 키: 보관 일수} — 장기 보관 고객사(retention.long_keep)의 시간별 값은 그 일수까지 남긴다."""
     ensure(storage)
     now = time.time() if now is None else now
     days = float(os.environ.get("JCC_KEEP_HOURLY_DAYS") or 1100)      # 기본 3년 — 작년 같은 날과 비교하려면 1년 넘게
+    long = {k: d for k, d in (long or {}).items() if d > days}
     with storage._lock:
-        n = storage._conn.execute("DELETE FROM hourly WHERE hour < ?", (now - days * D,)).rowcount
+        ex = (" AND device_id NOT IN (" + ",".join("?" * len(long)) + ")") if long else ""
+        n = storage._conn.execute("DELETE FROM hourly WHERE hour < ?" + ex, (now - days * D, *long)).rowcount
+        groups: dict = {}
+        for k, d in long.items():
+            groups.setdefault(d, []).append(k)
+        for d, keys in groups.items():
+            n += storage._conn.execute("DELETE FROM hourly WHERE hour < ? AND device_id IN (" + ",".join("?" * len(keys)) + ")",
+                                       (now - d * D, *keys)).rowcount
         storage._conn.commit()
     return n
 

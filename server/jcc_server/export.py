@@ -44,6 +44,56 @@ def alarms_csv(storage, days: float, keys=None) -> bytes:
                   a.get("ack_note") or "", _t(a.get("cleared_at"))] for a in rows))
 
 
+def _names(storage) -> tuple:
+    panel, sensor = {}, {}
+    for p in storage.list_panels():
+        panel[p["panel"]] = p["panel_name"]
+        for c in p["ccms"]:
+            panel[c["device_id"]] = p["panel_name"]
+            for s in c.get("latest") or []:
+                sensor[(c["device_id"], s["sensor_key"])] = s.get("name") or s["sensor_key"]
+    return panel, sensor
+
+
+def _scope(storage, keys):
+    if keys is None:
+        return "", []
+    if not keys:
+        return " AND 0", []
+    frag, fa = storage._in_devices(set(keys))
+    return " AND " + frag, list(fa)
+
+
+def events_csv(storage, days: float, keys=None) -> bytes:
+    """활동 기록 — 판넬이 스스로 한 조치·자동 복구·확인 등(장기 보관 고객사는 그 햇수만큼 남아 있다)."""
+    since = time.time() - days * 86400
+    panel, sensor = _names(storage)
+    frag, fa = _scope(storage, keys)
+    with storage._lock:
+        rows = storage._conn.execute("SELECT ts, device_id, sensor_key, etype, detail, source FROM events WHERE ts >= ?" + frag +
+                                     " AND etype != 'vent_hold' ORDER BY ts LIMIT ?", (since, *fa, MAX_ROWS)).fetchall()
+    return _csv(["시각", "판넬", "기기", "센서", "종류", "내용", "누가"],
+                ([_t(r["ts"]), panel.get(r["device_id"], ""), r["device_id"], sensor.get((r["device_id"], r["sensor_key"]), r["sensor_key"] or ""),
+                  r["etype"], r["detail"] or "", {"system": "시스템", "user": "사람", "edge": "판넬(현장)"}.get(r["source"], r["source"] or "")]
+                 for r in rows))
+
+
+def hourly_csv(storage, days: float, keys=None) -> bytes:
+    """시간별 센서 값(평균·최저·최고) — 몇 년치 추세·감사용. 원본(몇 초 간격)은 readings_csv로 최근 것만."""
+    from .forecast import ensure
+    ensure(storage)
+    since = time.time() - days * 86400
+    panel, sensor = _names(storage)
+    frag, fa = _scope(storage, keys)
+    with storage._lock:
+        rows = storage._conn.execute("SELECT * FROM (SELECT hour, device_id, sensor_key, avg, vmin, vmax, n FROM hourly WHERE hour >= ?" + frag +
+                                     " ORDER BY hour DESC LIMIT ?) ORDER BY hour, device_id, sensor_key", (since, *fa, MAX_ROWS)).fetchall()
+    r3 = lambda v: "" if v is None else round(v, 3)  # noqa: E731
+    return _csv(["시각(1시간)", "판넬", "기기", "센서", "평균", "최저", "최고", "측정 수"],
+                ([_t(r["hour"]), panel.get(r["device_id"], ""), r["device_id"], sensor.get((r["device_id"], r["sensor_key"]), r["sensor_key"]),
+                  r3(r["avg"]), r3(r["vmin"]), r3(r["vmax"]), r["n"]] for r in rows))
+
+
 def readings_csv(storage, device_id: str, sensor_key: str, days: float) -> bytes:
     since = time.time() - days * 86400
     with storage._lock:

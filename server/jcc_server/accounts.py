@@ -122,6 +122,11 @@ class Accounts:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} TEXT DEFAULT ''")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
+            #   keep_years: 데이터 장기 보관(0 = 기본, 3·5년 — 유료 묶음). 경보·활동 기록과 시간별 값을 그 햇수만큼
+            try:
+                self._conn.execute("ALTER TABLE customers ADD COLUMN keep_years INTEGER DEFAULT 0")
+            except Exception:  # noqa: BLE001 - 이미 있음
+                pass
             #   알림 받는 사람: 이름·받는 시간(항상/근무시간/야간·주말 당직)·정기 문자(주간 요약·월간 보고서 알림) 받기
             for col, ddl in (("name", "TEXT DEFAULT ''"), ("hours", "TEXT DEFAULT 'always'"), ("reports", "INTEGER DEFAULT 1")):
                 try:
@@ -149,11 +154,19 @@ class Accounts:
     def list_customers(self) -> list:
         with self._lock:
             rows = self._conn.execute("SELECT id, name, created_at, monthly_notify, ai_enabled, weekly_notify, engineer, "
-                                      "engineer_phone, signup_code FROM customers ORDER BY id").fetchall()
+                                      "engineer_phone, signup_code, keep_years FROM customers ORDER BY id").fetchall()
         return [dict(dict(r), monthly_notify=bool(r["monthly_notify"]), ai_enabled=bool(r["ai_enabled"]),
+                     keep_years=int(r["keep_years"] or 0),
                      weekly_notify=bool(r["weekly_notify"]),
                      engineer=r["engineer"] or "", engineer_phone=r["engineer_phone"] or "",
                      signup_code=r["signup_code"] or "") for r in rows]
+
+    def set_keep_years(self, customer_id: int, years: int) -> None:
+        if years not in (0, 3, 5):
+            raise ValueError("보관 기간은 기본·3년·5년 중 하나입니다")
+        with self._lock:
+            self._conn.execute("UPDATE customers SET keep_years=? WHERE id=?", (years, customer_id))
+            self._conn.commit()
 
     def set_contact(self, customer_id: int, engineer: str, phone: str) -> dict:
         """고객 화면의 담당 엔지니어·연락처. 전화는 숫자·+·- 만 남긴다(9~13자리, 비우면 공통 번호)."""

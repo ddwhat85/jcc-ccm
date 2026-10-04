@@ -335,6 +335,7 @@
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
+      keep: (y => ({ years: y, readings_days: 14, events_days: y ? y * 365 + 5 : 90, hourly_days: y ? Math.max(1100, y * 365 + 5) : 1100 }))((ACC.customers[0] || {}).keep_years || 0),   // retention.plan
       incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 담당자", assigned: !!ACC.customers[0].engineer },
       next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), todo: gdTodo(rows), demo: true };
   }
@@ -1891,6 +1892,9 @@
       if (ph && (dg < 9 || dg > 13)) return [{ error: "전화번호를 확인하세요 (숫자 9~13자리)" }, 400];
       c.engineer = String(b.engineer || "").trim().slice(0, 40); c.engineer_phone = ph;
       return [{ ok: true, engineer: c.engineer, engineer_phone: c.engineer_phone }, 200]; }
+    if (action === "keep_years") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
+      if (![0, 3, 5].includes(b.years)) return [{ error: "보관 기간은 기본·3년·5년 중 하나입니다" }, 400];
+      c.keep_years = b.years; return [{ ok: true }, 200]; }
     if (action === "ai") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
