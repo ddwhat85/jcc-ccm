@@ -1082,6 +1082,10 @@ const EN = {
   "계정은 JCC가 고객사별로 만들어 드립니다. 아이디나 비밀번호가 기억나지 않으면 담당 엔지니어 또는 JCC 대표 번호": "JCC creates accounts for each customer. If you forgot your username or password, contact your engineer or JCC's main number",
   "로 연락해 주세요. 확인 후 새 비밀번호를 드립니다.": ". We'll verify and give you a new password.", "로 연락해 주세요.": ".",
   "급하시면 담당 엔지니어에게 연락해 주세요.": "If urgent, contact your engineer.", " 급하시면 JCC 대표 번호(": " If urgent, call JCC's main number (",
+  // 시연판의 가상 이름(실제 고객사 판넬 이름은 사람이 붙인 그대로 둔다)
+  "A동 배터리실 1번": "Bldg A Battery Room 1", "A동 배터리실 2번": "Bldg A Battery Room 2", "B동 수배전반": "Bldg B Switchgear",
+  "B동 MCC 1": "Bldg B MCC 1", "생산 라인 제어반": "Production Line Control", "옥외 분전반": "Outdoor Distribution Board",
+  "평택 2공장": "Pyeongtaek Plant 2", "평택 2공장 · 가상 공장": "Pyeongtaek Plant 2 · virtual plant", "김현장": "Kim Hyun-jang", "데모 고객사": "Demo Customer",
   // 단위(작은 글씨)
   "건": "", "시간": "hours", "회": "times", "명": "people", "대": "units", "면": "panels", "개": "", "점": "pts", "초": "s", "분": "min", "일": "days", "번": "times",
 };
@@ -1093,11 +1097,11 @@ const EN_RE = [
   [/^(\d+)월 (\d+)일 (\d\d:\d\d)$/, (m, a, b, c) => `${KMON[+a]} ${b}, ${c}`], [/^(\d+)월 (\d+)일$/, (m, a, b) => `${KMON[+a]} ${b}`],
   [/^(\d{4})년 (\d+)월$/, (m, a, b) => `${KMON[+b]} ${a}`], [/^(\d+)월$/, (m, a) => KMON[+a]],
   [/^(\d{4})년 ([1-4])분기$/, "Q$2 $1"], [/^(\d{4})년 연간$/, "Year $1"], [/^(\d{4})년 (\d+)월 · JCC가 한 일$/, (m, a, b) => `What JCC did · ${KMON[+b]} ${a}`],
-  [/^위험 — ([^·—]+)$/, "Danger — $1"], [/^판넬 (\d+)면 · (\d+)곳 지켜보는 중$/, "$1 panels · $2 being watched"],
+  [/^위험 — ([^·—]+)$/, (m, a) => `Danger — ${enName(a)}`], [/^판넬 (\d+)면 · (\d+)곳 지켜보는 중$/, "$1 panels · $2 being watched"],
   [/^위험 경보 (\d+)$/, "$1 danger alarm(s)"], [/^주의 경보 (\d+)$/, "$1 watch alarm(s)"], [/^화재 징조\(FRI ([\d.]+)\)$/, "Fire precursor (FRI $1)"],
   [/^CCM (\d+)대 끊김$/, "$1 CCM offline"], [/^정기 점검 기한 (\d+)일 지남$/, "Inspection $1 days overdue"],
   [/^할 일 (\d+)건$/, "$1 to-do(s)"], [/^([^·—]+) 필터 청소 시기 지남$/, (m, a) => `${enWord(a)} filter cleaning overdue`],
-  [/^([^·—]+)에서$/, "At $1:"], [/^([^·—]+) 이상을 감지했습니다$/, (m, a) => `${enName(a)} anomaly detected`],
+  [/^([^·—]+)에서$/, (m, a) => `At ${enName(a)}:`], [/^([^·—]+) 이상을 감지했습니다$/, (m, a) => `${enName(a)} anomaly detected`],
   [/^해결 진행 중 · 다음: ([^·—]+)$/, (m, a) => `Resolving · next: ${enWord(a)}`], [/^해결 진행 (\d+)%$/, "Resolution $1%"],
   [/^위험 · (.+)$/, (m, a) => `Danger · ${enText(a) || a}`],
   [/^([^·—]+?) ([\d.\-]+)\s?(\S*) — 위험\(([\d.\-]+) 초과\)$/, (m, n, v, u, l) => `${enName(n)} ${v}${u} — danger (above ${l})`],
@@ -1106,7 +1110,7 @@ const EN_RE = [
   [/^([^·—]+?) (\d+)초째 데이터 없음$/, (m, n, s) => `${enName(n)}: no data for ${s}s`], [/^([^·—]+?) 데이터 복구$/, (m, n) => `${enName(n)} data restored`],
   [/^CCM ([^·—]+) 응답 없음 — (\d+)초 침묵$/, "CCM $1 not responding — silent for $2s"],
   [/^판넬이 스스로 조치했습니다 — (.+)$/, (m, a) => `The panel acted on its own — ${enText(a) || a}`], [/^판넬이 스스로 (\d+)번 조치했습니다$/, "The panel acted on its own $1 times"],
-  [/^JCC가 확인했습니다 · (.*)$/, "JCC confirmed · $1"], [/^JCC가 (.+) 만에 확인했습니다$/, (m, a) => `JCC confirmed within ${enDur(a)}`],
+  [/^JCC가 확인했습니다 · (.*)$/, (m, a) => `JCC confirmed · ${enName(a)}`], [/^JCC가 (.+) 만에 확인했습니다$/, (m, a) => `JCC confirmed within ${enDur(a)}`],
   [/^([^·—]+) 뒤 정상으로 돌아왔습니다$/, (m, a) => `Back to normal after ${enDur(a)}`], [/^([^·—]+) 만에$/, (m, a) => `in ${enDur(a)}`],
   [/^([^·—]+)의 ([^·—]+)에서 이상을 감지했습니다$/, (m, p, s) => `${enName(s)} anomaly detected at ${p}`],
   [/^달린 센서 (\d+)개$/, "$1 sensors fitted"], [/^알림 받는 사람 (\d+)명 저장$/, "Saved $1 people"],
@@ -1114,7 +1118,7 @@ const EN_RE = [
   [/^장기 보관 (\d)년$/, "Long-term retention: $1 years"],
   [/^경보·활동 기록 ([^·—]+) · 시간별 센서 값 ([^·—]+) · 원본 측정값 ([^·—]+)$/, (m, a, b, c) => `Alarms & activity ${enDur(a)} · hourly values ${enDur(b)} · raw readings ${enDur(c)}`],
   [/^문서 번호 (\S+)(.*)$/, (m, a, b) => `Document no. ${a}${b ? b.replace("· 시연 문서(실제 기록 아님)", "· demo document (not real records)") : ""}`],
-  [/^(.+) 귀중$/, "To: $1"], [/^발행 (.+) · 검토 (.+)$/, (m, a, b) => `Issued ${a} · reviewed by ${b.replace(/ · 개정 (\d+)$/, " · revision $1")}`],
+  [/^(.+) 귀중$/, (m, a) => `To: ${enName(a)}`], [/^발행 (.+) · 검토 (.+)$/, (m, a, b) => `Issued ${a} · reviewed by ${enName(b.replace(/ · 개정 (\d+)$/, ""))}${/ · 개정 (\d+)$/.test(b) ? " · revision " + b.match(/ · 개정 (\d+)$/)[1] : ""}`],
   [/^위험 경보 · 평균 ([^·—]+)분 확인$/, "Danger alarms · confirmed in $1 min on average"],
   [/^([^·—]+) 만에$/, (m, a) => `in ${enDur(a)}`], [/^([\d.]+)분$/, "$1 min"],
   [/^평일 ([^·—]+?)에 밤보다 평균 ([\d.]+)℃ 오르고, 주말 같은 시간엔 ([\d.]+)℃만 오릅니다\.$/, (m, h, a, b) => `On weekdays (${enHours(h)}) it runs ${a}℃ above night on average; at the same hours on weekends only ${b}℃.`],
@@ -1221,6 +1225,7 @@ function setLang(l, save){
   I18N.lang = l === "en" ? "en" : "ko";
   document.documentElement.lang = I18N.lang;
   if (save) try { localStorage.setItem("gd-lang", I18N.lang); } catch(_){}
+  try { if (window.parent !== window && window.parent.gvLang) window.parent.gvLang(I18N.lang); } catch(_){}
   document.querySelectorAll("[data-lang-toggle]").forEach(b => { b.textContent = I18N.lang === "en" ? "한" : "EN";
     b.setAttribute("aria-label", I18N.lang === "en" ? "한국어로 보기" : "View in English"); });
   if (I18N.lang === "en"){ trNode(document.body); I18N_OBS.observe(document.body, {subtree: true, childList: true, characterData: true}); }

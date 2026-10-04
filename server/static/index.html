@@ -4781,8 +4781,14 @@ function openGuardView(){
   L.setAttribute("role", "dialog"); L.setAttribute("aria-modal", "true"); L.setAttribute("aria-label", "고객 화면 미리보기");
   // 운영자 로그인 전(부팅 로그인이 남아 있음)이면 '운영자 접속', 로그인 뒤면 '운영자 화면으로'
   const opsIn = !document.getElementById("boot");
-  L.innerHTML = `<div class="gv-bar"><b>고객 화면</b><span class="gv-sp">JCC GUARD<span> — 로그인하면 누구나 이 화면이 먼저 보입니다</span></span>` +
+  L.innerHTML = `<div class="gv-bar"><b id="gv-t1">고객 화면</b><span class="gv-sp">JCC GUARD<span id="gv-t2"> — 로그인하면 누구나 이 화면이 먼저 보입니다</span></span>` +
     `<button type="button" id="gv-close">${opsIn ? "운영자 화면으로" : "운영자 접속"}</button></div><iframe title="고객 화면 JCC GUARD"></iframe>`;
+  // 안의 고객 화면이 영어로 바뀌면 이 띠도(고객 화면이 gvLang을 부른다)
+  window.gvLang = l => { const en = l === "en";
+    const t1 = $("#gv-t1"), t2 = $("#gv-t2"), bt = $("#gv-close"); if (!t1) return;
+    t1.textContent = en ? "Customer view" : "고객 화면";
+    t2.textContent = en ? " — everyone sees this screen first after logging in" : " — 로그인하면 누구나 이 화면이 먼저 보입니다";
+    bt.textContent = en ? (opsIn ? "To operator view" : "Operator login") : (opsIn ? "운영자 화면으로" : "운영자 접속"); };
   document.body.appendChild(L);
   L.querySelector("iframe").srcdoc = window.GUARD_SRC;
   document.querySelectorAll(".mb-view [data-view]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.view === "guard")));
