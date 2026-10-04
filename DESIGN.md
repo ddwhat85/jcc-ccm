@@ -363,6 +363,7 @@ The tokens live in `guard.html` `:root` (day) with the dark night values under `
 - **Ease of use:** phones get a fixed bottom bar (현황 · 판넬 · 지켜낸 것 · 보고서); on PC the reports sit in the 지켜낸 것 card, so the header holds only the mark, site name, night/day and logout; every control is at least 40px;
   the state line shows the last update time; panel metrics carry a one-line plain explanation; staff wording (e.g. 접점 발열 잔차) is rewritten for customers;
   Korean breaks between words (`word-break: keep-all`); no small label above a heading (the month header is a working month switcher).
+- **Forecast chart** (panel sheet): actual = solid ink, forecast = dashed safe-green with a light band (past error), last year = dotted ink-3, warn threshold = dashed warn; the SVG is drawn at the real container width so labels stay 12px on phones; the hourly table sits under it and the method + measured average error is always stated.
 - **Quiet by default:** panel cards have no border until something needs attention (then the border and status word take the state color); lists inside a card are hairline rows, never boxes inside the box; empty stats are hidden rather than shown as "—".
 - **Don't** show a number that is not from real records; assumptions (the patrol comparison) are labeled "추정" with their basis.
 - **Don't** give customers output controls (vent, heater, fan). Viewing, acknowledging, and a phone call only.

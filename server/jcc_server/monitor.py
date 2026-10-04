@@ -38,6 +38,7 @@ def start(storage, interval: float = 10) -> None:
         time.sleep(interval)
         last_prune = 0.0
         last_monthly = 0.0
+        hourly_back = 24 * 15       # 처음 한 번은 남아 있는 원본(14일) 전부를 시간별 평균으로 — 그다음부턴 48시간씩
         notified: set = set()
         sent: set = set()          # 실제로 알림을 보낸 경보 id(사건 단위 중복 억제용)
         first_pass = True          # 재시작 직후 기존 경보를 다시 발송하지 않기 위함
@@ -90,6 +91,10 @@ def start(storage, interval: float = 10) -> None:
                     weekly_due(storage, now)
                     from .rul import rollup                  # 남은 여유 예측: 하루 대표값 갱신(문자 없음)
                     rollup(storage, now)
+                    from . import forecast                   # 온도 예측용 시간별 평균(원본은 14일, 이건 3년 보관)
+                    forecast.rollup(storage, now, hourly_back)
+                    forecast.prune(storage, now)
+                    hourly_back = 48
                 if now - last_prune > 3600:                  # 1시간마다 보존 정리 + 오늘 자동 백업(하루 한 번)
                     last_prune = now
                     storage.prune(readings_days=keep_readings, events_days=keep_events)

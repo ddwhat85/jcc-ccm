@@ -302,6 +302,65 @@
       first: null, peak: null,   // 시연판엔 그때 값 기록이 없다 — 지어내지 않는다
       cause_say: GD_CAUSE[a.cause] || "", summary: parts.join(" · ") + ".", issued_at: t, open: !a.cleared_at };
   }
+  // ── 내일 온도 예측(서버 forecast.py와 같은 규칙) — 시연판은 1년 운영을 가정한 가상 시간별 기록으로 ──
+  const FC = { H: 3600, D: 86400, MIN_DAYS: 7, WEEKS: 8, FLOW_H: 72, DAMP: 0.6, BT: 30, Q: 0.8, cache: {} };
+  const fcDay0 = t => Math.floor((t + 9 * FC.H) / FC.D) * FC.D - 9 * FC.H;
+  const fcMed = a => { const b = a.slice().sort((x, y) => x - y), m = b.length >> 1; return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; };
+  function fcProfile(s, t, upto) {
+    const same = []; for (let k = 1; k <= FC.WEEKS; k++) { const u = t - k * 7 * FC.D; if (u < upto && s.has(u)) same.push(s.get(u)); }
+    if (same.length >= 2) return fcMed(same);
+    const near = []; for (let k = 1; k <= 14; k++) { const u = t - k * FC.D; if (u < upto && s.has(u)) near.push(s.get(u)); }
+    return near.length ? fcMed(near) : null;
+  }
+  function fcFlow(s, upto) {
+    const d = []; for (let k = 1; k <= FC.FLOW_H; k++) { const t = upto - k * FC.H; if (s.has(t)) { const p = fcProfile(s, t, t); if (p != null) d.push(s.get(t) - p); } }
+    return d.length ? d.reduce((a, b) => a + b, 0) / d.length : 0;
+  }
+  function fcPredict(s, upto, hours) { const fl = fcFlow(s, upto) * FC.DAMP, o = new Map();
+    hours.forEach(t => { const p = fcProfile(s, t, upto); o.set(t, p == null ? null : Math.round((p + fl) * 100) / 100); }); return o; }
+  function fcBuild(s, t, warn) {
+    const r2 = v => Math.round(v * 100) / 100, today0 = fcDay0(t), keys = [...s.keys()], first = keys.length ? Math.min(...keys) : null;
+    const days = first == null ? 0 : (t - first) / FC.D;
+    const out = { days: Math.round(days * 10) / 10, building: days < FC.MIN_DAYS, warn, yesterday: [], today: [], forecast: [], last_year: [], mae: null, band: null, tested_days: 0 };
+    for (let i = 0; i < 24; i++) { const a = today0 - FC.D + i * FC.H, b = today0 + i * FC.H;
+      if (s.has(a)) out.yesterday.push({ ts: a, v: r2(s.get(a)) }); if (s.has(b) && b < t) out.today.push({ ts: b, v: r2(s.get(b)) }); }
+    if (out.building) return out;
+    let errs = [], tested = 0;
+    for (let k = 1; k <= FC.BT; k++) { const d0 = today0 - k * FC.D, hrs = Array.from({ length: 24 }, (_, i) => d0 + i * FC.H), pr = fcPredict(s, d0, hrs);
+      const e = hrs.filter(h => pr.get(h) != null && s.has(h)).map(h => Math.abs(pr.get(h) - s.get(h))); if (e.length) { errs = errs.concat(e); tested++; } }
+    let band = null;
+    if (tested >= 3) { errs.sort((a, b) => a - b); band = r2(errs[Math.min(errs.length - 1, Math.floor(errs.length * FC.Q))]);
+      out.mae = r2(errs.reduce((a, b) => a + b, 0) / errs.length); out.band = band; out.tested_days = tested; }
+    const start = Math.max(Math.floor(t / FC.H) * FC.H + FC.H, today0), hrs = [];
+    for (let i = 0; i < 48; i++) { const h = start + i * FC.H; if (h < today0 + 2 * FC.D) hrs.push(h); }
+    const pr = fcPredict(s, t, hrs);
+    out.forecast = hrs.filter(h => pr.get(h) != null).map(h => ({ ts: h, v: pr.get(h), lo: band == null ? null : r2(pr.get(h) - band), hi: band == null ? null : r2(pr.get(h) + band) }));
+    const tm0 = today0 + FC.D;
+    for (let i = 0; i < 24; i++) { const h = tm0 + i * FC.H; if (s.has(h - 364 * FC.D)) out.last_year.push({ ts: h, v: r2(s.get(h - 364 * FC.D)) }); }
+    const tom = out.forecast.filter(f => f.ts >= tm0);
+    if (tom.length) { out.peak = tom.reduce((a, b) => b.v > a.v ? b : a); out.low = tom.reduce((a, b) => b.v < a.v ? b : a);
+      out.near_warn = warn != null && (out.peak.hi != null ? out.peak.hi : out.peak.v) >= warn; }
+    return out;
+  }
+  function fcSynth(pid, live, t) {
+    // 가상 1년: 계절(여름 높음) + 낮 시간 상승 + 평일 가동 열 + 잡음. 지금 값(live)에 이어지게 맞춘다
+    let seed = 0; for (const ch of pid) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let z = seed; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
+    const shape = u => { const k = new Date((u + 9 * FC.H) * 1000), h = k.getUTCHours(), wd = k.getUTCDay(), doy = (u - Date.UTC(k.getUTCFullYear(), 0, 1) / 1000) / FC.D;
+      return 3 * Math.sin(2 * Math.PI * (doy - 110) / 365) + 2.5 * Math.max(0, Math.sin(Math.PI * (h - 7) / 12)) + (wd >= 1 && wd <= 5 && h >= 8 && h < 19 ? 1.5 : 0); };
+    const h0 = Math.floor(t / FC.H) * FC.H, ref = shape(h0), s = new Map();
+    for (let i = 400 * 24 - 1; i >= 1; i--) { const u = h0 - i * FC.H; s.set(u, live + shape(u) - ref + (rnd() - 0.5) * 0.8); }
+    return s;
+  }
+  function gdForecast(pid) {
+    const row = gdRows().find(p => p.panel === pid); if (!row) return null;
+    const t = now(), live = row.temp != null ? row.temp : 27, key = pid + "|" + Math.floor(t / FC.H);
+    if (!FC.cache[key]) FC.cache = { [key]: fcSynth(pid, live, t) };        // 시간마다 한 번만 새로 만든다
+    const dev = (((panelList().find(p => p.panel === pid) || {}).ccms || [])[0] || {}).device_id;
+    const sd = dev && (S.discovered[dev] || []).find(x => x.kind === "temp" && !(x.key || "").includes("ncontact"));
+    const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
+    return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
+  }
   function guardPanelDemo(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
     const devs = new Set(((panelList().find(p => p.panel === pid) || {}).ccms || []).map(c => c.device_id).concat([pid]));
@@ -1628,6 +1687,7 @@
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
+      if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));
       if (p === "/api/guard/incident") { const d = gdIncidentReport(parseInt(qs.get("id") || "0", 10)); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 경보입니다" }, 404)); }
       if (p === "/api/guard/panel") { const d = guardPanelDemo(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
