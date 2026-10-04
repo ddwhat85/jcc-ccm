@@ -140,9 +140,19 @@ def _clean(spec: dict) -> dict:
         eq.append({"kind": e["kind"], "name": str(e.get("name") or "")[:60], "qty": int(num(e.get("qty"), 1, 20) or 1),
                    "capacity_w": num(e.get("capacity_w"), 0, 50000) or 0, "airflow_m3h": num(e.get("airflow_m3h"), 0, 5000) or 0,
                    "position": e.get("position") if e.get("position") in POS_WORD else "",
-                   "filter_days": int(num(e.get("filter_days"), 0, 730) or 0), "last_service": num(e.get("last_service"), 0, 4e9)})
+                   "filter_days": int(num(e.get("filter_days"), 0, 730) or 0), "last_service": num(e.get("last_service"), 0, 4e9),
+                   "link": _clean_link(e.get("link"))})
     out["equipment"] = eq
     return out
+
+
+def _clean_link(lk):
+    """에어컨 통신 연결 정보(aircon.link가 만든 것)만 남긴다."""
+    import re
+    if not isinstance(lk, dict) or not re.match(r"^ac[0-9]{1,2}$", str(lk.get("tag", ""))) or not lk.get("device_id"):
+        return None
+    return {"device_id": str(lk["device_id"])[:64], "host": str(lk.get("host", ""))[:253], "port": int(lk.get("port") or 502),
+            "slave": int(lk.get("slave") or 0), "profile": str(lk.get("profile", ""))[:60], "tag": str(lk["tag"])}
 
 
 def get(storage, panel: str) -> dict | None:
@@ -190,7 +200,7 @@ def view(spec: dict | None, now: float | None = None) -> dict | None:
         cap = (f"{e['capacity_w']:g} W" if e["kind"] != "fan_filter" else f"{e['airflow_m3h']:g} m³/h")
         units.append({"i": i, "kind": e["kind"], "word": KIND_WORD[e["kind"]], "name": e.get("name") or "", "qty": e.get("qty", 1),
                       "cap": cap, "position": POS_WORD.get(e.get("position") or "", ""), "next_service": nxt,
-                      "service_due": bool(nxt and nxt <= now)})
+                      "service_due": bool(nxt and nxt <= now), "linked": bool(e.get("link"))})
     return {"units": units, "calc": c, "advice": advice(spec, c),
             "summary": " · ".join(f"{u['word']} {u['qty']}대" for u in units) or "공조 장치 등록 없음",
             "size": (f"{spec['width']:g}×{spec['height']:g}×{spec['depth']:g}" if spec.get("width") and spec.get("height") and spec.get("depth") else "")

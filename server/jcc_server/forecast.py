@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import os
+import re
 import statistics
 import time
 from datetime import datetime, timedelta, timezone
@@ -47,7 +48,8 @@ def rollup(storage, now: float | None = None, hours: int = 48) -> int:
         rows = storage._conn.execute(
             "SELECT device_id, sensor_key, CAST(ts / 3600 AS INTEGER) * 3600 AS h, AVG(value) AS a, MIN(value) AS lo, "
             "MAX(value) AS hi, COUNT(*) AS n FROM readings WHERE ok=1 AND value IS NOT NULL AND ts >= ? AND ts < ? "
-            "AND (UPPER(unit) IN ('C', '°C', 'DEGC', '%RH', 'RH') OR sensor_key LIKE '%temp%' OR sensor_key LIKE '%humid%') "
+            "AND (UPPER(unit) IN ('C', '°C', 'DEGC', '%RH', 'RH') OR sensor_key LIKE '%temp%' OR sensor_key LIKE '%humid%' "
+            "OR sensor_key GLOB 'ac[0-9]*_run') "
             "GROUP BY device_id, sensor_key, h", (start, end)).fetchall()
         storage._conn.executemany(
             "INSERT OR REPLACE INTO hourly (device_id, sensor_key, hour, avg, vmin, vmax, n) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -168,7 +170,8 @@ def panel_forecast_source(storage, panel: str):
     for c in ccms:
         for x in c.get("latest") or []:
             unit, key = (x.get("unit") or "").upper(), x["sensor_key"].lower()
-            is_temp = (x.get("kind") == "temp" or unit in ("C", "°C", "DEGC") or "temp" in key) and "ncontact" not in key
+            is_temp = ((x.get("kind") == "temp" or unit in ("C", "°C", "DEGC") or "temp" in key) and "ncontact" not in key
+                       and not str(x.get("kind") or "").startswith("aircon_") and not re.match(r"^ac[0-9]+_", key))   # 에어컨이 잰 값은 판넬 온도가 아니다
             if is_temp and (pick is None or ("cabinet" in key and "cabinet" not in pick[1].lower())):
                 pick = (c["device_id"], x["sensor_key"], x.get("name") or x["sensor_key"])
     if pick is None:

@@ -1302,6 +1302,8 @@ class Storage:
     # 값이 늘 같아도 정상인 센서 — 접점 출력(열연기 감지기는 평소 계속 0). 이런 센서에 '값이
     # 안 변함=고착'을 적용하면 하루 종일 오경보가 뜬다. 살아 있는지는 침묵 감시가 본다.
     CONSTANT_OK_KINDS = ("smoke",)
+    # 상태·설정값(에어컨 설정 온도·압축기 가동 0/1·알람 0/1)은 며칠씩 그대로인 게 정상 — 고착·드리프트·이상 판정에서 뺀다
+    STATE_KINDS = ("aircon_setpoint", "aircon_run", "aircon_alarm")
 
     def health_scan(self, sensor_timeout: float = 45) -> int:
         """살아있는 센서의 고착·드리프트·베이스라인 이상을 주기 감지해 전이만 기록한다.
@@ -1327,6 +1329,8 @@ class Storage:
             if lv is None or (now - lv[0]) >= sensor_timeout:
                 continue                               # 침묵 센서는 침묵 감시가 담당
             cur_val = lv[1]
+            if (s.get("kind") or "") in self.STATE_KINDS:
+                continue
             st = self.history_stats(dev, key)
             state, anom = "ok", None
             if st["stuck"] and (s.get("kind") or "") not in self.CONSTANT_OK_KINDS:

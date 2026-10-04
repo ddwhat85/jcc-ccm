@@ -1123,6 +1123,14 @@
   .ps-f input{width:100%;min-width:0;font:500 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:6px 7px}
   @media (max-width:560px){.ps-sensor{grid-template-columns:repeat(3,minmax(0,1fr))} .ps-sn{grid-column:1/-1}}
   .ps-calc{margin-top:14px}
+  .ac-box{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px dashed var(--rule);border-radius:2px;font-size:12px}
+  .ac-box .ac-off{flex:1;color:var(--ink-3)} .ac-box .ac-v{flex:1;color:var(--ink-2);line-height:1.5}
+  .ac-st{font-weight:700} .ac-st.ok{color:var(--ok)} .ac-st.wait{color:var(--warn)} .ac-st.bad{color:var(--crit)}
+  .ac-form{grid-column:1/-1;padding:10px;background:var(--canvas);border:1px solid var(--rule);border-radius:2px}
+  .ac-row2{grid-template-columns:minmax(0,2fr) auto auto;align-items:end;margin-top:8px}
+  .ac-reg{display:grid;grid-template-columns:minmax(0,1.3fr) 90px 92px 92px 70px 70px;gap:6px;align-items:center;padding:5px 0;border-top:1px solid var(--rule-2)}
+  .ac-reg b{font:600 12.5px var(--sans)} .ac-reg-h{font:600 11px var(--sans);color:var(--ink-3);border-top:0;margin-top:8px}
+  .ac-reg input,.ac-reg select{font:500 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:5px 6px;min-width:0}
   .ps-foot{display:flex;align-items:center;gap:12px;padding:10px 18px;border-top:1px solid var(--rule)}
   .ps-foot .cmsn-msg{flex:1;margin:0}
   .eq-h{margin:14px 0 6px;font:700 12.5px var(--sans);color:var(--ink)} .eq-h span{font-weight:500;color:var(--ink-3);margin-left:6px}
@@ -1140,6 +1148,8 @@
   .eq-out .eq-h{margin-top:0}
   .eq-st{margin:0 0 8px;font:700 15px var(--sans)} .eq-st.short{color:var(--crit)} .eq-st.tight{color:var(--warn)} .eq-st.ok,.eq-st.passive{color:var(--ok)} .eq-st.unknown{color:var(--ink-3)}
   .tc-cap.short{color:var(--crit);font-weight:700} .tc-cap.tight{color:var(--warn);font-weight:700}
+  /* 전체화면은 벽걸이 모니터용 — 휴대폰(작은 터치 화면)에선 버튼을 숨긴다. 이미 전체화면이면 끝내기 버튼은 남긴다 */
+  @media (max-width:760px) and (pointer:coarse){ #btn-full{display:none} :fullscreen #btn-full,:-webkit-full-screen #btn-full{display:inline-flex} }
   .tc-lv{font-weight:700;white-space:nowrap} .tc-lv.act{color:var(--crit)} .tc-lv.watch{color:var(--warn)}
   .acct-wprev{margin:0 0 10px;padding:9px 11px;border:1px dashed var(--rule);border-radius:2px;white-space:pre-wrap;
     font:500 11.5px/1.55 var(--sans);color:var(--ink-2);background:var(--canvas)}
@@ -4008,15 +4018,25 @@ function applyTheme(t){
   applyTheme(t || currentTheme());
 })();
 $("#btn-theme").onclick = ()=> applyTheme(currentTheme()==="dark" ? "light" : "dark");
-// 전체화면 토글 (벽걸이 모니터/시연용). 샌드박스에서 막히면 조용히 무시.
-$("#btn-full").onclick = ()=>{
+// 전체화면 토글 (벽걸이 모니터/시연용). 휴대폰 브라우저(삼성 인터넷·사파리)는 webkit 이름으로만 알려 주므로 둘 다 본다
+// — 한쪽만 보면 전체화면 중에 다시 눌러도 '아직 아님'으로 보여 빠져나오지 못한다. 막힌 환경이면 상태줄에 알린다.
+const fsEl = () => document.fullscreenElement || document.webkitFullscreenElement || null;
+$("#btn-full").onclick = async ()=>{
+  const d = document, el = d.documentElement;
   try{
-    if(document.fullscreenElement){ document.exitFullscreen(); }
-    else { (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen).call(document.documentElement); }
+    if(fsEl()){ await (d.exitFullscreen || d.webkitExitFullscreen).call(d); }
+    else {
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if(!req) throw new Error("no fullscreen");
+      await req.call(el);
+    }
   }catch(e){ setStatus("이 환경에서는 전체화면을 쓸 수 없습니다"); }
+  fsIcon();
 };
-document.addEventListener("fullscreenchange", ()=>{
-  const b=$("#btn-full"); if(b) b.innerHTML = document.fullscreenElement ? ICONS.shrink : ICONS.expand; });
+function fsIcon(){ const b=$("#btn-full"); if(!b) return; const on = !!fsEl();
+  b.innerHTML = on ? ICONS.shrink : ICONS.expand; b.title = on ? "전체화면 끝내기" : "전체화면 (벽걸이 모니터용)"; b.setAttribute("aria-label", b.title); }
+document.addEventListener("fullscreenchange", fsIcon);
+document.addEventListener("webkitfullscreenchange", fsIcon);
 
 // ── 하단 실시간 로그 스트립 (알람·특이사항 3줄) ─────────
 function loadTicker(){
@@ -4805,7 +4825,7 @@ function eqRead(){
       const old = i !== "" && sp.equipment ? sp.equipment[+i] : null;
       return { kind, name: g("name"), qty: Number(g("qty") || 1), position: g("position"), filter_days: Number(g("filter_days") || 0),
         capacity_w: kind === "fan_filter" ? 0 : Number(g("cap") || 0), airflow_m3h: kind === "fan_filter" ? Number(g("cap") || 0) : 0,
-        last_service: old ? old.last_service : null }; }) : (sp.equipment || []) };
+        last_service: old ? old.last_service : null, link: old ? old.link || null : null }; }) : (sp.equipment || []) };
 }
 function eqHeatRow(x){ x = x || {}; return `<div class="eq-line" data-heat><input aria-label="기기 이름" placeholder="예: 인버터 15kW" maxlength="40" value="${escapeHtml(x.name || "")}" data-k="name">` +
   `<input aria-label="손실 W" type="number" min="0" placeholder="손실 W" value="${x.loss_w ?? ""}" data-k="loss_w"><input aria-label="수량" type="number" min="1" value="${x.qty || 1}" data-k="qty">` +
@@ -4819,8 +4839,86 @@ function eqUnitRow(x, i){ x = x || {kind: "aircon", qty: 1}; const saved = i != 
   L("대수", `<input type="number" min="1" value="${x.qty || 1}" data-k="qty">`) +
   L("위치", `<select data-k="position">${eqOpt(EQ_POS, x.position || "")}</select>`) +
   L("필터 청소 주기(일)", `<input type="number" min="0" value="${x.filter_days || ""}" data-k="filter_days">`) +
+  (saved && (x.kind === "aircon" || x.kind === "heat_exchanger") ? acLinkHTML(x, i) : "") +
   `<div class="eq-act">` + (saved ? `<button class="cmsn-btn" type="button" data-svc="${i}">필터 청소함</button><small>${x.last_service ? "마지막 " + new Date(x.last_service * 1000).toLocaleDateString("ko-KR") : "청소 기록 없음"}</small>` : "") +
   `<button class="cmsn-btn" type="button" data-del aria-label="이 장치 지우기">지우기</button></div></div>`; }
+// ── 에어컨 통신 연결(이더넷 · Modbus TCP, 읽기만) ──
+const AC_STATE = {live: ["연결됨", "ok"], pending: ["CCM 반영 대기", "wait"], silent: ["값이 안 들어옴 — IP·유닛 ID·레지스터 표 확인", "bad"], rejected: ["CCM이 거부", "bad"]};
+function acLinkHTML(x, i){
+  const lk = x.link, st = (PS.ac || []).find(a => a.index === i);
+  if (!lk) return `<div class="ac-box"><span class="ac-off">통신 연결 안 됨 — 이더넷(Modbus TCP)으로 붙이면 가동·설정·알람을 읽어 옵니다</span>` +
+    `<button class="cmsn-btn" type="button" data-acopen="${i}">통신 연결</button></div><div class="ac-form" id="ac-form-${i}" hidden></div>`;
+  const S = AC_STATE[(st || {}).state] || ["", ""];
+  const v = st && st.state === "live" ? [st.running == null ? "" : st.running ? "가동 중" : "멈춤", st.setpoint != null ? `설정 ${st.setpoint}℃` : "",
+    st.temp != null ? `에어컨 측정 ${st.temp}℃` : "", st.duty_24h != null ? `24시간 가동률 ${Math.round(st.duty_24h * 100)}%` : "",
+    st.alarm ? "알람!" : ""].filter(Boolean).join(" · ") : "";
+  return `<div class="ac-box"><span class="ac-st ${S[1]}">${S[0]}${st && st.reason ? " — " + escapeHtml(st.reason) : ""}</span>` +
+    `<span class="ac-v">${escapeHtml(lk.host)}:${lk.port} · 유닛 ${lk.slave} · ${escapeHtml(lk.profile)} · ${escapeHtml(lk.device_id)} (${escapeHtml(lk.tag)})${v ? "<br>" + escapeHtml(v) : ""}</span>` +
+    `<button class="cmsn-btn" type="button" data-acopen="${i}">바꾸기</button><button class="cmsn-btn" type="button" data-acoff="${i}">끊기</button></div>` +
+    `<div class="ac-form" id="ac-form-${i}" hidden></div>`;
+}
+async function acProfiles(){ const r = await fetch("/api/admin/aircon_profiles", {cache:"no-store"}); return r.json(); }
+async function acOpenForm(i){
+  const box = $(`#ac-form-${i}`); if (!box) return;
+  if (!box.hidden){ box.hidden = true; return; }
+  const j = await acProfiles(), lk = ((PS.spec.equipment || [])[i] || {}).link || {};
+  const ccms = (PS.panelRow ? PS.panelRow.ccms : []).map(c => c.device_id);
+  box.innerHTML = `<div class="eq-row">` +
+    `<label class="acct-f">읽을 CCM<select data-ac="device_id">${ccms.map(d => `<option ${d === lk.device_id ? "selected" : ""}>${escapeHtml(d)}</option>`).join("")}</select></label>` +
+    `<label class="acct-f">에어컨 IP<input data-ac="host" placeholder="192.168.1.60" value="${escapeHtml(lk.host || "")}"></label>` +
+    `<label class="acct-f">포트<input data-ac="port" type="number" value="${lk.port || 502}"></label>` +
+    `<label class="acct-f">유닛 ID<input data-ac="slave" type="number" value="${lk.slave ?? 1}"></label></div>` +
+    (j.profiles.length ? `<div class="eq-row ac-row2"><label class="acct-f">레지스터 표(기종)<select data-ac="profile">${j.profiles.map(p =>
+      `<option ${p.name === lk.profile ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("")}</select></label>` +
+      `<button class="cmsn-btn primary" type="button" data-acgo="${i}">연결</button><button class="cmsn-btn" type="button" data-acprof>레지스터 표 관리</button></div>`
+      : `<p class="acct-note">아직 레지스터 표가 없습니다. 에어컨 제조사의 Modbus 설명서를 보고 기종별로 한 번 입력하세요. <button class="cmsn-btn" type="button" data-acprof>레지스터 표 입력</button></p>`) +
+    `<p class="acct-note">CCM과 에어컨이 같은 이더넷(같은 대역)에 있어야 합니다. 읽기만 하고 설정은 바꾸지 않습니다.</p>`;
+  box.hidden = false;
+}
+async function acLink(i){
+  const box = $(`#ac-form-${i}`), g = k => box.querySelector(`[data-ac="${k}"]`).value;
+  try { const r = await fetch("/api/admin/aircon_link", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({panel: PS.panel, index: i, device_id: g("device_id"), host: g("host").trim(), port: Number(g("port") || 502), slave: Number(g("slave") || 0), profile: g("profile")})});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "연결하지 못했습니다");
+    await psLoad(PS.panel); psOpen("cool"); psMsg(`연결했습니다 — CCM이 다음 보고 때 받아 읽기 시작합니다 (${j.link.tag})`);
+  } catch(e){ psMsg(e.message, true); }
+}
+async function acUnlink(i){
+  try { const r = await fetch("/api/admin/aircon_unlink", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, index: i})});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "끊지 못했습니다");
+    await psLoad(PS.panel); psOpen("cool"); psMsg("통신 연결을 끊었습니다 — CCM에서도 그 레지스터 읽기를 멈춥니다");
+  } catch(e){ psMsg(e.message, true); }
+}
+// 레지스터 표(기종별) — 제조사 Modbus 설명서의 번호를 한 번 입력해 두고 같은 기종은 다시 쓴다
+async function acProfView(name){
+  PS.view = "acprof"; $("#ps-title").textContent = "에어컨 레지스터 표"; $("#ps-back").hidden = false; psMsg("");
+  const j = await acProfiles(), cur = j.profiles.find(p => p.name === name) || {name: "", items: {}};
+  const row = it => { const x = cur.items[it.key] || {};
+    return `<div class="ac-reg" data-item="${it.key}"><b>${escapeHtml(it.name)}${it.required ? " *" : ""}</b>` +
+      `<input aria-label="${escapeHtml(it.name)} 레지스터 번호" type="number" min="0" max="65535" placeholder="번호" value="${x.register ?? ""}" data-r="register">` +
+      `<select aria-label="종류" data-r="type">${eqOpt([["holding", "holding"], ["input", "input"]], x.type || "holding")}</select>` +
+      `<select aria-label="형식" data-r="datatype">${eqOpt([["int16", "int16"], ["uint16", "uint16"], ["int32", "int32"], ["uint32", "uint32"], ["float32", "float32"]], x.datatype || "int16")}</select>` +
+      `<input aria-label="배율" type="number" step="any" placeholder="배율 1" value="${x.scale ?? ""}" data-r="scale">` +
+      `<input aria-label="보정" type="number" step="any" placeholder="보정 0" value="${x.offset ?? ""}" data-r="offset"></div>`; };
+  $("#ps-body").innerHTML = `<p class="acct-note">제조사 Modbus 설명서에서 번호를 옮겨 적습니다. 예: 온도가 0.1℃ 단위로 오면 배율 0.1. 압축기 가동·알람은 0/1. * 표는 꼭 필요합니다. 비워 둔 항목은 읽지 않습니다.</p>` +
+    (j.profiles.length ? `<div class="pchk-row">${j.profiles.map(p => `<button class="cmsn-btn${p.name === cur.name ? " primary" : ""}" type="button" data-acpick="${escapeHtml(p.name)}">${escapeHtml(p.name)}</button>`).join("")}` +
+      `<button class="cmsn-btn" type="button" data-acpick="">+ 새 기종</button></div>` : "") +
+    `<label class="acct-f" style="margin-top:10px">기종(표 이름)<input id="ac-pname" maxlength="60" placeholder="예: 리탈 Blue e+ 1.5kW (IoT 인터페이스)" value="${escapeHtml(cur.name)}"></label>` +
+    `<div class="ac-reg ac-reg-h" aria-hidden="true"><span>항목</span><span>레지스터</span><span>종류</span><span>형식</span><span>배율</span><span>보정</span></div>` +
+    j.items.map(row).join("");
+  $("#ps-foot").hidden = false;
+}
+async function acProfSave(){
+  const items = {};
+  document.querySelectorAll("#ps-body .ac-reg[data-item]").forEach(r => { const g = k => r.querySelector(`[data-r="${k}"]`).value;
+    if (g("register") === "") return;
+    items[r.dataset.item] = {register: Number(g("register")), type: g("type"), datatype: g("datatype"),
+      scale: g("scale") === "" ? 1 : Number(g("scale")), offset: g("offset") === "" ? 0 : Number(g("offset"))}; });
+  const r = await fetch("/api/admin/aircon_profile", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({name: $("#ac-pname").value, items})});
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "저장하지 못했습니다");
+  await acProfView(j.profile.name); psMsg(`'${j.profile.name}' 레지스터 표를 저장했습니다 — 공조 장치에서 이 기종을 고르면 됩니다`);
+}
+
 function eqCalcHTML(v){
   const c = v.calc, W = {ok: "충분", tight: "빠듯", short: "부족", passive: "공조 없이도 충분", unknown: "정보 부족"};
   const rows = c.status === "unknown" ? "" : `<table class="pchk-tbl"><tbody>` +
@@ -4842,7 +4940,7 @@ async function psLoad(pid){
   try {
     const [pr, sr] = await Promise.all([fetch("/api/panels", {cache:"no-store"}), fetch(`/api/admin/panel_spec?panel=${encodeURIComponent(pid)}`, {cache:"no-store"})]);
     const pj = await pr.json(), sj = await sr.json(); if (!sr.ok) throw new Error(sj.error || "불러오지 못함");
-    PS.panelRow = (pj.panels || []).find(x => x.panel === pid) || null; PS.spec = sj.spec || {}; PS.eqv = sj.view;
+    PS.panelRow = (pj.panels || []).find(x => x.panel === pid) || null; PS.spec = sj.spec || {}; PS.eqv = sj.view; PS.ac = sj.aircon || [];
   } catch(e){ psMsg(e.message, true); }
 }
 async function openPs(pid, view){
@@ -4868,6 +4966,8 @@ async function psSave(){
         const j = await setSetting(row.dataset.dev, row.dataset.key, patch); if (!j || !j.ok) throw new Error((j && j.error) || "저장하지 못했습니다"); n++;
       }
       psMsg(n ? `센서 ${n}개 기준을 저장했습니다 — CCM에도 적용됩니다` : "바뀐 값이 없습니다"); if (n){ refresh(); await psLoad(PS.panel); psOpen(PS.view); psMsg(`센서 ${n}개 기준을 저장했습니다 — CCM에도 적용됩니다`); }
+    } else if (PS.view === "acprof"){
+      await acProfSave();
     } else if (PS.view === "info"){
       const v = $("#ps-name").value.trim();
       const r = await fetch("/api/panel/name", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, name: v})});
@@ -4882,15 +4982,23 @@ async function psSave(){
 }
 $("#btn-eq").onclick = () => openPs();
 $("#ps-close").onclick = () => $("#ps-overlay").classList.remove("open");
-$("#ps-back").onclick = async () => { await psLoad(PS.panel); psGrid(); };
+$("#ps-back").onclick = async () => { const from = PS.view; await psLoad(PS.panel); from === "acprof" ? psOpen("cool") : psGrid(); };
 $("#ps-save").onclick = psSave;
 $("#ps-panel").onchange = async e => { await psLoad(e.target.value); PS.view === "grid" ? psGrid() : psOpen(PS.view); };
-$("#ps-overlay").addEventListener("input", e => { if (e.target.closest("#eq-heat,#eq-units,.eq-row")) eqPreview(); });
+$("#ps-overlay").addEventListener("input", e => { if (e.target.closest("#eq-heat,#eq-units,.eq-row") && !e.target.closest(".ac-form")) eqPreview(); });
 $("#ps-overlay").addEventListener("change", e => {
   if (e.target.dataset.k === "kind"){ const c = e.target.closest("[data-unit]").querySelector("[data-cap]"); if (c) c.textContent = e.target.value === "fan_filter" ? "풍량 m³/h" : "냉각 W"; }
   if (e.target.closest("#eq-heat,#eq-units,.eq-row")) eqPreview(); });
 $("#ps-overlay").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]"); if (del){ (del.closest("[data-unit]") || del.parentElement).remove(); eqPreview(); return; }
+  const t = e.target.closest("[data-acopen],[data-acgo],[data-acoff],[data-acprof],[data-acpick]");
+  if (t){
+    if (t.dataset.acopen != null) return acOpenForm(Number(t.dataset.acopen));
+    if (t.dataset.acgo != null) return acLink(Number(t.dataset.acgo));
+    if (t.dataset.acoff != null) return acUnlink(Number(t.dataset.acoff));
+    if (t.dataset.acpick != null) return acProfView(t.dataset.acpick);
+    return acProfView((((PS.spec.equipment || [])[0] || {}).link || {}).profile || "");
+  }
   const svc = e.target.closest("[data-svc]");
   if (svc){ try { const r = await fetch("/api/admin/serviced", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, index: Number(svc.dataset.svc)})});
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "기록하지 못했습니다");

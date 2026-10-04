@@ -65,8 +65,9 @@ def specs_of(storage, dev: str) -> list:
     return [json.loads(r["spec"]) for r in rows]
 
 
-def add(storage, dev: str, spec: dict, meta: dict | None, by: str) -> dict:
-    """검사 후 저장. 틀리면 ValueError(사람이 읽을 이유)."""
+def add(storage, dev: str, spec: dict, meta: dict | None, by: str, reuse_key: bool = False) -> dict:
+    """검사 후 저장. 틀리면 ValueError(사람이 읽을 이유).
+    reuse_key=True: 같은 장치를 다시 연결할 때 — 최근 값이 남은 키라도 그 장치의 것이니 그대로 쓴다(기록이 이어지게)."""
     spec = clean(spec)
     meta = {k: (meta or {}).get(k) for k in _META_KEYS if (meta or {}).get(k) not in (None, "")}
     now = time.time()
@@ -78,8 +79,9 @@ def add(storage, dev: str, spec: dict, meta: dict | None, by: str) -> dict:
         if spec["key"] in mine:
             raise ValueError(f"이 CCM에 같은 키({spec['key']})의 수동 센서가 이미 있습니다")
         taken = {r["sensor_key"] for r in cur.execute("SELECT sensor_key FROM discovered WHERE device_id=?", (dev,))}
-        taken |= {r["sensor_key"] for r in cur.execute("SELECT DISTINCT sensor_key FROM readings WHERE device_id=? "
-                                                         "AND ts > ?", (dev, now - 86400))}
+        if not reuse_key:
+            taken |= {r["sensor_key"] for r in cur.execute("SELECT DISTINCT sensor_key FROM readings WHERE device_id=? "
+                                                             "AND ts > ?", (dev, now - 86400))}
         if spec["key"] in taken:
             raise ValueError(f"이 CCM에 이미 '{spec['key']}' 센서가 있습니다 — 다른 키를 쓰세요")
         if len(mine) >= MAX_PER_CCM:

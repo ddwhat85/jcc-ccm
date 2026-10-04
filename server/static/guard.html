@@ -362,6 +362,7 @@
   .gd-eq li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 12px;border-radius:var(--r-s);background:var(--card-2)}
   .gd-eq li b{font:600 var(--t-body) var(--sans)} .gd-eq li span{font-size:var(--t-cap);color:var(--ink-2)}
   .gd-eq li em{flex-basis:100%;font-style:normal;font-size:var(--t-cap);color:var(--ink-3)} .gd-eq li em.due{color:var(--warn);font-weight:600}
+  .gd-eq li em.live{color:var(--ok);font-weight:600}
   .gd-eq-cap{margin:12px 0 0;font-size:var(--t-body);color:var(--ink-2)}
   .gd-eq-cap b{color:var(--ink)} .gd-eq-cap span{font-size:var(--t-cap);color:var(--ink-3);font-variant-numeric:tabular-nums}
   .gd-eq-cap i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:1px;background:var(--ok)}
@@ -904,6 +905,13 @@ async function loadForecast(pid){
 const hh = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour:"numeric", hour12:false}).replace(/\D/g, "") + "시";
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
 // ── 공조 장치(등록된 판넬만) — 몇 대가 어디에, 다음 필터 청소, 냉각 용량이 맞는지(계산) ──
+// 통신으로 연결된 에어컨의 지금 — 가동 중/멈춤, 설정 온도, 오늘 가동률, 알람(장비 주소 같은 것은 보이지 않는다)
+function acLive(a){
+  if (a.state !== "live") return `<em>통신 연결 준비 중 — 곧 가동 상태가 보입니다</em>`;
+  if (a.alarm) return `<em class="due">에어컨이 알람을 내고 있습니다 — JCC가 확인합니다</em>`;
+  return `<em class="live">${[a.running == null ? "" : a.running ? "지금 가동 중" : "지금 멈춤", a.setpoint != null ? `설정 ${a.setpoint}℃` : "",
+    a.duty_24h != null ? `24시간 가동률 ${Math.round(a.duty_24h * 100)}%` : ""].filter(Boolean).join(" · ")}</em>`;
+}
 function eqHTML(v){
   if (!v || !v.units.length) return "";
   const c = v.calc, kw = w => w >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${w}W`;
@@ -911,6 +919,7 @@ function eqHTML(v){
   const day = t => new Date(t * 1000).toLocaleDateString("ko-KR", {...KST, month:"long", day:"numeric"});
   return `<div class="gd-eq"><h5>공조 장치 <span>${esc(v.summary)}</span></h5><ul>` + v.units.map(u =>
     `<li><b>${esc(u.word)}${u.qty > 1 ? ` ${u.qty}대` : ""}</b><span>${[u.position, u.cap, u.name].filter(Boolean).map(esc).join(" · ")}</span>` +
+    (u.live ? acLive(u.live) : "") +
     (u.next_service ? `<em class="${u.service_due ? "due" : ""}">${u.service_due ? "필터 청소 시기 지남 — JCC가 일정을 잡습니다" : "다음 필터 청소 " + day(u.next_service)}</em>` : "") + `</li>`).join("") + `</ul>` +
     (CAP ? `<p class="gd-eq-cap"><i class="${CAP[1]}"></i>냉각 용량 <b>${CAP[0]}</b>` +
       (c.status !== "passive" ? ` <span>필요 ${kw(c.need_w)} · 설치 ${kw(c.installed_w)}${c.deficit_w ? ` · 약 ${kw(c.deficit_w)} 모자람` : ""}</span>` : "") + `</p>` +

@@ -136,7 +136,7 @@ ROUTES = [
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
     ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
-    ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"),
+    ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"), ("GET", "/api/admin/aircon_profiles", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -705,7 +705,12 @@ class Handler(BaseHTTPRequestHandler):
             if pid not in {p["panel"] for p in self.storage.list_panels()}:
                 return self._json({"error": "없는 판넬입니다"}, 404)
             sp = eqm.get(self.storage, pid)
-            return self._json({"panel": pid, "spec": sp, "view": eqm.view(sp)})
+            from .aircon import panel_status
+            return self._json({"panel": pid, "spec": sp, "view": eqm.view(sp), "aircon": panel_status(self.storage, pid)})
+        if path == "/api/admin/aircon_profiles":     # 에어컨 레지스터 표(기종별)
+            from .aircon import ITEMS, profiles
+            return self._json({"profiles": profiles(self.storage),
+                               "items": [{"key": k, "name": n, "unit": u, "required": r} for k, n, u, r in ITEMS]})
         if path == "/api/admin/thermal":             # 공조 점검 후보(조치 필요·지켜볼 판넬 + 고객 요청)
             from .thermal import candidates
             return self._json({"panels": candidates(self.storage)})
@@ -1481,9 +1486,33 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"ok": True})
                 if not isinstance(b.get("spec"), dict):
                     return self._json({"error": "설비 정보가 없습니다"}, 400)
+                old = eqm.get(self.storage, pid) or {}
                 sp = eqm.save(self.storage, pid, b["spec"], me["username"])
+                # 화면에서 지운 장치의 통신 연결은 CCM에서도 걷어낸다
+                from .aircon import drop_link
+                keep = {(e["link"]["device_id"], e["link"]["tag"]) for e in sp["equipment"] if e.get("link")}
+                for e in old.get("equipment") or []:
+                    lk = e.get("link")
+                    if lk and (lk["device_id"], lk["tag"]) not in keep:
+                        drop_link(self.storage, lk, me["username"])
                 audit(f"{pid} 판넬 설비 저장(공조 {len(sp['equipment'])}종 · 발열 {len(sp['heat'])}종)")
                 return self._json({"ok": True, "view": eqm.view(sp)})
+            if action in ("aircon_profile", "aircon_link", "aircon_unlink"):   # 에어컨 통신(읽기 전용)
+                from . import aircon as acm
+                if action == "aircon_profile":
+                    p = acm.save_profile(self.storage, str(b.get("name", "")), b.get("items") if isinstance(b.get("items"), dict) else {},
+                                         me["username"])
+                    audit(f"에어컨 레지스터 표 저장: {p['name']}")
+                    return self._json({"ok": True, "profile": p})
+                pid, idx = str(b.get("panel", "")), b.get("index")
+                if not isinstance(idx, int):
+                    return self._json({"error": "장치를 확인하세요"}, 400)
+                if action == "aircon_unlink":
+                    ok = acm.unlink(self.storage, pid, idx, me["username"])
+                    return self._json({"ok": True}) if ok else self._json({"error": "연결된 장치가 아닙니다"}, 400)
+                lk = acm.link(self.storage, pid, idx, str(b.get("device_id", "")), str(b.get("host", "")).strip(),
+                              b.get("port", 502), b.get("slave", 1), str(b.get("profile", "")), me["username"])
+                return self._json({"ok": True, "link": lk})
             if action == "request_done":          # 고객 점검 요청 처리 완료
                 from .thermal import close_request
                 rid = as_id(b.get("request_id"))

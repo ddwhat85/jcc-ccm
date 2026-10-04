@@ -446,7 +446,8 @@
       heat: (sp.heat || []).slice(0, 40).map(x => ({ name: String(x.name || "").slice(0, 40), loss_w: num(x.loss_w, 0, 1e5) || 0, qty: Math.round(num(x.qty, 1, 999) || 1) })),
       equipment: (sp.equipment || []).slice(0, 20).filter(e => EQW[e.kind]).map(e => ({ kind: e.kind, name: String(e.name || "").slice(0, 60), qty: Math.round(num(e.qty, 1, 20) || 1),
         capacity_w: num(e.capacity_w, 0, 5e4) || 0, airflow_m3h: num(e.airflow_m3h, 0, 5000) || 0, position: EQP[e.position] ? e.position : "",
-        filter_days: Math.round(num(e.filter_days, 0, 730) || 0), last_service: num(e.last_service, 0, 4e9) })) }; }
+        filter_days: Math.round(num(e.filter_days, 0, 730) || 0), last_service: num(e.last_service, 0, 4e9),
+        link: e.link && /^ac[0-9]{1,2}$/.test(e.link.tag || "") ? Object.assign({}, e.link) : null })) }; }
   function eqCalc(sp) {
     const out = { status: "unknown", missing: [] }, a = eqArea(sp);
     if (a == null) out.missing.push("판넬 크기");
@@ -483,6 +484,44 @@
     return { units, calc: c, advice: eqAdvice(sp, c), summary: units.map(u => `${u.word} ${u.qty}대`).join(" · ") || "공조 장치 등록 없음",
       size: sp.width ? `${sp.width}×${sp.height}×${sp.depth}` + ((sp.bays || 1) > 1 ? ` · ${sp.bays}면 열반` : "") : "", material: EQM[sp.material] || "" };
   }
+  // ── 에어컨 통신 연결(서버 aircon.py와 같은 모양) — 시연: 레지스터 번호는 예시, 값은 가상 기록에서 ──
+  const AC_ITEMS = [["temp", "내부 온도", "C", true], ["setpoint", "설정 온도", "C", false], ["run", "압축기 가동", "", true], ["alarm", "알람", "", false], ["ambient", "바깥 온도", "C", false]];
+  const AC_PROF = [{ name: "리탈 Blue e+ (시연 예시 — 실제 번호 아님)", items: { temp: { register: 100, type: "holding", datatype: "int16", scale: 0.1, offset: 0 },
+    setpoint: { register: 101, type: "holding", datatype: "int16", scale: 0.1, offset: 0 }, run: { register: 110, type: "holding", datatype: "uint16", scale: 1, offset: 0 },
+    alarm: { register: 120, type: "holding", datatype: "uint16", scale: 1, offset: 0 } } }];
+  (function () { const u = EQS["panel-03"].equipment[0];
+    u.link = { device_id: "ccm-3102", host: "192.168.10.61", port: 502, slave: 1, profile: AC_PROF[0].name, tag: "ac1" }; })();
+  function acStatus(pid) {
+    const sp = EQS[pid]; if (!sp) return [];
+    const t = now(), h0 = Math.floor(t / FC.H) * FC.H; gdForecast(pid);
+    const temp = FC.cache[pid + "|" + Math.floor(t / FC.H)], out = [];
+    (sp.equipment || []).forEach((e, i) => { if (!e.link) return;
+      const sp35 = 35, runAt = u => temp.has(u) && temp.get(u) >= sp35 - 3 ? 1 : 0;   // 시연: 판넬이 설정-3℃ 넘으면 가동
+      const day = Array.from({ length: 24 }, (_, k) => runAt(h0 - (k + 1) * FC.H)), hot = [];
+      for (let k = 1; k <= 14 * 24; k++) { const u = h0 - k * FC.H, kk = new Date((u + 9 * FC.H) * 1000), wd = (kk.getUTCDay() + 6) % 7, hr = kk.getUTCHours();
+        if (wd < 5 && hr >= 12 && hr < 18 && temp.has(u)) hot.push(runAt(u)); }
+      const cur = temp.get(h0 - FC.H);
+      out.push({ index: i, name: e.name || "에어컨", tag: e.link.tag, device_id: e.link.device_id, host: e.link.host, profile: e.link.profile, state: "live", reason: "",
+        temp: cur != null ? Math.round((cur - 0.6) * 10) / 10 : null, setpoint: sp35, ambient: null, running: !!runAt(h0 - FC.H), alarm: false,
+        duty_24h: Math.round(day.reduce((a, b) => a + b, 0) / 24 * 100) / 100, duty_hot: hot.length ? Math.round(hot.reduce((a, b) => a + b, 0) / hot.length * 100) / 100 : null }); });
+    return out;
+  }
+  function acAdmin(action, b) {
+    if (action === "aircon_profile") { const name = String(b.name || "").trim().slice(0, 60); if (!name) return [{ error: "레지스터 표 이름(기종)을 넣어 주세요" }, 400];
+      const it = b.items || {}; if (!it.temp) return [{ error: "'내부 온도' 레지스터는 꼭 필요합니다" }, 400]; if (!it.run) return [{ error: "'압축기 가동' 레지스터는 꼭 필요합니다" }, 400];
+      const i = AC_PROF.findIndex(p => p.name === name), p = { name, items: it }; if (i >= 0) AC_PROF[i] = p; else AC_PROF.push(p); return [{ ok: true, profile: p }, 200]; }
+    const sp = EQS[b.panel], e = sp && sp.equipment[b.index];
+    if (!e) return [{ error: "먼저 판넬 설정 → 공조 장치에 이 장치를 저장하세요" }, 400];
+    if (action === "aircon_unlink") { if (!e.link) return [{ error: "연결된 장치가 아닙니다" }, 400]; e.link = null; return [{ ok: true }, 200]; }
+    if (e.kind !== "aircon" && e.kind !== "heat_exchanger") return [{ error: "통신 연결은 에어컨·열교환기만 됩니다" }, 400];
+    if (!AC_PROF.some(p => p.name === b.profile)) return [{ error: "레지스터 표를 고르세요(없으면 먼저 기종별로 입력)" }, 400];
+    if (!/^[A-Za-z0-9.-]{1,253}$/.test(String(b.host || ""))) return [{ error: "IP 주소(또는 호스트 이름)가 올바르지 않습니다" }, 400];
+    const used = new Set(); Object.values(EQS).forEach(x => (x.equipment || []).forEach(u => { if (u.link && u.link.device_id === b.device_id && u !== e) used.add(u.link.tag); }));
+    const tag = e.link && e.link.device_id === b.device_id ? e.link.tag : ["ac1", "ac2", "ac3", "ac4"].find(x => !used.has(x)) || "ac9";
+    e.link = { device_id: String(b.device_id), host: String(b.host), port: Number(b.port) || 502, slave: Number(b.slave) || 0, profile: b.profile, tag };
+    logEvent(b.device_id, "", "aircon_link", `에어컨 통신 연결: ${e.name || "에어컨"} ← ${e.link.host}:${e.link.port} 유닛 ${e.link.slave} (데모)`, "user");
+    return [{ ok: true, link: e.link }, 200];
+  }
   function eqAdmin(action, b) {
     if (action === "cooling_calc") return [{ ok: true, view: eqView(eqClean(b.spec)) }, 200];
     if (!gdRows().some(p => p.panel === b.panel)) return [{ error: "없는 판넬입니다" }, 400];
@@ -503,6 +542,17 @@
       out.actions.forEach(a => { if (a.request === "cooling_review") a.why = (v.calc.status === "short" ? "계산으로도 모자랍니다 — " : "") + v.advice; });
       if ((v.calc.status === "ok" || v.calc.status === "passive") && out.level === "act")
         out.causes.push({ kind: "cooling_ok", title: "공조 용량은 계산상 충분", why: v.advice + " 그런데도 기준을 넘으니 필터 막힘·설정온도·공조 고장 쪽을 먼저 보는 편이 맞습니다." });
+    }
+    const units = acStatus(pid);
+    out.aircons = units.map(u => ({ name: u.name, state: u.state, running: u.running, alarm: u.alarm, setpoint: u.setpoint, temp: u.temp, duty_hot: u.duty_hot, duty_24h: u.duty_24h }));
+    const duties = units.map(u => u.duty_hot).filter(d => d != null);
+    if (units.length && !out.building && duties.length && out.level === "act") {
+      const d = duties.reduce((a, b) => a + b, 0) / duties.length;
+      if (d >= 0.9) { out.causes.unshift({ kind: "measured_short", title: "냉각 용량 부족 — 실측으로 확인",
+          why: `평일 더운 시간(12~18시)에 에어컨이 ${Math.round(d * 100)}% 내내 돌았는데도 주의 기준을 넘었습니다. 지금 공조로는 열을 다 빼내지 못합니다.` });
+        out.actions.forEach(a => { if (a.request === "cooling_review") a.why = `에어컨 가동률 ${Math.round(d * 100)}%(더운 시간) — 실측으로도 모자랍니다. ` + a.why; }); }
+      else if (d < 0.6) out.causes.unshift({ kind: "underused", title: "에어컨이 덜 돌고 있음",
+          why: `더운 시간에도 에어컨이 ${Math.round(d * 100)}%만 돌았는데 판넬은 기준을 넘었습니다. 설정 온도가 높거나, 에어컨이 판넬 안 온도를 다른 자리에서 재고 있을 수 있습니다.` });
     }
     return out;
   }
@@ -529,7 +579,10 @@
     const SELF = ["vent_open", "vent_close", "dew_actuate", "edge_actuate"];   // vent_hold('열림 유지')는 새 조치가 아니라 뺀다
     const tl = S.events.filter(e => devs.has(e.device_id) && (SELF.includes(e.etype) || e.etype === "ack" || ["fire", "contact", "dew", "alarm", "alarm_warn"].includes(e.etype)))
       .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: gdPlain(e.detail) }));
-    return { panel: gdModel(row), timeline: tl, equipment: eqView(EQS[pid]) };
+    const eq = eqView(EQS[pid]);
+    if (eq) { const live = {}; acStatus(pid).forEach(a => { live[a.index] = a; });
+      eq.units.forEach(u => { const a = live[u.i]; if (a) u.live = { state: a.state, running: a.running, alarm: a.alarm, setpoint: a.setpoint, temp: a.temp, duty_24h: a.duty_24h, duty_hot: a.duty_hot }; }); }
+    return { panel: gdModel(row), timeline: tl, equipment: eq };
   }
   // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
   function handoverView() {
@@ -1735,6 +1788,7 @@
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
     if (action === "panel_spec" || action === "cooling_calc" || action === "serviced") return eqAdmin(action, b);
+    if (action === "aircon_profile" || action === "aircon_link" || action === "aircon_unlink") return acAdmin(action, b);
     if (action === "request_done") { const r = TK.reqs.find(x => x.id === b.request_id && x.status === "open");
       if (!r) return [{ error: "이미 처리했거나 없는 요청입니다" }, 400]; r.status = "done"; return [{ ok: true }, 200]; }
     if (action === "weekly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
@@ -1856,7 +1910,8 @@
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
         if (!gdRows().some(x => x.panel === pid)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
-        return Promise.resolve(J({ panel: pid, spec: EQS[pid] || null, view: eqView(EQS[pid]) })); }
+        return Promise.resolve(J({ panel: pid, spec: EQS[pid] || null, view: eqView(EQS[pid]), aircon: acStatus(pid) })); }
+      if (p === "/api/admin/aircon_profiles") return Promise.resolve(J({ profiles: AC_PROF, items: AC_ITEMS.map(([key, name, unit, required]) => ({ key, name, unit, required })) }));
       if (p === "/api/admin/thermal") return Promise.resolve(J({ panels: gdThermalCandidates() }));
       if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));

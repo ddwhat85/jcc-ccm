@@ -199,7 +199,34 @@ def panel_thermal(storage, panel: str, now: float | None = None) -> dict | None:
         out["days"] = round((now - first) / D, 1)
     out.update(panel=panel, sensor_name=name, open_request=open_request(storage, panel))
     _with_cooling(storage, panel, out)
+    _with_aircon(storage, panel, out)
     return out
+
+
+def _with_aircon(storage, panel: str, out: dict) -> None:
+    """통신으로 연결된 에어컨이 있으면 실측 가동률로 원인을 굳힌다(읽기만 — 설정은 사람이)."""
+    from .aircon import panel_status
+    units = panel_status(storage, panel)
+    out["aircons"] = [{k: u.get(k) for k in ("name", "state", "running", "alarm", "setpoint", "temp", "duty_hot", "duty_24h")} for u in units]
+    if not units or out.get("building"):
+        return
+    if any(u.get("alarm") for u in units):
+        out["actions"].insert(0, {"who": "JCC", "title": "에어컨 알람 확인", "why": "에어컨이 스스로 알람을 내고 있습니다 — 필터·응축기·냉매·팬 상태를 JCC가 확인합니다."})
+    duties = [u["duty_hot"] for u in units if u.get("duty_hot") is not None]
+    if not duties or out["level"] != "act":
+        return
+    d = sum(duties) / len(duties)
+    if d >= 0.9:
+        out["causes"].insert(0, {"kind": "measured_short", "title": "냉각 용량 부족 — 실측으로 확인",
+                                 "why": f"평일 더운 시간(12~18시)에 에어컨이 {round(d * 100)}% 내내 돌았는데도 주의 기준을 넘었습니다. "
+                                        "지금 공조로는 열을 다 빼내지 못합니다."})
+        for a in out["actions"]:
+            if a.get("request") == "cooling_review":
+                a["why"] = f"에어컨 가동률 {round(d * 100)}%(더운 시간) — 실측으로도 모자랍니다. " + a["why"]
+    elif d < 0.6:
+        out["causes"].insert(0, {"kind": "underused", "title": "에어컨이 덜 돌고 있음",
+                                 "why": f"더운 시간에도 에어컨이 {round(d * 100)}%만 돌았는데 판넬은 기준을 넘었습니다. "
+                                        "설정 온도가 높거나, 에어컨이 판넬 안 온도를 다른 자리에서 재고 있을 수 있습니다."})
 
 
 def _with_cooling(storage, panel: str, out: dict) -> None:

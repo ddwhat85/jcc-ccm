@@ -421,4 +421,12 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
             continue
         tl.append({"ts": e["ts"], "who": who, "text": _plain(e["detail"])})
     from .equipment import get as eq_get, view as eq_view
-    return {"panel": _panel_model(rows[0], lat.get(panel)), "timeline": tl[:20], "equipment": eq_view(eq_get(storage, panel))}
+    from .aircon import panel_status
+    eq = eq_view(eq_get(storage, panel))
+    if eq:
+        live = {u["index"]: u for u in panel_status(storage, panel, now)}
+        for u in eq["units"]:          # 통신으로 연결된 에어컨: 지금 가동·설정·알람·가동률(고객에겐 IP·레지스터 같은 것은 빼고)
+            a = live.get(u["i"])
+            if a:
+                u["live"] = {k: a.get(k) for k in ("state", "running", "alarm", "setpoint", "temp", "duty_24h", "duty_hot")}
+    return {"panel": _panel_model(rows[0], lat.get(panel)), "timeline": tl[:20], "equipment": eq}
