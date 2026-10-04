@@ -269,6 +269,24 @@
   .gd-cert-sig{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:20px;padding-top:12px;border-top:1px solid var(--line);font-size:var(--t-cap);color:var(--ink-3)}
   .gd-cert-sig b{font:700 var(--t-h) var(--sans);color:var(--ink);letter-spacing:.02em}
   @media (max-width:959px){.gd-c-docs .gd-docs.gd-docs-c .gd-dtile:last-child{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center}}
+  /* 위험 알림 받는 사람 */
+  .gd-rcv-link{display:flex;justify-content:space-between;align-items:center;width:100%;min-height:44px;margin-top:4px;padding:10px 0 0;border:0;
+    border-top:1px solid var(--line-2);background:none;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
+  .gd-rcv-link b{display:inline-flex;align-items:center;gap:8px;color:var(--ink)}
+  .gd-rcv-link b::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-top:1.5px solid currentColor;transform:rotate(45deg)}
+  .gd-rcv{display:flex;flex-direction:column;margin:6px 0 14px}
+  .gd-rcv-row{display:flex;flex-direction:column;gap:8px;padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .gd-rcv-in{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+  .gd-rcv input:not([type=checkbox]),.gd-rcv select{width:100%;height:44px;padding:0 12px;border:1px solid var(--line);border-radius:var(--r-s);
+    background:var(--card);color:var(--ink);font:500 var(--t-body) var(--sans)}
+  .gd-rcv input[aria-invalid=true]{border-color:var(--crit)}
+  .gd-rcv-opt{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:var(--t-cap);color:var(--ink-2)}
+  .gd-rcv-opt select{width:auto;min-width:0;flex:1 1 180px}
+  .gd-rcv-opt label{display:inline-flex;align-items:center;gap:6px;min-height:40px;cursor:pointer}
+  .gd-rcv-opt input[type=checkbox]{width:18px;height:18px;accent-color:var(--ink)}
+  .gd-rcv-del{margin-left:auto;min-height:40px;padding:0 4px;border:0;background:none;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--crit-ink)}
+  .gd-snl>div>span small{display:block;font-size:var(--t-cap);color:var(--ink-3)}
+  @media (max-width:520px){.gd-rcv-in{grid-template-columns:minmax(0,1fr)}}
   @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
@@ -723,7 +741,7 @@
     </section>
     <div class="gd-c-inc" id="gd-inc" hidden></div>
     <section class="gd-c gd-c-todo gd-tile" id="gd-sec-todo" aria-labelledby="gd-q-todo"><svg class="gd-wm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 12.5l2 2 4-4.5"/><path d="M9 17.5h6"/></svg><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 12.5l2 2 4-4.5"/><path d="M9 17.5h6"/></svg></span><h2 class="gd-q" id="gd-q-todo">제가 할 일이 있나요?</h2></div><div class="gd-c-fill" id="gd-todo"></div></section>
-    <section class="gd-c gd-c-call" aria-labelledby="gd-q-call"><svg class="gd-wm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4" height="6" rx="1.5"/><rect x="17" y="13.5" width="4" height="6" rx="1.5"/><path d="M19 19.5c0 1.4-1.3 2-3 2h-2.5"/></svg><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4" height="6" rx="1.5"/><rect x="17" y="13.5" width="4" height="6" rx="1.5"/><path d="M19 19.5c0 1.4-1.3 2-3 2h-2.5"/></svg></span><h2 class="gd-q" id="gd-q-call">문제가 생기면 누구에게?</h2></div><div class="gd-contact" id="gd-contact"></div></section>
+    <section class="gd-c gd-c-call" aria-labelledby="gd-q-call"><svg class="gd-wm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4" height="6" rx="1.5"/><rect x="17" y="13.5" width="4" height="6" rx="1.5"/><path d="M19 19.5c0 1.4-1.3 2-3 2h-2.5"/></svg><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4" height="6" rx="1.5"/><rect x="17" y="13.5" width="4" height="6" rx="1.5"/><path d="M19 19.5c0 1.4-1.3 2-3 2h-2.5"/></svg></span><h2 class="gd-q" id="gd-q-call">문제가 생기면 누구에게?</h2></div><div class="gd-contact" id="gd-contact"></div><button class="gd-rcv-link" id="gd-rcv" hidden></button></section>
     <section class="gd-sec gd-c-panels" id="gd-sec-panels" aria-labelledby="gd-q-panels"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18"/><path d="M8 8h1M15 8h1M8 12h1M15 12h1"/><path d="M4 17h16"/></svg></span><h2 class="gd-q" id="gd-q-panels">판넬은 각각 괜찮나요?</h2></div><div class="gd-grid" id="gd-panels"></div></section>
     <section class="gd-c gd-c-month gd-tile" id="gd-sec-month" aria-labelledby="gd-q-month"><svg class="gd-wm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg></span><h2 class="gd-q" id="gd-q-month">이번 달 JCC가 한 일</h2></div><div class="gd-c-fill" id="gd-month"></div></section>
     <section class="gd-c gd-c-docs" id="gd-sec-docs" aria-labelledby="gd-q-docs"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/></svg></span><h2 class="gd-q" id="gd-q-docs">보고서·기록이 필요할 때</h2></div>
@@ -3120,7 +3138,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
       const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
-      ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
+      const old = Object.fromEntries(rcvList(b.customer_id).map(r => [r.number, r]));   // 번호만 고쳐도 남는 사람의 설정은 그대로
+      rcvSet(b.customer_id, nums.slice(0, 20).map(n => old[n] || { number: n })); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
     if (action === "user") { const name = String(b.username || "").trim();
       if (!/^[A-Za-z0-9._@-]{3,40}$/.test(name)) return [{ error: "아이디는 3~40자 영문·숫자·._@- 만 됩니다" }, 400];
       if (ACC.users.some(u => u.username === name)) return [{ error: "이미 있는 아이디입니다" }, 400];
@@ -3165,6 +3184,29 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     MONTHLY.sort((a, b) => (b.period > a.period ? 1 : b.period < a.period ? -1 : a.customer_id - b.customer_id));
     logEvent("", "", "monthly", `${c.name} ${period} 월간 리포트 발행 (데모)`, "system");
     return rep;
+  }
+
+  // ── 위험 알림 받는 사람 (데모: accounts.set_receiver_list와 같은 규칙) ──
+  const RCV_H = ["always", "day", "night"];
+  function rcvList(cid) {
+    ACC.rcvMeta = ACC.rcvMeta || {};
+    if (!ACC.rcvMeta[cid]) {
+      const nums = ACC.receivers[cid] || [];
+      ACC.rcvMeta[cid] = nums.length ? nums.map(n => ({ number: n, name: "", hours: "always", reports: true }))
+        : (ACC.customers[0] && cid === ACC.customers[0].id ? [   // 시연 예시(가짜 번호)
+          { number: "01000001111", name: "김반장 · 설비", hours: "always", reports: true },
+          { number: "01000002222", name: "야간 당직", hours: "night", reports: false }] : []);
+      ACC.receivers[cid] = ACC.rcvMeta[cid].map(r => r.number);
+    }
+    return ACC.rcvMeta[cid];
+  }
+  function rcvSet(cid, items) {
+    const out = [], seen = new Set();
+    (items || []).forEach(it => { if (!it || typeof it !== "object") return; const d = String(it.number || "").replace(/\D/g, "");
+      if (d.length < 9 || d.length > 12 || seen.has(d)) return; seen.add(d);
+      out.push({ number: d, name: String(it.name || "").trim().slice(0, 30), hours: RCV_H.includes(it.hours) ? it.hours : "always", reports: it.reports !== false }); });
+    ACC.rcvMeta = ACC.rcvMeta || {}; ACC.rcvMeta[cid] = out.slice(0, 20); ACC.receivers[cid] = ACC.rcvMeta[cid].map(r => r.number);
+    return ACC.rcvMeta[cid];
   }
 
   // ── 안전 관리 확인서 (데모: 서버 certificate.py와 같은 모양) — 끝난 분기·연도만. 예시 경보는 '시연' 표시 ──
@@ -3264,6 +3306,11 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
+      if (p === "/api/guard/receivers" && method === "GET") { const c = qs.get("customer_id"), cid = c ? +c : (ACC.customers[0] || {}).id;
+        return Promise.resolve(J({ receivers: cid ? rcvList(cid) : [], can_edit: true })); }
+      if (p === "/api/guard/receivers" && method === "POST") { const cid = Number.isInteger(body.customer_id) ? body.customer_id : (ACC.customers[0] || {}).id;
+        if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
+        return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
@@ -3648,7 +3695,7 @@ async function start(s){
   $("#gd-ops").hidden = !(s.enabled && s.user && s.user.role === "admin") || !!window.JCC_DEMO;
   $("#gd-out").hidden = !s.enabled && !window.JCC_DEMO;
   await load(); clearInterval(G.timer); G.timer = setInterval(load, 5000);
-  openAlarmLink(); iosHint();
+  loadRcv(); openAlarmLink(); iosHint();
 }
 async function pickers(){
   // JCC 직원: 고객사를 골라 그 고객이 보는 화면 그대로 미리 본다(주소의 ?customer_id= 도 받는다)
@@ -3656,7 +3703,7 @@ async function pickers(){
   try { const j = await (await fetch("/api/admin/accounts", {cache:"no-store"})).json();
     sel.innerHTML = `<option value="">전체 현장</option>` + (j.customers || []).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
     sel.value = G.cid; sel.hidden = false;
-    sel.onchange = () => { G.cid = sel.value; G.month = null; load(); };
+    sel.onchange = () => { G.cid = sel.value; G.month = null; load(); loadRcv(); };
   } catch(_){}
 }
 const q = () => G.cid ? `customer_id=${encodeURIComponent(G.cid)}` : "";
@@ -4063,6 +4110,64 @@ function certDoc(c){
     `<p class="gd-note">${esc(r.note || "")}</p>` +
     `<div class="gd-cert-sig"><span>발행 ${d(c.created_at)} · 검토 ${esc(c.by)}${c.rev > 1 ? ` · 개정 ${c.rev}` : ""}</span><b>JCC Solution</b></div>` +
     printBtn() + `</div>`);
+}
+// ── 위험 알림 받는 사람 — 고객사 관리자가 직접: 누가, 언제(항상·근무시간·야간·주말 당직), 정기 소식도 받을지 ──
+const RCV_H = {always:"항상", day:"근무시간 (평일 8~18시)", night:"야간·주말 당직"};
+const telFmt = d => { d = String(d || "").replace(/[^0-9*]/g, ""); return d.length === 11 ? `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}` : d.length === 10 ? (d.startsWith("02") ? `02-${d.slice(2, 6)}-${d.slice(6)}` : `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`) : String(d); };
+async function loadRcv(){
+  const b = $("#gd-rcv");
+  if (!G.cid && G.user && G.user.role === "admin" && !window.JCC_DEMO){ b.hidden = true; return; }   // 전체 현장 미리보기엔 고객사가 없다
+  try { const j = await (await fetch("/api/guard/receivers?" + q(), {cache:"no-store"})).json(); G.rcv = j;
+    const n = (j.receivers || []).length;
+    b.innerHTML = `<span>위험 알림 받는 사람</span><b>${n ? n + "명" : "아직 없음"}</b>`; b.hidden = false;
+    b.onclick = openRcv;
+  } catch(_){ b.hidden = true; }
+}
+function openRcv(){
+  const j = G.rcv || {receivers: []};
+  if (!j.can_edit){
+    return sheet(`<h4 id="gd-sheet-t">위험 알림 받는 사람</h4><div class="sub">위험 경보가 나면 그 시각에 받기로 한 사람에게 문자가 갑니다.</div>` +
+      (j.receivers.length ? `<div class="gd-snl">${j.receivers.map(r => `<div><span>${esc(r.name || "이름 없음")}<small>${esc(RCV_H[r.hours] || "")}</small></span><b>${esc(telFmt(r.number))}</b></div>`).join("")}</div>`
+        : `<div class="gd-empty">아직 등록된 사람이 없습니다.</div>`) +
+      `<p class="gd-note">바꾸려면 관리자 계정으로 로그인하거나 JCC 담당자에게 알려 주세요.</p>`);
+  }
+  const rows = j.receivers.map(r => Object.assign({}, r, {number: telFmt(r.number)}));
+  const sync = () => document.querySelectorAll("#gd-sheet-body .gd-rcv-row").forEach(el => { rows[+el.dataset.i] = {
+    name: el.querySelector(".gd-rcv-name").value, number: el.querySelector(".gd-rcv-num").value,
+    hours: el.querySelector(".gd-rcv-h").value, reports: el.querySelector(".gd-rcv-rep").checked}; });
+  const draw = focusLast => {
+    sheet(`<h4 id="gd-sheet-t">위험 알림 받는 사람</h4><div class="sub">위험 경보가 나면 그 시각에 받기로 한 사람에게 문자가 갑니다. 그 시각에 받을 사람이 없으면 모두에게 보냅니다.</div>` +
+      `<div class="gd-rcv">` + rows.map((r, i) => `<div class="gd-rcv-row" data-i="${i}"><div class="gd-rcv-in">` +
+        `<input class="gd-rcv-name" value="${esc(r.name)}" placeholder="이름 · 역할 (예: 김반장 · 설비)" aria-label="이름" maxlength="30">` +
+        `<input class="gd-rcv-num" value="${esc(r.number)}" placeholder="010-0000-0000" inputmode="tel" autocomplete="off" aria-label="휴대폰 번호"></div>` +
+        `<div class="gd-rcv-opt"><select class="gd-rcv-h" aria-label="받는 시간">${Object.entries(RCV_H).map(([k, t]) => `<option value="${k}"${r.hours === k ? " selected" : ""}>${t}</option>`).join("")}</select>` +
+        `<label><input type="checkbox" class="gd-rcv-rep"${r.reports ? " checked" : ""}> 주간·월간 소식도 받기</label>` +
+        `<button class="gd-rcv-del" data-del="${i}">빼기</button></div></div>`).join("") + `</div>` +
+      (rows.length < 20 ? `<button class="gd-more" id="gd-rcv-add">사람 추가</button>` : "") +
+      `<button class="gd-btn" id="gd-rcv-save" style="width:100%">저장</button><p class="gd-note" id="gd-rcv-msg" aria-live="polite"></p>`);
+    const body = $("#gd-sheet-body");
+    if ($("#gd-rcv-add")) $("#gd-rcv-add").onclick = () => { sync(); rows.push({name: "", number: "", hours: "always", reports: true}); draw(true); };
+    body.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { sync(); rows.splice(+b.dataset.del, 1); draw(); });
+    if (focusLast){ const n = body.querySelectorAll(".gd-rcv-name"); if (n.length) n[n.length - 1].focus(); }
+    $("#gd-rcv-save").onclick = async () => {
+      sync();
+      const keep = rows.filter(r => (r.name || "").trim() || (r.number || "").trim());
+      let bad = false;
+      body.querySelectorAll(".gd-rcv-num").forEach(el => { const d = el.value.replace(/\D/g, "");
+        const blank = !el.value.trim() && !el.closest(".gd-rcv-row").querySelector(".gd-rcv-name").value.trim();
+        const no = !blank && (d.length < 9 || d.length > 12); el.setAttribute("aria-invalid", String(no)); bad = bad || no; });
+      if (bad){ $("#gd-rcv-msg").textContent = "휴대폰 번호를 확인해 주세요 (숫자 9~12자리)"; return; }
+      const btn = $("#gd-rcv-save"); btn.disabled = true;
+      try { const r = await fetch("/api/guard/receivers", {method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify(Object.assign({receivers: keep}, G.cid ? {customer_id: Number(G.cid)} : {}))});
+        const res = await r.json().catch(() => ({}));
+        if (!r.ok){ btn.disabled = false; $("#gd-rcv-msg").textContent = res.error || "저장하지 못했습니다"; return; }
+        G.rcv = Object.assign({}, G.rcv, {receivers: res.receivers}); toast(`알림 받는 사람 ${res.receivers.length}명 저장`);
+        loadRcv(); openRcv();
+      } catch(_){ btn.disabled = false; $("#gd-rcv-msg").textContent = "서버에 닿지 못했습니다"; }
+    };
+  };
+  draw();
 }
 async function openInspections(){
   sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="sub">불러오는 중</div>`);

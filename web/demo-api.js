@@ -1895,7 +1895,8 @@
       c.ai_enabled = !!b.on; return [{ ok: true }, 200]; }
     if (action === "receivers") { if (!cust(b.customer_id)) return [{ error: "고객사와 번호 목록이 필요합니다" }, 400];
       const nums = []; (b.numbers || []).forEach(n => { const d = String(n).replace(/\D/g, ""); if (d.length >= 9 && d.length <= 12 && nums.indexOf(d) < 0) nums.push(d); });
-      ACC.receivers[b.customer_id] = nums.slice(0, 20); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
+      const old = Object.fromEntries(rcvList(b.customer_id).map(r => [r.number, r]));   // 번호만 고쳐도 남는 사람의 설정은 그대로
+      rcvSet(b.customer_id, nums.slice(0, 20).map(n => old[n] || { number: n })); return [{ ok: true, numbers: ACC.receivers[b.customer_id] }, 200]; }
     if (action === "user") { const name = String(b.username || "").trim();
       if (!/^[A-Za-z0-9._@-]{3,40}$/.test(name)) return [{ error: "아이디는 3~40자 영문·숫자·._@- 만 됩니다" }, 400];
       if (ACC.users.some(u => u.username === name)) return [{ error: "이미 있는 아이디입니다" }, 400];
@@ -1940,6 +1941,29 @@
     MONTHLY.sort((a, b) => (b.period > a.period ? 1 : b.period < a.period ? -1 : a.customer_id - b.customer_id));
     logEvent("", "", "monthly", `${c.name} ${period} 월간 리포트 발행 (데모)`, "system");
     return rep;
+  }
+
+  // ── 위험 알림 받는 사람 (데모: accounts.set_receiver_list와 같은 규칙) ──
+  const RCV_H = ["always", "day", "night"];
+  function rcvList(cid) {
+    ACC.rcvMeta = ACC.rcvMeta || {};
+    if (!ACC.rcvMeta[cid]) {
+      const nums = ACC.receivers[cid] || [];
+      ACC.rcvMeta[cid] = nums.length ? nums.map(n => ({ number: n, name: "", hours: "always", reports: true }))
+        : (ACC.customers[0] && cid === ACC.customers[0].id ? [   // 시연 예시(가짜 번호)
+          { number: "01000001111", name: "김반장 · 설비", hours: "always", reports: true },
+          { number: "01000002222", name: "야간 당직", hours: "night", reports: false }] : []);
+      ACC.receivers[cid] = ACC.rcvMeta[cid].map(r => r.number);
+    }
+    return ACC.rcvMeta[cid];
+  }
+  function rcvSet(cid, items) {
+    const out = [], seen = new Set();
+    (items || []).forEach(it => { if (!it || typeof it !== "object") return; const d = String(it.number || "").replace(/\D/g, "");
+      if (d.length < 9 || d.length > 12 || seen.has(d)) return; seen.add(d);
+      out.push({ number: d, name: String(it.name || "").trim().slice(0, 30), hours: RCV_H.includes(it.hours) ? it.hours : "always", reports: it.reports !== false }); });
+    ACC.rcvMeta = ACC.rcvMeta || {}; ACC.rcvMeta[cid] = out.slice(0, 20); ACC.receivers[cid] = ACC.rcvMeta[cid].map(r => r.number);
+    return ACC.rcvMeta[cid];
   }
 
   // ── 안전 관리 확인서 (데모: 서버 certificate.py와 같은 모양) — 끝난 분기·연도만. 예시 경보는 '시연' 표시 ──
@@ -2039,6 +2063,11 @@
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
+      if (p === "/api/guard/receivers" && method === "GET") { const c = qs.get("customer_id"), cid = c ? +c : (ACC.customers[0] || {}).id;
+        return Promise.resolve(J({ receivers: cid ? rcvList(cid) : [], can_edit: true })); }
+      if (p === "/api/guard/receivers" && method === "POST") { const cid = Number.isInteger(body.customer_id) ? body.customer_id : (ACC.customers[0] || {}).id;
+        if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
+        return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";

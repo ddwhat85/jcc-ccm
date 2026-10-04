@@ -812,7 +812,7 @@ class Storage:
                 r = self._conn.execute("SELECT panel FROM devices WHERE device_id=?", (device_id,)).fetchone()
             panel = (r["panel"] if r and r["panel"] else None) or device_id
             cid = owner.get(panel)
-            return self.accounts.receivers_for(cid) if cid is not None else []
+            return self.accounts.receivers_for(cid, "alarm") if cid is not None else []   # 지금 시각에 받기로 한 사람
         except Exception:  # noqa: BLE001 - 알림 대상 조회 실패가 알림 자체를 막으면 안 된다
             return []
 

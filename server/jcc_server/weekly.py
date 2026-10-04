@@ -104,7 +104,7 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
             done = storage._conn.execute("SELECT 1 FROM weekly_sent WHERE customer_id=? AND week=?", (c["id"], wk)).fetchone()
         if done:
             continue
-        nums = storage.accounts.receivers_for(c["id"])
+        nums = storage.accounts.receivers_for(c["id"], "report")
         rep = build(storage, c["id"], now) if nums else None
         if rep is None:                     # 번호·판넬이 없으면 이번 주는 넘어간 것으로(매시간 다시 보지 않게)
             _mark(storage, c["id"], wk, now)

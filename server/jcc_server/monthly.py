@@ -208,7 +208,7 @@ def generate_due(storage, now: float | None = None, send=None) -> int:
         rep = issue(storage, c["id"], period, "자동 발행", now, ai_wait=False)
         n += 1
         if rep and c.get("monthly_notify"):
-            nums = storage.accounts.receivers_for(c["id"])
+            nums = storage.accounts.receivers_for(c["id"], "report")
             if nums:
                 from .notify import send_sms
                 # 고객이 여는 곳은 고객 화면(JCC GUARD) — 직원 화면 메뉴 경로를 알려 주면 못 찾는다

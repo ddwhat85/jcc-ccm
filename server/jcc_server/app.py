@@ -137,6 +137,7 @@ ROUTES = [
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
     ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/outages", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
+    ("GET", "/api/guard/receivers", "read"), ("POST", "/api/guard/receivers", "read"),
     ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"), ("GET", "/api/admin/aircon_profiles", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
@@ -343,6 +344,27 @@ class Handler(BaseHTTPRequestHandler):
         return {"panels": set(self._scope()["panels"]) & every, "customer_id": u["customer_id"],
                 "blocked": "", "excluded": 0}
 
+    def _guard_receivers(self) -> None:
+        u = self._user()
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 20_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if u["role"] == "admin":
+            cid = b.get("customer_id")
+            if not isinstance(cid, int) or isinstance(cid, bool) or not self.storage.accounts.customer_exists(cid):
+                return self._json({"error": "고객사를 확인하세요"}, 400)
+        elif u["role"] == "manager" and u.get("customer_id") is not None:
+            cid = u["customer_id"]                       # 고객 관리자는 자기 고객사만
+        else:
+            return self._json({"error": "알림 받는 사람은 관리자 계정만 바꿀 수 있습니다"}, 403)
+        if not isinstance(b.get("receivers"), list) or len(b["receivers"]) > 40:
+            return self._json({"error": "받는 사람 목록이 필요합니다"}, 400)
+        rows = self.storage.accounts.set_receiver_list(cid, b["receivers"])
+        self.storage.log_event("", "", "account", f"고객사 #{cid} 알림 받는 사람 {len(rows)}명 ({u['username']})", source="user")
+        return self._json({"ok": True, "receivers": rows})
+
     def _guard(self, path: str, q: dict, sc) -> None:
         """고객 화면 데이터. 고객은 자기 고객사 판넬만, JCC 직원은 customer_id로 미리보기(없으면 전체)."""
         from . import guard
@@ -365,6 +387,16 @@ class Handler(BaseHTTPRequestHandler):
                 panels, site = None, "전체 현장 · JCC 미리보기"
         if path == "/api/guard":
             return self._json(guard.guard_view(self.storage, panels, site, customer=cust))
+        if path == "/api/guard/receivers":       # 알림 받는 사람 — 고객 관리자는 고치고, 보기 전용은 이름·시간만(번호 가림)
+            u = self._user()
+            rcid = u.get("customer_id") if sc is not None else (cust or {}).get("id")
+            if rcid is None:
+                return self._json({"receivers": [], "can_edit": False})
+            edit = u["role"] in ("manager", "admin")
+            rows = self.storage.accounts.list_receivers(rcid)
+            if not edit:
+                rows = [dict(r, number=r["number"][:3] + "-****-" + r["number"][-4:]) for r in rows]
+            return self._json({"receivers": rows, "can_edit": edit})
         if path == "/api/guard/month":
             period = (q.get("period") or [""])[0]
             if not valid_period(period):
@@ -666,7 +698,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm",
-                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal",
+                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal", "/api/guard/receivers",
                     "/api/guard/outages"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
@@ -865,6 +897,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._ack()
         if parsed.path == "/api/guard/request":      # 고객의 점검 요청(냉각 용량 검토 등) — 조작이 아니라 JCC에 부탁
             return self._service_request()
+        if parsed.path == "/api/guard/receivers":    # 알림 받는 사람 고치기 — 고객사 관리자(자기 고객사)·JCC 관리자
+            return self._guard_receivers()
         if parsed.path == "/api/notify/test":
             return self._notify_test()
         if parsed.path == "/api/discover/report":

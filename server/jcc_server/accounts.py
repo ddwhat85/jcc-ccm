@@ -60,6 +60,16 @@ def _new_code() -> str:
     return raw[:4] + "-" + raw[4:]
 
 
+RECEIVER_HOURS = ("always", "day", "night")
+
+
+def is_work_hours(now: float | None = None) -> bool:
+    """평일 8~18시(한국 시간). 공휴일은 모른다 — 공휴일에도 받고 싶은 사람은 '항상'으로."""
+    from datetime import datetime, timedelta, timezone
+    d = datetime.fromtimestamp(time.time() if now is None else now, timezone(timedelta(hours=9)))
+    return d.weekday() < 5 and 8 <= d.hour < 18
+
+
 def _clean_phone(phone) -> str:
     return "".join(ch for ch in str(phone or "") if ch.isdigit() or ch in "+-")[:20]
 
@@ -110,6 +120,12 @@ class Accounts:
             for col in ("engineer", "engineer_phone", "signup_code"):
                 try:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} TEXT DEFAULT ''")
+                except Exception:  # noqa: BLE001 - 이미 있음
+                    pass
+            #   알림 받는 사람: 이름·받는 시간(항상/근무시간/야간·주말 당직)·정기 문자(주간 요약·월간 보고서 알림) 받기
+            for col, ddl in (("name", "TEXT DEFAULT ''"), ("hours", "TEXT DEFAULT 'always'"), ("reports", "INTEGER DEFAULT 1")):
+                try:
+                    self._conn.execute(f"ALTER TABLE customer_receivers ADD COLUMN {col} {ddl}")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
             #   full_name·phone: 가입할 때 받은 이름·휴대폰(계정 관리에서 누구인지 알아보게)
@@ -193,22 +209,53 @@ class Accounts:
         return {r["panel"]: r["customer_id"] for r in rows}
 
     def set_receivers(self, customer_id: int, numbers: list) -> list:
-        clean = []
+        """번호만 바꾸는 예전 방식(직원 화면) — 남는 번호의 이름·받는 시간 설정은 그대로 둔다."""
+        old = {r["number"]: r for r in self.list_receivers(customer_id)}
+        items = []
         for n in numbers or []:
             d = re.sub(r"\D", "", str(n))
-            if 9 <= len(d) <= 12 and d not in clean:
-                clean.append(d)
+            items.append(old.get(d) or {"number": d})
+        return [r["number"] for r in self.set_receiver_list(customer_id, items)]
+
+    def set_receiver_list(self, customer_id: int, items: list) -> list:
+        """알림 받는 사람 전체를 바꾼다(최대 20명). 번호가 이상한 줄은 버리고, 같은 번호는 한 번만."""
+        clean, seen = [], set()
+        for it in items or []:
+            if not isinstance(it, dict):
+                continue
+            d = re.sub(r"\D", "", str(it.get("number") or ""))
+            if not 9 <= len(d) <= 12 or d in seen:
+                continue
+            seen.add(d)
+            hours = it.get("hours") if it.get("hours") in RECEIVER_HOURS else "always"
+            clean.append({"number": d, "name": str(it.get("name") or "").strip()[:30], "hours": hours,
+                          "reports": bool(it.get("reports", True))})
+        clean = clean[:20]
         with self._lock:
             self._conn.execute("DELETE FROM customer_receivers WHERE customer_id=?", (customer_id,))
-            self._conn.executemany("INSERT INTO customer_receivers (customer_id, number) VALUES (?, ?)",
-                                   [(customer_id, n) for n in clean[:20]])
+            self._conn.executemany("INSERT INTO customer_receivers (customer_id, number, name, hours, reports) VALUES (?, ?, ?, ?, ?)",
+                                   [(customer_id, r["number"], r["name"], r["hours"], int(r["reports"])) for r in clean])
             self._conn.commit()
-        return clean[:20]
+        return clean
 
-    def receivers_for(self, customer_id) -> list:
+    def list_receivers(self, customer_id) -> list:
         with self._lock:
-            rows = self._conn.execute("SELECT number FROM customer_receivers WHERE customer_id=? ORDER BY rowid",
-                                      (customer_id,)).fetchall()
+            rows = self._conn.execute("SELECT number, name, hours, reports FROM customer_receivers WHERE customer_id=? "
+                                      "ORDER BY rowid", (customer_id,)).fetchall()
+        return [{"number": r["number"], "name": r["name"] or "", "hours": r["hours"] or "always",
+                 "reports": bool(r["reports"] if r["reports"] is not None else 1)} for r in rows]
+
+    def receivers_for(self, customer_id, purpose: str = "all", now: float | None = None) -> list:
+        """purpose: 'alarm' = 지금 시각에 받기로 한 사람(근무시간 = 평일 8~18시 한국 시간, 나머지는 야간·주말 당직).
+        그 시각에 받을 사람이 아무도 없으면 전원 — 위험 알림을 아무도 못 받게 두지 않는다.
+        'report' = 정기 문자(주간 요약·월간 보고서 알림)를 받기로 한 사람. 'all' = 전원."""
+        rows = self.list_receivers(customer_id)
+        if purpose == "report":
+            return [r["number"] for r in rows if r["reports"]]
+        if purpose == "alarm":
+            day = is_work_hours(now)
+            pick = [r["number"] for r in rows if r["hours"] == "always" or (r["hours"] == "day") == day]
+            return pick or [r["number"] for r in rows]
         return [r["number"] for r in rows]
 
     # ── 계정 ───────────────────────────────────────────────
