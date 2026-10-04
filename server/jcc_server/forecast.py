@@ -159,9 +159,8 @@ def build(s: dict, now: float, warn=None) -> dict:
 
 
 # ── 판넬 하나 ─────────────────────────────────────────────
-def panel_forecast(storage, panel: str, now: float | None = None) -> dict | None:
-    """판넬의 대표 온도 센서(함내 온도 우선)로 예측. 판넬·온도 센서가 없으면 None."""
-    now = time.time() if now is None else now
+def panel_forecast_source(storage, panel: str):
+    """판넬의 대표 온도 센서(함내 온도 우선)와 주의 기준 → (기기, 센서 키, 이름, 주의 기준). 없으면 None."""
     ccms = next((p["ccms"] for p in storage.list_panels() if p["panel"] == panel), None)
     if ccms is None:
         return None
@@ -182,6 +181,16 @@ def panel_forecast(storage, panel: str, now: float | None = None) -> dict | None
     for row in (st, thr):
         if row is not None and warn is None:
             warn = row["alarm_warn"] if row["alarm_warn"] is not None else row["alarm_max"]
+    return dev, key, name, warn
+
+
+def panel_forecast(storage, panel: str, now: float | None = None) -> dict | None:
+    """판넬의 대표 온도 센서로 예측. 판넬·온도 센서가 없으면 None."""
+    now = time.time() if now is None else now
+    src = panel_forecast_source(storage, panel)
+    if src is None:
+        return None
+    dev, key, name, warn = src
     s = series(storage, dev, key, now - 400 * D)
     out = build(s, now, warn)
     out.update(panel=panel, sensor_name=name, unit="℃", now=now)

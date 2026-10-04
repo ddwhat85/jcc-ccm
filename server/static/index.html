@@ -1092,6 +1092,7 @@
   .acct-cust.acct-req{border-color:var(--warn)}
   .acct-cust.acct-req small{color:var(--warn)}
   .mb-item .acct-badge{opacity:1;color:var(--warn);font-weight:700}
+  .tc-lv{font-weight:700;white-space:nowrap} .tc-lv.act{color:var(--crit)} .tc-lv.watch{color:var(--warn)}
   .acct-wprev{margin:0 0 10px;padding:9px 11px;border:1px dashed var(--rule);border-radius:2px;white-space:pre-wrap;
     font:500 11.5px/1.55 var(--sans);color:var(--ink-2);background:var(--canvas)}
   .acct-code{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -1720,6 +1721,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리<span class="sc acct-badge" id="acct-badge" hidden></span></button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
+        <button class="mb-item jcc-admin" id="btn-tc">공조 점검 후보<span class="sc acct-badge" id="tc-badge" hidden></span></button>
         <button class="mb-item jcc-admin" id="btn-bk">데이터 백업</button>
         <button class="mb-item jcc-admin" id="btn-guard">고객 화면으로 보기</button>
         <div class="mb-div"></div>
@@ -1918,6 +1920,20 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="cmsn-x" id="ho-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></header>
       <div class="cmsn-body" id="ho-body"></div>
       <div class="ho-foot"><button class="cmsn-btn" id="ho-later">나중에</button><button class="cmsn-btn primary" id="ho-seen">확인함 — 다음 인계는 지금부터</button></div>
+    </section>
+  </div>
+
+  <!-- 공조 점검 후보: 판넬 온도 기록으로 '조치 필요·지켜볼 것'인 판넬과 고객의 냉각 점검 요청(영업 기회) -->
+  <div class="overlay" id="tc-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="tc-title" style="width:min(860px,calc(100vw - 32px))">
+      <header class="cmsn-head"><h3 id="tc-title">공조 점검 후보</h3>
+        <button class="cmsn-x" id="tc-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button></header>
+      <div class="cmsn-body">
+        <p class="acct-note">판넬 온도 기록(지난 4주)으로 주의 기준을 넘거나 가까운 판넬과, 고객이 누른 '냉각 용량 검토 요청'입니다.
+          원인은 기록 모양으로 추정한 것입니다. 현장에서 발열량(총 발열 = 총 냉각)을 확인한 뒤 공조 점검·교체를 제안하세요.</p>
+        <div id="tc-list"></div>
+        <div class="cmsn-msg" id="tc-msg" aria-live="polite"></div>
+      </div>
     </section>
   </div>
 
@@ -4608,6 +4624,30 @@ $("#ho-seen").onclick = async () => {
     if (!r.ok) throw new Error(); $("#ho-overlay").classList.remove("open"); setStatus("인계 확인 — 다음 요약은 지금부터"); }
   catch(_){ setStatus("인계 확인을 저장하지 못했습니다 — 연결 확인"); } };
 
+// ── 공조 점검 후보 ─────────────────────────────────────
+function tcMsg(t, bad){ const m = $("#tc-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+async function tcLoad(){
+  try { const r = await fetch("/api/admin/thermal", {cache:"no-store"}); const j = await r.json(); if (!r.ok) throw new Error(j.error || `불러오지 못함 (${r.status})`);
+    const ps = j.panels || [], reqs = ps.filter(p => p.request).length;
+    tcBadge(reqs);
+    const LV = {act: "조치 필요", watch: "지켜볼 것", ok: "정상"};
+    $("#tc-list").innerHTML = ps.length ? `<table class="pchk-tbl"><thead><tr><th>판넬</th><th>상태</th><th>추정 원인</th><th>14일 중 기준 초과</th><th>평일 최고</th><th>고객 요청</th></tr></thead><tbody>` +
+      ps.map(p => `<tr><td><b>${escapeHtml(p.panel_name)}</b><br><small>${escapeHtml(p.customer)}</small></td>` +
+        `<td class="tc-lv ${p.level}">${LV[p.level] || ""}</td><td>${p.causes.length ? p.causes.map(escapeHtml).join("<br>") : "—"}${p.hot_hours ? `<br><small>오르는 때: 평일 ${escapeHtml(p.hot_hours)}</small>` : ""}</td>` +
+        `<td>${p.over_days}일${p.max14 != null ? `<br><small>최고 ${p.max14}℃ / 기준 ${p.warn ?? "—"}℃</small>` : ""}</td><td>${p.weekday_peak ?? "—"}℃</td>` +
+        `<td>${p.request ? `냉각 용량 검토<br><small>${escapeHtml(p.request.username || "")} · ${new Date(p.request.created_at * 1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})}</small>` +
+          `<br><button class="cmsn-btn" data-tcdone="${p.request.id}">처리 완료</button>` : "—"}</td></tr>`).join("") + `</tbody></table>`
+      : `<p class="acct-note">지금은 후보가 없습니다 — 모든 판넬이 주의 기준보다 충분히 낮습니다(기록 14일 이상인 판넬 기준).</p>`;
+    $("#tc-list").querySelectorAll("[data-tcdone]").forEach(b => b.onclick = async () => {
+      try { const rr = await fetch("/api/admin/request_done", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({request_id: Number(b.dataset.tcdone)})});
+        const jj = await rr.json().catch(() => ({})); if (!rr.ok) throw new Error(jj.error || "처리하지 못했습니다");
+        tcMsg("요청을 처리 완료로 바꿨습니다"); tcLoad(); } catch(e){ tcMsg(e.message, true); } });
+  } catch(e){ tcMsg(e.message, true); }
+}
+function tcBadge(n){ const b = $("#tc-badge"); if (!b) return; b.hidden = !n; b.textContent = n ? `요청 ${n}` : ""; }
+$("#btn-tc").onclick = () => { $("#tc-overlay").classList.add("open"); tcMsg(""); $("#tc-list").innerHTML = `<p class="acct-note">판넬마다 4주 기록을 살피는 중…</p>`; tcLoad(); };
+$("#tc-close").onclick = () => $("#tc-overlay").classList.remove("open");
+
 // ── 데이터 백업 ─────────────────────────────────────────
 function bkMsg(t, bad){ const m = $("#bk-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
 async function bkLoad(){
@@ -5220,6 +5260,8 @@ function acctBadge(n){ const b = $("#acct-badge"); if (!b) return; b.hidden = !n
 async function acctCount(){
   try { const r = await fetch("/api/admin/accounts", {cache:"no-store"}); if (!r.ok) return;
     acctBadge(((await r.json()).signup_requests || []).length); } catch(_){}
+  try { const r = await fetch("/api/admin/thermal", {cache:"no-store"}); if (!r.ok) return;
+    tcBadge(((await r.json()).panels || []).filter(p => p.request).length); } catch(_){}
 }
 function applyAcct(u){
   // 고객 계정(담당자·보기 전용)은 고객 화면(JCC GUARD)으로 — 이 화면은 JCC 직원 도구다. 시연판은 그대로
@@ -6108,7 +6150,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","bk-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","tc-overlay","bk-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }

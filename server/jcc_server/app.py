@@ -135,7 +135,8 @@ ROUTES = [
     ("GET", "/api/handover", "read"), ("POST", "/api/handover/seen", "read"),
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
-    ("GET", "/api/guard/forecast", "read"),
+    ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
+    ("GET", "/api/admin/thermal", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -382,6 +383,11 @@ class Handler(BaseHTTPRequestHandler):
             if not valid_period(period):
                 return self._json({"error": "달은 YYYY-MM 형식입니다"}, 400)
             return self._json(guard.incidents(self.storage, panels, period))
+        if path == "/api/guard/thermal":         # 온도가 오르는 이유와 할 일 — 고객은 자기 판넬만
+            from .thermal import panel_thermal
+            pid = (q.get("panel") or [""])[0]
+            t = panel_thermal(self.storage, pid) if panels is None or pid in panels else None
+            return self._json(t) if t else self._json({"error": "볼 수 없는 판넬입니다"}, 404)
         if path == "/api/guard/forecast":        # 판넬 온도 예측(내일 시간별) — 고객은 자기 판넬만
             from .forecast import panel_forecast
             pid = (q.get("panel") or [""])[0]
@@ -642,7 +648,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm",
-                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast"):   # 고객 화면 데이터
+                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
             from .handover import summary
@@ -693,6 +699,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(blob)
             return
+        if path == "/api/admin/thermal":             # 공조 점검 후보(조치 필요·지켜볼 판넬 + 고객 요청)
+            from .thermal import candidates
+            return self._json({"panels": candidates(self.storage)})
         if path == "/api/admin/weekly_preview":      # 주간 안전 요약 미리 보기(보내지 않는다)
             from .weekly import build
             try:
@@ -808,6 +817,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._diagnose()
         if parsed.path == "/api/alarm/ack":
             return self._ack()
+        if parsed.path == "/api/guard/request":      # 고객의 점검 요청(냉각 용량 검토 등) — 조작이 아니라 JCC에 부탁
+            return self._service_request()
         if parsed.path == "/api/notify/test":
             return self._notify_test()
         if parsed.path == "/api/discover/report":
@@ -1378,6 +1389,26 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
 
+    def _service_request(self) -> None:
+        from .thermal import request as svc_request
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 10000 else {}
+        except (ValueError, UnicodeDecodeError):
+            b = None
+        if not isinstance(b, dict):
+            return self._json({"error": "잘못된 요청"}, 400)
+        pid, sc, u = str(b.get("panel", "")), self._scope(), self._user() or {}
+        known = {p["panel"] for p in self.storage.list_panels()}
+        if pid not in known or (sc is not None and pid not in sc["panels"]):
+            return self._json({"error": "볼 수 없는 판넬입니다"}, 404)
+        try:
+            got = svc_request(self.storage, pid, str(b.get("kind", "")), u.get("username") or "운영자",
+                              u.get("customer_id"), str(b.get("note", "")))
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json(dict(got, ok=True))
+
     def _logout(self) -> None:
         tok = self._cookies().get("jcc_session", "")
         if tok and len(tok) == 64:
@@ -1425,6 +1456,13 @@ class Handler(BaseHTTPRequestHandler):
                 on = bool(b.get("on"))
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
+                return self._json({"ok": True})
+            if action == "request_done":          # 고객 점검 요청 처리 완료
+                from .thermal import close_request
+                rid = as_id(b.get("request_id"))
+                if rid is None or not close_request(self.storage, rid, me["username"]):
+                    return self._json({"error": "이미 처리했거나 없는 요청입니다"}, 400)
+                audit(f"점검 요청 #{rid} 처리 완료")
                 return self._json({"ok": True})
             if action == "weekly_notify":         # 주간 안전 요약 문자(실제 발송 — 켠 고객사만)
                 cid = as_id(b.get("customer_id"))

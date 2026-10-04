@@ -356,6 +356,30 @@
   .gd-fc-hours .pk b{font-weight:700}
   .gd-fc-hours .w b,.gd-fc-hours .w small{color:var(--warn)}
   @media (max-width:520px){.gd-fc-hours{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  .gd-tk{margin-top:22px;padding-top:18px;border-top:1px solid var(--line-2)}
+  .gd-tk h5{margin:0 0 8px}
+  .gd-tk-head{margin:0;font-size:var(--t-body);line-height:1.55;color:var(--ink-2)}
+  .gd-tk-head b{color:var(--ink);font-weight:600;margin-right:4px}
+  .gd-tk-head i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:1px;background:var(--ok)}
+  .gd-tk-head i.watch{background:var(--warn)} .gd-tk-head i.act{background:var(--crit)}
+  .gd-tk-sub{margin:16px 0 6px;font:600 var(--t-cap) var(--sans);color:var(--ink-3)}
+  .gd-tk-causes{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  .gd-tk-causes li{padding:12px 14px;border-radius:var(--r-s);background:var(--card-2)}
+  .gd-tk-causes b{display:block;font:600 var(--t-body)/1.4 var(--sans)}
+  .gd-tk-causes span{display:block;margin-top:3px;font-size:var(--t-cap);line-height:1.55;color:var(--ink-2)}
+  .gd-tk-acts{margin:0;padding:0;list-style:none;counter-reset:tk;display:flex;flex-direction:column}
+  .gd-tk-acts li{counter-increment:tk;position:relative;padding:12px 0 12px 30px;border-bottom:1px solid var(--line-2)}
+  .gd-tk-acts li:last-child{border-bottom:0}
+  .gd-tk-acts li::before{content:counter(tk);position:absolute;left:0;top:12px;width:20px;height:20px;border-radius:50%;
+    border:1px solid var(--line);display:grid;place-items:center;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
+  .gd-tk-acts div{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .gd-tk-acts b{font:600 var(--t-body)/1.4 var(--sans)}
+  .gd-tk-acts em{font-style:normal;font:600 var(--t-cap) var(--sans);color:var(--ink-3);padding:1px 8px;border:1px solid var(--line);border-radius:var(--pill)}
+  .gd-tk-acts span{display:block;margin-top:3px;font-size:var(--t-cap);line-height:1.55;color:var(--ink-2)}
+  .gd-tk-btn{margin-top:10px;min-height:40px;padding:0 16px;border-radius:var(--pill);border:0;background:var(--btn);color:var(--btn-ink);
+    font:600 var(--t-cap) var(--sans);cursor:pointer}
+  .gd-tk-btn:disabled{opacity:.5;cursor:default}
+  .gd-tk-done{margin:10px 0 0;font:600 var(--t-cap) var(--sans);color:var(--ok)}
   .gd-inc-sum{margin:16px 0 0;font:400 var(--t-h)/1.55 var(--sans);letter-spacing:-.01em;color:var(--ink)}
   .gd-g b.c{color:var(--crit-ink);font-weight:500} .gd-g b.w{color:var(--warn);font-weight:500}
   .gd-inc-list .gd-doc span:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -849,9 +873,10 @@ async function openPanel(pid){
       (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span><em class="gd-help">전선 연결부가 풀리면 전류보다 온도가 먼저 오릅니다</em></div>` : "") + `</div>` +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
       `<div class="gd-fc" id="gd-fc"><h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">불러오는 중</div></div>` +
+      `<div class="gd-tk" id="gd-tk"><h5>온도가 오르는 이유와 할 일</h5><div class="gd-note">불러오는 중</div></div>` +
       (timeline.length ? `<div class="gd-tl">${timeline.map(t => `<div class="${t.who === "판넬이 스스로" ? "self" : t.who === "감지" ? "alarm" : ""}">${esc(clean(t.text))}<small>${fmtT(t.ts)} · ${esc(t.who)}</small></div>`).join("")}</div>`
         : `<div class="gd-empty">최근 7일 동안 특별한 일이 없었습니다.</div>`));
-    loadForecast(pid);
+    loadForecast(pid); loadThermal(pid);
   } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4><div class="sub">잠시 뒤 다시 열어 주세요</div>`); }
 }
 
@@ -865,6 +890,39 @@ async function loadForecast(pid){
 }
 const hh = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour:"numeric", hour12:false}).replace(/\D/g, "") + "시";
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+// ── 온도가 오르는 이유와 할 일 ─────────────────────────────
+// 원인은 기록의 모양(평일·주말, 시간대, 주별 추세)으로 가른 '가능성'이고, 할 일은 제안이다(바꾸는 건 사람)
+async function loadThermal(pid){
+  const box = $("#gd-tk"); if (!box) return;
+  try { const r = await fetch(`/api/guard/thermal?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
+    const t = await r.json(); if ($("#gd-tk") !== box) return;
+    box.innerHTML = tkHTML(t);
+    const b = $("#gd-tk-req");
+    if (b) b.onclick = async () => { b.disabled = true;
+      try { const rr = await fetch("/api/guard/request", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: pid, kind: "cooling_review"})});
+        if (!rr.ok) throw new Error(); toast("JCC에 냉각 용량 검토를 요청했습니다 — 담당자가 연락드립니다"); loadThermal(pid);
+      } catch(_){ b.disabled = false; toast("요청을 보내지 못했습니다 — 전화로 알려 주세요"); } };
+  } catch(_){ if ($("#gd-tk") === box) box.innerHTML = `<h5>온도가 오르는 이유와 할 일</h5><div class="gd-note">불러오지 못했습니다</div>`; }
+}
+function tkHTML(t){
+  const title = `<h5>온도가 오르는 이유와 할 일</h5>`;
+  if (t.building) return title + `<p class="gd-note">이 판넬의 기록이 14일 쌓이면 왜 오르는지와 할 일을 알려 드립니다 — 지금 ${Math.floor(t.days)}일째입니다.</p>`;
+  const w = t.warn, pk = t.weekday_peak;
+  const LV = {act: ["조치가 필요합니다", "act"], watch: ["지켜볼 것이 있습니다", "watch"], ok: ["지금은 할 일이 없습니다", "ok"]}[t.level] || ["", ""];
+  const head = t.level === "act" ? (t.over_days ? `지난 14일 중 ${t.over_days}일, 주의 기준(${f1(w)}℃)을 넘었습니다. 가장 높을 때 ${f1(t.max14)}℃.` : "냉각 성능이 떨어지고 있을 가능성이 있습니다.")
+    : t.level === "watch" ? `평일 ${t.hot_hours || "낮"} 평균 최고 ${f1(pk)}℃ — 주의 기준(${f1(w)}℃)에 가깝습니다.`
+    : (w != null && pk != null ? `평일 평균 최고 ${f1(pk)}℃로, 주의 기준(${f1(w)}℃)보다 ${f1(w - pk)}℃ 낮습니다.` : "평소 범위 안에서 움직이고 있습니다.");
+  const causes = t.causes.length ? `<div class="gd-tk-sub">가능성이 큰 이유</div><ul class="gd-tk-causes">${t.causes.map(c =>
+    `<li><b>${esc(c.title)}</b><span>${esc(c.why)}</span></li>`).join("")}</ul>` : "";
+  const req = t.open_request;
+  const acts = t.actions.length ? `<div class="gd-tk-sub">할 일 — 위에서부터</div><ol class="gd-tk-acts">${t.actions.map(a =>
+    `<li><div><b>${esc(a.title)}</b><em>${esc(a.who)}</em></div><span>${esc(a.why)}</span>` +
+    (a.request ? (req ? `<p class="gd-tk-done">요청됨 · ${fmtT(req.created_at)} — JCC 담당자가 연락드립니다</p>`
+      : `<button class="gd-tk-btn" id="gd-tk-req">JCC에 냉각 용량 검토 요청</button>`) : "") + `</li>`).join("")}</ol>` : "";
+  return title + `<p class="gd-tk-head"><i class="${LV[1]}"></i><b>${LV[0]}</b> ${esc(head)}</p>` + causes + acts +
+    `<p class="gd-note">이유는 이 판넬 기록의 모양(평일·주말, 시간대, 주별 추세)으로 추정한 것입니다. 인버터 부하와 바깥 온도는 아직 재지 않습니다. ` +
+    `설정 변경·교체는 JCC가 확인한 뒤 사람이 합니다.${t.demo ? " (시연판 — 가상 기록)" : ""}</p>`;
+}
 function fcHTML(f, width){
   const title = `<h5>판넬 안 온도 — 내일 예측</h5>`;
   if (f.building) return title + `<p class="gd-note">예측은 이 판넬의 기록이 7일 쌓이면 시작합니다 — 지금 ${Math.floor(f.days)}일째입니다.</p>`;

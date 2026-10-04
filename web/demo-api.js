@@ -361,6 +361,89 @@
     const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
     return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
   }
+  // ── 온도가 오르는 이유와 할 일(서버 thermal.py와 같은 규칙) — 시연판은 위 가상 1년 기록으로 ──
+  const TK = { MIN_DAYS: 14, WINDOW: 28, LOAD_DIFF: 1.0, AMB: 1.5, DEG: 0.3, DEW: 3.0, reqs: [], seq: 1 };
+  const tkK = t => { const k = new Date((t + 9 * FC.H) * 1000); return { h: k.getUTCHours(), wd: (k.getUTCDay() + 6) % 7, day: Math.floor((t + 9 * FC.H) / FC.D) }; };
+  const tkMean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
+  const tkHours = hs => hs.length ? `${Math.min(...hs)}~${Math.max(...hs) + 1}시` : "";
+  function tkDew(T, rh) { if (T == null || rh == null || rh <= 0) return null; rh = Math.max(1, Math.min(100, rh));
+    const g = Math.log(rh / 100) + 17.62 * T / (243.12 + T); return 243.12 * g / (17.62 - g); }
+  function tkAnalyze(temp, hum, t, warn) {
+    const out = { building: true, level: "ok", causes: [], actions: [], warn };
+    const keys = [...temp.keys()]; if (!keys.length) { out.days = 0; return out; }
+    const since = t - TK.WINDOW * FC.D, pts = keys.filter(u => u >= since), days = (t - Math.min(...keys)) / FC.D;
+    out.days = Math.round(days * 10) / 10; if (days < TK.MIN_DAYS || !pts.length) return out;
+    out.building = false;
+    const wk = {}, we = {}; pts.forEach(u => { const k = tkK(u), b = k.wd < 5 ? wk : we; (b[k.h] = b[k.h] || []).push(temp.get(u)); });
+    const pwk = {}, pwe = {}; Object.keys(wk).forEach(h => { pwk[h] = tkMean(wk[h]); }); Object.keys(we).forEach(h => { pwe[h] = tkMean(we[h]); });
+    const night = pp => tkMean([0, 1, 2, 3, 4, 5].filter(h => pp[h] != null).map(h => pp[h])), nwk = night(pwk), nwe = night(pwe);
+    const dayH = Array.from({ length: 12 }, (_, i) => i + 8);
+    const riseWk = nwk == null ? 0 : Math.max(0, ...dayH.filter(h => pwk[h] != null).map(h => pwk[h] - nwk));
+    const riseWe = nwe == null ? 0 : Math.max(0, ...dayH.filter(h => pwe[h] != null).map(h => pwe[h] - nwe));
+    const peakH = dayH.filter(h => pwk[h] != null).reduce((a, h) => a == null || pwk[h] > pwk[a] ? h : a, null);
+    const hot = riseWk > 0.5 ? dayH.filter(h => pwk[h] != null && nwk != null && pwk[h] - nwk >= 0.5 * riseWk) : [];
+    const r1 = v => Math.round(v * 10) / 10;
+    Object.assign(out, { weekday_rise: r1(riseWk), weekend_rise: r1(riseWe), hot_hours: tkHours(hot), peak_hour: peakH,
+      weekday_peak: peakH != null ? r1(pwk[peakH]) : null, night: nwk != null ? r1(nwk) : null });
+    const daily = {}; pts.filter(u => u >= t - 14 * FC.D).forEach(u => { const d = tkK(u).day, v = temp.get(u); daily[d] = Math.max(daily[d] ?? v, v); });
+    const dv = Object.values(daily); out.over_days = warn == null ? 0 : dv.filter(v => v >= warn).length; out.max14 = dv.length ? r1(Math.max(...dv)) : null;
+    const weeks = [];
+    for (let w = 0; w < Math.floor(TK.WINDOW / 7); w++) { const a = t - (w + 1) * 7 * FC.D, b = t - w * 7 * FC.D, mx = {}, nt = [];
+      pts.filter(u => u >= a && u < b).forEach(u => { const k = tkK(u), v = temp.get(u); if (k.wd < 5) mx[k.day] = Math.max(mx[k.day] ?? v, v); if (k.h < 6) nt.push(v); });
+      if (Object.keys(mx).length && nt.length) weeks.push([-w, tkMean(Object.values(mx)), tkMean(nt)]); }
+    let sp = 0, sn = 0;
+    if (weeks.length >= 3) { const xs = weeks.map(w => w[0]), mx = tkMean(xs), den = xs.reduce((s2, x) => s2 + (x - mx) ** 2, 0) || 1,
+      m1 = tkMean(weeks.map(w => w[1])), m2 = tkMean(weeks.map(w => w[2]));
+      sp = weeks.reduce((s2, w, i) => s2 + (xs[i] - mx) * (w[1] - m1), 0) / den; sn = weeks.reduce((s2, w, i) => s2 + (xs[i] - mx) * (w[2] - m2), 0) / den; }
+    Object.assign(out, { peak_trend: Math.round(sp * 100) / 100, night_trend: Math.round(sn * 100) / 100, weeks: weeks.length });
+    if (riseWk - riseWe >= TK.LOAD_DIFF) out.causes.push({ kind: "load", title: "평일 가동 시간의 판넬 안 기기 발열",
+      why: `평일 ${tkHours(hot) || "낮"}에 밤보다 평균 ${riseWk.toFixed(1)}℃ 오르고, 주말 같은 시간엔 ${riseWe.toFixed(1)}℃만 오릅니다. 인버터·드라이브처럼 가동할 때 열이 나는 기기의 영향일 가능성이 큽니다.` });
+    if (riseWe >= TK.AMB || sn >= TK.DEG) { let why = riseWe >= TK.AMB ? `기계를 덜 돌리는 주말에도 낮에 ${riseWe.toFixed(1)}℃ 오릅니다.` : "";
+      if (sn >= TK.DEG) why += ` 밤 온도도 주마다 ${sn.toFixed(1)}℃씩 오르고 있습니다.`;
+      out.causes.push({ kind: "ambient", title: "판넬 주변·바깥 온도", why: why.trim() + " 주변 온도(햇빛·계절·근처 열원)의 영향일 가능성이 큽니다." }); }
+    const degrade = weeks.length >= 3 && sp - sn >= TK.DEG;
+    if (degrade) out.causes.push({ kind: "degrade", title: "냉각 성능 저하 의심",
+      why: `최근 ${weeks.length}주 동안 평일 최고 온도가 주마다 ${sp.toFixed(1)}℃씩 오르는데 밤 온도는 그만큼 오르지 않습니다. 필터 막힘이나 공조(에어컨·팬) 성능 저하일 수 있습니다.` });
+    const near = warn != null && out.weekday_peak != null && out.weekday_peak >= warn - 3;
+    out.level = out.over_days >= 2 || degrade ? "act" : (out.over_days === 1 || near) ? "watch" : "ok";
+    const dps = []; hum.forEach((rh, u) => { if (u >= t - 14 * FC.D && temp.has(u)) { const d = tkDew(temp.get(u), rh); if (d != null) dps.push(d); } });
+    if (dps.length) { dps.sort((a, b) => a - b); const d95 = dps[Math.min(dps.length - 1, Math.floor(dps.length * 0.95))];
+      out.dew_point = r1(d95); out.setpoint_floor = Math.ceil(d95 + TK.DEW); }
+    const kinds = new Set(out.causes.map(c => c.kind)), A = out.actions;
+    if (out.level !== "ok") {
+      A.push({ who: "현장", title: "필터·환기구 청소, 판넬 문 닫힘 확인", why: "열이 빠져나가는 길이 막히거나 문이 열려 있으면 가장 먼저 온도가 오릅니다." });
+      A.push({ who: "JCC 확인 후", title: "공조(에어컨)가 달려 있다면 설정온도 점검", why: "출고 설정 그대로라면 낮출 여지가 있습니다. " + (out.setpoint_floor != null
+        ? `다만 ${out.setpoint_floor}℃ 아래로는 내리지 마세요 — 판넬 안 이슬점이 ${out.dew_point}℃라 더 차가우면 결로(누전 위험)가 생깁니다.`
+        : "습도 기록이 없어 결로 하한은 JCC가 현장에서 확인합니다.") }); }
+    if (kinds.has("ambient") && out.level !== "ok") A.push({ who: "현장", title: "판넬 위치 점검 — 직사광선·근처 열원", why: "주변 온도 영향이 클 때는 차광이나 열원과의 거리만으로도 몇 도가 내려갑니다." });
+    if (degrade) A.push({ who: "JCC 방문", title: "냉각 성능 점검", why: "필터·응축기 청소나 공조 점검으로 원래 성능을 되찾을 수 있습니다." });
+    if (out.level === "act") A.push({ who: "JCC", title: "냉각 용량 검토", request: "cooling_review", why: "판넬 안 발열량을 계산해 지금 공조로 충분한지 보고, 모자라면 맞는 용량을 제안합니다." });
+    return out;
+  }
+  function gdThermal(pid) {
+    const f = gdForecast(pid); if (!f) return null;
+    const t = now(), temp = FC.cache[pid + "|" + Math.floor(t / FC.H)], row = gdRows().find(p => p.panel === pid);
+    const hBase = row && row.humidity != null ? row.humidity : 50, hum = new Map();
+    temp.forEach((v, u) => { if (u >= t - 15 * FC.D) hum.set(u, Math.max(20, Math.min(90, hBase - (v - temp.get(Math.floor(t / FC.H) * FC.H - FC.H)) * 1.5))); });
+    const req = TK.reqs.find(r => r.panel === pid && r.status === "open") || null;
+    return Object.assign(tkAnalyze(temp, hum, t, f.warn), { panel: pid, sensor_name: f.sensor_name, open_request: req, demo: true });
+  }
+  function gdRequest(b) {
+    if (!gdRows().some(p => p.panel === b.panel)) return [{ error: "볼 수 없는 판넬입니다" }, 404];
+    if (b.kind !== "cooling_review") return [{ error: "요청 종류를 확인하세요" }, 400];
+    const have = TK.reqs.find(r => r.panel === b.panel && r.status === "open"); if (have) return [Object.assign({ ok: true, existing: true }, have), 200];
+    const r = { id: TK.seq++, panel: b.panel, kind: b.kind, created_at: now(), username: "시연 고객", status: "open" }; TK.reqs.push(r);
+    logEvent(b.panel, "", "service_request", `냉각 점검 요청 (데모)`, "user");
+    return [{ ok: true, id: r.id, kind: r.kind, existing: false }, 200];
+  }
+  function gdThermalCandidates() {
+    const out = [];
+    gdRows().forEach(p => { const th = gdThermal(p.panel); if (!th || (th.level === "ok" && !th.open_request)) return;
+      out.push({ panel: p.panel, panel_name: p.panel_name, customer: ACC.customers[0].name, level: th.level, causes: th.causes.map(c => c.title),
+        over_days: th.over_days || 0, max14: th.max14, warn: th.warn, weekday_peak: th.weekday_peak, hot_hours: th.hot_hours || "", request: th.open_request }); });
+    const rank = { act: 0, watch: 1, ok: 2 };
+    return out.sort((a, b) => (a.request == null) - (b.request == null) || rank[a.level] - rank[b.level] || b.over_days - a.over_days);
+  }
   function guardPanelDemo(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
     const devs = new Set(((panelList().find(p => p.panel === pid) || {}).ccms || []).map(c => c.device_id).concat([pid]));
@@ -1572,6 +1655,8 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "request_done") { const r = TK.reqs.find(x => x.id === b.request_id && x.status === "open");
+      if (!r) return [{ error: "이미 처리했거나 없는 요청입니다" }, 400]; r.status = "done"; return [{ ok: true }, 200]; }
     if (action === "weekly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.weekly_notify = !!b.on; return [{ ok: true }, 200]; }
     if (action === "backup_now") return [{ error: "시연판에는 서버가 없어 백업을 만들 수 없습니다 — 운영 서버에서는 매일 자동으로 남습니다" }, 400];
@@ -1687,6 +1772,9 @@
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
+      if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
+      if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
+      if (p === "/api/admin/thermal") return Promise.resolve(J({ panels: gdThermalCandidates() }));
       if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));
       if (p === "/api/guard/incident") { const d = gdIncidentReport(parseInt(qs.get("id") || "0", 10)); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 경보입니다" }, 404)); }
