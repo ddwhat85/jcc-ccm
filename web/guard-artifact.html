@@ -328,6 +328,7 @@
   .gd-card.warn{border:1.5px solid var(--warn)} .gd-card.crit{border:1.5px solid var(--crit)}
   .gd-card .h .gd-stc{padding:0;border-radius:var(--pill);background:none;color:var(--ink-3);font-weight:600}
   .gd-card .h .gd-stc.ok svg{color:var(--ok)}
+  .gd-card.offline .v,.gd-card.offline .gd-sens{opacity:.5}   /* 끊긴 판넬의 값은 마지막으로 받은 값 — 지금 값처럼 보이지 않게 */
   .gd-card .h .gd-stc.warn{padding:4px 10px 4px 7px;background:var(--fill-warn);color:var(--on-warn)}
   .gd-card .h .gd-stc.crit{padding:4px 10px 4px 7px;background:var(--fill-crit);color:var(--on-crit)}
   .gd-sn.warn svg,.gd-sn.warn b,.gd-snl .warn svg,.gd-snl .warn b{color:var(--warn)}
@@ -3703,6 +3704,7 @@ function paintMonth(){
   const body = m.building
     ? `<p class="gd-a">기록이 쌓이는 중</p><p class="gd-mut" style="margin:0">설치 후 며칠이 지나면 이곳에 쌓입니다.</p>`
     : `<p class="gd-fig ok">${m.hours.toLocaleString("ko-KR")}<small>시간</small></p><p class="gd-fig-sub">쉬지 않고 지켰습니다</p><button class="gd-more" id="gd-m-more">자세히</button>`;
+  $("#gd-sec-month").classList.toggle("gd-tile", !m.building);
   if (!setHTML(el, body)) return;
   if (!m.building) $("#gd-m-more").onclick = openMonthDetail;
 }
@@ -3780,6 +3782,7 @@ function paintTodo(list){
   const el = $("#gd-todo"); if (!el) return;
   const tone = !list.length ? "ok" : list[0].level === "act" ? "crit" : list[0].level === "watch" ? "warn" : "info";
   $("#gd-sec-todo").dataset.tone = tone;
+  $("#gd-sec-todo").classList.toggle("gd-tile", list.length > 0);   // 할 일이 없으면 열 것도 없다 — 눌리는 척하지 않게
   if (!list.length){ setHTML(el, `<p class="gd-fig ok">0<small>건</small></p><p class="gd-fig-sub">할 일 없음 · JCC와 판넬이 지키고 있습니다</p>`); return; }
   const top = list.slice(0, 2);
   if (!setHTML(el, `<p class="gd-fig ${list[0].level === "act" ? "act" : list[0].level === "watch" ? "watch" : ""}">${list.length}<small>건</small></p>` +
