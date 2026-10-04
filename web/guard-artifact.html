@@ -8,25 +8,24 @@
   :root{
     --bg:#f1efea;--glow:#ffffff;--card:#ffffff;--card-2:#f7f5f0;--line:#dcd7cc;--line-2:#e8e3d9;--track:#e3ded3;
     --ink:#1b1a17;--ink-2:#4c4840;--ink-3:#7a766d;--ok:#2f9a6c;--warn:#b9822a;--crit:#e50043;--crit-ink:#e50043;
-    --btn:#1b1a17;--btn-ink:#ffffff;--alert-bg:#fdeef3;--alert-glow:#fff7fa;--shadow:0 1px 0 rgba(27,26,23,.06);
+    --btn:#1b1a17;--btn-ink:#ffffff;--shadow:0 1px 0 rgba(27,26,23,.06);
     --r-s:10px;--r-l:22px;--pill:999px;
     --t-cap:12px;--t-body:15px;--t-h:19px;--t-fig:24px;--t-big:30px;--t-ring:64px;--t-hero:clamp(38px,5.8vw,76px);--t-hero-m:clamp(36px,10.5vw,46px);--t-hero-fig:clamp(44px,6vw,80px);--night:#0e1114;--night-crit:#e50043;   /* 위험 = 리탈 레드(RAL 35745, rittal.com #E50043) */ --night-ok:#11291e;--t-tile:clamp(56px,6vw,80px);   /* 글자 단계(1.25배 이상씩) */
     --sans:"Gothic A1",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;--r:14px;color-scheme:light}
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --bg:#0b0d10;--glow:#1d2228;--card:#15191d;--card-2:#111418;--line:#2a2e33;--line-2:#23282e;--track:#23282e;
     --ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff3d6e;--crit-ink:#ffb3c7;
-    --btn:#e9e6df;--btn-ink:#0b0d10;--alert-bg:#14080d;--alert-glow:#3d0f20;--shadow:none;color-scheme:dark}}
+    --btn:#e9e6df;--btn-ink:#0b0d10;--shadow:none;color-scheme:dark}}
   :root[data-theme="dark"]{
     --bg:#0b0d10;--glow:#1d2228;--card:#15191d;--card-2:#111418;--line:#2a2e33;--line-2:#23282e;--track:#23282e;
     --ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff3d6e;--crit-ink:#ffb3c7;
-    --btn:#e9e6df;--btn-ink:#0b0d10;--alert-bg:#14080d;--alert-glow:#3d0f20;--shadow:none;color-scheme:dark}
+    --btn:#e9e6df;--btn-ink:#0b0d10;--shadow:none;color-scheme:dark}
 
   *{box-sizing:border-box}
   html,body{margin:0}
   body{min-height:100vh;font-family:var(--sans);color:var(--ink);background-color:var(--bg);
     background-image:radial-gradient(110% 60% at 50% 0%,var(--glow) 0%,var(--bg) 62%);background-attachment:fixed;
     -webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere;transition:background-color .6s ease}   /* 한국어는 낱말 단위로 줄바꿈 */
-  body.gd-alert{--bg:var(--alert-bg);--glow:var(--alert-glow)}
   button{font:inherit;color:inherit}
   [hidden]{display:none!important}
   .gd-mut{color:var(--ink-3)}
@@ -285,8 +284,8 @@
     font:600 var(--t-cap) var(--sans);color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--line)}
 
   /* 위험 순간 */
-  .gd-inc{border-radius:var(--r-l);padding:18px;background:color-mix(in srgb,var(--crit) 10%,var(--card));border:1px solid color-mix(in srgb,var(--crit) 35%,var(--line))}
-  .gd-pill{display:inline-block;font:600 var(--t-cap) var(--sans);padding:4px 10px;border-radius:var(--r-l);background:color-mix(in srgb,var(--crit) 22%,transparent);color:var(--crit-ink);letter-spacing:.04em}
+  .gd-inc{border-radius:var(--r-l);padding:22px;background:var(--card);border:1.5px solid var(--crit);box-shadow:var(--shadow)}   /* 연분홍 물들임 없이 — 테두리 한 줄과 꽉 찬 칩만 */
+  .gd-pill{display:inline-block;font:700 var(--t-cap) var(--sans);padding:4px 10px;border-radius:var(--r-l);background:var(--fill-crit);color:var(--on-crit);letter-spacing:.04em}
   .gd-inc h2{margin:12px 0 4px;font:600 var(--t-h)/1.38 var(--sans);letter-spacing:-.01em}
   .gd-inc .d{font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
   .gd-steps{margin-top:14px;display:flex;flex-direction:column;gap:8px}
@@ -321,9 +320,11 @@
   .gd-card.warn .h span{color:var(--warn);font-weight:600} .gd-card.crit .h span{color:var(--crit-ink);font-weight:600}
   /* 판넬 카드 색 — 평소엔 무채색, 문제 있는 곳만 또렷하게(옅게 물들인 카드·살구색 상자 없이).
      주의·위험은 테두리 한 줄 + 꽉 찬 상태 칩, 센서는 그 센서의 아이콘과 값만 그 색 */
-  .gd-card{--fill-crit:#e50043;--on-crit:#ffffff;--fill-warn:#e9b45a;--on-warn:#1b1a17}
-  @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .gd-card{--fill-crit:#ff3d6e;--on-crit:#0b0d10;--on-warn:#0b0d10}}
-  :root[data-theme=dark] .gd-card{--fill-crit:#ff3d6e;--on-crit:#0b0d10;--on-warn:#0b0d10}
+  :root{--fill-crit:#e50043;--on-crit:#ffffff;--fill-warn:#e9b45a;--on-warn:#1b1a17}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--fill-crit:#ff3d6e;--on-crit:#0b0d10;--on-warn:#0b0d10}}
+  :root[data-theme=dark]{--fill-crit:#ff3d6e;--on-crit:#0b0d10;--on-warn:#0b0d10}
+  .gd-c[data-tone=crit] .gd-plate{background:var(--fill-crit);border-color:transparent;color:var(--on-crit)}
+  .gd-c[data-tone=crit] .gd-wm{color:var(--ink)}
   .gd-card.warn{border:1.5px solid var(--warn)} .gd-card.crit{border:1.5px solid var(--crit)}
   .gd-card .h .gd-stc{padding:0;border-radius:var(--pill);background:none;color:var(--ink-3);font-weight:600}
   .gd-card .h .gd-stc.ok svg{color:var(--ok)}

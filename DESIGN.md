@@ -367,7 +367,7 @@ The tokens live in `guard.html` `:root` (day) with the dark night values under `
 - **Radar:** behind the hero ring, two faint rings and a sweep turn once every 7s (safe green, watch amber; danger white at 2.6s; stopped when offline or under reduced motion). It is the one authored motion and says "24시간 지켜보는 중".
 - **Color:** day ground `#f1efea`, card `#ffffff`, ink `#1b1a17`; night ground `#0b0d10`, card `#15191d`, ink `#e9e6df`.
   State colors only: safe `#2f9a6c`/`#7fd1a8`, watch `#b9822a`/`#e9b45a`, danger = Rittal red `#e50043` (RAL 35745, the colour rittal.com uses) / night `#ff3d6e`.
-  Danger tints the whole ground (alert glow) and is the only time red appears.
+  Danger never tints the ground or fills cards with pale pink: it shows only as the red hero plate, 1.5px red borders (panel card, incident card) and solid red chips/plates (위험 pill, to-do plate). It is the only time red appears.
 - **Type:** Gothic A1 only. Big figures weight 300 (64px ring, 30px month headline, 21-26px stats), headings 600, labels 11px with 0.14-0.16em tracking.
   Type steps are tokens `--t-cap` 12 / `--t-body` 15 / `--t-h` 19 / `--t-fig` 24 / `--t-big` 30 / `--t-ring` 64px (each step at least 1.25x); reading text (timelines, reports) uses body 15.
 - **Shape:** radius tokens `--r-s` 10px (controls, small items), `--r` 14px (cards), `--r-l` 22px (big panels, sheets), `--pill` 999px.
