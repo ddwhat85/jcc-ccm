@@ -21,6 +21,8 @@ log = logging.getLogger("jcc_ccm.agent")
 
 # 오프라인일 때 메모리에 보관할 최대 묶음 수. eMMC·RAM이 작으니 상한을 둔다.
 _MAX_QUEUE = 2000
+# 밀린 묶음은 한 주기에 이만큼(초)만 보낸다 — 며칠치를 한 번에 보내느라 예지·보호 주기가 멈추지 않게
+_FLUSH_SECONDS = 3.0
 _STARTED = time.time()
 
 
@@ -43,6 +45,17 @@ class Agent:
         self._drivers = build_drivers(cfg.sensors + self._manual.configs(), cfg.modbus)
         self._transport = build_transport(cfg)
         self._queue: collections.deque[dict] = collections.deque(maxlen=_MAX_QUEUE)
+        # 오프라인 보관함(저장장치) — 전송이 실패한 뒤부터만 쓴다. 못 만들면(읽기 전용 등) 메모리 큐만으로 계속
+        self._spool = None
+        try:
+            from .spool import Spool
+            import os
+            self._spool = Spool(os.path.join(os.path.dirname(cfg.predict.state_file or "") or ".", "spool"))
+            if len(self._spool):
+                log.info("보관함에 지난번 못 보낸 묶음 %d건 — 오래된 것부터 보냅니다.", len(self._spool))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("오프라인 보관함을 만들지 못했습니다(메모리 큐만 사용): %s", exc)
+        self._offline = False
         self._stop = False
         # 엣지 예지(config [predict]) — 서버·회선과 무관하게 이 CCM이 직접 벤트·히터·팬을 몬다
         self._edge = build_edge(cfg)
@@ -185,6 +198,8 @@ class Agent:
             "ts": round(time.time(), 3),
             "fw": __version__,
             "boot_ts": boot_ts(),
+            # 아직 못 보낸 묶음 수 — 서버는 이것이 0이 될 때까지 끊김 원인(통신/전원)을 확정하지 않는다
+            "backlog": len(getattr(self, "_queue", ())) + (len(self._spool) if getattr(self, "_spool", None) is not None else 0),
             "readings": [r.as_dict() for r in readings],
             **({"ota": self._ota.status()} if getattr(self, "_ota", None) else {}),
             **({"sensor_config": self._manual.report()} if getattr(self, "_manual", None) else {}),
@@ -192,13 +207,41 @@ class Agent:
 
     # ── 전송 큐 (오프라인 내구성) ──────────────────────────────
     def _enqueue(self, payload: dict) -> None:
+        spool = getattr(self, "_spool", None)
+        if spool is not None and (getattr(self, "_offline", False) or len(spool)):
+            try:                                  # 끊겼거나 아직 보낼 것이 보관함에 남았다 — 순서를 지키려 뒤에 붙인다
+                spool.append(payload)
+                return
+            except OSError as exc:
+                log.warning("보관함 쓰기 실패(메모리에 둠): %s", exc)
         if len(self._queue) == self._queue.maxlen:
             log.warning("전송 큐가 가득 참(%d). 가장 오래된 데이터를 버립니다.", _MAX_QUEUE)
         self._queue.append(payload)
 
     def _flush(self) -> None:
-        """큐에 쌓인 오래된 것부터 보낸다. 하나라도 실패하면 멈추고 다음 주기에 재시도."""
+        """보관함(가장 오래된 것) → 메모리 큐 순서로 보낸다. 하나라도 실패하면 멈추고 다음 주기에 재시도.
+        실패하면 메모리 큐를 보관함으로 옮긴다(전원이 나가도 남게)."""
         sent = 0
+        spool = getattr(self, "_spool", None)
+        deadline = time.monotonic() + _FLUSH_SECONDS
+        while spool is not None and len(spool):
+            if time.monotonic() > deadline:            # 나머지는 다음 주기에 — 새 묶음은 순서대로 보관함 뒤에 붙는다
+                self._offline = True
+                log.info("밀린 묶음 보내는 중 — %d건 남음.", len(spool))
+                return sent
+            items, last, ok = spool.peek(50), None, True
+            for seg, line, p in items:
+                if p is not None and not self._transport.send(p):
+                    ok = False
+                    break
+                sent += 1 if p is not None else 0
+                last = (seg, line)
+            if last is not None:
+                spool.commit(last)
+            if not ok or not items:
+                self._offline = True
+                log.warning("전송 실패, 보관함에 %d건 보관 중.", len(spool))
+                return sent
         while self._queue:
             payload = self._queue[0]
             if self._transport.send(payload):
@@ -206,8 +249,15 @@ class Agent:
                 sent += 1
             else:
                 break  # 회선이 죽었다. 순서를 지키려 여기서 중단.
+        if self._queue and spool is not None:      # 끊겼다 — 메모리에 있는 것을 보관함으로(전원이 나가도 남게)
+            try:
+                while self._queue:
+                    spool.append(self._queue.popleft())
+            except OSError as exc:
+                log.warning("보관함 쓰기 실패(메모리에 둠): %s", exc)
+        self._offline = bool(self._queue) or bool(spool is not None and len(spool))
         if sent:
-            log.info("전송 %d건 완료, 대기 %d건.", sent, len(self._queue))
-        elif self._queue:
-            log.warning("전송 실패, 대기 %d건 보관 중.", len(self._queue))
+            log.info("전송 %d건 완료, 대기 %d건.", sent, len(self._queue) + (len(spool) if spool is not None else 0))
+        elif self._offline:
+            log.warning("전송 실패, 대기 %d건 보관 중.", len(self._queue) + (len(spool) if spool is not None else 0))
         return sent

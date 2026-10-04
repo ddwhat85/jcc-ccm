@@ -211,6 +211,7 @@ class Storage:
         self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
         self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
         self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
+        self._backlog: dict = {}       # device_id -> (묶음 시각, CCM이 아직 못 보낸 묶음 수) — 끊김 원인 확정을 미룰지
         self._heal_at: dict = {}       # (device_id, key) -> 자동복구가 채널을 재시작한 시각
         self._heal_dev_at: dict = {}   # device_id -> 자동복구(L2)가 CCM을 재시작한 시각
         self.predictor = None          # 예지보전 엔진(monitor가 주입) — set_actuator에서 사용
@@ -280,6 +281,13 @@ class Storage:
                      panel_name=excluded.panel_name, last_seen=excluded.last_seen""",
                 (device_id, site, panel, panel_name, now, now),
             )
+            bl = payload.get("backlog")
+            if isinstance(bl, int) and not isinstance(bl, bool) and bl >= 0:
+                # 가장 최근에 만들어진 묶음의 '아직 못 보낸 수'만 믿는다(밀린 예전 묶음의 숫자로 덮지 않게)
+                pts = _as_float(payload.get("ts"), now)
+                prev_bl = self._backlog.get(device_id)
+                if prev_bl is None or pts >= prev_bl[0]:
+                    self._backlog[device_id] = (pts, bl)
             bt = _as_float_or_none(payload.get("boot_ts"))
             if bt is not None and 1e9 < bt < now + 120:
                 prev = cur.execute("SELECT boot_ts FROM devices WHERE device_id=?", (device_id,)).fetchone()

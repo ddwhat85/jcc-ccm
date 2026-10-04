@@ -121,6 +121,18 @@ def run():
     with st._lock:   # 굳힌 뒤 원본 값이 지워져도(보존 기간) 원인은 그대로
         st._conn.execute("DELETE FROM readings WHERE device_id='n1'")
         st._conn.commit()
+    st.ingest(dict(pay("n3"), backlog=500, ts=now))       # 아직 밀린 묶음 500건을 보내는 중
+    b = alarm("n3", "", T + 20000, T + 23600)
+    O.list_range(st, None, T - 3600, now + 1, now)
+    with st._lock:
+        pend = st._conn.execute("SELECT 1 FROM outages WHERE alarm_id=?", (b["id"],)).fetchone()
+    check("CCM이 밀린 묶음을 다 보내기 전엔 원인을 확정하지 않음", pend is None)
+    st.ingest(dict(pay("n3"), backlog=999, ts=now - 5000))  # 늦게 온 예전 묶음의 숫자로 덮지 않음
+    st.ingest(dict(pay("n3"), backlog=0, ts=now + 1))
+    O.list_range(st, None, T - 3600, now + 2, now + 2)
+    with st._lock:
+        done = st._conn.execute("SELECT 1 FROM outages WHERE alarm_id=?", (b["id"],)).fetchone()
+    check("다 보낸 뒤(밀린 수 0)에 확정", done is not None)
     check("원인은 굳힌 대로(원본 값이 지워져도)", next(o for o in O.list_range(st, None, T - 3600, now + 1, now) if o["device_id"] == "n1" and not o["sensor"])["kind"] == "network")
     um = O.unprotected_minutes(st, {"n1", "n2", "n3"}, T - 3600, now, now)
     check("원인별 끊긴 분(경보 전 대기 90초 포함, 센서 끊김은 빼고)", um.get("network") == 62 and um.get("power") == 62 and um.get("stop", 0) >= 60, str(um))

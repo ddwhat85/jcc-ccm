@@ -79,7 +79,8 @@ def _kind(storage, a: dict, now: float) -> tuple:
     if r:
         return r["kind"], r["covered"]
     k, cov = classify(storage, a, now)
-    if a.get("cleared_at") and now - a["cleared_at"] >= SETTLE:
+    backlog = (getattr(storage, "_backlog", {}).get(a["device_id"]) or (0, 0))[1]
+    if a.get("cleared_at") and now - a["cleared_at"] >= SETTLE and not backlog:   # CCM이 밀린 것을 다 보낸 뒤에만 확정
         with storage._lock:
             storage._conn.execute("INSERT OR REPLACE INTO outages (alarm_id, kind, covered, decided_at) VALUES (?, ?, ?, ?)",
                                   (a["id"], k, cov, now))
