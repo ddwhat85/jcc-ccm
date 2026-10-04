@@ -349,7 +349,7 @@ Device nodes are inked boxes: dark head band (node-head, `#15191c` / `#232a31`) 
 
 ### Panel settings hub (staff, `#ps-overlay`)
 One square dialog per panel: a 3×3 grid of tiles (온도·습도·화재 징조 / 단자 발열·내부 발열·공조 장치 / 설치 환경·기타 센서·판넬 정보).
-Each tile = drawn line icon (24 viewBox, 1.6 stroke — no emoji), name, one-line current value, and a corner dot (set / todo ring / warn / crit; no sensors = dimmed).
+Each tile is centered: a large drawn line icon (46px, 1.4 stroke — no emoji) on an 84px round plate, name, one-line current value, and a corner dot. State colors the plate (dashed = not entered, warn / crit ring and icon) and the dot; no sensors = dimmed. Hover tints the plate with --accent.
 Opening a tile swaps the body for that item's form only (back arrow returns to the grid); each item saves on its own. Staff tokens only (2px radius, --rule borders, --accent on hover).
 
 ## Customer surface — JCC GUARD (`server/static/guard.html`)
