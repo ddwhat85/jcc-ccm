@@ -21,6 +21,17 @@ log = logging.getLogger("jcc_ccm.agent")
 
 # 오프라인일 때 메모리에 보관할 최대 묶음 수. eMMC·RAM이 작으니 상한을 둔다.
 _MAX_QUEUE = 2000
+_STARTED = time.time()
+
+
+def boot_ts() -> float:
+    """이 장치가 켜진 시각(유닉스 초). 서버는 이 값이 바뀌면 '전원이 꺼졌다 켜짐(재시작)'으로 기록하고,
+    통신만 끊긴 것(값은 큐에 쌓였다 나중에 올라옴)과 구분한다. 리눅스면 /proc/uptime, 아니면 이 프로그램 시작 시각."""
+    try:
+        with open("/proc/uptime", encoding="ascii") as fh:
+            return round(time.time() - float(fh.read().split()[0]), 0)
+    except (OSError, ValueError, IndexError):
+        return round(_STARTED, 0)
 
 
 class Agent:
@@ -173,6 +184,7 @@ class Agent:
             "panel_name": self._cfg.panel_name,
             "ts": round(time.time(), 3),
             "fw": __version__,
+            "boot_ts": boot_ts(),
             "readings": [r.as_dict() for r in readings],
             **({"ota": self._ota.status()} if getattr(self, "_ota", None) else {}),
             **({"sensor_config": self._manual.report()} if getattr(self, "_manual", None) else {}),

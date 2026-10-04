@@ -232,7 +232,7 @@
       patrols: { count: Math.round(Math.max(1, day) * 3 * 6), per_day: 3 },
       precursors: Object.assign(prec, { total: prec.fire + prec.contact + prec.dew }),
       actions: { vent: 2 + (isCur ? live : 0), dew: 5 + (isCur ? dew : 0), total: 7 + (isCur ? live + dew : 0) },
-      remote: 5, ack_min_avg: 4.2, uptime: 99.8, down_min: Math.round(Math.max(1, day) * 24 * 60 * 0.002), demo: true };
+      remote: 5, ack_min_avg: 4.2, uptime: 99.8, down_min: isCur ? 12 : 9, down_kinds: { network: isCur ? 12 : 9 }, demo: true };   // 감시 끊김 기록 예시(통신 12분)와 같게
   }
   // 기록 문구를 고객 말로(서버 guard._plain과 같은 규칙): 내부 지수(FRI)·'…/분' 상승 속도 조각을 뺀다
   function gdPlain(x) { const t = String(x || "").replace(/\s*\(FRI [\d.]+\)/g, ""); return t.split(" — ").filter(p => !p.includes("/분")).join(" — ").trim() || t.trim(); }
@@ -262,6 +262,17 @@
   const GD_SEV = { crit: "위험", warn: "주의" };
   const GD_CAUSE = { real: "실제 이상 — 조치했습니다", false: "센서 오작동(오경보)으로 확인했습니다", work: "현장 작업·시험 중에 난 경보로 확인했습니다", other: "그 밖의 원인" };
   function gdNames() { const n = {}, pn = {}; panelList().forEach(p => p.ccms.forEach(c => { pn[c.device_id] = p.panel_name; c.latest.forEach(s => { n[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; }); })); return { n, pn }; }
+  // 감시 끊김 기록(서버 outages.py와 같은 모양) — 시연 예시 두 건
+  function gdOutages(period) {
+    const t = now(), [y, m] = (period || "").split("-").map(Number), a0 = new Date(y, m - 1, 1).getTime() / 1000, a1 = new Date(y, m, 1).getTime() / 1000;
+    const W = { network: ["통신 끊김", true, "감시 장치는 켜져 있어 판넬이 현장에서 스스로 지켰고, 그동안의 기록은 다시 연결된 뒤 받았습니다."],
+      sensor: ["센서 데이터 없음", null, "이 센서만 값이 오지 않았습니다. 케이블이 빠졌거나 센서 고장일 수 있습니다."] };
+    const mk = (k, pid, pname, sensor, s0, mins) => ({ id: Math.round(s0), panel: pid, panel_name: pname, device_id: "", sensor, kind: k, word: W[k][0], protected: W[k][1],
+      say: W[k][2], covered: k === "network" ? 1 : null, start: s0, end: s0 + mins * 60, minutes: mins });
+    const day0 = Math.floor((t + 9 * 3600) / 86400) * 86400 - 9 * 3600;
+    return { period, items: [mk("sensor", "panel-02", "B동 수배전반", "함내 습도", day0 - 86400 + 14 * 3600 + 120, 38),
+      mk("network", SIM.panel, "A동 배터리실 1번", "", day0 - 2 * 86400 + 3 * 3600 + 900, 12)].filter(o => o.start >= a0 && o.start < a1) };
+  }
   function gdIncidents(period) {
     seedPastAlarms();
     const { n, pn } = gdNames(), [y, m] = (period || "").split("-").map(Number);
@@ -1914,6 +1925,7 @@
       if (p === "/api/admin/aircon_profiles") return Promise.resolve(J({ profiles: AC_PROF, items: AC_ITEMS.map(([key, name, unit, required]) => ({ key, name, unit, required })) }));
       if (p === "/api/admin/thermal") return Promise.resolve(J({ panels: gdThermalCandidates() }));
       if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
+      if (p === "/api/guard/outages") return Promise.resolve(J(gdOutages(qs.get("period") || "")));
       if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));
       if (p === "/api/guard/incident") { const d = gdIncidentReport(parseInt(qs.get("id") || "0", 10)); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 경보입니다" }, 404)); }
       if (p === "/api/guard/panel") { const d = guardPanelDemo(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }

@@ -135,7 +135,7 @@ ROUTES = [
     ("GET", "/api/handover", "read"), ("POST", "/api/handover/seen", "read"),
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
-    ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
+    ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/outages", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
     ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"), ("GET", "/api/admin/aircon_profiles", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
@@ -383,6 +383,11 @@ class Handler(BaseHTTPRequestHandler):
             if not valid_period(period):
                 return self._json({"error": "달은 YYYY-MM 형식입니다"}, 400)
             return self._json(guard.incidents(self.storage, panels, period))
+        if path == "/api/guard/outages":         # 감시 끊김 기록(언제·왜·그동안 보호됐나) — 고객은 자기 판넬만
+            period = (q.get("period") or [""])[0]
+            if not valid_period(period):
+                return self._json({"error": "달은 YYYY-MM 형식입니다"}, 400)
+            return self._json(guard.outages_view(self.storage, panels, period))
         if path == "/api/guard/thermal":         # 온도가 오르는 이유와 할 일 — 고객은 자기 판넬만
             from .thermal import panel_thermal
             pid = (q.get("panel") or [""])[0]
@@ -648,7 +653,8 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm",
-                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal"):   # 고객 화면 데이터
+                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal",
+                    "/api/guard/outages"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
             from .handover import summary

@@ -383,6 +383,17 @@
     font:600 var(--t-cap) var(--sans);cursor:pointer}
   .gd-tk-btn:disabled{opacity:.5;cursor:default}
   .gd-tk-done{margin:10px 0 0;font:600 var(--t-cap) var(--sans);color:var(--ok)}
+  .gd-rep .gd-note{font-size:var(--t-cap)}   /* 보고서 안 설명 줄은 작게(본문 p 크기를 따르지 않게) */
+  .gd-og{display:flex;flex-direction:column;margin-top:14px;border-top:1px solid var(--line-2)}
+  .gd-og-i{padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .gd-og-i .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .gd-og-i .h b{font:600 var(--t-body) var(--sans)}
+  .gd-og-i .h span{font:600 var(--t-cap) var(--sans);padding:2px 9px;border-radius:var(--pill);border:1px solid var(--line)}
+  .gd-og-i .h span.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+  .gd-og-i .h span.bad{color:var(--crit-ink);border-color:color-mix(in srgb,var(--crit) 45%,var(--line))}
+  .gd-og-i .w{margin-top:4px;font-size:var(--t-cap);color:var(--ink-2)}
+  .gd-og-i .t{margin-top:2px;font-size:var(--t-cap);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .gd-og-i p{margin:6px 0 0;font-size:var(--t-cap);line-height:1.55;color:var(--ink-2)}
   .gd-inc-sum{margin:16px 0 0;font:400 var(--t-h)/1.55 var(--sans);letter-spacing:-.01em;color:var(--ink)}
   .gd-g b.c{color:var(--crit-ink);font-weight:500} .gd-g b.w{color:var(--warn);font-weight:500}
   .gd-inc-list .gd-doc span:first-child{display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -536,7 +547,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=cc677f8b"></script>
+<script src="demo-api.js?v=01c47f94"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -544,6 +555,13 @@ const G = { d: null, user: null, period: null, month: null, timer: null, cid: ""
 const C = 2 * Math.PI * 88;
 const KST = { timeZone: "Asia/Seoul" };
 const pct = v => (v >= 99.95 && v < 100 ? "99.9" : String(v)) + "%";   // 99.96을 100%로 올려 '끊김 없음'처럼 보이지 않게
+function downSay(m){
+  if (!m.down_min) return "이번 달 감시가 끊긴 적이 없습니다";
+  const dk = m.down_kinds || {}, off = (dk.power || 0) + (dk.stop || 0), only = Object.keys(dk).every(k => k === "network");
+  if (off) return `연결이 끊긴 시간 ${downTxt(m.down_min)} — 그중 ${downTxt(off)}은 감시 장치가 꺼져 감시·보호가 없었습니다('감시 끊김 기록' 참고)`;
+  if (Object.keys(dk).length && only) return `연결이 끊긴 시간 ${downTxt(m.down_min)} — 감시 장치는 켜져 있어 판넬이 현장에서 스스로 지켰습니다`;
+  return `연결이 끊긴 시간 ${downTxt(m.down_min)} — 언제·왜 끊겼는지는 '감시 끊김 기록'에`;
+}
 const downTxt = m => m < 60 ? `${m}분` : `${Math.floor(m / 60)}시간${m % 60 ? " " + (m % 60) + "분" : ""}`;
 const fmtT = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {...KST, month:"long", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false}) : "";
 const ago = t => { if (!t) return ""; const s = Math.max(0, Date.now() / 1000 - t); return s < 60 ? "방금" : s < 3600 ? `${Math.floor(s / 60)}분 전` : s < 86400 ? `${Math.floor(s / 3600)}시간 전` : `${Math.floor(s / 86400)}일 전`; };
@@ -834,14 +852,15 @@ function paintMonth(){
       `<div><span>판넬이 스스로 한 조치<small>환기 ${m.actions.vent} · 히터·팬 ${m.actions.dew}</small></span><b>${m.actions.total}회</b></div>` +
       `<div><span>원격으로 해결<small>현장 출동 없이 다시 잇기</small></span><b>${m.remote}건</b></div>` +
       `<div><span>위험 경보 평균 대응</span><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b></div>` +
-      (m.uptime == null ? "" : `<div><span>감시 가동률<small>${m.down_min ? `연결이 끊긴 시간 ${downTxt(m.down_min)} — 그동안에도 판넬은 현장에서 스스로 지켰습니다` : "이번 달 감시가 끊긴 적이 없습니다"}</small></span><b>${pct(m.uptime)}</b></div>`) +
+      (m.uptime == null ? "" : `<div><span>감시 가동률<small>${downSay(m)}</small></span><b>${pct(m.uptime)}</b></div>`) +
       `</div>`;
   if (!setHTML(el, head + body + `<div class="gd-docs"><button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>열기 ›</span></button>` +
     `<button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서 · 고객 서명</span><span>열기 ›</span></button>` +
-    `<button class="gd-doc" id="gd-docs-x"><span>사건 보고서 · 경보마다 한 장</span><span>열기 ›</span></button></div>`)) return;
+    `<button class="gd-doc" id="gd-docs-x"><span>사건 보고서 · 경보마다 한 장</span><span>열기 ›</span></button>` +
+    `<button class="gd-doc" id="gd-docs-o"><span>감시 끊김 기록 · 언제·왜·그동안 보호됐나</span><span>열기 ›</span></button></div>`)) return;
   $("#gd-mprev").onclick = () => moveMonth(-1);
   $("#gd-mnext").onclick = () => moveMonth(1);
-  $("#gd-docs-m").onclick = openMonthly; $("#gd-docs-i").onclick = openInspections; $("#gd-docs-x").onclick = () => openIncidents(G.month.period);
+  $("#gd-docs-m").onclick = openMonthly; $("#gd-docs-i").onclick = openInspections; $("#gd-docs-x").onclick = () => openIncidents(G.month.period); $("#gd-docs-o").onclick = () => openOutages(G.month.period);
 }
 async function moveMonth(dir){
   const [y, mo] = G.month.period.split("-").map(Number), dt = new Date(y, mo - 1 + dir, 1);
@@ -1084,6 +1103,23 @@ async function openIncidents(period){
     $("#gd-sheet-body").querySelectorAll("[data-inc]").forEach(b => b.onclick = () => openIncident(+b.dataset.inc, period));
   } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4><div class="sub">잠시 뒤 다시 열어 주세요</div>`); }
 }
+// ── 감시 끊김 기록 — 감시 장치(CCM)·센서가 끊긴 때마다: 언제부터 언제까지, 왜, 그동안 판넬이 스스로 지켰는지 ──
+async function openOutages(period){
+  sheet(`<h4 id="gd-sheet-t">감시 끊김 기록</h4><div class="sub">불러오는 중</div>`);
+  try { const r = await fetch(`/api/guard/outages?period=${period}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
+    const {items} = await r.json();
+    const range = o => `${fmtT(o.start)} ~ ${o.end ? fmtT(o.end) : "지금"} · ${o.minutes < 60 ? o.minutes + "분" : downTxt(o.minutes)}`;
+    const PROT = {true: ["판넬이 스스로 지킴", "ok"], false: ["감시·보호 없음", "bad"]};
+    sheet(`<div class="gd-rep"><h4 id="gd-sheet-t">감시 끊김 기록 · ${per(period)}</h4>` +
+      `<div class="sub">${esc(G.d.site)} — 감시 장치나 센서의 값이 끊긴 때를 모두 남깁니다. 원인은 기록으로 가립니다(통신만 끊겼는지, 전원이 꺼졌는지).</div>` +
+      (items.length ? `<div class="gd-og">${items.map(o => { const pr = PROT[o.protected];
+        return `<div class="gd-og-i"><div class="h"><b>${esc(o.word)}</b>${pr ? `<span class="${pr[1]}">${pr[0]}</span>` : ""}</div>` +
+          `<div class="w">${esc(o.panel_name)}${o.sensor ? " · " + esc(o.sensor) : ""}</div><div class="t">${range(o)}</div><p>${esc(o.say)}</p></div>`; }).join("")}</div>`
+        : `<div class="gd-empty">${per(period)}에는 감시가 끊긴 적이 없습니다.</div>`) +
+      `<p class="gd-note">감시 장치가 켜진 채 통신만 끊기면 판넬은 현장에서 스스로 지키고 값을 모아 두었다가 다시 연결되면 보냅니다. 전원이 꺼지면 그동안은 감시도 자동 보호도 없습니다.</p>` +
+      printBtn() + `</div>`);
+  } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4><div class="sub">잠시 뒤 다시 열어 주세요</div>`); }
+}
 const unitTxt = u => ({C:"℃", "°C":"℃", "%RH":"%", RH:"%"}[String(u || "").toUpperCase()] || (u ? " " + u : ""));
 const valTxt = v => v ? `${v.value}${unitTxt(v.unit)}` : "기록 없음";
 const minTxt = m => m == null ? "" : m < 1 ? `${Math.max(1, Math.round(m * 60))}초` : m < 120 ? `${m < 10 ? m : Math.round(m)}분` : `${(m / 60).toFixed(1)}시간`;
@@ -1143,8 +1179,9 @@ function openDocs(){
   sheet(`<h4 id="gd-sheet-t">보고서</h4><div class="sub">JCC가 발행하고 고객이 확인한 기록입니다. 그대로 보관됩니다.</div><div class="gd-docs">` +
     `<button class="gd-doc" id="gd-d-m"><span>월간 보고서</span><span>매달 초 지난달 것 ›</span></button>` +
     `<button class="gd-doc" id="gd-d-i"><span>정기 점검 보고서</span><span>고객 서명 포함 ›</span></button>` +
-    `<button class="gd-doc" id="gd-d-x"><span>사건 보고서</span><span>경보마다 한 장 ›</span></button></div>`);
-  $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections; $("#gd-d-x").onclick = () => openIncidents((G.month || G.d.month).period);
+    `<button class="gd-doc" id="gd-d-x"><span>사건 보고서</span><span>경보마다 한 장 ›</span></button>` +
+    `<button class="gd-doc" id="gd-d-o"><span>감시 끊김 기록</span><span>언제·왜 ›</span></button></div>`);
+  $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections; $("#gd-d-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-d-o").onclick = () => openOutages((G.month || G.d.month).period);
 }
 const TAB_TARGET = { panels: "#gd-sec-panels", month: "#gd-sec-month" };
 document.querySelectorAll("#gd-tab [data-go]").forEach(b => b.onclick = () => {

@@ -245,7 +245,21 @@ def month_view(storage, panels: set | None, period: str, now: float | None = Non
         remote=heal["auto_fixed"], ack_min_avg=_alarm_stats(storage, keys, start, end)["ack_min_avg"],
         # 감시 가동률: 감시 장치(CCM)가 서버에 값을 보낸 시간 / 지난 시간. 끊긴 시간 = 'CCM 침묵' 경보 구간의 합(장치별)
         uptime=round(frac * 100, 1), down_min=int(round(down / 60)))
+    if down > 0:                       # 끊긴 시간을 원인별로 — '그동안 판넬이 스스로 지켰다'는 말은 통신만 끊겼을 때만 맞다
+        from .outages import unprotected_minutes
+        out["down_kinds"] = unprotected_minutes(storage, set(devs), start, until, now)
     return out
+
+
+def outages_view(storage, panels: set | None, period: str, now: float | None = None) -> dict:
+    """그 달 감시 끊김 기록(고객 범위만)."""
+    from .monthly import month_bounds
+    from .outages import list_range
+    now = time.time() if now is None else now
+    start, end = month_bounds(period)
+    keys = None if panels is None else ({d["device_id"] for d in storage.list_devices()
+                                         if (d.get("panel") or d["device_id"]) in panels} | set(panels))
+    return {"period": period, "items": list_range(storage, keys, start, min(end, now + 1), now)}
 
 
 def alarm_view(storage, alarm_id: int):

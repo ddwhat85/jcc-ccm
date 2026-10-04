@@ -84,6 +84,10 @@ CREATE TABLE IF NOT EXISTS events (
 CREATE INDEX IF NOT EXISTS idx_events_dev_ts ON events (device_id, ts);
 -- 사용자가 지정한 판넬 이름. 장비가 보고하는 이름보다 항상 우선한다
 -- (현장에서 CCM이 재보고해도 사장님이 붙인 이름이 덮이지 않게).
+-- CCM이 새로 켜진 시각(전원이 꺼졌다 켜졌거나 재시작). 감시 끊김의 원인을 가를 때 쓴다(outages.py)
+CREATE TABLE IF NOT EXISTS ccm_boots (
+    device_id TEXT NOT NULL, boot_ts REAL NOT NULL, seen_at REAL, PRIMARY KEY (device_id, boot_ts)
+);
 CREATE TABLE IF NOT EXISTS panel_names (
     panel      TEXT PRIMARY KEY,
     name       TEXT,
@@ -168,6 +172,7 @@ _MIGRATIONS = [
     "ALTER TABLE discovered ADD COLUMN alarm_min REAL",
     "ALTER TABLE discovered ADD COLUMN alarm_max REAL",
     "ALTER TABLE alarms ADD COLUMN ack_note TEXT",          # 경보 확인 때 남긴 조치 메모
+    "ALTER TABLE devices ADD COLUMN boot_ts REAL",          # CCM이 켜진 시각(펌웨어가 보냄) — 바뀌면 전원이 꺼졌다 켜진 것
     "ALTER TABLE alarms ADD COLUMN cause TEXT",             # 확인한 원인: real|false|work|other
 ]
 
@@ -263,6 +268,7 @@ class Storage:
         panel_name = str(payload.get("panel_name") or "")
         readings = payload.get("readings") or []
         now = time.time()
+        booted = None
 
         with self._lock:
             cur = self._conn.cursor()
@@ -274,6 +280,14 @@ class Storage:
                      panel_name=excluded.panel_name, last_seen=excluded.last_seen""",
                 (device_id, site, panel, panel_name, now, now),
             )
+            bt = _as_float_or_none(payload.get("boot_ts"))
+            if bt is not None and 1e9 < bt < now + 120:
+                prev = cur.execute("SELECT boot_ts FROM devices WHERE device_id=?", (device_id,)).fetchone()
+                pb = prev["boot_ts"] if prev else None
+                if pb is None or bt > pb + 120:      # 처음 보거나 더 늦은 부팅 — 큐에 남은 예전 묶음(같은 부팅)은 무시
+                    cur.execute("UPDATE devices SET boot_ts=? WHERE device_id=?", (bt, device_id))
+                    cur.execute("INSERT OR IGNORE INTO ccm_boots (device_id, boot_ts, seen_at) VALUES (?, ?, ?)", (device_id, bt, now))
+                    booted = bt if pb is not None else None
             disabled = {
                 r["sensor_key"] for r in self._conn.execute(
                     "SELECT sensor_key FROM discovered WHERE device_id=? AND enabled=0",
@@ -356,7 +370,11 @@ class Storage:
                     elif state == "warn":
                         self._open_alarm(cur, device_id, key, "alarm_warn", detail, now)
             self._conn.commit()
-            return len(rows)
+        if booted is not None:                         # 락 밖에서 기록(재진입 회피)
+            from datetime import datetime, timedelta, timezone
+            t = datetime.fromtimestamp(booted, timezone(timedelta(hours=9))).strftime("%m/%d %H:%M")
+            self.log_event(device_id, "", "ccm_boot", f"CCM {device_id} 다시 켜짐({t}) — 전원이 꺼졌다 켜졌거나 재시작", source="edge")
+        return len(rows)
 
     # ── 자동 탐색 결과 ──────────────────────────────────────
     def set_discovery(self, result: dict) -> int:
