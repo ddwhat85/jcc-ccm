@@ -56,7 +56,25 @@
   .gd-lg-brand{--ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--line:#2a2e33;--ok:#7fd1a8;
     position:relative;overflow:hidden;background:#0e1114;color:var(--ink);border-right:1px solid #23282e;
     padding:44px clamp(32px,5vw,72px);display:flex;flex-direction:column;justify-content:space-between;gap:48px;color-scheme:dark}
-  .gd-lg-deco{position:absolute;right:-18%;bottom:-26%;width:min(640px,78%);aspect-ratio:1;pointer-events:none}
+  .gd-lg-radar{position:absolute;right:-42%;top:50%;width:min(780px,118%);aspect-ratio:1;transform:translateY(-54%);pointer-events:none}
+  .gd-lg-radar svg{position:absolute;inset:0;width:100%;height:100%}
+  .gd-lg-sw{position:absolute;inset:2%;border-radius:50%;animation:gd-sweep 6s linear infinite;
+    background:conic-gradient(from 0deg,transparent 0 72%,color-mix(in srgb,var(--ok) 24%,transparent) 100%)}
+  .gd-lg-sw::after{content:"";position:absolute;left:calc(50% - 1px);top:0;width:2px;height:50%;
+    background:linear-gradient(to top,transparent,color-mix(in srgb,var(--ok) 75%,transparent))}
+  .gd-lg-ping{position:absolute;inset:2%;border-radius:50%;border:1px solid color-mix(in srgb,var(--ok) 40%,transparent);
+    opacity:0;animation:gd-lg-ping 6s cubic-bezier(.2,.7,.2,1) infinite}
+  .gd-lg-ping.p2{animation-delay:3s}
+  .gd-lg-bl{--c:var(--ok);position:absolute;left:var(--x);top:var(--y);width:8px;height:8px;margin:-4px 0 0 -4px;border-radius:50%;
+    background:var(--c);opacity:.3;animation:gd-lg-blip 6s linear infinite;animation-delay:var(--d)}
+  .gd-lg-bl.w{--c:#e9b45a}
+  .gd-lg-bl::after{content:"";position:absolute;inset:-1px;border-radius:50%;border:1.5px solid var(--c);opacity:0;
+    animation:gd-lg-ring 6s cubic-bezier(.2,.7,.2,1) infinite;animation-delay:var(--d)}
+  .gd-lg-core{position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;background:var(--ok)}
+  @keyframes gd-lg-ping{0%{transform:scale(.06);opacity:.7}100%{transform:scale(1);opacity:0}}
+  @keyframes gd-lg-blip{0%{opacity:1;transform:scale(1.6)}10%{opacity:.9;transform:scale(1)}100%{opacity:.3;transform:scale(1)}}
+  @keyframes gd-lg-ring{0%{opacity:.85;transform:scale(1)}22%{opacity:0;transform:scale(4.5)}100%{opacity:0;transform:scale(4.5)}}
+  @media (prefers-reduced-motion:reduce){.gd-lg-sw,.gd-lg-ping,.gd-lg-bl,.gd-lg-bl::after{animation:none}}
   .gd-lg-logo{position:relative;display:flex;align-items:center;gap:12px;font:700 var(--t-body) var(--sans);letter-spacing:.16em}
   .gd-lg-logo svg{width:30px;height:30px;flex:none}
   .gd-lg-mid{position:relative;max-width:460px}
@@ -117,7 +135,7 @@
   @media (max-width:900px){
     .gd-login{grid-template-columns:1fr;grid-template-rows:auto 1fr}
     .gd-lg-brand{border-right:0;padding:28px 22px 30px;gap:22px}
-    .gd-lg-deco{right:-30%;bottom:-60%;width:360px}
+    .gd-lg-radar{right:-34%;top:-18%;width:360px;transform:none;opacity:.6}   /* 폰 머리는 좁아 글자 위로 지나가니 더 옅게 */
     .gd-lg-mid h1{font-size:var(--t-fig)}
     .gd-lg-lede{font-size:14px;margin-top:10px}
     .gd-lg-pts,.gd-lg-copy{display:none}
@@ -646,12 +664,21 @@
 
 <section class="gd-login" id="gd-login" hidden>
   <aside class="gd-lg-brand">
-    <svg class="gd-lg-deco" viewBox="0 0 400 400" fill="none" aria-hidden="true">
-      <circle cx="200" cy="200" r="190" stroke="#e9e6df" stroke-opacity=".05"/>
-      <circle cx="200" cy="200" r="150" stroke="#e9e6df" stroke-opacity=".06" stroke-width="14"/>
-      <path d="M200 50a150 150 0 1 1-142.7 103.6" stroke="#7fd1a8" stroke-opacity=".32" stroke-width="14" stroke-linecap="round"/>
-      <circle cx="200" cy="200" r="104" stroke="#e9e6df" stroke-opacity=".05"/>
-    </svg>
+    <!-- 움직이는 레이더 — 24시간 지켜보는 중. 빛줄기가 돌며 판넬 점을 지날 때 반짝인다(하나는 '지켜보는 중' 노랑) -->
+    <div class="gd-lg-radar" aria-hidden="true">
+      <svg viewBox="0 0 400 400" fill="none">
+        <circle cx="200" cy="200" r="196" stroke="#e9e6df" stroke-opacity=".12"/>
+        <circle cx="200" cy="200" r="188" stroke="#e9e6df" stroke-opacity=".14" stroke-width="6" stroke-dasharray="1 15.4"/>
+        <circle cx="200" cy="200" r="148" stroke="#e9e6df" stroke-opacity=".07"/>
+        <circle cx="200" cy="200" r="100" stroke="#e9e6df" stroke-opacity=".07"/>
+        <circle cx="200" cy="200" r="52" stroke="#e9e6df" stroke-opacity=".07"/>
+        <path d="M200 6v388M6 200h388" stroke="#e9e6df" stroke-opacity=".05"/>
+      </svg>
+      <span class="gd-lg-sw"></span>
+      <span class="gd-lg-ping"></span><span class="gd-lg-ping p2"></span>
+      <i class="gd-lg-bl" style="--x:65.8%;--y:27.5%;--d:0.58s"></i><i class="gd-lg-bl" style="--x:89.4%;--y:43.1%;--d:1.33s"></i><i class="gd-lg-bl w" style="--x:60.5%;--y:68.2%;--d:2.50s"></i><i class="gd-lg-bl" style="--x:32.5%;--y:80.3%;--d:3.50s"></i><i class="gd-lg-bl" style="--x:25.1%;--y:47.8%;--d:4.58s"></i><i class="gd-lg-bl" style="--x:23.6%;--y:18.6%;--d:5.33s"></i>
+      <span class="gd-lg-core"></span>
+    </div>
     <div class="gd-lg-logo"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="#2a2e33" stroke-width="3"/>
       <path d="M16 3a13 13 0 1 1-12.4 9" stroke="#7fd1a8" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="#7fd1a8"/></svg>JCC GUARD</div>
     <div class="gd-lg-mid">
