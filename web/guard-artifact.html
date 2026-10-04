@@ -347,6 +347,24 @@
   .gd-inc h2{margin:12px 0 4px;font:600 var(--t-h)/1.38 var(--sans);letter-spacing:-.01em}
   .gd-inc .d{font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
   .gd-steps{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  /* 해결 진행 게이지 — 끝난 칸은 초록, 지금 칸은 줄무늬가 흐른다(일하는 중), 남은 칸은 회색 */
+  .gd-prog{margin-top:16px}
+  .gd-prog-h{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+  .gd-prog-h b{font:700 var(--t-big)/1 var(--sans);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .gd-prog-h b small{font-size:var(--t-body);margin-left:1px;color:var(--ink-2)}
+  .gd-prog-h span{font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
+  .gd-prog-bar{display:flex;gap:4px;height:10px}
+  .gd-prog-bar i{flex:1;border-radius:var(--pill);background:var(--track);overflow:hidden;position:relative}
+  .gd-prog-bar i.done{background:var(--ok)}
+  .gd-prog-bar i.now{background:color-mix(in srgb,var(--ok) 30%,var(--track))}
+  .gd-prog-bar i.now::after{content:"";position:absolute;inset:0 -40px 0 0;
+    background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--ok) 70%,transparent) 0 8px,transparent 8px 16px);
+    animation:gd-prog-flow 1.1s linear infinite}
+  @keyframes gd-prog-flow{to{transform:translateX(-22.6px)}}
+  .gd-prog-st{display:flex;gap:4px;margin:6px 0 0;padding:0;list-style:none}
+  .gd-prog-st li{flex:1;font-size:var(--t-cap);color:var(--ink-3);text-align:center}
+  .gd-prog-st li.done{color:var(--ink-2)} .gd-prog-st li.now{color:var(--ink);font-weight:700}
+  @media (prefers-reduced-motion:reduce){.gd-prog-bar i.now::after{animation:none}}
   .gd-step{display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border-radius:var(--r-s);background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:var(--t-body);line-height:1.45}
   .gd-step i{flex:none;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ok);position:relative;margin-top:1px}
   .gd-step i.ok::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid var(--ok);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
@@ -3800,6 +3818,18 @@ function paint(){
   if (!G.month || G.month.period === m.period){ G.month = m; paintMonth(); }
 }
 
+// 해결 진행 게이지 — 파일 복사창처럼. 단계로 센 %(남은 시간은 예측할 수 없어 쓰지 않는다)
+// 감지 → (판넬이 스스로 조치 — 그런 장치가 있을 때만) → JCC 확인 → 정상 복귀. 경보가 걷히면 카드가 사라진다(=100%)
+function progHTML(inc){
+  const selfDone = (inc.steps || []).some(x => /^판넬이 스스로/.test(x.text || ""));
+  const st = [["감지", true]].concat(selfDone ? [["판넬 자동 조치", true]] : []).concat([["JCC 확인", !!inc.acked_at], ["정상 복귀", false]]);
+  const done = st.filter(x => x[1]).length, pctv = Math.round(100 * done / st.length), next = st.find(x => !x[1]);
+  const nowIdx = st.findIndex(x => !x[1]);
+  return `<div class="gd-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctv}" aria-label="해결 진행 ${pctv}%">` +
+    `<div class="gd-prog-h"><b>${pctv}<small>%</small></b><span>해결 진행 중 · 다음: ${esc(next ? next[0] : "정상 복귀")}</span></div>` +
+    `<div class="gd-prog-bar">${st.map((x, i) => `<i class="${x[1] ? "done" : i === nowIdx ? "now" : ""}"></i>`).join("")}</div>` +
+    `<ol class="gd-prog-st">${st.map((x, i) => `<li class="${x[1] ? "done" : i === nowIdx ? "now" : ""}">${x[0]}</li>`).join("")}</ol></div>`;
+}
 function paintIncident(inc){
   const box = $("#gd-inc");
   if (!inc){ box.hidden = true; setHTML(box, ""); return; }
@@ -3807,6 +3837,7 @@ function paintIncident(inc){
   box.hidden = false;
   if (!setHTML(box, `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
     `<h2>${esc(inc.panel_name)}에서<br>${esc(inc.sensor_name)} 이상을 감지했습니다</h2><div class="d">${esc(clean(inc.detail))}</div>` +
+    progHTML(inc) +
     `<div class="gd-steps">${inc.steps.map(s => `<div class="gd-step"><i class="${s.done ? "ok" : "go"}" aria-hidden="true"></i><span>${esc(clean(s.text))}<small>${s.ts ? fmtT(s.ts) : "진행 중"}</small></span></div>`).join("")}</div>` +
     `<div class="gd-acts${G.d.contact.phone ? "" : " one"}">${G.d.contact.phone ? `<a class="p" href="tel:${esc(G.d.contact.phone.replace(/[^0-9+]/g, ""))}">JCC에 전화</a>` : ""}` +
     (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`)) return;
