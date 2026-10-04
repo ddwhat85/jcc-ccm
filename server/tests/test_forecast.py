@@ -107,6 +107,16 @@ def run():
     check("판넬 예측: 함내 온도·내일", pf and pf["sensor_name"] == "함내 온도" and len([f for f in pf["forecast"] if f["ts"] >= tm0]) == 24,
           str(pf and pf.get("days")))
     check("없는 판넬은 None", F.panel_forecast(st, "zz", now) is None)
+    with st._lock:   # 제품 기본: 주의 38·위험 45 / 운영자는 '위험'만 50으로 → 주의선은 그대로 38
+        st._conn.execute("INSERT OR REPLACE INTO discovered (device_id, sensor_key, name, unit, kind, alarm_warn, alarm_max) "
+                         "VALUES ('ccm-1', 'cabinet_temp', '함내 온도', 'C', 'temp', 38, 45)")
+        st._conn.execute("INSERT OR REPLACE INTO settings (device_id, sensor_key, alarm_max, updated_at) VALUES ('ccm-1', 'cabinet_temp', 50, ?)", (now,))
+        st._conn.commit()
+    check("운영자가 '위험'만 바꿔도 주의선은 제품 기본 '주의'", F.panel_forecast_source(st, "p1")[3] == 38, str(F.panel_forecast_source(st, "p1")))
+    with st._lock:
+        st._conn.execute("UPDATE settings SET alarm_warn=36 WHERE device_id='ccm-1'")
+        st._conn.commit()
+    check("운영자가 '주의'를 바꾸면 그것", F.panel_forecast_source(st, "p1")[3] == 36)
     with st._lock:
         st._conn.execute("INSERT INTO hourly (device_id, sensor_key, hour, avg) VALUES ('ccm-1', 'cabinet_temp', ?, 1)", (now - 2000 * 86400,))
         st._conn.commit()

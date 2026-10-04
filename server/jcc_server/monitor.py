@@ -38,6 +38,7 @@ def start(storage, interval: float = 10) -> None:
         time.sleep(interval)
         last_prune = 0.0
         last_monthly = 0.0
+        last_hourly = 0.0
         hourly_back = 24 * 15       # 처음 한 번은 남아 있는 원본(14일) 전부를 시간별 평균으로 — 그다음부턴 48시간씩
         notified: set = set()
         sent: set = set()          # 실제로 알림을 보낸 경보 id(사건 단위 중복 억제용)
@@ -83,6 +84,10 @@ def start(storage, interval: float = 10) -> None:
                     dispatch(dict(a, panel_name=storage.panel_label(a.get("device_id") or "")), "상향",
                              storage.receivers_for_device(a.get("device_id") or ""))
                 now = time.time()
+                if now - last_hourly > 600 and hourly_back == 48:   # 10분마다 최근 3시간 — 예측 그래프의 '오늘 실제'가 늦지 않게
+                    last_hourly = now
+                    from . import forecast as _fc
+                    _fc.rollup(storage, now, 3)
                 if now - last_monthly > 3600:                # 1시간마다: 달이 바뀌었으면 고객사 월간 리포트 발행(한 번만)
                     last_monthly = now
                     from .monthly import generate_due

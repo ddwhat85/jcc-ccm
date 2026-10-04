@@ -3397,7 +3397,9 @@ async function openPanel(pid){
 // 그 판넬의 지난 8주 같은 요일·시각 + 최근 3일 흐름으로 낸 예측. 예측은 늘 '범위'와 '지난 오차'를 같이 보인다(실제 기록으로 잰 것)
 async function loadForecast(pid){
   const box = $("#gd-fc"); if (!box) return;
-  try { const r = await fetch(`/api/guard/forecast?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
+  try { const r = await fetch(`/api/guard/forecast?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"});
+    if (r.status === 404){ box.remove(); return; }          // 온도 센서가 없는 판넬 — 예측할 게 없다
+    if (!r.ok) throw new Error();
     const f = await r.json(); if ($("#gd-fc") === box) box.innerHTML = fcHTML(f, box.clientWidth);
   } catch(_){ if ($("#gd-fc") === box) box.innerHTML = `<h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">예측을 불러오지 못했습니다</div>`; }
 }
@@ -3421,7 +3423,9 @@ function eqHTML(v){
 // 원인은 기록의 모양(평일·주말, 시간대, 주별 추세)으로 가른 '가능성'이고, 할 일은 제안이다(바꾸는 건 사람)
 async function loadThermal(pid){
   const box = $("#gd-tk"); if (!box) return;
-  try { const r = await fetch(`/api/guard/thermal?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
+  try { const r = await fetch(`/api/guard/thermal?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"});
+    if (r.status === 404){ box.remove(); return; }
+    if (!r.ok) throw new Error();
     const t = await r.json(); if ($("#gd-tk") !== box) return;
     box.innerHTML = tkHTML(t);
     const b = $("#gd-tk-req");

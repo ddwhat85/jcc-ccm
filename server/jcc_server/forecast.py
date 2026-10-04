@@ -177,10 +177,11 @@ def panel_forecast_source(storage, panel: str):
     with storage._lock:
         thr = storage._conn.execute("SELECT alarm_warn, alarm_max FROM discovered WHERE device_id=? AND sensor_key=?", (dev, key)).fetchone()
         st = storage._conn.execute("SELECT alarm_warn, alarm_max FROM settings WHERE device_id=? AND sensor_key=?", (dev, key)).fetchone()
-    warn = None
-    for row in (st, thr):
-        if row is not None and warn is None:
-            warn = row["alarm_warn"] if row["alarm_warn"] is not None else row["alarm_max"]
+    # 주의 기준: 운영자 설정 → 제품 기본 순으로 '주의'를 찾고, 어디에도 없을 때만 '위험' 기준을 쓴다
+    rows = [r for r in (st, thr) if r is not None]
+    warn = next((r["alarm_warn"] for r in rows if r["alarm_warn"] is not None), None)
+    if warn is None:
+        warn = next((r["alarm_max"] for r in rows if r["alarm_max"] is not None), None)
     return dev, key, name, warn
 
 
