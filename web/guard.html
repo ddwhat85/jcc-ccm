@@ -210,8 +210,6 @@
   .gd-contact .gd-who small:first-child{margin:0;font-weight:600;color:var(--ink-2)}
   .gd-contact a{height:48px;padding:0 20px;font-size:var(--t-body)} .gd-contact a svg{width:17px;height:17px}
   .gd-card .v b{font-size:var(--t-big)}
-  .gd-card .h span{padding:4px 10px;border-radius:var(--pill);font-weight:600;color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
-  .gd-card.warn .h span{background:color-mix(in srgb,var(--warn) 14%,transparent)} .gd-card.crit .h span{background:color-mix(in srgb,var(--crit) 14%,transparent)}
   .gd-card.offline .h span{color:var(--ink-3);background:var(--card-2)}
   .gd-card:hover{transform:translateY(-3px);box-shadow:0 14px 28px -18px rgba(27,26,23,.45)}
   .gd-c-docs .gd-docs.gd-docs-c{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
@@ -254,15 +252,12 @@
   .gd-sn svg{grid-row:span 2;width:20px;height:20px;color:var(--ink-3)}
   .gd-sn b{font:600 var(--t-cap)/1.25 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gd-sn small{font-size:var(--t-cap);line-height:1.25;color:var(--ink-3)}
-  .gd-sn.warn{background:color-mix(in srgb,var(--warn) 13%,transparent)} .gd-sn.warn svg,.gd-sn.warn b{color:var(--warn)}
-  .gd-sn.crit{background:color-mix(in srgb,var(--crit) 13%,transparent)} .gd-sn.crit svg,.gd-sn.crit b{color:var(--crit-ink)}
   .gd-snl{margin-top:18px}
   .gd-snl h5{margin:0 0 4px;font:700 var(--t-body) var(--sans)}
   .gd-snl>div{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:var(--t-body)}
   .gd-snl>div:last-child{border-bottom:0}
   .gd-snl svg{width:20px;height:20px;color:var(--ink-3)}
   .gd-snl b{font-weight:600;font-variant-numeric:tabular-nums}
-  .gd-snl .warn b,.gd-snl .warn svg{color:var(--warn)} .gd-snl .crit b,.gd-snl .crit svg{color:var(--crit-ink)}
   /* 신호등 — 정상 초록 · 주의 노랑 · 위험 빨강(모양도 다르게: ✓ △ ⬣) */
   .gd-st{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;font-style:normal;color:var(--ok)}
   .gd-st svg{width:100%;height:100%}
@@ -270,11 +265,7 @@
   .gd-todo .gd-st{width:20px;height:20px;background:none}
   .gd-card .h .gd-stc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 7px}
   .gd-stc svg{width:15px;height:15px}
-  .gd-card .h .gd-stc.offline{color:var(--ink-3);background:var(--card-2)}
-  .gd-card.warn{background:color-mix(in srgb,var(--warn) 7%,var(--card))} .gd-card.crit{background:color-mix(in srgb,var(--crit) 7%,var(--card))}
   .gd-card.offline{border-color:var(--line)}
-  .gd-sn svg{color:var(--ok)}
-  .gd-snl svg{color:var(--ok)}
   .gd-snl b{display:inline-flex;align-items:center;gap:6px}
   .gd-snl .gd-st{width:16px;height:16px}
   @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
@@ -340,6 +331,19 @@
   .gd-card .h b{font:600 var(--t-body) var(--sans);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .gd-card .h span{margin-left:auto;flex:none;font-size:var(--t-cap);color:var(--ink-3)}
   .gd-card.warn .h span{color:var(--warn);font-weight:600} .gd-card.crit .h span{color:var(--crit-ink);font-weight:600}
+  /* 판넬 카드 색 — 평소엔 무채색, 문제 있는 곳만 또렷하게(옅게 물들인 카드·살구색 상자 없이).
+     주의·위험은 테두리 한 줄 + 꽉 찬 상태 칩, 센서는 그 센서의 아이콘과 값만 그 색 */
+  .gd-card{--fill-crit:#c0362f;--on-crit:#ffffff;--fill-warn:#e9b45a;--on-warn:#1b1a17}
+  @media (prefers-color-scheme:dark){:root:not([data-theme=light]) .gd-card{--fill-crit:#ff6b60;--on-crit:#0b0d10;--on-warn:#0b0d10}}
+  :root[data-theme=dark] .gd-card{--fill-crit:#ff6b60;--on-crit:#0b0d10;--on-warn:#0b0d10}
+  .gd-card.warn{border:1.5px solid var(--warn)} .gd-card.crit{border:1.5px solid var(--crit)}
+  .gd-card .h .gd-stc{padding:0;border-radius:var(--pill);background:none;color:var(--ink-3);font-weight:600}
+  .gd-card .h .gd-stc.ok svg{color:var(--ok)}
+  .gd-card .h .gd-stc.warn{padding:4px 10px 4px 7px;background:var(--fill-warn);color:var(--on-warn)}
+  .gd-card .h .gd-stc.crit{padding:4px 10px 4px 7px;background:var(--fill-crit);color:var(--on-crit)}
+  .gd-sn.warn svg,.gd-sn.warn b,.gd-snl .warn svg,.gd-snl .warn b{color:var(--warn)}
+  .gd-sn.crit svg,.gd-sn.crit b,.gd-snl .crit svg,.gd-snl .crit b{color:var(--crit-ink)}
+  .gd-sn.warn b,.gd-sn.crit b{font-weight:700}
   .gd-dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none}
   .gd-dot.warn{background:var(--warn)} .gd-dot.crit{background:var(--crit)} .gd-dot.offline{background:var(--ink-3)}
   .gd-card .v{display:flex;gap:22px;margin-top:14px}
