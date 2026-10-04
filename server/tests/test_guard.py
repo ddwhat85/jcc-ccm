@@ -103,6 +103,9 @@ def run():
     check("단계: 판넬이 스스로 → JCC 확인", any("스스로" in t for t in texts) and any("김현장" in t for t in texts), str(texts))
     check("위험이면 지수 빨강", vi["index"]["color"] == "crit" and vi["index"]["score"] <= 80)
     check("다른 고객 범위엔 위험 안 보임", guard.guard_view(st, {"p2"}, "x")["incident"] is None)
+    td = vi["todo"]
+    check("할 일: 위험 판넬이 맨 위에 짧게", td and td[0]["panel"] == "p1" and td[0]["level"] == "act" and td[0]["title"] == "위험", str(td[:1]))
+    check("할 일: 남의 판넬은 없음", all(x["panel"] != "p2" for x in td))
 
     m = guard.month_view(st, {"p1"}, time.strftime("%Y-%m", time.localtime(now)))
     check("이번 달: 키 모양", {"hours", "patrols", "precursors", "actions", "remote", "ack_min_avg", "building"} <= set(m), str(m))

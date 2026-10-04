@@ -250,13 +250,32 @@
     return { id: a.id, panel: pid, panel_name: (rows.find(r => r.panel === pid) || {}).panel_name || pid, sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
       detail: gdPlain(a.detail || a.kind), raised_at: a.raised_at, acked_at: a.acked_at, steps };
   }
+  // '제가 할 일이 있나요?'(서버 guard.todo와 같은 규칙) — 판넬 상태 + 원인 분석 '조치 필요'·필터 청소(1분 재사용)
+  const TODO = { at: 0, extra: [] };
+  function gdTodo(rows) {
+    const out = rows.filter(p => ["crit", "warn", "offline"].includes(p.status)).map(p => ({ panel: p.panel, panel_name: p.panel_name,
+      level: p.status === "crit" ? "act" : "watch", title: { crit: "위험", warn: "지켜보는 중", offline: "감시 장치 연결 끊김" }[p.status],
+      why: (p.why || [])[0] || (p.status === "offline" ? "감시 장치와 연결이 끊겼습니다 — 판넬은 현장에서 스스로 지킵니다" : ""), tab: "now" }));
+    const t = now();
+    if (t - TODO.at > 60) {
+      TODO.at = t; TODO.extra = [];
+      rows.forEach(p => { const th = gdThermal(p.panel);
+        if (th && !th.building && th.level === "act") { const a = (th.actions || [{}])[0];
+          TODO.extra.push({ panel: p.panel, panel_name: p.panel_name, level: "act", title: "온도가 자주 기준을 넘음", why: (a.title || "") + (a.why ? " — " + a.why : ""), tab: "tk" }); }
+        const v = eqView(EQS[p.panel]);
+        ((v || {}).units || []).forEach(u => { if (u.service_due) TODO.extra.push({ panel: p.panel, panel_name: p.panel_name, level: "info",
+          title: `${u.word} 필터 청소 시기 지남`, why: "JCC가 청소 일정을 잡아 연락드립니다.", tab: "eq" }); }); });
+    }
+    const seen = new Set(out.map(x => x.panel + "|" + x.tab)), rank = { act: 0, watch: 1, info: 2 };
+    return out.concat(TODO.extra.filter(x => !seen.has(x.panel + "|" + x.tab))).sort((a, b) => rank[a.level] - rank[b.level]);
+  }
   function guardDemo() {
     GD.on = true;
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
       incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
-      next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
+      next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), todo: gdTodo(rows), demo: true };
   }
   // 사건 보고서(서버 guard.py incidents·incident_report와 같은 모양) — 시연 경보 기록에서
   const GD_SEV = { crit: "위험", warn: "주의" };
@@ -1742,7 +1761,7 @@
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "",
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "010-0000-0000",
     signup_code: "DEMO-7K3P" }], owner: {}, receivers: {}, users: [], requests: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";

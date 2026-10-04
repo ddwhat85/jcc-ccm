@@ -123,25 +123,48 @@
   .gd-pick{font:500 var(--t-cap) var(--sans);color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:var(--r-s);padding:7px 8px;max-width:180px}
 
   /* 본문 2단(PC) / 1단(휴대폰) */
-  .gd-main{display:grid;grid-template-columns:minmax(0,1fr);gap:22px;margin-top:8px}
-  @media (min-width:960px){.gd-main{grid-template-columns:360px minmax(0,1fr);gap:34px;align-items:start}}
+  .gd-main{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:12px}
+  .gd-c{display:flex;flex-direction:column;gap:10px;padding:22px 22px 18px;border-radius:var(--r-l);background:var(--card);
+    border:1px solid var(--line-2);box-shadow:var(--shadow);min-width:0}
+  .gd-q{margin:0;font:600 var(--t-body)/1.4 var(--sans);color:var(--ink-2)}
+  .gd-a{margin:0;font:300 var(--t-big)/1.25 var(--sans);letter-spacing:-.03em;color:var(--ink)}
+  .gd-a.act{color:var(--crit-ink)} .gd-a.watch{color:var(--warn)}
+  .gd-c-fill{flex:1;display:flex;flex-direction:column;gap:10px}
+  .gd-more{align-self:flex-start;margin-top:auto;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 16px;
+    border-radius:var(--pill);border:1px solid var(--line);background:transparent;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink)}
+  .gd-more::after{content:"";width:6px;height:6px;border-right:1.5px solid currentColor;border-top:1.5px solid currentColor;transform:rotate(45deg)}
+  .gd-more:hover{border-color:var(--ink-3)}
+  .gd-c-state{flex-direction:row;align-items:center;gap:24px}
+  .gd-c-state .gd-c-body{flex:1;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .gd-c-state .gd-more{margin-top:6px}
+  .gd-c-docs .gd-docs{margin-top:0}
+  .gd-c-panels{display:flex;flex-direction:column;gap:12px;margin-top:6px}
+  .gd-c-panels .gd-q{padding:0 4px}
+  /* 휴대폰: 상태 → (위험) → 할 일 → 연락 → 판넬 → 이번 달 → 보고서 */
+  .gd-c-state{order:1} .gd-c-inc{order:2} .gd-c-todo{order:3} .gd-c-call{order:4} .gd-c-panels{order:5} .gd-c-month{order:6} .gd-c-docs{order:7} .gd-inst{order:8}
+  @media (min-width:960px){
+    .gd-main{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+    .gd-c-state{grid-column:span 2} .gd-c-inc,.gd-c-panels{grid-column:1/-1}
+    /* PC: 상태(넓게)·할 일 / 위험 / 판넬 / 연락·이번 달·보고서 */
+    .gd-c-todo{order:2} .gd-c-inc{order:3} .gd-c-panels{order:4} .gd-c-call{order:5} .gd-c-month{order:6} .gd-c-docs{order:7}
+  }
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
   /* 계기판 */
-  .gd-ring{position:relative;width:min(230px,62vw);aspect-ratio:1;margin:14px auto 4px;cursor:pointer;border:0;background:none;padding:0;display:block}
+  .gd-ring{position:relative;width:min(168px,34vw);aspect-ratio:1;margin:0;cursor:pointer;border:0;background:none;padding:0;display:block;flex:none}
   .gd-ring svg{position:absolute;inset:0;width:100%;height:100%}
   .gd-ring .trk{stroke:var(--track)}
   .gd-ring .val{stroke:var(--ok);transition:stroke-dashoffset 1.1s cubic-bezier(.2,.7,.2,1),stroke .6s ease}
   .gd-ring.warn .val{stroke:var(--warn)} .gd-ring.crit .val{stroke:var(--crit)} .gd-ring.off .val{stroke:var(--ink-3)}
   .gd-ring .mid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-  .gd-ring b{font:300 var(--t-ring)/1 var(--sans);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
+  .gd-ring b{font:300 clamp(36px,9vw,54px)/1 var(--sans);letter-spacing:-.05em;font-variant-numeric:tabular-nums}
   .gd-ring .mid{color:var(--ink)}
   .gd-ring .mid>span{margin-top:8px;font:500 var(--t-cap) var(--sans);letter-spacing:.14em;color:var(--ink-3)}
   .gd-ring .mid>small{margin-top:4px;font-size:var(--t-cap);color:var(--ink-3)}
   .gd-state{text-align:center;margin-top:6px}
   .gd-state h2{margin:0;font:600 var(--t-h)/1.4 var(--sans);letter-spacing:-.01em}
   .gd-state p{margin:4px 0 0;font-size:var(--t-cap);color:var(--ink-3);line-height:1.5}
-  .gd-contact{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
+  .gd-contact{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:12px}
   .gd-contact>span{min-width:0;flex:1}
   .gd-contact:empty{display:none}
   .gd-contact b{display:block;font:600 var(--t-body)/1.4 var(--sans);color:var(--ink)}
@@ -195,7 +218,7 @@
   .gd-card .why{margin-top:10px;font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
 
   /* 이번 달 */
-  .gd-month{padding:22px 24px;border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);box-shadow:var(--shadow)}
+  .gd-month{padding:0}
   .gd-month .nav{display:flex;align-items:center;gap:6px}
   .gd-month .nav .gd-ico{width:40px;height:40px}
   .gd-month .nav .gd-ico:disabled{opacity:.35;cursor:default}
@@ -209,6 +232,16 @@
   .gd-docs{margin-top:14px;display:flex;flex-direction:column;gap:8px}
   .gd-doc{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:var(--r-s);background:var(--card-2);border:1px solid var(--line-2);font-size:var(--t-body);cursor:pointer;width:100%;text-align:left}
   .gd-doc span:last-child{color:var(--ink-3);font-size:var(--t-cap)}
+  .gd-todo{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+  .gd-todo li{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line-2);font-size:var(--t-body)}
+  .gd-todo li:first-child{border-top:0;padding-top:0}
+  .gd-todo i{width:8px;height:8px;border-radius:50%;flex:none;background:var(--ink-3)}
+  .gd-todo i.act{background:var(--crit)} .gd-todo i.watch{background:var(--warn)}
+  .gd-todo b{font-weight:600} .gd-todo span{color:var(--ink-2)}
+  .gd-tdl{display:flex;flex-direction:column}
+  .gd-tdl > div{padding:14px 0;border-bottom:1px solid var(--line-2)}
+  .gd-tdl b{display:block;font:600 var(--t-body) var(--sans)}
+  .gd-tdl p{margin:4px 0 8px;font-size:var(--t-cap);line-height:1.55;color:var(--ink-2)}
   .gd-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:22px;border-top:1px solid var(--line-2)}
   .gd-kpi div{padding:16px 0 2px}
   .gd-kpi div + div{padding-left:16px;border-left:1px solid var(--line-2)}
@@ -219,6 +252,10 @@
   .gd-mlink{min-height:40px;padding:0 16px;border-radius:var(--pill);border:1px solid var(--line);background:transparent;cursor:pointer;
     font:600 var(--t-cap) var(--sans);color:var(--ink)}
   .gd-mlink:hover{border-color:var(--ink-3)}
+  .gd-hours{font-style:normal;color:var(--ok)}
+  .gd-c-docs .gd-docs{gap:0}
+  .gd-c-docs .gd-doc{background:none;border:0;border-bottom:1px solid var(--line-2);border-radius:0;padding:13px 2px;min-height:46px}
+  .gd-c-docs .gd-doc:last-child{border-bottom:0}
   .gd-month .gd-docs{margin-top:20px;gap:0;border-top:1px solid var(--line-2)}
   .gd-month .gd-doc{background:none;border:0;border-bottom:1px solid var(--line-2);border-radius:0;padding:15px 2px;min-height:48px}
   .gd-month .gd-doc:hover span:first-child{text-decoration:underline;text-underline-offset:3px}
@@ -415,7 +452,7 @@
   .gd-inc-list .gd-doc b{font-weight:600}
   .gd-inc-list .gd-doc b.crit{color:var(--crit-ink)} .gd-inc-list .gd-doc b.warn{color:var(--warn)}
   .gd-inc-list .gd-doc small{font-size:var(--t-cap);color:var(--ink-3)}
-  @media print{.gd-head,.gd-left,.gd-sec,.gd-scrim,.gd-x,.gd-tab,.gd-story,.gd-toast,.gd-grab,.gd-noprint{display:none!important}
+  @media print{.gd-head,.gd-main,.gd-sec,.gd-scrim,.gd-x,.gd-tab,.gd-story,.gd-toast,.gd-grab,.gd-noprint{display:none!important}
     .gd-sheet{position:static;transform:none!important;opacity:1!important;max-height:none;border:0;width:auto}}
 </style>
 
@@ -527,23 +564,37 @@
     <div class="gd-cap" id="gd-cap"><div class="on intro"><p>이야기를 고르면 실제 화면이 그날 밤처럼 움직이고, 판넬과 JCC가 한 일을 시간 순서로 보여 드립니다.</p></div></div>
   </section>
 
-  <main class="gd-main">
-    <div class="gd-left">
-      <div id="gd-inc" hidden></div>
+  <!-- 첫 화면 = 질문 카드. 가끔(문제가 생겼을 때) 여는 화면이라 메뉴를 기억할 필요 없이 질문에 답한다.
+       카드에는 질문·한 줄 답·[자세히]만 — 설명과 숫자는 자세히를 눌러야 보인다 -->
+  <main class="gd-main gd-cards">
+    <section class="gd-c gd-c-state" aria-labelledby="gd-q-state">
       <button class="gd-ring" id="gd-ring" aria-label="안심 지수 — 눌러서 이유 보기">
-        <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="trk" cx="100" cy="100" r="88" fill="none" stroke-width="8"/>
-          <circle class="val" id="gd-arc" cx="100" cy="100" r="88" fill="none" stroke-width="8" stroke-linecap="round"
+        <svg viewBox="0 0 200 200" aria-hidden="true"><circle class="trk" cx="100" cy="100" r="88" fill="none" stroke-width="9"/>
+          <circle class="val" id="gd-arc" cx="100" cy="100" r="88" fill="none" stroke-width="9" stroke-linecap="round"
             stroke-dasharray="552.92" stroke-dashoffset="552.92" transform="rotate(-90 100 100)"/></svg>
-        <span class="mid"><b id="gd-score">—</b><span>안심 지수</span><small id="gd-why-hint">눌러서 이유 보기</small></span>
+        <span class="mid"><b id="gd-score">—</b><span>안심 지수</span><small id="gd-why-hint" hidden></small></span>
       </button>
-      <div class="gd-state"><h2 id="gd-title">불러오는 중</h2><p id="gd-sub"></p><p class="gd-fresh" id="gd-fresh" aria-live="polite"></p></div>
-      <div class="gd-contact" id="gd-contact"></div>
-      <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
-    </div>
-    <div class="gd-right">
-      <section class="gd-sec" id="gd-sec-panels"><div class="gd-sec-h"><h3>판넬</h3><span class="gd-mut">문제 있는 것부터</span></div><div class="gd-grid" id="gd-panels"></div></section>
-      <section class="gd-sec" id="gd-sec-month"><div class="gd-sec-h"><h3>지켜낸 것</h3><span class="gd-mut">JCC가 한 일과 결과</span></div><div class="gd-month" id="gd-month"></div></section>
-    </div>
+      <div class="gd-c-body">
+        <h2 class="gd-q" id="gd-q-state">지금 우리 공장은?</h2>
+        <p class="gd-a" id="gd-title">불러오는 중</p>
+        <p id="gd-sub" hidden></p>
+        <p class="gd-fresh" id="gd-fresh" aria-live="polite"></p>
+        <button class="gd-more" id="gd-state-more">자세히</button>
+      </div>
+    </section>
+    <div class="gd-c-inc" id="gd-inc" hidden></div>
+    <section class="gd-c gd-c-todo" aria-labelledby="gd-q-todo"><h2 class="gd-q" id="gd-q-todo">제가 할 일이 있나요?</h2><div class="gd-c-fill" id="gd-todo"></div></section>
+    <section class="gd-c gd-c-call" aria-labelledby="gd-q-call"><h2 class="gd-q" id="gd-q-call">문제가 생기면 누구에게?</h2><div class="gd-contact" id="gd-contact"></div></section>
+    <section class="gd-sec gd-c-panels" id="gd-sec-panels" aria-labelledby="gd-q-panels"><h2 class="gd-q" id="gd-q-panels">판넬은 각각 괜찮나요?</h2><div class="gd-grid" id="gd-panels"></div></section>
+    <section class="gd-c gd-c-month" id="gd-sec-month" aria-labelledby="gd-q-month"><h2 class="gd-q" id="gd-q-month">이번 달 JCC가 한 일</h2><div class="gd-c-fill" id="gd-month"></div></section>
+    <section class="gd-c gd-c-docs" id="gd-sec-docs" aria-labelledby="gd-q-docs"><h2 class="gd-q" id="gd-q-docs">보고서·기록이 필요할 때</h2>
+      <div class="gd-docs gd-docs-c">
+        <button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>›</span></button>
+        <button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서</span><span>›</span></button>
+        <button class="gd-doc" id="gd-docs-x"><span>사건 보고서</span><span>›</span></button>
+        <button class="gd-doc" id="gd-docs-o"><span>감시 끊김 기록</span><span>›</span></button>
+      </div></section>
+    <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
   </main>
   <nav class="gd-tab" id="gd-tab" aria-label="바로 가기">
     <button data-go="top" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/></svg>현황</button>
@@ -1284,13 +1335,32 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     return { id: a.id, panel: pid, panel_name: (rows.find(r => r.panel === pid) || {}).panel_name || pid, sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
       detail: gdPlain(a.detail || a.kind), raised_at: a.raised_at, acked_at: a.acked_at, steps };
   }
+  // '제가 할 일이 있나요?'(서버 guard.todo와 같은 규칙) — 판넬 상태 + 원인 분석 '조치 필요'·필터 청소(1분 재사용)
+  const TODO = { at: 0, extra: [] };
+  function gdTodo(rows) {
+    const out = rows.filter(p => ["crit", "warn", "offline"].includes(p.status)).map(p => ({ panel: p.panel, panel_name: p.panel_name,
+      level: p.status === "crit" ? "act" : "watch", title: { crit: "위험", warn: "지켜보는 중", offline: "감시 장치 연결 끊김" }[p.status],
+      why: (p.why || [])[0] || (p.status === "offline" ? "감시 장치와 연결이 끊겼습니다 — 판넬은 현장에서 스스로 지킵니다" : ""), tab: "now" }));
+    const t = now();
+    if (t - TODO.at > 60) {
+      TODO.at = t; TODO.extra = [];
+      rows.forEach(p => { const th = gdThermal(p.panel);
+        if (th && !th.building && th.level === "act") { const a = (th.actions || [{}])[0];
+          TODO.extra.push({ panel: p.panel, panel_name: p.panel_name, level: "act", title: "온도가 자주 기준을 넘음", why: (a.title || "") + (a.why ? " — " + a.why : ""), tab: "tk" }); }
+        const v = eqView(EQS[p.panel]);
+        ((v || {}).units || []).forEach(u => { if (u.service_due) TODO.extra.push({ panel: p.panel, panel_name: p.panel_name, level: "info",
+          title: `${u.word} 필터 청소 시기 지남`, why: "JCC가 청소 일정을 잡아 연락드립니다.", tab: "eq" }); }); });
+    }
+    const seen = new Set(out.map(x => x.panel + "|" + x.tab)), rank = { act: 0, watch: 1, info: 2 };
+    return out.concat(TODO.extra.filter(x => !seen.has(x.panel + "|" + x.tab))).sort((a, b) => rank[a.level] - rank[b.level]);
+  }
   function guardDemo() {
     GD.on = true;
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
       incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
-      next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), demo: true };
+      next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), todo: gdTodo(rows), demo: true };
   }
   // 사건 보고서(서버 guard.py incidents·incident_report와 같은 모양) — 시연 경보 기록에서
   const GD_SEV = { crit: "위험", warn: "주의" };
@@ -2776,7 +2846,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   }
 
   // ── 계정 관리 (데모: 메모리에만 — 새로고침하면 사라짐. 실서버는 accounts.py) ──
-  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "",
+  const ACC = { customers: [{ id: 1, name: "데모 고객사", created_at: 0, monthly_notify: false, ai_enabled: true, engineer: "김현장", engineer_phone: "010-0000-0000",
     signup_code: "DEMO-7K3P" }], owner: {}, receivers: {}, users: [], requests: [], seq: 2 };
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
@@ -3378,12 +3448,16 @@ function paint(){
   $("#gd-score").textContent = ix.score;
   $("#gd-why-hint").textContent = ix.items.length ? `−${100 - ix.score} · 이유 보기` : "눌러서 근거 보기";
   $("#gd-title").textContent = d.state.title; $("#gd-sub").textContent = d.state.sub;
+  $("#gd-title").className = "gd-a " + (ix.color === "crit" ? "act" : ix.color === "warn" ? "watch" : "");
+  paintTodo(d.todo || []);
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
   const m = d.month;
   const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
-  setHTML($("#gd-contact"), `<span><b>${who}</b><small>${due}</small></span>` +
+  void due;   // 정기 점검 기한은 '할 일' 카드에(지났을 때만)
+  setHTML($("#gd-contact"), `<span><b>${who}</b><small>이상하면 JCC가 먼저 연락드립니다</small></span>` +
+    (!c.phone ? `<small class="gd-mut">연락처가 아직 등록되지 않았습니다 — JCC 담당자에게 알려 주세요</small>` : "") +
     (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC에 전화 ${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>${esc(c.phone)}</a>` : ""));
   paintPanels(d.panels);
   if (!G.month || G.month.period === m.period){ G.month = m; paintMonth(); }
@@ -3415,7 +3489,7 @@ function paintPanels(ps){
     return `<span class="h"><i class="gd-dot ${p.status}" aria-hidden="true"></i><b>${esc(p.panel_name)}</b><span>${esc(p.word)}</span></span>` +
       `<span class="v"><div><b>${p.temp == null ? "—" : p.temp + "℃"}</b><span>온도</span></div><div><b>${p.humidity == null ? "—" : p.humidity + "%"}</b><span>습도</span></div>` +
       (third ? `<div><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</span>` +
-      (p.why.length && p.status !== "ok" ? `<span class="why">${esc(p.why.slice(0, 2).join(" · "))}</span>` : "");
+      "";
   };
   const cls = p => "gd-card" + (p.status === "warn" || p.status === "crit" ? " " + p.status : "");
   const ids = ps.map(p => p.panel).join("\n");
@@ -3431,40 +3505,29 @@ function paintPanels(ps){
 
 // ── 이번 달 지켜낸 것 ─────────────────────────────────────
 function paintMonth(){
-  const m = G.month, now = G.d.month.period, isNow = m.period === now;
-  const el = $("#gd-month");
-  const head = `<div class="nav" role="group" aria-label="달 고르기">` +
-    `<button class="gd-ico" id="gd-mprev" aria-label="이전 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>` +
-    `<b class="gd-mo" aria-live="polite">${m.period.slice(0, 4)}년 ${per(m.period)}</b>` +
-    `<button class="gd-ico" id="gd-mnext" aria-label="다음 달" ${isNow ? "disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></div>`;
-  const links = `<div class="gd-mlinks"><button class="gd-mlink" id="gd-m-more"${m.building ? " hidden" : ""}>이번 달 자세히</button>` +
-    `<button class="gd-mlink" id="gd-m-docs">보고서 · 사건 · 끊김 기록</button></div>`;
+  const m = G.month, el = $("#gd-month");
   const body = m.building
-    ? `<div class="gd-big">기록이 쌓이는 중입니다.</div><p class="lede">설치 후 며칠이 지나면 이곳에 JCC가 지켜낸 것이 쌓입니다. 지금도 24시간 감시하고 있습니다.</p>`
-    : `<div class="gd-big">${isNow ? "이번 달" : per(m.period) + "에"}, JCC가<br><em>${m.hours.toLocaleString("ko-KR")}시간</em> 지켰습니다.</div>` +
-      `<div class="gd-kpi"><div><b>${m.precursors.total}<small>건</small></b><span>미리 잡은 징조</span></div>` +
-      `<div><b>${m.actions.total}<small>회</small></b><span>판넬이 스스로 한 조치</span></div>` +
-      (m.uptime == null ? `<div><b>${m.remote}<small>건</small></b><span>원격으로 해결</span></div>`
-        : `<div><b>${pct(m.uptime).replace("%", "")}<small>%</small></b><span>감시 가동률</span></div>`) + `</div>`;
-  if (!setHTML(el, head + body + links)) return;
-  $("#gd-mprev").onclick = () => moveMonth(-1);
-  $("#gd-mnext").onclick = () => moveMonth(1);
-  $("#gd-m-more").onclick = openMonthDetail;
-  $("#gd-m-docs").onclick = openDocs;
+    ? `<p class="gd-a">기록이 쌓이는 중</p><p class="gd-mut" style="margin:0">설치 후 며칠이 지나면 이곳에 쌓입니다.</p>`
+    : `<p class="gd-a"><em class="gd-hours">${m.hours.toLocaleString("ko-KR")}시간</em> 지켰습니다</p><button class="gd-more" id="gd-m-more">자세히</button>`;
+  if (!setHTML(el, body)) return;
+  if (!m.building) $("#gd-m-more").onclick = openMonthDetail;
 }
 // 이번 달 자세히 — 예전 카드에 펼쳐져 있던 장부를 시트로
 function openMonthDetail(){
   const m = G.month;
-  sheet(`<h4 id="gd-sheet-t">${m.period.slice(0, 4)}년 ${per(m.period)} · 지켜낸 것</h4>` +
-    `<div class="sub">사람이 순찰했다면 약 ${m.patrols.count.toLocaleString("ko-KR")}번이 필요했던 시간입니다(하루 ${m.patrols.per_day}회 기준 추정).</div>` +
+  sheet(`<h4 id="gd-sheet-t">${m.period.slice(0, 4)}년 ${per(m.period)} · JCC가 한 일</h4>` +
+    `<div class="sub">${m.hours.toLocaleString("ko-KR")}시간 지켰습니다 — 사람이 순찰했다면 약 ${m.patrols.count.toLocaleString("ko-KR")}번이 필요했던 시간입니다(하루 ${m.patrols.per_day}회 기준 추정).</div>` +
+    `<div class="gd-kpi"><div><b>${m.precursors.total}<small>건</small></b><span>미리 잡은 징조</span></div>` +
+    `<div><b>${m.actions.total}<small>회</small></b><span>판넬이 스스로 한 조치</span></div>` +
+    (m.uptime == null ? `<div><b>${m.remote}<small>건</small></b><span>원격으로 해결</span></div>`
+      : `<div><b>${pct(m.uptime).replace("%", "")}<small>%</small></b><span>감시 가동률</span></div>`) + `</div>` +
     `<div class="gd-led">` +
     `<div><span>미리 잡은 위험 징조<small>화재 ${m.precursors.fire} · 단자 과열 ${m.precursors.contact} · 결로 ${m.precursors.dew}</small></span><b>${m.precursors.total}건</b></div>` +
     `<div><span>판넬이 스스로 한 조치<small>환기 ${m.actions.vent} · 히터·팬 ${m.actions.dew}</small></span><b>${m.actions.total}회</b></div>` +
     `<div><span>원격으로 해결<small>현장 출동 없이 다시 잇기</small></span><b>${m.remote}건</b></div>` +
     `<div><span>위험 경보 평균 대응</span><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b></div>` +
     (m.uptime == null ? "" : `<div><span>감시 가동률<small>${downSay(m)}</small></span><b>${pct(m.uptime)}</b></div>`) + `</div>` +
-    `<div class="gd-docs"><button class="gd-doc" id="gd-md-docs"><span>보고서 · 사건 · 끊김 기록</span><span>열기 ›</span></button></div>`);
-  $("#gd-md-docs").onclick = openDocs;
+    "");
 }
 async function moveMonth(dir){
   const [y, mo] = G.month.period.split("-").map(Number), dt = new Date(y, mo - 1 + dir, 1);
@@ -3482,7 +3545,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") unsheet(); }
 
 $("#gd-ring").onclick = () => {
   const ix = G.d && G.d.index; if (!ix) return;
-  sheet(`<h4 id="gd-sheet-t">왜 ${ix.score}점인가요?</h4><div class="sub">100점에 가까울수록 안전합니다. 지금 문제가 있는 만큼만 100점에서 뺍니다.</div><div class="gd-ded">` +
+  sheet(`<h4 id="gd-sheet-t">${esc(G.d.state.title)}</h4><div class="sub">${esc(G.d.state.sub)} · 안심 지수 ${ix.score}점 — 100점에 가까울수록 안전합니다. 지금 문제가 있는 만큼만 100점에서 뺍니다.</div><div class="gd-ded">` +
     ix.items.map(i => `<div><span>${esc(i.text)}</span><b>−${i.minus}</b></div>`).join("") +
     ix.checks.map(c => `<div><span>${esc(c.label)}</span><b class="z">${esc(c.value)}</b></div>`).join("") + `</div>` +
     `<div class="gd-note">위험 경보 −20(판넬당 최대 −40) · 주의 경보 −5(판넬당 최대 −15) · 감시 장치 끊김 −10 · 화재 징조 지켜보는 중 −5 · 결로·단자 발열 주의 −3 · 부품 남은 여유 60일 이내 −3 · 정기 점검 기한 지남 −5</div>`);
@@ -3515,6 +3578,25 @@ async function openPanel(pid){
     $("#gd-sheet-body").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => panelTab(b.dataset.tab));
     loadForecast(pid); loadThermal(pid);
   } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4><div class="sub">잠시 뒤 다시 열어 주세요</div>`); }
+}
+
+// '제가 할 일이 있나요?' — 카드엔 몇 건·첫 항목 한 줄만, 자세히에 이유와 '판넬 보기'
+function paintTodo(list){
+  const el = $("#gd-todo"); if (!el) return;
+  if (!list.length){ setHTML(el, `<p class="gd-a">없습니다</p><p class="gd-mut" style="margin:0">JCC와 판넬이 지키고 있습니다.</p>`); return; }
+  const top = list.slice(0, 2);
+  if (!setHTML(el, `<p class="gd-a ${list[0].level === "act" ? "act" : list[0].level === "watch" ? "watch" : ""}">${list.length}건</p>` +
+    `<ul class="gd-todo">${top.map(x => `<li><i class="${x.level}"></i><span><b>${esc(x.panel_name || "공장 전체")}</b> ${esc(x.title)}</span></li>`).join("")}</ul>` +
+    `<button class="gd-more" id="gd-todo-more">자세히</button>`)) return;
+  $("#gd-todo-more").onclick = () => openTodo(list);
+}
+function openTodo(list){
+  sheet(`<h4 id="gd-sheet-t">할 일 ${list.length}건</h4><div class="sub">급한 것부터입니다. 판넬을 누르면 그 판넬의 자세한 화면이 열립니다.</div>` +
+    `<div class="gd-tdl">${list.map((x, i) => `<div><b>${esc(x.panel_name || "공장 전체")} — ${esc(x.title)}</b>${x.why ? `<p>${esc(clean(x.why))}</p>` : ""}` +
+      (x.panel ? `<button class="gd-more" data-todo="${i}">판넬 보기</button>` : "") + `</div>`).join("")}</div>`);
+  $("#gd-sheet-body").querySelectorAll("[data-todo]").forEach(b => b.onclick = async () => {
+    const x = list[+b.dataset.todo]; await openPanel(x.panel); if (x.tab && x.tab !== "now" && $("#gd-tab-" + x.tab)) panelTab(x.tab);
+  });
 }
 
 // 판넬 상세 탭 — 한 번에 하나만. '내일' 그래프는 보일 때 그 칸 폭으로 그린다(숨은 칸은 폭이 0)
@@ -3800,6 +3882,9 @@ async function openAlarmLink(){
 }
 
 // ── 보고서 고르기 · 바로 가기(휴대폰 아래 메뉴) ─────────────────
+$("#gd-docs-m").onclick = () => openMonthly(); $("#gd-docs-i").onclick = () => openInspections();
+$("#gd-docs-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-docs-o").onclick = () => openOutages((G.month || G.d.month).period);
+$("#gd-state-more").onclick = () => $("#gd-ring").click();
 function openDocs(){
   sheet(`<h4 id="gd-sheet-t">보고서</h4><div class="sub">JCC가 발행하고 고객이 확인한 기록입니다. 그대로 보관됩니다.</div><div class="gd-docs">` +
     `<button class="gd-doc" id="gd-d-m"><span>월간 보고서</span><span>매달 초 지난달 것 ›</span></button>` +
@@ -3808,10 +3893,9 @@ function openDocs(){
     `<button class="gd-doc" id="gd-d-o"><span>감시 끊김 기록</span><span>언제·왜 ›</span></button></div>`);
   $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections; $("#gd-d-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-d-o").onclick = () => openOutages((G.month || G.d.month).period);
 }
-const TAB_TARGET = { panels: "#gd-sec-panels", month: "#gd-sec-month" };
+const TAB_TARGET = { panels: "#gd-sec-panels", month: "#gd-sec-month", docs: "#gd-sec-docs" };
 document.querySelectorAll("#gd-tab [data-go]").forEach(b => b.onclick = () => {
   const go = b.dataset.go;
-  if (go === "docs") return openDocs();
   if (go === "top") window.scrollTo({top: 0, behavior: "smooth"});
   else $(TAB_TARGET[go]).scrollIntoView({behavior: "smooth", block: "start"});
 });

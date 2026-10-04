@@ -208,7 +208,53 @@ def guard_view(storage, panels: set | None, site: str, now: float | None = None,
                     "desk": "JCC 관제실", "assigned": bool((cu.get("engineer") or "").strip())},
         "next_inspection": min(dues) if dues else None,
         "month": month_view(storage, panels, datetime.fromtimestamp(now, KST).strftime("%Y-%m"), now),
+        "todo": todo(storage, model, panels, dues, now),
     }
+
+
+_TODO_CACHE: dict = {}
+
+
+def todo(storage, model: list, panels: set | None, dues: list, now: float) -> list:
+    """'제가 할 일이 있나요?' — 고객이 오랜만에 열어도 바로 알게, 지금 볼 것만 짧게(제목 한 줄 + 자세히에 나올 이유).
+    판넬 상태(주의·위험·끊김)·원인 분석 '조치 필요'·공조 필터 청소 시기·정기 점검 기한. 원인 분석은 무거워 1분 동안 재사용."""
+    out = []
+    for p in model:
+        if p["status"] in ("crit", "warn", "offline"):
+            out.append({"panel": p["panel"], "panel_name": p["panel_name"], "level": "act" if p["status"] == "crit" else "watch",
+                        "title": {"crit": "위험", "warn": "지켜보는 중", "offline": "감시 장치 연결 끊김"}[p["status"]],
+                        "why": (p.get("why") or [""])[0] or ("감시 장치와 연결이 끊겼습니다 — 판넬은 현장에서 스스로 지킵니다"
+                                                             if p["status"] == "offline" else ""), "tab": "now"})
+    key = (tuple(sorted(panels)) if panels is not None else None)
+    hit = _TODO_CACHE.get(key)
+    if hit and now - hit[0] < 60:
+        extra = hit[1]
+    else:
+        extra = []
+        from .thermal import panel_thermal
+        from .equipment import get as eq_get, view as eq_view
+        for p in model:
+            try:
+                t = panel_thermal(storage, p["panel"], now)
+            except Exception:  # noqa: BLE001 - 할 일 목록 하나 때문에 화면 전체가 멈추면 안 된다
+                t = None
+            if t and not t.get("building") and t.get("level") == "act":
+                top = (t.get("actions") or [{}])[0]
+                extra.append({"panel": p["panel"], "panel_name": p["panel_name"], "level": "act", "title": "온도가 자주 기준을 넘음",
+                              "why": (top.get("title") or "") + (" — " + top["why"] if top.get("why") else ""), "tab": "tk"})
+            v = eq_view(eq_get(storage, p["panel"]), now)
+            for u in (v or {}).get("units", []):
+                if u.get("service_due"):
+                    extra.append({"panel": p["panel"], "panel_name": p["panel_name"], "level": "info",
+                                  "title": f"{u['word']} 필터 청소 시기 지남", "why": "JCC가 청소 일정을 잡아 연락드립니다.", "tab": "eq"})
+        _TODO_CACHE[key] = (now, extra)
+    seen = {(x["panel"], x["tab"]) for x in out}
+    out += [x for x in extra if (x["panel"], x["tab"]) not in seen]
+    if dues and min(dues) < now:
+        out.append({"panel": "", "panel_name": "", "level": "info", "title": "정기 점검 기한 지남",
+                    "why": "JCC가 점검 일정을 잡아 연락드립니다.", "tab": ""})
+    rank = {"act": 0, "watch": 1, "info": 2}
+    return sorted(out, key=lambda x: rank.get(x["level"], 3))
 
 
 def month_view(storage, panels: set | None, period: str, now: float | None = None) -> dict:
