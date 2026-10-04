@@ -80,7 +80,11 @@
   .gd-lg-pts span{display:block;margin-top:3px;font-size:13px;line-height:1.55;color:var(--ink-3)}
   .gd-lg-copy{position:relative;font:500 var(--t-cap) var(--sans);color:var(--ink-3);letter-spacing:.04em}
 
-  .gd-lg-main{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 28px;gap:28px}
+  .gd-lang{font:700 var(--t-cap) var(--sans);letter-spacing:.04em;color:var(--ink-2)}
+  .gd-lang-lg{position:absolute;top:18px;right:18px;min-width:44px;height:40px;padding:0 14px;border-radius:var(--pill);border:1px solid var(--line);
+    background:var(--card);cursor:pointer}
+  .gd-lang-lg:hover{border-color:var(--ink-3)}
+  .gd-lg-main{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 24px 28px;gap:28px}
   .gd-lg-card{width:min(400px,100%);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line-2);
     border-radius:var(--r-l);padding:40px 36px 30px;box-shadow:var(--shadow)}
   .gd-lg-card h2{font:600 var(--t-fig)/1.3 var(--sans);letter-spacing:-.02em;margin:0}
@@ -718,6 +722,7 @@
     <div class="gd-lg-copy">© JCC Solution · 판넬 안전 감시 서비스</div>
   </aside>
   <div class="gd-lg-main">
+    <button class="gd-lang gd-lang-lg" data-lang-toggle data-notr>EN</button>
     <form class="gd-lg-card" id="gd-login-form" autocomplete="on" novalidate>
       <h2>로그인</h2>
       <p class="gd-lg-sub">JCC GUARD 고객 계정으로 로그인하세요.</p>
@@ -787,6 +792,7 @@
     <span class="gd-brk" aria-hidden="true"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
     <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
+    <button class="gd-ico gd-lang" id="gd-lang" data-lang-toggle data-notr>EN</button>
     <button class="gd-ico" id="gd-theme" aria-label="밤·낮 화면 바꾸기" title="밤·낮 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
     <button class="gd-ico" id="gd-out" aria-label="로그아웃" title="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
   </header>
@@ -849,6 +855,387 @@
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
 <script src="demo-api.js?v=d00c10fa"></script>
+<script>
+// ── 언어: 한국어 / English ─────────────────────────────────────────
+// 화면 코드는 한국어 그대로 쓰고, 그려진 글을 영어 사전으로 바꾼다(서버가 보낸 문구까지 같은 사전).
+// 사람이 붙인 이름(판넬·고객사·사람)은 바꾸지 않는다. 사전에 없는 문구는 한국어로 남는다 — 새 문구는 EN에 한 줄.
+const I18N = { lang: "ko", busy: false };
+const EN = {
+  // 머리·탭·공통
+  "현황": "Status", "판넬": "Panels", "지켜낸 것": "Protected", "보고서": "Reports", "바로 가기": "Shortcuts",
+  "밤·낮 화면": "Light / dark", "밤·낮 화면 바꾸기": "Switch light / dark", "로그아웃": "Log out", "운영자 화면": "Operator view",
+  "미리 볼 고객사": "Customer to preview", "전체 현장": "All sites", "닫기": "Close", "자세히": "Details", "자세히 보기": "View details",
+  "저장": "Save", "보기": "View", "보기 ›": "View ›", "불러오는 중": "Loading", "불러오지 못했습니다": "Couldn't load",
+  "서버에 닿지 못했습니다": "Couldn't reach the server", "진행 중": "In progress", "확인": "Confirm", "확인 중": "Checking",
+  "없음": "None", "기록 없음": "No record", "해당 없음": "N/A", "참고": "Note", "접기": "Collapse", "숨기기": "Hide", "방금": "just now",
+  "오늘": "Today", "어제": "Yesterday", "내일": "Tomorrow", "지금": "Now", "실제": "Actual", "예측": "Forecast", "평균": "Average",
+  "홈 화면에 앱으로 설치": "Install as an app", "홈 화면에 추가": "Add to Home Screen", "홈 화면에 JCC GUARD를 설치했습니다": "JCC GUARD installed on your home screen",
+  "인쇄 · PDF로 저장": "Print · save as PDF", "인쇄·PDF ›": "Print · PDF ›", "연결을 다시 잇는 중": "Reconnecting",
+  "판넬은 현장에서 스스로 지키고 있습니다": "Panels keep protecting themselves on site", "서버에 연결하는 중": "Connecting to server",
+  // 로그인·가입
+  "당신의 공장을": "We're watching", "지켜보고 있습니다.": "over your plant.",
+  "판넬 안 화재 징조·단자 과열·결로를 24시간 먼저 알아채고, 판넬이 스스로 대응합니다.": "Catches fire precursors, hot terminals and condensation inside your panels 24/7 — and the panel responds on its own.",
+  "불나기 전에 먼저": "Before a fire starts", "가스·온도·습도를 함께 보고 징조 단계에서 알립니다": "Reads gas, temperature and humidity together and warns at the precursor stage",
+  "사람 대신 24시간": "24/7, so people don't have to", "이상이 보이면 담당자에게 문자·알림톡으로 바로 알립니다": "Texts the right people the moment something looks wrong",
+  "점검·보험 자료까지": "Inspection & insurance records", "달마다 기록을 정리해 인쇄·PDF로 남깁니다": "Monthly records ready to print or save as PDF",
+  "© JCC Solution · 판넬 안전 감시 서비스": "© JCC Solution · Panel safety monitoring",
+  "로그인": "Log in", "JCC GUARD 고객 계정으로 로그인하세요.": "Log in with your JCC GUARD customer account.",
+  "시연판입니다. 실제 계정 없이 고객 화면을 둘러볼 수 있습니다.": "This is a demo. Look around the customer view without a real account.",
+  "시연 계정으로 둘러보기": "Explore with the demo account", "아이디": "Username", "아이디 입력": "Enter username", "비밀번호": "Password",
+  "비밀번호 입력": "Enter password", "로그인 상태 유지": "Keep me logged in", "아이디·비밀번호 찾기": "Forgot username / password",
+  "아직 계정이 없으신가요?": "No account yet?", "회원가입": "Sign up", "이미 계정이 있으신가요?": "Already have an account?",
+  "Caps Lock이 켜져 있습니다": "Caps Lock is on", "아이디를 입력해 주세요": "Enter your username", "비밀번호를 입력해 주세요": "Enter your password",
+  "로그인하지 못했습니다": "Couldn't log in", "다시 로그인해 주세요": "Please log in again", "확인하는 중…": "Checking…", "확인하는 중": "Checking",
+  "처음 로그인입니다 — 새 비밀번호를 정해 주세요": "First login — please set a new password", "새 비밀번호 입력": "Enter a new password",
+  "한 번 더 입력": "Enter it again", "비밀번호 확인": "Confirm password", "비밀번호 확인이 다릅니다": "Passwords don't match",
+  "비밀번호를 바꾸지 못했습니다": "Couldn't change the password", "로그인 화면으로": "Back to login", "운영자 로그인": "Operator login",
+  "가입하기": "Create account", "가입 신청하기": "Request access", "가입 코드": "Sign-up code", "이름": "Name", "휴대폰": "Mobile",
+  "휴대폰 번호": "Mobile number", "회사명": "Company", "회사·공장 이름": "Company / plant name", "영문·숫자 3자 이상": "3+ letters or digits",
+  "이름을 입력해 주세요": "Enter your name", "회사명을 입력해 주세요": "Enter your company", "휴대폰 번호를 확인해 주세요": "Check the mobile number",
+  "개인정보 수집·이용에 동의해 주세요": "Please agree to the collection and use of personal data", "[필수] 개인정보 수집·이용 동의": "[Required] Consent to collect and use personal data",
+  "수집 항목": "Collected", "이용 목적": "Purpose", "보관 기간": "Retention",
+  "이름, 휴대폰 번호, 회사명(가입 신청 때), 아이디": "Name, mobile number, company (for requests), username",
+  "가입 확인, 계정 관리, 설비 이상·경보에 관한 연락": "Sign-up checks, account management, contact about equipment alarms",
+  "계정을 없앨 때까지. 가입 신청이 거절되면 바로 지웁니다.": "Until the account is removed. Deleted right away if a request is declined.",
+  "동의하지 않으실 수 있지만, 그러면 가입할 수 없습니다.": "You may decline, but then you can't sign up.",
+  "가입했습니다 — 정하신 비밀번호로 로그인해 주세요": "Signed up — log in with the password you chose", "가입 신청이 접수되었습니다": "Request received",
+  "가입하지 못했습니다 — 잠시 뒤 다시 시도해 주세요": "Couldn't sign up — try again shortly", "계정이 만들어졌습니다": "Account created",
+  "보내는 중…": "Sending…", "아이디는 3~40자 영문·숫자·._@- 만 됩니다": "Usernames are 3–40 letters, digits or ._@-",
+  "JCC 담당자에게 받은 가입 코드가 있으면 바로 쓰실 수 있습니다. 코드가 없으면 가입 신청으로 접수되고, JCC가 확인한 뒤 열어 드립니다.": "If JCC gave you a sign-up code you can use it right away. Without a code your request is reviewed by JCC first.",
+  "서버에 연결하지 못했습니다 — 잠시 뒤 다시 시도해 주세요": "Couldn't connect — try again shortly",
+  // 첫 화면 카드
+  "지금 우리 공장은?": "How's our plant right now?", "모든 판넬 안전합니다": "All panels are safe", "24시간 감시 중": "Monitoring 24/7",
+  "안심 지수": "Safety index", "안심 지수 — 눌러서 이유 보기": "Safety index — tap for why", "눌러서 근거 보기": "Tap for the basis", "· 이유 보기": "· why",
+  "제가 할 일이 있나요?": "Anything I need to do?", "할 일 없음 · JCC와 판넬이 지키고 있습니다": "Nothing to do · JCC and your panels are on it",
+  "이번 달 JCC가 한 일": "What JCC did this month", "쉬지 않고 지켰습니다": "protected without a break", "기록이 쌓이는 중": "Building up records",
+  "설치 후 며칠이 지나면 이곳에 쌓입니다.": "Records appear here a few days after installation.",
+  "문제가 생기면 누구에게?": "Who do I call?", "우리 공장 담당": "Your engineer", "최근 점검": "Last inspected by", "JCC 담당자": "JCC contact",
+  "이상하면 JCC가 먼저 연락드립니다": "JCC calls you first if anything looks wrong", "위험 알림 받는 사람": "Who gets danger alerts", "아직 없음": "None yet",
+  "연락처가 아직 등록되지 않았습니다 — JCC 담당자에게 알려 주세요": "No phone number yet — please tell your JCC contact",
+  "판넬은 각각 괜찮나요?": "Is each panel OK?", "보고서·기록이 필요할 때": "Need a report or record?",
+  "월간 보고서": "Monthly report", "정기 점검 보고서": "Inspection report", "사건 보고서": "Incident report", "감시 끊김 기록": "Monitoring gaps",
+  "안전 관리 확인서": "Safety certificate", "기록 내려받기": "Download records", "아직 연결된 판넬이 없습니다.": "No panels connected yet.",
+  "설치가 끝나면 이곳에서 24시간 지켜봅니다.": "Once installed, we watch them here 24/7.", "아직 연결된 판넬이 없습니다": "No panels connected yet",
+  "설치가 끝나면 이곳에서 24시간 지켜봅니다": "Once installed, we watch them here 24/7",
+  // 상태·신호등
+  "정상": "OK", "주의": "Watch", "위험": "Danger", "지켜보는 중": "Watching", "연결 끊김": "Offline", "확인이 필요합니다": "Needs checking",
+  "온도": "Temp", "습도": "Humidity", "화재 징조": "Fire precursor", "단자 발열": "Terminal heat", "결로": "Condensation", "단자 과열": "Terminal overheat",
+  "낮음": "Low", "결로 주의": "Condensation watch", "결로 위험": "Condensation danger", "닫힘": "Closed", "열림": "Open", "감지": "Detected",
+  "값 없음": "No data", "센서 신호 끊김 — 자동 복구 중": "Sensor signal lost — auto-recovery running",
+  "센서 신호 끊김 — 자동 복구가 안 돼 JCC 직원이 확인합니다": "Sensor signal lost — auto-recovery failed, JCC staff are checking",
+  "감시 장치 연결 끊김": "Monitoring device offline", "감시 장치와 연결이 끊겼습니다 — 판넬은 현장에서 스스로 지킵니다": "Lost contact with the monitoring device — the panel keeps protecting itself on site",
+  "온도가 자주 기준을 넘음": "Temperature often above limit", "정기 점검 기한 지남": "Inspection overdue", "JCC가 점검 일정을 잡아 연락드립니다.": "JCC will schedule an inspection and call you.",
+  "JCC가 청소 일정을 잡아 연락드립니다.": "JCC will schedule the cleaning and call you.", "공장 전체": "Whole plant", "접점 발열 위험": "Contact heat danger",
+  "접점 발열 지켜보는 중": "Watching contact heat", "화재 지켜보는 중": "Watching fire risk", "CCM 연결 끊김": "CCM offline", "남은 여유 2주 이내": "Under 2 weeks of margin left",
+  // 사고 카드·게이지
+  "판넬 자동 조치": "Panel acted", "JCC 확인": "JCC confirmed", "정상 복귀": "Back to normal", "JCC에 전화": "Call JCC", "현장 확인했어요": "I've checked on site",
+  "확인을 JCC에 알렸습니다": "We told JCC you checked", "보내지 못했습니다 — 전화로 알려 주세요": "Couldn't send — please call",
+  "벤트 열림": "Vent open", "JCC 담당자가 확인하는 중입니다": "A JCC engineer is checking", "담당자에게 알림을 보냈습니다": "Alert sent to your contacts",
+  "화재 징조 감지": "Fire precursor detected",
+  // 할 일 시트
+  "급한 것부터입니다. 판넬을 누르면 그 판넬의 자세한 화면이 열립니다.": "Most urgent first. Tap a panel to open it.", "판넬 보기": "Open panel",
+  // 판넬 시트
+  "내일": "Tomorrow", "원인·할 일": "Causes & actions", "공조": "Cooling", "기록": "History", "판넬 보기 탭": "Panel tabs",
+  "판넬 안 온도": "Temp inside panel", "환기 열림": "Vent open", "조치가 필요합니다": "Action needed", "원인·할 일 보기": "See causes & actions",
+  "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다.": "Limit reached. JCC will schedule the work and call you.",
+  "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다.": "At the current trend it will need attention around then. We'll check it at the next inspection.",
+  "최근 7일 동안 특별한 일이 없었습니다.": "Nothing notable in the last 7 days.", "판넬이 스스로": "Panel itself", "감지": "Detected",
+  "판넬 안 온도 — 내일 예측": "Temp inside panel — tomorrow's forecast", "시간별 보기": "Hourly view", "내일 시간별 예측": "Tomorrow, hour by hour",
+  "작년 같은 날": "Same day last year", "주의 기준": "Watch limit", "예측을 불러오지 못했습니다": "Couldn't load the forecast",
+  "아직 내일을 예측할 기록이 모자랍니다.": "Not enough history to forecast tomorrow yet.", "내일 가장 높을 때": "Tomorrow's peak",
+  "실제와 비교할 기록이 더 쌓이면 예측 범위와 평균 오차가 함께 나옵니다.": "Once there's more history to compare against, the range and average error appear too.",
+  "예측 방법: 이 판넬의 지난 8주 같은 요일·같은 시각 온도와 최근 3일 흐름으로 계산합니다. 바깥 날씨는 아직 반영하지 않습니다.": "Method: same weekday and hour over the last 8 weeks plus the last 3 days' trend for this panel. Outdoor weather isn't included yet.",
+  "온도가 오르는 이유와 할 일": "Why it's getting warm, and what to do", "가능성이 큰 이유": "Likely reasons", "할 일 — 위에서부터": "Actions — top first",
+  "평소 범위 안에서 움직이고 있습니다.": "Moving within its usual range.", "지켜볼 것이 있습니다": "Worth keeping an eye on",
+  "이유는 이 판넬 기록의 모양(평일·주말, 시간대, 주별 추세)으로 추정한 것입니다. 인버터 부하와 바깥 온도는 아직 재지 않습니다.": "Reasons are estimated from the shape of this panel's history (weekday vs weekend, time of day, weekly trend). Inverter load and outdoor temperature aren't measured yet.",
+  "JCC에 냉각 용량 검토 요청": "Ask JCC to review cooling capacity", "JCC에 냉각 용량 검토를 요청했습니다 — 담당자가 연락드립니다": "Cooling review requested — your engineer will call",
+  "요청을 보내지 못했습니다 — 전화로 알려 주세요": "Couldn't send the request — please call",
+  "평일 가동 시간의 판넬 안 기기 발열": "Heat from equipment during weekday operation", "판넬 주변·바깥 온도": "Surroundings and outdoor temperature",
+  "냉각 성능 저하 의심": "Cooling may be degrading", "공조 용량은 계산상 충분": "Cooling capacity is sufficient on paper",
+  "냉각 용량 부족 — 실측으로 확인": "Cooling too small — confirmed by measurement", "에어컨이 덜 돌고 있음": "Air conditioner is running too little",
+  "필터·환기구 청소, 판넬 문 닫힘 확인": "Clean filters and vents, check the door is shut", "공조(에어컨)가 달려 있다면 설정온도 점검": "If there's an air conditioner, check its setpoint",
+  "판넬 위치 점검 — 직사광선·근처 열원": "Check the location — direct sun, nearby heat", "냉각 성능 점검": "Cooling performance check", "냉각 용량 검토": "Cooling capacity review",
+  "에어컨 알람 확인": "Check the air-conditioner alarm", "현장": "On site", "JCC 확인 후": "After JCC checks", "JCC 방문": "JCC visit",
+  "열이 빠져나가는 길이 막히거나 문이 열려 있으면 가장 먼저 온도가 오릅니다.": "A blocked airflow path or an open door is the first thing that drives temperature up.",
+  "주변 온도 영향이 클 때는 차광이나 열원과의 거리만으로도 몇 도가 내려갑니다.": "When surroundings matter, shading or moving away from heat sources alone can drop it a few degrees.",
+  "필터·응축기 청소나 공조 점검으로 원래 성능을 되찾을 수 있습니다.": "Cleaning filters and the condenser, or servicing the unit, can restore performance.",
+  "판넬 안 발열량을 계산해 지금 공조로 충분한지 보고, 모자라면 맞는 용량을 제안합니다.": "We calculate the heat inside the panel, check the current cooling, and propose the right size if it falls short.",
+  "에어컨이 스스로 알람을 내고 있습니다 — 필터·응축기·냉매·팬 상태를 JCC가 확인합니다.": "The air conditioner is raising its own alarm — JCC will check filters, condenser, refrigerant and fan.",
+  "습도 기록이 없어 결로 하한은 JCC가 현장에서 확인합니다.": "No humidity data, so JCC checks the condensation floor on site.",
+  "설정 온도가 높거나, 에어컨이 판넬 안 온도를 다른 자리에서 재고 있을 수 있습니다.": "The setpoint may be high, or the unit may be measuring temperature somewhere else in the panel.",
+  "지금 공조로는 열을 다 빼내지 못합니다.": "The current cooling can't remove all the heat.",
+  "출고 설정 그대로라면 낮출 여지가 있습니다. ": "If it's still on the factory setting there's room to lower it. ",
+  "출고 설정 그대로라면 낮출 여지가 있습니다.": "If it's still on the factory setting there's room to lower it.",
+  "인버터·드라이브처럼 가동할 때 열이 나는 기기의 영향일 가능성이 큽니다.": "Most likely heat from equipment that warms up while running, such as inverters and drives.",
+  "주변 온도(햇빛·계절·근처 열원)의 영향일 가능성이 큽니다.": "Most likely the surroundings (sun, season, nearby heat sources).",
+  "필터 막힘이나 공조(에어컨·팬) 성능 저하일 수 있습니다.": "Could be clogged filters or weaker cooling (air conditioner or fan).",
+  "그런데도 기준을 넘으니 필터 막힘·설정온도·공조 고장 쪽을 먼저 보는 편이 맞습니다.": "Yet it still goes over the limit, so check filters, setpoint and faults first.",
+  // 공조 탭
+  "냉각 용량": "Cooling capacity", "충분": "Enough", "빠듯": "Tight", "부족": "Short", "모자람": "Short", "공조 없이도 충분": "Enough without cooling",
+  "다음 필터 청소": "Next filter cleaning", "필터 청소 시기 지남 — JCC가 일정을 잡습니다": "Filter cleaning overdue — JCC will schedule it",
+  "지금 가동 중": "Running now", "지금 멈춤": "Stopped now", "통신 연결 준비 중 — 곧 가동 상태가 보입니다": "Connecting — status will appear shortly",
+  "에어컨이 알람을 내고 있습니다 — JCC가 확인합니다": "The air conditioner is alarming — JCC is checking",
+  "설정 변경·교체는 JCC가 확인한 뒤 사람이 합니다.": "Setting changes and replacements are done by people after JCC checks.",
+  "판넬 크기·발열 기기·설계 온도로 계산한 값입니다(필요 냉각 = 판넬 안 발열 − 판넬 겉면으로 빠지는 열, 여유 10%).": "Calculated from panel size, heat-producing devices and design temperature (cooling needed = heat inside − heat lost through the enclosure, plus 10%).",
+  "에어컨": "Air conditioner", "열교환기": "Heat exchanger", "팬필터": "Fan filter", "공조 장치 등록 없음": "No cooling unit registered",
+  "도어": "Door", "측면": "Side", "상부": "Roof",
+  " — 충분합니다.": " — enough.", "충분합니다.": "Enough.",
+  // 이번 달·보고서
+  "미리 잡은 위험 징조": "Precursors caught early", "판넬이 스스로 한 조치": "Actions the panel took itself", "원격으로 해결": "Fixed remotely",
+  "감시 가동률": "Monitoring uptime", "현장 출동 없이 다시 잇기": "Reconnected without a site visit", "이번 달 감시가 끊긴 적이 없습니다": "No monitoring gaps this month",
+  "보고서·기록이 필요할 때": "Need a report or record?", "발행된 그대로 보관됩니다": "Kept exactly as issued", "아직 발행된 월간 보고서가 없습니다.": "No monthly reports yet.",
+  "매달 초 지난달 보고서가 이곳에 올라옵니다.": "Each month's report appears here early the next month.", "JCC가 권하는 것": "JCC recommends",
+  "아직 완료된 정기 점검이 없습니다.": "No completed inspections yet.", "고객 확인 서명까지 받은 기록": "Signed off by the customer",
+  "이상 없음": "No issues", "현장 조치 완료": "Fixed on site", "조치 필요 항목 있음": "Items need action", "합격": "Pass", "조건부": "Conditional", "불합격": "Fail", "미완료": "Incomplete",
+  "점검 항목": "Checked items", "점검자": "Inspector", "서명": "Signature", "고객 확인": "Customer sign-off", "특이사항·조치": "Notes & actions",
+  "JCC가 발행하고 고객이 확인한 기록입니다. 그대로 보관됩니다.": "Issued by JCC and confirmed by the customer. Kept as is.",
+  "사건 목록": "Incidents", "사건 보고서 보기": "View incident report", "경보가 날 때마다 JCC가 한 일을 한 장으로 남깁니다. 골라서 보거나 인쇄하세요.": "One page per alarm showing what JCC did. Pick one to view or print.",
+  "이 보고서는 감시 장치(CCM)와 JCC 서버가 남긴 기록으로 자동 작성되었습니다. 시각은 한국 시간입니다.": "This report is generated from records kept by the monitoring device (CCM) and the JCC server. Times are Korea time.",
+  "볼 수 없는 보고서입니다": "You can't view this report", "보고서를 열지 못했습니다": "Couldn't open the report", "발생": "Raised", "내용": "Details",
+  "시간 순서": "Timeline", "정상 회복": "Recovered", "정상 회복까지": "Until recovered", "JCC 확인까지": "Until JCC confirmed",
+  "아직 이어지는 중": "Still ongoing", "아직 정상으로 돌아오지 않음": "Not back to normal yet", "가장 높았던 값": "Peak value", "알림 받은 경보": "Alerted alarm",
+  "판넬이 스스로 지킴": "Panel protected itself", "조치함": "Acted", "JCC 확인 결과": "JCC's finding", "조치 메모": "Action note",
+  "센서 오작동(오경보)으로 확인했습니다": "Confirmed as a sensor fault (false alarm)", "현장 작업·시험 중에 난 경보로 확인했습니다": "Confirmed as caused by on-site work or testing",
+  "실제 이상 — 조치했습니다": "Real issue — acted on it", "그 밖의 원인": "Other cause", "담당자에게 경보 알림을 보냈습니다": "Alarm alert sent to your contacts",
+  "감시 장치": "Monitoring device", "이 경보는 볼 수 없습니다 — 받은 계정으로 로그인했는지 확인해 주세요": "You can't view this alarm — check you're logged in with the account that received it",
+  "감시 끊김 기록": "Monitoring gaps", "감시·보호 없음": "No monitoring or protection", "통신 끊김": "Connection lost", "감시 장치 전원 꺼짐·재시작": "Device powered off / restarted",
+  "감시 장치 멈춤": "Device stopped", "센서 데이터 없음": "No sensor data", "응답 없음 → 원격 재시작으로 복구": "No response → recovered by remote restart",
+  "JCC 작업(원격 재시작·점검)": "JCC work (remote restart / check)", "지금 끊겨 있음": "Disconnected now", "다시 연결되면 원인을 알려 드립니다.": "We'll tell you the cause once it reconnects.",
+  "감시 장치는 켜져 있어 판넬이 현장에서 스스로 지켰고, 그동안의 기록은 다시 연결된 뒤 받았습니다.": "The device stayed on, so the panel protected itself on site and the records arrived after it reconnected.",
+  "그동안 감시와 판넬 자동 보호가 없었습니다. 전원 차단·정전 여부를 확인해 주세요.": "There was no monitoring or automatic protection in that time. Please check for a power cut.",
+  "그동안의 기록이 없습니다. 전원이나 장치 상태를 JCC가 확인합니다.": "No records for that time. JCC will check power and the device.",
+  "응답이 없어 JCC 서버가 감시 장치를 원격으로 다시 켰습니다.": "It stopped responding, so the JCC server restarted the device remotely.",
+  "이 센서만 값이 오지 않았습니다. 케이블이 빠졌거나 센서 고장일 수 있습니다.": "Only this sensor stopped reporting. A loose cable or a failed sensor is likely.",
+  "JCC가 작업하느라 잠시 끊겼습니다.": "Briefly disconnected while JCC was working.",
+  "감시 장치가 켜진 채 통신만 끊기면 판넬은 현장에서 스스로 지키고 값을 모아 두었다가 다시 연결되면 보냅니다. 전원이 꺼지면 그동안은 감시도 자동 보호도 없습니다.": "If only the connection drops, the panel keeps protecting itself and sends the stored values once reconnected. If the power is off, there's no monitoring or automatic protection meanwhile.",
+  "그 달 기록을 불러오지 못했습니다": "Couldn't load that month", "언제·왜 ›": "When & why ›", "경보마다 한 장 ›": "One page per alarm ›", "매달 초 지난달 것 ›": "Last month's, early each month ›",
+  "고객 서명 포함 ›": "Includes customer signature ›",
+  // 확인서
+  "아직 발행된 확인서가 없습니다.": "No certificates issued yet.", "보험·감사·보고용 — JCC가 검토해 발행한 그대로 보관됩니다": "For insurance, audits and reporting — kept exactly as JCC issued it",
+  "분기·연간 확인서는 JCC가 기록을 검토해 발행합니다. 필요하시면 담당자에게 요청해 주세요.": "JCC reviews the records and issues quarterly or annual certificates. Ask your engineer if you need one.",
+  "판넬 자동 조치": "Panel acted", "판넬별 기록": "By panel", "위험 경보 기록": "Danger alarms", "정기 점검 기록": "Inspections",
+  "이 기간 위험 경보는 없었습니다.": "No danger alarms in this period.", "이 기간에 완료된 정기 점검은 없습니다.": "No inspections completed in this period.",
+  "이 확인서는 JCC GUARD가 기간 동안 남긴 감시 기록의 요약입니다. 법정 안전 점검이나 보험 인수 기준의 적합 판정을 대신하지 않습니다.": "This certificate summarizes the monitoring records JCC GUARD kept for the period. It does not replace statutory safety inspections or an insurer's underwriting assessment.",
+  "가동률": "Uptime", "설치 점검": "Install check", "일시": "Date & time", "판넬 · 센서": "Panel · sensor", "JCC 확인": "JCC confirmed", "결과": "Result",
+  "판넬 자동 조치": "Panel acted", "미리 잡은 위험 징조": "Precursors caught early",
+  // 내려받기
+  "엑셀에서 바로 열리는 CSV 파일입니다.": "CSV files that open straight in Excel.", "기본 보관": "Standard retention", "기간": "Period",
+  "경보 기록": "Alarm log", "활동 기록": "Activity log", "시간별 센서 값": "Hourly sensor values",
+  "언제·어느 판넬·무슨 경보, 누가 확인했는지": "When, which panel, what alarm, who confirmed", "판넬이 스스로 한 조치·자동 복구·확인": "Panel actions, auto-recovery, confirmations",
+  "센서마다 1시간 평균·최저·최고": "Hourly average, min and max per sensor", "더 오래 남기려면 JCC 담당자에게 장기 보관(3년·5년)을 문의하세요.": "Ask your JCC contact about long-term retention (3 or 5 years).",
+  "최근 30일": "Last 30 days", "최근 90일": "Last 90 days", "최근 1년": "Last year", "최근 3년": "Last 3 years", "최근 5년": "Last 5 years",
+  "시연판에서는 내려받기가 막혀 있습니다 — 실제 서버에서는 CSV 파일로 받습니다": "Downloads are blocked in the demo — on the real server you get a CSV file",
+  // 알림 받는 사람
+  "위험 경보가 나면 그 시각에 받기로 한 사람에게 문자가 갑니다.": "When a danger alarm fires, a text goes to whoever is on for that time.",
+  "위험 경보가 나면 그 시각에 받기로 한 사람에게 문자가 갑니다. 그 시각에 받을 사람이 없으면 모두에게 보냅니다.": "When a danger alarm fires, a text goes to whoever is on for that time. If nobody is, everyone gets it.",
+  "항상": "Always", "야간·주말 당직": "Nights & weekends", "주간·월간 소식도 받기": "Also get weekly / monthly news", "빼기": "Remove", "사람 추가": "Add person",
+  "아직 등록된 사람이 없습니다.": "Nobody registered yet.", "이름 없음": "No name", "받는 시간": "When",
+  "바꾸려면 관리자 계정으로 로그인하거나 JCC 담당자에게 알려 주세요.": "To change this, log in as an admin or tell your JCC contact.",
+  "저장하지 못했습니다": "Couldn't save",
+  // 안심 지수 시트
+  "위험 경보 −20(판넬당 최대 −40) · 주의 경보 −5(판넬당 최대 −15) · 감시 장치 끊김 −10 · 화재 징조 지켜보는 중 −5 · 결로·단자 발열 주의 −3 · 부품 남은 여유 60일 이내 −3 · 정기 점검 기한 지남 −5": "Danger alarm −20 (max −40 per panel) · watch alarm −5 (max −15 per panel) · device offline −10 · fire precursor watch −5 · condensation / terminal heat watch −3 · part margin under 60 days −3 · inspection overdue −5",
+  "지금 상태": "Current state", "끊긴 감시 장치": "Offline devices", "위험 경보": "Danger alarms", "정기 점검": "Inspection", "기한 지남": "Overdue",
+  // 이야기(시연)
+  "가상 공장 시연 · 그날 밤 다시 보기": "Virtual plant demo · replay that night", "화재 징조": "Fire precursor", "장마철 결로": "Monsoon condensation",
+  "이야기를 고르면 실제 화면이 그날 밤처럼 움직이고, 판넬과 JCC가 한 일을 시간 순서로 보여 드립니다.": "Pick a story and the real screen replays that night, showing what the panel and JCC did, in order.",
+  "배터리실 수소가 평소보다 조금씩 오르기 시작 — 사람은 못 느끼는 수준": "Hydrogen in the battery room starts creeping up — too little for people to notice",
+  "화재 징조 판단 — 판넬이 몇 초 만에 스스로 환기를 엶": "Fire precursor judged — the panel opens its vent within seconds",
+  "JCC 담당자 확인 · 당직자에게 알림": "JCC engineer confirms · on-call notified", "수소·온도 정상으로 — 원인은 기록으로 남김": "Hydrogen and temperature back to normal — cause logged",
+  "공장은 평소처럼 가동 — 그날 밤 사고는 없었다": "The plant runs as usual — no accident that night",
+  "부하는 그대로인데 단자 온도만 서서히 상승 — 풀린 단자의 신호": "Load unchanged but terminal temperature slowly rising — a sign of a loose terminal",
+  "단자 발열 징조 판단 — 담당자에게 알림": "Terminal-heat precursor judged — contacts alerted", "JCC가 원격으로 수치 확인 · 점검 예약": "JCC checks the numbers remotely · books an inspection",
+  "현장에서 단자 재조임 — 불로 번지기 전에 끝": "Terminal re-tightened on site — done before it turned into a fire", "라인 정지 없이 생산 계속": "Production continued without stopping the line",
+  "장마철 새벽, 판넬 안 습도가 오르기 시작": "Monsoon dawn: humidity inside the panel starts to rise", "결로 위험 판단 — 판넬이 스스로 히터·팬 가동": "Condensation risk judged — the panel runs its heater and fan",
+  "습도가 내려가는 것을 JCC가 확인": "JCC confirms the humidity coming down", "물방울 없이 아침 가동 준비 끝": "Ready for the morning shift, no droplets",
+  "누전·절연 사고 없이 지나감": "No leakage or insulation failure", "시연판 — 가상 기록": "Demo — simulated records", "시연판 — 1년 운영을 가정한 가상 기록입니다.": "Demo — simulated records assuming a year of operation.",
+  // 센서 이름(프로파일)
+  "함내 온도": "Cabinet temp", "함내 습도": "Cabinet humidity", "수소 농도": "Hydrogen", "VOC 농도": "VOC", "CO 농도": "CO", "메인차단기 전류": "Main breaker current",
+  "도어 개폐": "Door", "진동": "Vibration", "열연기": "Heat / smoke", "비접촉 온도": "Terminal temp", "미확인": "Unknown",
+  "가상 공장 시연": "virtual plant demo", "단자 온도": "Terminal temp", "단자 점검 시기": "Terminal check due", "부품 점검 시기": "Part check due",
+  "100점에 가까울수록 안전합니다.": "Closer to 100 is safer.", "지금 문제가 있는 만큼만 100점에서 뺍니다.": "Points come off 100 only for problems right now.",
+  "미리 잡은 징조": "Precursors caught", "위험 경보 평균 대응": "Avg. response to danger alarms", "근무시간 (평일 8~18시)": "Work hours (weekdays 8–18h)",
+  "감시 장치는 켜져 있어 판넬이 현장에서 스스로 지켰습니다": "the device stayed on, so the panel protected itself on site",
+  "언제·왜 끊겼는지는 '감시 끊김 기록'에": "when and why: see 'Monitoring gaps'", "등급": "Severity", "범위": "Range",
+  "JCC Solution은": "JCC Solution monitored", "을 JCC GUARD로 감시했으며, 그 기록은 다음과 같습니다.": "below with JCC GUARD. The records follow.",
+  "지금은 할 일이 없습니다": "Nothing to do right now", "이고, 범위는 지난 오차의 80%가 들어온 폭입니다.": ", and the range covers 80% of past errors.",
+  "환기·팬 상태를 미리 살펴 두시면 좋습니다.": "Worth checking vents and fans ahead of time.",
+  "이유는 이 판넬 기록의 모양(평일·주말, 시간대, 주별 추세)으로 추정한 것입니다.": "Reasons are estimated from the shape of this panel's history (weekday vs weekend, time of day, weekly trend).",
+  "인버터 부하와 바깥 온도는 아직 재지 않습니다.": "Inverter load and outdoor temperature aren't measured yet.",
+  "예측 방법: 이 판넬의 지난 8주 같은 요일·같은 시각 온도와 최근 3일 흐름으로 계산합니다.": "Method: same weekday and hour over the last 8 weeks plus the last 3 days' trend for this panel.",
+  "바깥 날씨는 아직 반영하지 않습니다.": "Outdoor weather isn't included yet.",
+  "시연판 — 1년 운영을 가정한 가상 기록입니다.": "Demo — simulated records assuming a year of operation.", "시연판 — 가상 기록": "Demo — simulated records",
+  "계산으로도 모자랍니다": "Short on paper too", "그만큼 냉각을 더하거나 더 큰 공조로 바꾸는 것을 검토하세요.": "Consider adding that much cooling or a larger unit.",
+  "열반이면 끝단 측면에 큰 유닛, 가운데 칸은 도어 유닛으로 나누는 배치를 권합니다.": "For a line-up we suggest a large unit on each end side and door units in the middle bays.",
+  "판넬 안 이슬점이 더 차가우면 결로가 생깁니다.": "Below the dew point inside, condensation forms.",
+  "측면 에어컨": "Side air conditioner", "도어 에어컨": "Door air conditioner", "상부 에어컨": "Roof air conditioner", "도어 팬필터": "Door fan filter",
+  "측면 열교환기": "Side heat exchanger", "도어 열교환기": "Door heat exchanger",
+  "기준 도달": "Limit reached", "여유 있음": "Plenty of margin",
+  "시연판 가입 코드는": "The demo sign-up code is", "내용 보기": "View details",
+  "입니다. 비워 두면 가입 신청으로 접수되어, 운영자 화면 → 계정 관리에서 승인해 볼 수 있습니다.": ". Leave it blank to send a request you can approve under Operator view → Accounts.",
+  "예: K7QM-3XPA (없으면 비워 두세요)": "e.g. K7QM-3XPA (leave blank if none)", "이름 · 역할 (예: 김반장 · 설비)": "Name · role (e.g. Kim · maintenance)",
+  "10자 이상": "10+ characters", "시연 — 그날 밤 다시 보기": "Demo — replay that night", "판넬 보기": "Panel view",
+  "시연판 — 운영자 화면 → 계정 관리에서 이 신청을 승인해 볼 수 있습니다.": "Demo — you can approve this request under Operator view → Accounts.",
+  "로 로그인하실 수 있습니다.": " to log in.", "JCC가 소속 회사를 확인한 뒤 계정을 열어 드립니다. 승인되면 정하신 아이디": "JCC will verify your company and open the account. Once approved, use the username",
+  "새 비밀번호 (처음 로그인 —": "New password (first login —", "비밀번호는": "Passwords need", "자 이상이어야 합니다": "+ characters",
+  "받은 계정으로 로그인했는지 확인해 주세요": "Check you're logged in with the account that received it", "잠시 뒤 다시 열어 주세요": "Please reopen in a moment",
+  "사파리 아래 공유 버튼 →": "Tap Safari's Share button →", "로 앱처럼 쓸 수 있습니다": " to use it like an app",
+  "계정은 JCC가 고객사별로 만들어 드립니다. 아이디나 비밀번호가 기억나지 않으면 담당 엔지니어 또는 JCC 대표 번호": "JCC creates accounts for each customer. If you forgot your username or password, contact your engineer or JCC's main number",
+  "로 연락해 주세요. 확인 후 새 비밀번호를 드립니다.": ". We'll verify and give you a new password.", "로 연락해 주세요.": ".",
+  "급하시면 담당 엔지니어에게 연락해 주세요.": "If urgent, contact your engineer.", " 급하시면 JCC 대표 번호(": " If urgent, call JCC's main number (",
+  // 단위(작은 글씨)
+  "건": "", "시간": "hours", "회": "times", "명": "people", "대": "units", "면": "panels", "개": "", "점": "pts", "초": "s", "분": "min", "일": "days", "번": "times",
+};
+const KMON = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const enWord = s => EN[s] != null ? EN[s] : s;   // 이름은 사전에 없으면 그대로(판넬·사람 이름)
+const EN_RE = [
+  [/^(\d+)분 전$/, "$1 min ago"], [/^(\d+)시간 전$/, "$1 h ago"], [/^(\d+)일 전$/, "$1 days ago"],
+  [/^(\d\d:\d\d:\d\d) 갱신$/, "Updated $1"], [/^연결 끊김 · 마지막 갱신 ([^·—]+)$/, "Offline · last update $1"],
+  [/^(\d+)월 (\d+)일 (\d\d:\d\d)$/, (m, a, b, c) => `${KMON[+a]} ${b}, ${c}`], [/^(\d+)월 (\d+)일$/, (m, a, b) => `${KMON[+a]} ${b}`],
+  [/^(\d{4})년 (\d+)월$/, (m, a, b) => `${KMON[+b]} ${a}`], [/^(\d+)월$/, (m, a) => KMON[+a]],
+  [/^(\d{4})년 ([1-4])분기$/, "Q$2 $1"], [/^(\d{4})년 연간$/, "Year $1"], [/^(\d{4})년 (\d+)월 · JCC가 한 일$/, (m, a, b) => `What JCC did · ${KMON[+b]} ${a}`],
+  [/^위험 — ([^·—]+)$/, "Danger — $1"], [/^판넬 (\d+)면 · (\d+)곳 지켜보는 중$/, "$1 panels · $2 being watched"],
+  [/^위험 경보 (\d+)$/, "$1 danger alarm(s)"], [/^주의 경보 (\d+)$/, "$1 watch alarm(s)"], [/^화재 징조\(FRI ([\d.]+)\)$/, "Fire precursor (FRI $1)"],
+  [/^CCM (\d+)대 끊김$/, "$1 CCM offline"], [/^정기 점검 기한 (\d+)일 지남$/, "Inspection $1 days overdue"],
+  [/^할 일 (\d+)건$/, "$1 to-do(s)"], [/^([^·—]+) 필터 청소 시기 지남$/, (m, a) => `${enWord(a)} filter cleaning overdue`],
+  [/^([^·—]+)에서$/, "At $1:"], [/^([^·—]+) 이상을 감지했습니다$/, (m, a) => `${enName(a)} anomaly detected`],
+  [/^해결 진행 중 · 다음: ([^·—]+)$/, (m, a) => `Resolving · next: ${enWord(a)}`], [/^해결 진행 (\d+)%$/, "Resolution $1%"],
+  [/^위험 · (.+)$/, (m, a) => `Danger · ${enText(a) || a}`],
+  [/^([^·—]+?) ([\d.\-]+)\s?(\S*) — 위험\(([\d.\-]+) 초과\)$/, (m, n, v, u, l) => `${enName(n)} ${v}${u} — danger (above ${l})`],
+  [/^([^·—]+?) ([\d.\-]+)\s?(\S*) — 위험\(([\d.\-]+) 미만\)$/, (m, n, v, u, l) => `${enName(n)} ${v}${u} — danger (below ${l})`],
+  [/^([^·—]+?) ([\d.\-]+)\s?(\S*) — 경고\(([\d.\-]+) 초과\)$/, (m, n, v, u, l) => `${enName(n)} ${v}${u} — warning (above ${l})`],
+  [/^([^·—]+?) (\d+)초째 데이터 없음$/, (m, n, s) => `${enName(n)}: no data for ${s}s`], [/^([^·—]+?) 데이터 복구$/, (m, n) => `${enName(n)} data restored`],
+  [/^CCM ([^·—]+) 응답 없음 — (\d+)초 침묵$/, "CCM $1 not responding — silent for $2s"],
+  [/^판넬이 스스로 조치했습니다 — (.+)$/, (m, a) => `The panel acted on its own — ${enText(a) || a}`], [/^판넬이 스스로 (\d+)번 조치했습니다$/, "The panel acted on its own $1 times"],
+  [/^JCC가 확인했습니다 · (.*)$/, "JCC confirmed · $1"], [/^JCC가 (.+) 만에 확인했습니다$/, (m, a) => `JCC confirmed within ${enDur(a)}`],
+  [/^([^·—]+) 뒤 정상으로 돌아왔습니다$/, (m, a) => `Back to normal after ${enDur(a)}`], [/^([^·—]+) 만에$/, (m, a) => `in ${enDur(a)}`],
+  [/^([^·—]+)의 ([^·—]+)에서 이상을 감지했습니다$/, (m, p, s) => `${enName(s)} anomaly detected at ${p}`],
+  [/^달린 센서 (\d+)개$/, "$1 sensors fitted"], [/^알림 받는 사람 (\d+)명 저장$/, "Saved $1 people"],
+  [/^(\d+)명$/, "$1 people"], [/^(\d+)건$/, "$1"], [/^(\d+)회$/, "$1 times"],
+  [/^장기 보관 (\d)년$/, "Long-term retention: $1 years"],
+  [/^경보·활동 기록 ([^·—]+) · 시간별 센서 값 ([^·—]+) · 원본 측정값 ([^·—]+)$/, (m, a, b, c) => `Alarms & activity ${enDur(a)} · hourly values ${enDur(b)} · raw readings ${enDur(c)}`],
+  [/^문서 번호 (\S+)(.*)$/, (m, a, b) => `Document no. ${a}${b ? b.replace("· 시연 문서(실제 기록 아님)", "· demo document (not real records)") : ""}`],
+  [/^(.+) 귀중$/, "To: $1"], [/^발행 (.+) · 검토 (.+)$/, (m, a, b) => `Issued ${a} · reviewed by ${b.replace(/ · 개정 (\d+)$/, " · revision $1")}`],
+  [/^위험 경보 · 평균 ([^·—]+)분 확인$/, "Danger alarms · confirmed in $1 min on average"],
+  [/^([^·—]+) 만에$/, (m, a) => `in ${enDur(a)}`], [/^([\d.]+)분$/, "$1 min"],
+  [/^평일 ([^·—]+?)에 밤보다 평균 ([\d.]+)℃ 오르고, 주말 같은 시간엔 ([\d.]+)℃만 오릅니다\.$/, (m, h, a, b) => `On weekdays (${enHours(h)}) it runs ${a}℃ above night on average; at the same hours on weekends only ${b}℃.`],
+  [/^기계를 덜 돌리는 주말에도 낮에 ([\d.]+)℃ 오릅니다\.$/, "Even on weekends, when machines run less, it rises $1℃ during the day."],
+  [/^최근 (\d+)주 동안 평일 최고 온도가 주마다 ([\d.\-]+)℃씩 오르는데 밤 온도는 그만큼 오르지 않습니다\.$/, "Over the last $1 weeks the weekday peak rose $2℃ a week while night temperatures didn't."],
+  [/^밤 온도도 주마다 ([\d.\-]+)℃씩 오르고 있습니다\.$/, "Night temperatures are also rising $1℃ a week."],
+  [/^다만 ([\d.]+)℃ 아래로는 내리지 마세요 — 판넬 안 이슬점이 ([\d.]+)℃라 더 차가우면 결로\(누전 위험\)가 생깁니다\.$/, "But don't go below $1℃ — the dew point inside is $2℃, so anything colder causes condensation (leakage risk)."],
+  [/^평일 더운 시간\(12~18시\)에 에어컨이 (\d+)% 내내 돌았는데도 주의 기준을 넘었습니다\.$/, "In hot weekday hours (12–18h) the air conditioner ran $1% of the time and it still went over the watch limit."],
+  [/^더운 시간에도 에어컨이 (\d+)%만 돌았는데 판넬은 기준을 넘었습니다\.$/, "In hot hours the air conditioner ran only $1% of the time, yet the panel went over the limit."],
+  [/^에어컨 가동률 (\d+)%\(더운 시간\) — 실측으로도 모자랍니다\.$/, "Air conditioner duty $1% (hot hours) — measured as too small."],
+  [/^필요 냉각 (\d+) W\(여유 10% 포함 (\d+) W\), 설치된 냉각 (\d+) W$/, "Cooling needed $1 W ($2 W with 10% margin), installed $3 W"],
+  [/^약 (\d+) W가 모자랍니다\. 그만큼 냉각을 더하거나 더 큰 공조로 바꾸는 것을 검토하세요\.$/, "about $1 W short. Consider adding that much cooling or a larger unit."],
+  [/^판넬 겉면으로 (\d+) W를 내보낼 수 있어 발열 (\d+) W는 공조 없이도 감당되는 계산입니다\.$/, "The enclosure can shed $1 W, so the $2 W of heat is handled without cooling."],
+  [/^여유가 거의 없습니다\. 여름 최고 온도나 기기 추가에 대비해 두는 편이 좋습니다\.$/, "Almost no margin. Worth preparing for summer peaks or added equipment."],
+  [/^([^·—]+) (\d+)대$/, (m, a, b) => `${enWord(a)} × ${b}`], [/^(\d+)면 열반$/, "$1-bay line-up"],
+  [/^계산으로도 모자랍니다 — $/, "Short on paper too — "],
+  [/^이 판넬의 기록이 14일 쌓이면 왜 오르는지와 할 일을 알려 드립니다 — 지금 (\d+)일째입니다\.$/, "After 14 days of history we'll explain why it warms up and what to do — day $1 now."],
+  [/^예측은 이 판넬의 기록이 7일 쌓이면 시작합니다 — 지금 (\d+)일째입니다\.$/, "Forecasts start after 7 days of history — day $1 now."],
+  [/^지난 14일 중 (\d+)일, 주의 기준\(([\d.]+)℃\)을 넘었습니다\. 가장 높을 때 ([\d.]+)℃\.$/, "On $1 of the last 14 days it went over the watch limit ($2℃). Peak $3℃."],
+  [/^(\d+)~(\d+)시$/, "$1–$2h"],
+  [/^안심 지수 (\d+)점$/, "Safety index $1"], [/^([\d,]+)시간 지켰습니다$/, "Protected for $1 hours"],
+  [/^사람이 순찰했다면 약 ([\d,]+)번이 필요했던 시간입니다\(하루 (\d+)회 기준 추정\)\.$/, "That would have taken about $1 patrols by people (estimate at $2 a day)."],
+  [/^(화재|단자 과열|결로|환기|히터·팬) (\d+)$/, (m, a, b) => `${({"화재": "Fire", "단자 과열": "Terminal overheat", "결로": "Condensation", "환기": "Venting", "히터·팬": "Heater / fan"})[a]} ${b}`],
+  [/^연결이 끊긴 시간 ([^·—]+)$/, (m, a) => `Disconnected for ${enDur(a)}`],
+  [/^그중 (.+)은 감시 장치가 꺼져 감시·보호가 없었습니다\('감시 끊김 기록' 참고\)$/, (m, a) => `of which ${enDur(a)} with the device off — no monitoring or protection (see 'Monitoring gaps')`],
+  [/^([^·—]+) 기준 넘음$/, (m, a) => `${enName(a)} over limit`], [/^([^·—]+) 정상 범위로 돌아옴$/, (m, a) => `${enName(a)} back in normal range`],
+  [/^‹ (\d+)월 사건 목록$/, (m, a) => `‹ ${KMON[+a]} incidents`], [/^([^·—]+) 감지$/, (m, a) => `${enDates(a)} detected`],
+  [/^\((.+)\) 동안 아래 판넬$/, "($1) the"], [/^(\d+)면$/, "$1 panels"], [/^ 감시는 설치일인 (.+)부터입니다\.$/, " Monitoring started on install day, $1."],
+  [/^감시는 설치일인 ([^·—]+)부터입니다\.$/, "Monitoring started on install day, $1."],
+  [/^위험 기준까지 약 (\d+)주 \((\d+)~(\d+)주\)$/, "about $1 weeks to the danger limit ($2–$3 weeks)"], [/^([^·—]+) 기준선까지$/, (m, a) => `to the ${enWord(a)} baseline`],
+  [/^\(예상 ([^·—]+)\)$/, "(expected $1)"], [/^가장 낮을 때 ([^·—]+)$/, (m, a) => `lowest ${enDates(a)}`], [/^주의 ([\d.]+℃)$/, "Watch $1"],
+  [/^지난 (\d+)일 동안 실제와 비교한 평균 오차는$/, "Average error against actuals over the last $1 days is"],
+  [/^주의 기준 ([\d.]+℃)에 닿을 수 있습니다$/, "May reach the watch limit of $1"],
+  [/^평일 평균 최고 ([\d.]+)℃로, 주의 기준\(([\d.]+)℃\)보다 ([\d.]+)℃ 낮습니다\.$/, "Weekday peaks average $1℃, $3℃ below the watch limit ($2℃)."],
+  [/^평일 평균 최고 ([\d.]+)℃로, 주의 기준\(([\d.]+)℃\)에 가깝습니다\.$/, "Weekday peaks average $1℃, close to the watch limit ($2℃)."],
+  [/^다만 ([\d.]+)℃ 아래로는 내리지 마세요$/, "But don't go below $1℃"],
+  [/^판넬 안 이슬점이 ([\d.]+)℃라 더 차가우면 결로\(누전 위험\)가 생깁니다\.$/, "the dew point inside is $1℃, so anything colder causes condensation (leakage risk)."],
+  [/^에어컨 가동률 (\d+)%\(더운 시간\)$/, "Air conditioner duty $1% (hot hours)"], [/^실측으로도 모자랍니다\.$/, "measured as too small."],
+  [/^약 (\d+) W가 모자랍니다\.$/, "about $1 W short."], [/^설정 ([^·—]+)$/, "Setpoint $1"], [/^24시간 가동률 (\d+)%$/, "24h duty $1%"],
+  [/^다음 필터 청소 ([^·—]+)$/, (m, a) => `Next filter cleaning ${enDates(a)}`], [/^필요 ([^·—]+)$/, "Need $1"], [/^설치 ([^·—]+)$/, "Installed $1"],
+  [/^약 ([^·—]+) 모자람$/, "about $1 short"], [/^여유 ([^·—]+)$/, "margin $1"],
+  [/^(\d+)일, 주의 기준\(([\d.]+)℃\)을 넘었습니다$/, "$1 days over the watch limit ($2℃)"],
+  [/^JCC에 전화 (.+)$/, "Call JCC $1"], [/^어제·오늘 실제 온도와 내일 예측 그래프\. 내일 가장 높을 때 (.+) ([\d.]+)도$/, (m, h, v) => `Yesterday and today's actual temperature and tomorrow's forecast. Tomorrow's peak ${enDates(h)} ${v}°`],
+  [/^벤트 열림, 판넬 안 (.+)$/, (m, a) => `Vent open, inside the panel ${enText(a) || a}`],
+  [/^평일 ([^·—]+?) 평균 최고 ([\d.]+)℃$/, (m, h, a) => `Weekday ${enHours(h)} peaks average ${a}℃`],
+  [/^주의 기준\(([\d.]+)℃\)에 가깝습니다\.$/, "close to the watch limit ($1℃)."],
+  [/^주의 기준\(([\d.]+)℃\)보다 ([\d.]+)℃ 낮습니다\.$/, "$2℃ below the watch limit ($1℃)."],
+  [/^주의 기준\(([\d.]+)℃\)을 넘었습니다\.$/, "over the watch limit ($1℃)."],
+];
+function enDates(a){ return String(a).replace(/(\d+)월 (\d+)일/g, (m, x, y) => `${KMON[+x]} ${y}`).replace(/(\d{1,2})시(?![간])/g, "$1:00"); }
+function enHours(h){ return String(h).replace(/(\d+)~(\d+)시/g, "$1–$2h").replace(/^낮$/, "daytime"); }
+function enDur(a){ return String(a).replace(/([\d.]+)시간/g, "$1 h").replace(/([\d.]+)분/g, "$1 min").replace(/([\d.]+)초/g, "$1 s").replace(/([\d.]+)일/g, "$1 days").replace(/(\d+)년/g, "$1 years"); }
+function enName(n){ const m = /^(.+) (\d+)$/.exec(n); return EN[n] != null ? EN[n] : m && EN[m[1]] != null ? `${EN[m[1]]} ${m[2]}` : n; }
+function enPiece(k){
+  if (EN[k] != null) return EN[k];
+  for (const [re, rep] of EN_RE) if (re.test(k)) return k.replace(re, rep);
+  const nm = enName(k); if (nm !== k) return nm;
+  const d = enDates(k); if (d !== k && !/[가-힣]/.test(d)) return d;
+  return null;
+}
+// 한 줄 번역: 통째 → 틀 → " — "·" · "·문장 단위로 쪼개서(조각마다). 하나도 못 바꾸면 null(그대로 둠)
+const EN_SPLIT = [/((?<=[.!?)]) (?=\S))/, /( — )/, /( · )/];
+function enText(t, lv){
+  const k = String(t).trim(); if (!/[가-힣]/.test(k)) return null;
+  const whole = enPiece(k); if (whole != null) return whole;
+  const pm = /^\((.+)\)(\.?)$/.exec(k); if (pm){ const e = enText(pm[1]); if (e != null) return `(${e})${pm[2]}`; }
+  const lead = /^([·—] )(.+)$/.exec(k); if (lead){ const e = enText(lead[2]); if (e != null) return lead[1] + e; }
+  for (let i = lv || 0; i < EN_SPLIT.length; i++){
+    const parts = k.split(EN_SPLIT[i]); if (parts.length < 2) continue;
+    let hit = false;
+    const out = parts.map(p => { if (!/[가-힣]/.test(p)) return p; const e = enText(p, i + 1); if (e != null){ hit = true; return e; } return p; });
+    return hit ? out.join("") : null;
+  }
+  return null;
+}
+function trNode(n){
+  if (n.nodeType === 3){
+    if (n._en != null && n.data === n._en) return;
+    const e = enText(n.data); if (e == null) return;
+    n._ko = n.data; const lead = n.data.match(/^\s*/)[0], tail = n.data.match(/\s*$/)[0];
+    n._en = lead + e + tail; n.data = n._en; return;
+  }
+  if (n.nodeType !== 1 || n.closest && n.closest("[data-notr]")) return;
+  for (const a of ["placeholder", "aria-label", "title"]) if (n.hasAttribute && n.hasAttribute(a)){
+    const v = n.getAttribute(a), e = enText(v); if (e != null){ n["_ko_" + a] = v; n.setAttribute(a, e); }
+  }
+  if (n.tagName === "SCRIPT" || n.tagName === "STYLE") return;
+  for (const c of n.childNodes) trNode(c);
+}
+function unNode(n){
+  if (n.nodeType === 3){ if (n._ko != null && n.data === n._en){ n.data = n._ko; } n._en = null; return; }
+  if (n.nodeType !== 1) return;
+  for (const a of ["placeholder", "aria-label", "title"]) if (n["_ko_" + a] != null){ n.setAttribute(a, n["_ko_" + a]); n["_ko_" + a] = null; }
+  for (const c of n.childNodes) unNode(c);
+}
+const I18N_OBS = new MutationObserver(ms => {
+  if (I18N.lang !== "en") return;
+  for (const m of ms){
+    if (m.type === "characterData") trNode(m.target);
+    else m.addedNodes.forEach(trNode);
+  }
+});
+function setLang(l, save){
+  I18N.lang = l === "en" ? "en" : "ko";
+  document.documentElement.lang = I18N.lang;
+  if (save) try { localStorage.setItem("gd-lang", I18N.lang); } catch(_){}
+  document.querySelectorAll("[data-lang-toggle]").forEach(b => { b.textContent = I18N.lang === "en" ? "한" : "EN";
+    b.setAttribute("aria-label", I18N.lang === "en" ? "한국어로 보기" : "View in English"); });
+  if (I18N.lang === "en"){ trNode(document.body); I18N_OBS.observe(document.body, {subtree: true, childList: true, characterData: true}); }
+  else { I18N_OBS.disconnect(); unNode(document.body); }
+}
+function i18nStart(){
+  let l = null;
+  try { l = localStorage.getItem("gd-lang"); } catch(_){}
+  if (!l) l = /^ko/i.test(navigator.language || "ko") ? "ko" : "en";
+  document.querySelectorAll("[data-lang-toggle]").forEach(b => b.onclick = () => setLang(I18N.lang === "en" ? "ko" : "en", true));
+  setLang(l, false);
+}
+
+i18nStart();
+</script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
