@@ -305,7 +305,7 @@
     panelList().forEach(p => p.ccms.forEach(c => c.latest.forEach(s => { names[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; })));
     const steps = S.events.filter(e => e.ts >= a.raised_at - 30 && ["vent_open", "vent_close", "dew_actuate", "edge_actuate", "escalate"].includes(e.etype))
       .map(e => ({ ts: e.ts, text: e.etype === "escalate" ? "담당자에게 알림을 보냈습니다" : `판넬이 스스로 조치했습니다 — ${gdPlain(e.detail)}`, done: true }));
-    steps.push(a.acked_at ? { ts: a.acked_at, text: `JCC가 확인했습니다 · ${a.acked_by || ""}`, done: true } : { ts: null, text: "JCC 관제실이 확인하는 중입니다", done: false });
+    steps.push(a.acked_at ? { ts: a.acked_at, text: `JCC가 확인했습니다 · ${a.acked_by || ""}`, done: true } : { ts: null, text: "JCC 담당자가 확인하는 중입니다", done: false });
     steps.sort((x, y) => (x.ts == null) - (y.ts == null) || (x.ts || 0) - (y.ts || 0));
     const pid = panelOf(a.device_id);
     return { id: a.id, panel: pid, panel_name: (rows.find(r => r.panel === pid) || {}).panel_name || pid, sensor_name: names[a.device_id + "|" + (a.sensor_key || "")] || a.sensor_key || "CCM",
@@ -335,7 +335,7 @@
     if (!Object.keys(S.discovered).length){ runDiscover(); for (let i = 0; i < 3; i++) tickFeed(); }   // 시연 첫 화면부터 '연결됨'으로(끊김이 번쩍이지 않게)
     const t = now(), rows = gdRows();
     return { site: SIM.site + " 시연", now: t, index: gdScore(rows, t), state: gdState(rows), panels: rows.map(gdModel),
-      incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 관제실", assigned: !!ACC.customers[0].engineer },
+      incident: gdIncident(rows), contact: { phone: ACC.customers[0].engineer_phone || "", engineer: ACC.customers[0].engineer || "", desk: "JCC 담당자", assigned: !!ACC.customers[0].engineer },
       next_inspection: Math.min(...rows.map(r => r.next_inspection || Infinity)), month: gdMonth(""), todo: gdTodo(rows), demo: true };
   }
   // 사건 보고서(서버 guard.py incidents·incident_report와 같은 모양) — 시연 경보 기록에서

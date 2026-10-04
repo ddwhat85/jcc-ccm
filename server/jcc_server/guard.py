@@ -301,7 +301,7 @@ def _incident(storage, rows, lat, panels):
     if a.get("acked_at"):
         steps.append({"ts": a["acked_at"], "text": f"JCC가 확인했습니다 · {a.get('acked_by') or ''}".rstrip(" ·"), "done": True})
     else:
-        steps.append({"ts": None, "text": "JCC 관제실이 확인하는 중입니다", "done": False})
+        steps.append({"ts": None, "text": "JCC 담당자가 확인하는 중입니다", "done": False})
     steps.sort(key=lambda s: (s["ts"] is None, s["ts"] or 0))
     steps = [dict(x, kind="s") for x in steps]
     steps = [{k: v for k, v in x.items() if k not in ("kind", "n")} for x in _squash(steps)]
@@ -312,7 +312,7 @@ def _incident(storage, rows, lat, panels):
 
 
 def guard_view(storage, panels: set | None, site: str, now: float | None = None, customer: dict | None = None) -> dict:
-    """customer = 고객사 행(담당 엔지니어·연락처). 정해 두지 않았으면 마지막 정기 점검자와 공통 관제실 번호."""
+    """customer = 고객사 행(담당 엔지니어·연락처). 정해 두지 않았으면 마지막 정기 점검자와 공통 대표 번호."""
     from .fleet import fleet
     from .inspection import history as insp_history
     now = time.time() if now is None else now
@@ -327,7 +327,7 @@ def guard_view(storage, panels: set | None, site: str, now: float | None = None,
         "site": site, "now": now, "index": score(rows, now), "state": state_line(rows), "panels": model,
         "incident": _incident(storage, rows, lat, panels),
         "contact": {"phone": phone, "engineer": (cu.get("engineer") or "").strip() or (last or {}).get("by") or "",
-                    "desk": "JCC 관제실", "assigned": bool((cu.get("engineer") or "").strip())},
+                    "desk": "JCC 담당자", "assigned": bool((cu.get("engineer") or "").strip())},
         "next_inspection": min(dues) if dues else None,
         "month": month_view(storage, panels, datetime.fromtimestamp(now, KST).strftime("%Y-%m"), now),
         "todo": todo(storage, model, panels, dues, now),

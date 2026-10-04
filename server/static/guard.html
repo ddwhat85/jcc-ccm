@@ -886,19 +886,19 @@ $("#gd-su-form").addEventListener("submit", async e => {
     }
     const ph = (G.support || "").trim();
     $("#gd-su-done-t").innerHTML = `JCC가 소속 회사를 확인한 뒤 계정을 열어 드립니다. 승인되면 정하신 아이디 <b>${esc(body.username)}</b>로 로그인하실 수 있습니다.` +
-      (ph ? ` 급하시면 JCC 관제실(<a href="tel:${esc(ph.replace(/[^0-9+]/g, ""))}">${esc(ph)}</a>)로 연락해 주세요.` : " 급하시면 담당 엔지니어에게 연락해 주세요.") +
+      (ph ? ` 급하시면 JCC 대표 번호(<a href="tel:${esc(ph.replace(/[^0-9+]/g, ""))}">${esc(ph)}</a>)로 연락해 주세요.` : " 급하시면 담당 엔지니어에게 연락해 주세요.") +
       (window.JCC_DEMO ? " (시연판 — 운영자 화면 → 계정 관리에서 이 신청을 승인해 볼 수 있습니다.)" : "");
     $("#gd-su-body").hidden = true; $("#gd-su-done").hidden = false; $("#gd-user").value = body.username;
     setTimeout(() => $("#gd-su-done-h").focus(), 50);
   } catch(er){ err.textContent = er.message; }
   finally { b.disabled = false; b.textContent = label; }
 });
-// 아이디·비밀번호 찾기 — 계정은 JCC가 만들어 주므로 '연락처'를 보여 준다(관제실 번호는 서버 설정 JCC_SUPPORT_PHONE)
+// 아이디·비밀번호 찾기 — 계정은 JCC가 만들어 주므로 '연락처'를 보여 준다(대표 번호는 서버 설정 JCC_SUPPORT_PHONE)
 $("#gd-forgot").onclick = () => {
   const box = $("#gd-forgot-box"), open = box.hidden;
   if (open){
     const ph = (G.support || "").trim();
-    box.innerHTML = "계정은 JCC가 고객사별로 만들어 드립니다. 아이디나 비밀번호가 기억나지 않으면 담당 엔지니어 또는 JCC 관제실"
+    box.innerHTML = "계정은 JCC가 고객사별로 만들어 드립니다. 아이디나 비밀번호가 기억나지 않으면 담당 엔지니어 또는 JCC 대표 번호"
       + (ph ? `(<a href="tel:${esc(ph.replace(/[^0-9+]/g, ""))}">${esc(ph)}</a>)` : "") + "로 연락해 주세요. 확인 후 새 비밀번호를 드립니다.";
   }
   box.hidden = !open; $("#gd-forgot").setAttribute("aria-expanded", String(open));
@@ -1394,7 +1394,7 @@ async function inspDoc(id){
 // 시뮬레이션 에피소드(약 90초)를 시작하고, 같은 시간 동안 이야기 자막을 한 칸씩 켠다. 화면(지수·위험 카드)은 실제 데이터로 따라 움직인다.
 const STORIES = {
   fire: [["02:14", "배터리실 수소가 평소보다 조금씩 오르기 시작 — 사람은 못 느끼는 수준"], ["02:31", "화재 징조 판단 — 판넬이 몇 초 만에 스스로 환기를 엶"],
-         ["02:32", "JCC 관제실 확인 · 당직자에게 알림"], ["03:10", "수소·온도 정상으로 — 원인은 기록으로 남김"], ["07:00", "공장은 평소처럼 가동 — 그날 밤 사고는 없었다"]],
+         ["02:32", "JCC 담당자 확인 · 당직자에게 알림"], ["03:10", "수소·온도 정상으로 — 원인은 기록으로 남김"], ["07:00", "공장은 평소처럼 가동 — 그날 밤 사고는 없었다"]],
   contact: [["14:02", "부하는 그대로인데 단자 온도만 서서히 상승 — 풀린 단자의 신호"], ["14:20", "단자 발열 징조 판단 — 담당자에게 알림"],
             ["14:22", "JCC가 원격으로 수치 확인 · 점검 예약"], ["다음 날", "현장에서 단자 재조임 — 불로 번지기 전에 끝"], ["그 뒤", "라인 정지 없이 생산 계속"]],
   dew: [["05:40", "장마철 새벽, 판넬 안 습도가 오르기 시작"], ["05:52", "결로 위험 판단 — 판넬이 스스로 히터·팬 가동"],

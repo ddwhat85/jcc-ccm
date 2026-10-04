@@ -105,7 +105,7 @@ class Accounts:
                     self._conn.execute(f"ALTER TABLE customers ADD COLUMN {col} INTEGER DEFAULT 0")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
-            #   engineer·engineer_phone: 고객 화면에 보이는 이 고객사 담당 엔지니어와 연락처(없으면 공통 관제실 번호)
+            #   engineer·engineer_phone: 고객 화면에 보이는 이 고객사 담당 엔지니어와 연락처(없으면 공통 대표 번호)
             #   signup_code: 고객사 가입 코드(비면 코드 가입 꺼짐)
             for col in ("engineer", "engineer_phone", "signup_code"):
                 try:

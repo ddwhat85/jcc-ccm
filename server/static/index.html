@@ -5836,7 +5836,7 @@ function acctRender(){
         return `<label class="acct-panel${other ? " other" : ""}"><input type="checkbox" data-panel="${acctEsc(p.panel)}" ${mine ? "checked" : ""}>` +
           `<span>${acctEsc(p.panel_name || p.panel)}<small>${acctEsc(p.panel)} · ${mine ? "이 고객사" : other ? "다른 고객사: " + acctEsc(own[p.customer_id] || "") : "배정 없음(JCC만)"}</small></span></label>`;
       }).join("") : `<p class="acct-note">아직 연결된 판넬이 없습니다. CCM이 데이터를 보내면 여기에 나타납니다.</p>`) + `</div></div>` +
-      `<div><h4>고객 화면 담당·연락처<span>고객 화면에 '우리 공장 담당'으로 보입니다 — 비우면 마지막 점검자와 공통 관제실 번호</span></h4>` +
+      `<div><h4>고객 화면 담당·연락처<span>고객 화면에 '우리 공장 담당'으로 보입니다 — 비우면 마지막 점검자와 공통 대표 번호</span></h4>` +
       `<form class="acct-add" id="acct-contact-form"><input id="acct-eng" maxlength="40" placeholder="담당 엔지니어 이름" aria-label="담당 엔지니어 이름" value="${acctEsc(c.engineer || "")}">` +
       `<input id="acct-eng-ph" maxlength="20" inputmode="tel" placeholder="연락처 (예: 010-1234-5678)" aria-label="담당 연락처" value="${acctEsc(c.engineer_phone || "")}">` +
       `<button class="acct-btn" type="submit">담당 저장</button></form></div>` +
