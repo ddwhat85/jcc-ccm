@@ -202,6 +202,15 @@
     const unit = GD_UNIT[(s.unit || "").toUpperCase()] || s.unit || "", num = Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v));
     return unit === "℃" || unit === "%" ? num + unit : `${num} ${unit}`.trim();
   }
+  const GD_RANK = { ok: 0, warn: 1, crit: 2 };
+  function gdLevel(s, kind) {   // guard._level과 같은 비교
+    const v = s.value;
+    if (v == null) return "ok";
+    if (kind === "smoke") return v >= 1 ? "crit" : "ok";
+    if ((s.alarm_min != null && v < s.alarm_min) || (s.alarm_max != null && v > s.alarm_max)) return "crit";
+    if (s.alarm_warn != null && (kind === "door" ? v >= s.alarm_warn : v > s.alarm_warn)) return "warn";
+    return "ok";
+  }
   function gdLatest(ccms) {
     const lvl = {};
     S.alarms.filter(a => !a.cleared_at).forEach(a => { const k = a.device_id + ":" + (a.sensor_key || ""); if (lvl[k] !== "crit") lvl[k] = a.severity === "crit" ? "crit" : "warn"; });
@@ -218,7 +227,7 @@
       if (picked.has(dev + ":" + s.sensor_key)) { seen[name] = (seen[name] || 0) + 1; return; }
       if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || s.unit === "?" || s.enabled === false) return;
       seen[name] = (seen[name] || 0) + 1;
-      d.sensors.push({ name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: lvl[dev + ":" + s.sensor_key] || "ok" });
+      d.sensors.push({ name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] });
     });
     return d;
   }

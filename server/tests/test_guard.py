@@ -102,6 +102,13 @@ def run():
     check("센서 값 한 마디", sp.get("수소 농도", {}).get("say") == "0.4 %LEL" and sp.get("열연기", {}).get("say") == "없음"
           and sp.get("메인차단기 전류", {}).get("say") == "14 A", str(sp))
     check("경보 걸린 센서는 주의", sp.get("메인차단기 전류", {}).get("level") == "warn" and sp.get("수소 농도", {}).get("level") == "ok", str(sp))
+    lv = guard._level
+    check("신호등: 기준값으로 초록·노랑·빨강", [lv({"value": 30, "alarm_min": 5, "alarm_warn": 38, "alarm_max": 45}, "temp"),
+                                         lv({"value": 40, "alarm_min": 5, "alarm_warn": 38, "alarm_max": 45}, "temp"),
+                                         lv({"value": 46, "alarm_min": 5, "alarm_warn": 38, "alarm_max": 45}, "temp"),
+                                         lv({"value": 200, "alarm_min": 0, "alarm_warn": 200, "alarm_max": 300}, "door"),
+                                         lv({"value": 1, "alarm_min": 0, "alarm_max": 1}, "smoke"),
+                                         lv({"value": None}, "temp")] == ["ok", "warn", "crit", "warn", "crit", "ok"])
     with st._lock:      # 이 확인용 경보는 뒤 시험(이번 달 사건 목록)에 섞이지 않게 지운다
         st._conn.execute("DELETE FROM alarms WHERE device_id = ?", ("ccm-1b",))
         st._conn.commit()

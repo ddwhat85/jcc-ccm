@@ -221,7 +221,6 @@
   .gd-card .h span{padding:4px 10px;border-radius:var(--pill);font-weight:600;color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
   .gd-card.warn .h span{background:color-mix(in srgb,var(--warn) 14%,transparent)} .gd-card.crit .h span{background:color-mix(in srgb,var(--crit) 14%,transparent)}
   .gd-card.offline .h span{color:var(--ink-3);background:var(--card-2)}
-  .gd-card{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease}
   .gd-card:hover{transform:translateY(-3px);box-shadow:0 14px 28px -18px rgba(27,26,23,.45)}
   .gd-c-docs .gd-docs.gd-docs-c{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
   .gd-c-docs .gd-doc.gd-dtile{flex-direction:column;align-items:flex-start;justify-content:space-between;gap:16px;min-height:118px;padding:16px;
@@ -263,7 +262,6 @@
   .gd-sn svg{grid-row:span 2;width:20px;height:20px;color:var(--ink-3)}
   .gd-sn b{font:600 var(--t-cap)/1.25 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gd-sn small{font-size:var(--t-cap);line-height:1.25;color:var(--ink-3)}
-  .gd-card{display:flex;flex-direction:column;justify-content:flex-start}
   .gd-sn.warn{background:color-mix(in srgb,var(--warn) 13%,transparent)} .gd-sn.warn svg,.gd-sn.warn b{color:var(--warn)}
   .gd-sn.crit{background:color-mix(in srgb,var(--crit) 13%,transparent)} .gd-sn.crit svg,.gd-sn.crit b{color:var(--crit-ink)}
   .gd-snl{margin-top:18px}
@@ -273,6 +271,20 @@
   .gd-snl svg{width:20px;height:20px;color:var(--ink-3)}
   .gd-snl b{font-weight:600;font-variant-numeric:tabular-nums}
   .gd-snl .warn b,.gd-snl .warn svg{color:var(--warn)} .gd-snl .crit b,.gd-snl .crit svg{color:var(--crit-ink)}
+  /* 신호등 — 정상 초록 · 주의 노랑 · 위험 빨강(모양도 다르게: ✓ △ ⬣) */
+  .gd-st{display:inline-grid;place-items:center;flex:none;width:18px;height:18px;font-style:normal;color:var(--ok)}
+  .gd-st svg{width:100%;height:100%}
+  .gd-st.warn{color:var(--warn)} .gd-st.crit{color:var(--crit)} .gd-st.offline,.gd-st.info{color:var(--ink-3)}
+  .gd-todo .gd-st{width:20px;height:20px;background:none}
+  .gd-card .h .gd-stc{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 7px}
+  .gd-stc svg{width:15px;height:15px}
+  .gd-card .h .gd-stc.offline{color:var(--ink-3);background:var(--card-2)}
+  .gd-card.warn{background:color-mix(in srgb,var(--warn) 7%,var(--card))} .gd-card.crit{background:color-mix(in srgb,var(--crit) 7%,var(--card))}
+  .gd-card.offline{border-color:var(--line)}
+  .gd-sn svg{color:var(--ok)}
+  .gd-snl svg{color:var(--ok)}
+  .gd-snl b{display:inline-flex;align-items:center;gap:6px}
+  .gd-snl .gd-st{width:16px;height:16px}
   @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
@@ -327,7 +339,8 @@
   @media (min-width:700px){.gd-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (min-width:1180px){.gd-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .gd-card{text-align:left;padding:18px 18px 16px;border-radius:var(--r);background:var(--card);border:1px solid transparent;box-shadow:var(--shadow);
-    cursor:pointer;width:100%;display:block;transition:border-color .15s ease}
+    cursor:pointer;width:100%;display:flex;flex-direction:column;justify-content:flex-start;
+    transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease}
   .gd-card:hover{border-color:var(--line)}
   .gd-card.warn{border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
   .gd-card.crit{border-color:color-mix(in srgb,var(--crit) 55%,var(--line))}
@@ -999,6 +1012,15 @@ function paintIncident(inc){
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openPanel(b.dataset.open));
 }
 
+// 신호등 그림 — 정상 ✓(초록) · 주의 △(노랑) · 위험 ⬣(빨강) · 끊김(회색). 색만이 아니라 모양으로도 구별되게
+const ST_ICO = {
+  ok: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>',
+  warn: '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.2v.3"/>',
+  crit: '<path d="M8.3 3h7.4L21 8.3v7.4L15.7 21H8.3L3 15.7V8.3z"/><path d="M12 7.5v5.5M12 16.2v.3"/>',
+  offline: '<path d="M9 3v4M15 3v4"/><path d="M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/><path d="M4 4l16 16"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.3"/>' };
+const stIco = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ST_ICO[k] || ST_ICO.info}</svg>`;
+const ST_OF = { act: "crit", watch: "warn", info: "info", ok: "ok", warn: "warn", crit: "crit", offline: "offline" };
 // 센서 종류 그림(선 아이콘) — 판넬 카드·'지금' 탭의 센서 목록
 const SN_ICO = {
   temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
@@ -1019,12 +1041,12 @@ function paintPanels(ps){
   const inner = p => {
     const third = p.contact !== "—" && p.contact !== "정상" ? ["단자 발열", p.contact] : p.fire !== "—" ? ["화재 징조", p.fire]
       : p.dew !== "—" ? ["결로", p.dew] : null;   // 판정할 센서가 없으면 칸을 비우지 않고 뺀다
-    return `<span class="h"><i class="gd-dot ${p.status}" aria-hidden="true"></i><b>${esc(p.panel_name)}</b><span>${esc(p.word)}</span></span>` +
+    return `<span class="h"><b>${esc(p.panel_name)}</b><span class="gd-stc ${ST_OF[p.status] || "ok"}">${stIco(ST_OF[p.status] || "ok")}${esc(p.word)}</span></span>` +
       `<span class="v"><div><b>${p.temp == null ? "—" : p.temp + "℃"}</b><span>온도</span></div><div><b>${p.humidity == null ? "—" : p.humidity + "%"}</b><span>습도</span></div>` +
       (third ? `<div><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</span>` +
       ((p.sensors || []).length ? `<span class="gd-sens">${p.sensors.map(x => `<span class="gd-sn ${esc(x.level)}" title="${esc(x.name)}">${snIco(x.kind)}<b>${esc(x.say)}</b><small>${esc(x.name)}</small></span>`).join("")}</span>` : "");
   };
-  const cls = p => "gd-card" + (p.status === "warn" || p.status === "crit" ? " " + p.status : "");
+  const cls = p => "gd-card" + (["warn", "crit", "offline"].includes(p.status) ? " " + p.status : "");
   const ids = ps.map(p => p.panel).join("\n");
   if (box._ids === ids){
     // 판넬 구성이 그대로면 카드 틀은 두고 안쪽만 — 5초 갱신이 키보드 초점·마우스 올림을 날리지 않게
@@ -1100,7 +1122,7 @@ async function openPanel(pid){
       `<div class="gd-g"><b>${p.humidity == null ? "—" : p.humidity}<small>%</small></b><span>습도${p.dew !== "—" ? " · " + esc(p.dew) : ""}</span></div>` +
       (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span></div>` : "") +
       (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span></div>` : "") + `</div>` +
-      ((p.sensors || []).length ? `<div class="gd-snl"><h5>달린 센서 ${p.sensors.length + (p.temp != null) + (p.humidity != null)}개</h5>${p.sensors.map(x => `<div class="${esc(x.level)}">${snIco(x.kind)}<span>${esc(x.name)}</span><b>${esc(x.say)}</b></div>`).join("")}</div>` : "") +
+      ((p.sensors || []).length ? `<div class="gd-snl"><h5>달린 센서 ${p.sensors.length + (p.temp != null) + (p.humidity != null)}개</h5>${p.sensors.map(x => `<div class="${esc(x.level)}">${snIco(x.kind)}<span>${esc(x.name)}</span><b><i class="gd-st ${esc(x.level)}">${stIco(x.level)}</i>${esc(x.say)}</b></div>`).join("")}</div>` : "") +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
       `</section>` +
       `<section class="gd-pane" id="gd-pane-fc" role="tabpanel" aria-labelledby="gd-tab-fc" hidden><div class="gd-fc" id="gd-fc"><div class="gd-note">불러오는 중</div></div></section>` +
@@ -1122,7 +1144,7 @@ function paintTodo(list){
   if (!list.length){ setHTML(el, `<p class="gd-fig ok">0<small>건</small></p><p class="gd-fig-sub">할 일 없음 · JCC와 판넬이 지키고 있습니다</p>`); return; }
   const top = list.slice(0, 2);
   if (!setHTML(el, `<p class="gd-fig ${list[0].level === "act" ? "act" : list[0].level === "watch" ? "watch" : ""}">${list.length}<small>건</small></p>` +
-    `<ul class="gd-todo">${top.map(x => `<li><i class="${x.level}"></i><span><b>${esc(x.panel_name || "공장 전체")}</b> ${esc(x.title)}</span></li>`).join("")}</ul>` +
+    `<ul class="gd-todo">${top.map(x => `<li><i class="gd-st ${ST_OF[x.level]}">${stIco(ST_OF[x.level])}</i><span><b>${esc(x.panel_name || "공장 전체")}</b> ${esc(x.title)}</span></li>`).join("")}</ul>` +
     `<button class="gd-more" id="gd-todo-more">자세히</button>`)) return;
   $("#gd-todo-more").onclick = () => openTodo(list);
 }

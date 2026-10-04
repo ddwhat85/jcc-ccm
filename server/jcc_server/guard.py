@@ -135,6 +135,25 @@ def _say(s, kind) -> str:
     return f"{num}{unit}" if unit in ("℃", "%") else f"{num} {unit}".rstrip()
 
 
+_RANK = {"ok": 0, "warn": 1, "crit": 2}
+
+
+def _level(s, kind) -> str:
+    """기준값으로 본 센서 상태 — 직원 화면 경보 판정과 같은 비교(최솟값 미만·최댓값 초과 = 위험, 주의값 초과 = 주의).
+    문은 '열림'(주의값 이상)이면 주의, 연기는 감지되면 위험."""
+    v = s.get("value")
+    if v is None:
+        return "ok"
+    mn, wn, mx = s.get("alarm_min"), s.get("alarm_warn"), s.get("alarm_max")
+    if kind == "smoke":
+        return "crit" if v >= 1 else "ok"
+    if (mn is not None and v < mn) or (mx is not None and v > mx):
+        return "crit"
+    if wn is not None and (v >= wn if kind == "door" else v > wn):
+        return "warn"
+    return "ok"
+
+
 def _guess(s) -> str:
     """탐색 전 장비(종류 정보 없음)의 센서 — 키로 짐작, 모르면 'other'(숫자+단위로 그대로 보인다)."""
     key = (s.get("sensor_key") or "").lower()
@@ -186,7 +205,8 @@ def _latest(storage) -> dict:
                     continue
                 seen[name] = seen.get(name, 0) + 1
                 d["sensors"].append({"name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
-                                     "say": _say(s, kind), "level": lvl.get((c["device_id"], s["sensor_key"]), "ok")})
+                                     "say": _say(s, kind), "level": max(lvl.get((c["device_id"], s["sensor_key"]), "ok"),
+                                                                          _level(s, kind), key=_RANK.get)})
     return out
 
 
