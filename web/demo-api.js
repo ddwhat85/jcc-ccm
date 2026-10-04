@@ -82,7 +82,7 @@
   };
 
   // 가상 공장(평택 2공장): 주 판넬 1면 = CCM 4대(scanner.py의 _SIM_PANEL과 같은 구성 — 예지·이야기 재생이 여기서) +
-  // 평상시 판넬 5면(각 CCM 1대, 내장 온습도만, 무작위 소동 없음). 직원 화면(노드·현장 목록)과 고객 화면이 같은 6면을 본다.
+  // 평상시 판넬 5면(각 CCM 1대 — 내장 온습도·도어 + 판넬 성격에 맞는 센서, 무작위 소동 없음). 직원 화면(노드·현장 목록)과 고객 화면이 같은 6면을 본다.
   const SIM = {
     panel: "panel-01", panel_name: "A동 배터리실 1번", site: "평택 2공장 · 가상 공장",
     ccms: [
@@ -97,11 +97,16 @@
         { ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "BANNER-QM30VT", address: 3 }] },
       { device_id: "ccm-2664", bus: [
         { ident: "ONOFF-HSD200", address: 4 }, { ident: "BANNER-S15S-T", address: 6 }] },
-      { device_id: "ccm-3101", panel: "panel-02", panel_name: "B동 수배전반", base: [33.0, 41], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
-      { device_id: "ccm-3102", panel: "panel-03", panel_name: "B동 MCC 1", base: [35.1, 39], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
-      { device_id: "ccm-3103", panel: "panel-04", panel_name: "A동 배터리실 2번", base: [29.6, 55], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
-      { device_id: "ccm-3104", panel: "panel-05", panel_name: "생산 라인 제어반", base: [29.8, 47], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
-      { device_id: "ccm-3105", panel: "panel-06", panel_name: "옥외 분전반", base: [22.6, 63], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }] },
+      { device_id: "ccm-3101", panel: "panel-02", panel_name: "B동 수배전반", base: [33.0, 41], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true },
+        { ident: "BANNER-S15S-T", address: 1 }, { ident: "BANNER-CT20A", address: 2 }] },
+      { device_id: "ccm-3102", panel: "panel-03", panel_name: "B동 MCC 1", base: [35.1, 39], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true },
+        { ident: "BANNER-S15S-T", address: 1 }, { ident: "BANNER-CT20A", address: 2 }, { ident: "BANNER-QM30VT", address: 3 }] },
+      { device_id: "ccm-3103", panel: "panel-04", panel_name: "A동 배터리실 2번", base: [29.6, 55], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true },
+        { ident: "INFRASENSING-H2", address: 1 }, { ident: "ONOFF-HSD200", address: 4 }] },
+      { device_id: "ccm-3104", panel: "panel-05", panel_name: "생산 라인 제어반", base: [29.8, 47], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true },
+        { ident: "BANNER-CT20A", address: 2 }] },
+      { device_id: "ccm-3105", panel: "panel-06", panel_name: "옥외 분전반", base: [22.6, 63], bus: [{ ident: "TURCK-CCM-AMBIENT", builtin: true }, { ident: "TURCK-CCM-DOOR", builtin: true },
+        { ident: "BANNER-S15S-T", address: 1 }] },
     ],
   };
   const CCM_CFG = Object.fromEntries(SIM.ccms.map(c => [c.device_id, c]));
@@ -185,11 +190,42 @@
   }
   const gdRound = (v, d) => v == null ? null : Math.round(v * 10 ** d) / 10 ** d;
   const gdLife = l => !l ? "부품 점검 시기" : l.includes("접점") ? "단자 점검 시기" : l.includes("→") ? `${l.split("→")[0].trim()} 기준선까지` : l;   // guard.py life_plain
+  // 판넬 카드 센서 목록 — guard._latest와 같은 규칙: 노드에 달린 센서 전부(대표 온습도 제외, 미확인·원시 값 빼고, 경보 걸린 센서는 그 등급)
+  const GD_UNIT = { C: "℃", "°C": "℃", DEGC: "℃", "%RH": "%" };
+  function gdSay(s, kind) {
+    const v = s.value;
+    if (v == null) return "값 없음";
+    if (kind === "door") { const thr = s.alarm_warn != null ? s.alarm_warn : s.alarm_max; return thr != null ? (v >= thr ? "열림" : "닫힘") : `${v}mm`; }
+    if (kind === "smoke") return v >= 1 ? "감지" : "없음";
+    if (kind === "temp") return `${v.toFixed(1)}℃`;
+    if (kind === "humidity") return `${Math.round(v)}%`;
+    const unit = GD_UNIT[(s.unit || "").toUpperCase()] || s.unit || "", num = Math.abs(v) < 10 ? v.toFixed(1) : String(Math.round(v));
+    return unit === "℃" || unit === "%" ? num + unit : `${num} ${unit}`.trim();
+  }
+  function gdLatest(ccms) {
+    const lvl = {};
+    S.alarms.filter(a => !a.cleared_at).forEach(a => { const k = a.device_id + ":" + (a.sensor_key || ""); if (lvl[k] !== "crit") lvl[k] = a.severity === "crit" ? "crit" : "warn"; });
+    const all = ccms.flatMap(c => c.latest.map(s => [c.device_id, s])), picked = new Set(), d = { temp: null, humidity: null, sensors: [] };
+    all.forEach(([dev, s]) => {
+      if (s.value == null) return;
+      if (s.kind === "temp" && d.temp == null && s.sensor_key.includes("cabinet")) { d.temp = gdRound(s.value, 1); picked.add(dev + ":" + s.sensor_key); }
+      if (s.kind === "humidity" && d.humidity == null) { d.humidity = gdRound(s.value, 0); picked.add(dev + ":" + s.sensor_key); }
+    });
+    if (d.temp == null) { const f = all.find(([, s]) => s.kind === "temp" && s.value != null); if (f) { d.temp = gdRound(f[1].value, 1); picked.add(f[0] + ":" + f[1].sensor_key); } }
+    const seen = {};
+    all.forEach(([dev, s]) => {
+      const kind = s.kind || "other", name = s.name || s.sensor_key;
+      if (picked.has(dev + ":" + s.sensor_key)) { seen[name] = (seen[name] || 0) + 1; return; }
+      if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || s.unit === "?" || s.enabled === false) return;
+      seen[name] = (seen[name] || 0) + 1;
+      d.sensors.push({ name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: lvl[dev + ":" + s.sensor_key] || "ok" });
+    });
+    return d;
+  }
   function gdRows() {
-    // 직원 화면 현장 목록(fleetView)과 같은 6면 — 이름·상태·경보가 두 화면에서 같다
+    // 직원 화면 현장 목록(fleetView)과 같은 6면 — 이름·상태·경보·센서가 두 화면에서 같다
     const pl = Object.fromEntries(panelList().map(p => [p.panel, p]));
-    return fleetView().map(f => Object.assign({}, f, {
-      temp: gdRound(gdKindVal((pl[f.panel] || {}).ccms || [], "temp"), 1), humidity: gdRound(gdKindVal((pl[f.panel] || {}).ccms || [], "humidity"), 0) }));
+    return fleetView().map(f => Object.assign({}, f, gdLatest((pl[f.panel] || {}).ccms || [])));
   }
   function gdScore(rows, t) {
     const items = []; let crit = false, off = 0;
@@ -219,7 +255,7 @@
   function gdModel(p) {
     const pr = p.predict;
     return { panel: p.panel, panel_name: p.panel_name, site: "", status: p.status,
-      word: { crit: "위험", offline: "연결 끊김", warn: "지켜보는 중", ok: "정상" }[p.status], why: p.why, temp: p.temp, humidity: p.humidity,
+      word: { crit: "위험", offline: "연결 끊김", warn: "지켜보는 중", ok: "정상" }[p.status], why: p.why, temp: p.temp, humidity: p.humidity, sensors: p.sensors || [],
       fire: GD_WORD.fire[pr.fire] || "—", contact: GD_WORD.contact[pr.contact] || "—", dew: GD_WORD.dew[pr.dew] || "—", vent_open: !!pr.vent_open,
       life: p.life ? Object.assign({}, p.life, { label: gdLife(p.life.label) }) : null, alarms: p.alarms, next_inspection: p.next_inspection, ccm_online: p.ccm_online, ccm_total: p.ccm_total, last_seen: p.last_seen };
   }
@@ -809,19 +845,20 @@
   const gauss = (m, s) => m + s * (Math.sqrt(-2 * Math.log(rnd() || 1e-9)) * Math.cos(2 * Math.PI * rnd()));
   function genValue(key, kind, t, dev) {
     const cfg = dev && CCM_CFG[dev], calm = GD.on || calmDev(dev);
+    if (cfg && cfg.base && key.includes("ncontact")) return Math.round((cfg.base[0] + 4.5 + Math.sin(t / 240 + cfg.base[1]) * 0.6) * 100) / 100;   // 단자 온도 = 함내보다 몇 도 높게
     if (cfg && cfg.base && kind === "temp") return Math.round((cfg.base[0] + Math.sin(t / 300 + cfg.base[1]) * 0.4) * 100) / 100;
     if (cfg && cfg.base && kind === "humidity") return Math.round((cfg.base[1] + Math.sin(t / 500 + cfg.base[0]) * 2) * 100) / 100;
     if (!calm && rnd() < 0.03) return null;   // 고객 화면 시연(GD.on)은 무작위 소동 없이 — 이야기 재생만 화면을 움직인다
     let v;
     if (key.includes("temp") || kind === "temp") v = 27 + 3 * Math.sin(t / 30) + (rnd() - 0.5) * 0.6;
     else if (key.includes("humid") || kind === "humidity") v = 45 + 8 * Math.sin(t / 45) + (rnd() - 0.5) * 2;
-    else if (key.includes("vibration") || kind === "vibration") v = Math.max(0, gauss(1.2, 0.4));
-    else if (key.includes("door") || kind === "door") v = GD.on ? 12 + rnd() * 0.8 : (rnd() > 0.1 ? 12 : 340);   // 고객 화면 시연은 문이 닫힌 평상시
+    else if (key.includes("vibration") || kind === "vibration") v = calm ? 1.1 + rnd() * 0.3 : Math.max(0, gauss(1.2, 0.4));
+    else if (key.includes("door") || kind === "door") v = calm ? 12 + rnd() * 0.8 : (rnd() > 0.1 ? 12 : 340);   // 고객 화면 시연·평상시 판넬은 문이 닫힌 평상시
     else if (key.includes("h2") || kind === "h2") v = Math.max(0, gauss(0.4, 0.2));
     else if (key.includes("voc") || kind === "voc") v = Math.max(0, gauss(30, 10));
     else if (kind === "co" || key.startsWith("co_")) v = Math.max(0, gauss(3, 1));   // ppm, 평소 한 자릿수
     else if (key.includes("current") || kind === "current") v = 18 + 4 * Math.sin(t / 20) + (rnd() - 0.5);
-    else if (key.includes("smoke") || kind === "smoke") v = rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지
+    else if (key.includes("smoke") || kind === "smoke") v = calm || rnd() > 0.02 ? 0 : 1;  // 평소 0, 드물게 감지(평상시 판넬은 늘 0)
     else v = Math.max(0, gauss(40, 3));
     if (!calm && rnd() < 0.06) {
       for (const k in SPIKE) if (key.includes(k) || kind === k) return SPIKE[k];

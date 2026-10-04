@@ -111,11 +111,51 @@ def _kind(s) -> str:
     return ""
 
 
+# 고객 카드에 뜻이 없는 값(미확인·원시 아날로그)과 공조 연동 상태값은 센서 목록에서 뺀다(공조는 '공조' 탭에)
+_SKIP_KINDS = {"unknown", "analog"}
+_UNIT = {"C": "℃", "°C": "℃", "DEGC": "℃", "%RH": "%"}
+
+
+def _say(s, kind) -> str:
+    """센서 값 한 마디 — 문은 열림/닫힘(그 센서의 주의 기준으로), 연기는 감지/없음, 나머지는 숫자+단위."""
+    v = s.get("value")
+    if v is None:
+        return "값 없음"
+    if kind == "door":
+        thr = s.get("alarm_warn") if s.get("alarm_warn") is not None else s.get("alarm_max")
+        return ("열림" if v >= thr else "닫힘") if thr is not None else f"{v:g}mm"
+    if kind == "smoke":
+        return "감지" if v >= 1 else "없음"
+    unit = _UNIT.get((s.get("unit") or "").upper(), s.get("unit") or "")
+    if kind == "temp":
+        return f"{v:.1f}℃"
+    if kind == "humidity":
+        return f"{round(v)}%"
+    num = f"{v:.1f}" if abs(v) < 10 else f"{round(v)}"
+    return f"{num}{unit}" if unit in ("℃", "%") else f"{num} {unit}".rstrip()
+
+
+def _guess(s) -> str:
+    """탐색 전 장비(종류 정보 없음)의 센서 — 키로 짐작, 모르면 'other'(숫자+단위로 그대로 보인다)."""
+    key = (s.get("sensor_key") or "").lower()
+    for hint, kind in (("smoke", "smoke"), ("door", "door"), ("h2", "h2"), ("voc", "voc"), ("co_", "co"),
+                       ("current", "current"), ("vib", "vibration")):
+        if hint in key:
+            return kind
+    return "other"
+
+
 def _latest(storage) -> dict:
-    """판넬 → {temp, humidity, names{(dev,key)}, keys}."""
+    """판넬 → {temp, humidity, names{(dev,key)}, keys, sensors[]}. sensors = 노드에 달린 센서 전부(대표 온습도 제외)."""
     out = {}
+    lvl = {}
+    for a in storage.list_active_alarms():
+        k = (a["device_id"], a.get("sensor_key") or "")
+        if lvl.get(k) != "crit":
+            lvl[k] = "crit" if a.get("severity") == "crit" else "warn"
     for p in storage.list_panels():
-        d = out.setdefault(p["panel"], {"temp": None, "humidity": None, "names": {}, "keys": {p["panel"]}})
+        d = out.setdefault(p["panel"], {"temp": None, "humidity": None, "names": {}, "keys": {p["panel"]}, "sensors": []})
+        picked = set()
         for c in p["ccms"]:
             d["keys"].add(c["device_id"])
             for s in c.get("latest") or []:
@@ -123,11 +163,30 @@ def _latest(storage) -> dict:
                 v = s.get("value")
                 if _kind(s) == "temp" and v is not None and d["temp"] is None and "cabinet" in s["sensor_key"]:
                     d["temp"] = round(v, 1)
+                    picked.add((c["device_id"], s["sensor_key"]))
                 if _kind(s) == "humidity" and v is not None and d["humidity"] is None:
                     d["humidity"] = round(v)
+                    picked.add((c["device_id"], s["sensor_key"]))
         if d["temp"] is None:      # 함내 온도가 없으면 첫 온도 센서
-            d["temp"] = next((round(s["value"], 1) for c in p["ccms"] for s in c.get("latest") or []
-                              if _kind(s) == "temp" and s.get("value") is not None), None)
+            first = next(((c["device_id"], s) for c in p["ccms"] for s in c.get("latest") or []
+                          if _kind(s) == "temp" and s.get("value") is not None), None)
+            if first:
+                d["temp"] = round(first[1]["value"], 1)
+                picked.add((first[0], first[1]["sensor_key"]))
+        seen: dict = {}
+        for c in p["ccms"]:
+            for s in c.get("latest") or []:
+                kind = _kind(s) or _guess(s)
+                name = s.get("name") or s["sensor_key"]
+                if (c["device_id"], s["sensor_key"]) in picked:      # 대표 온습도는 이름 번호만 차지(같은 이름 두 번째가 '2'로)
+                    seen[name] = seen.get(name, 0) + 1
+                    continue
+                if (kind in _SKIP_KINDS or kind.startswith("aircon") or (s.get("unit") or "") == "?"
+                        or s.get("enabled") is False):
+                    continue
+                seen[name] = seen.get(name, 0) + 1
+                d["sensors"].append({"name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
+                                     "say": _say(s, kind), "level": lvl.get((c["device_id"], s["sensor_key"]), "ok")})
     return out
 
 
@@ -135,7 +194,7 @@ def _panel_model(p, lat) -> dict:
     pr = p.get("predict") or {}
     return {"panel": p["panel"], "panel_name": p["panel_name"], "site": p.get("site") or "",
             "status": p["status"], "word": _STATUS_WORD.get(p["status"], p["status"]), "why": p.get("why") or [],
-            "temp": (lat or {}).get("temp"), "humidity": (lat or {}).get("humidity"),
+            "temp": (lat or {}).get("temp"), "humidity": (lat or {}).get("humidity"), "sensors": (lat or {}).get("sensors", []),
             "fire": _WORD["fire"].get(pr.get("fire") or "", "—"), "contact": _WORD["contact"].get(pr.get("contact") or "", "—"),
             "dew": _WORD["dew"].get(pr.get("dew") or "", "—"), "vent_open": bool(pr.get("vent_open")),
             "life": _life(p.get("life")), "alarms": p.get("alarms"), "next_inspection": p.get("next_inspection"),

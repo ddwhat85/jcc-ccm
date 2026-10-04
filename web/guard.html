@@ -249,6 +249,22 @@
   @keyframes gd-sweep{to{transform:rotate(1turn)}}
   .gd-ring svg,.gd-ring .mid{z-index:1}
   @media (prefers-reduced-motion:reduce){.gd-radar::before{animation:none}}
+  /* 판넬 카드의 센서 — 노드에 달린 것 전부. 평소엔 조용히, 경보 걸린 센서만 색 */
+  .gd-sens{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:10px 8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line-2)}
+  .gd-sn{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:7px;align-items:center;min-width:0;padding:3px 6px 3px 2px;border-radius:var(--r-s)}
+  .gd-sn svg{grid-row:span 2;width:20px;height:20px;color:var(--ink-3)}
+  .gd-sn b{font:600 var(--t-cap)/1.25 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-sn small{font-size:var(--t-cap);line-height:1.25;color:var(--ink-3)}
+  .gd-card{display:flex;flex-direction:column;justify-content:flex-start}
+  .gd-sn.warn{background:color-mix(in srgb,var(--warn) 13%,transparent)} .gd-sn.warn svg,.gd-sn.warn b{color:var(--warn)}
+  .gd-sn.crit{background:color-mix(in srgb,var(--crit) 13%,transparent)} .gd-sn.crit svg,.gd-sn.crit b{color:var(--crit-ink)}
+  .gd-snl{margin-top:18px}
+  .gd-snl h5{margin:0 0 4px;font:700 var(--t-body) var(--sans)}
+  .gd-snl>div{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:var(--t-body)}
+  .gd-snl>div:last-child{border-bottom:0}
+  .gd-snl svg{width:20px;height:20px;color:var(--ink-3)}
+  .gd-snl b{font-weight:600;font-variant-numeric:tabular-nums}
+  .gd-snl .warn b,.gd-snl .warn svg{color:var(--warn)} .gd-snl .crit b,.gd-snl .crit svg{color:var(--crit-ink)}
   @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
@@ -714,7 +730,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=f4faae3e"></script>
+<script src="demo-api.js?v=feb6e691"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -978,6 +994,20 @@ function paintIncident(inc){
   box.querySelectorAll("[data-open]").forEach(b => b.onclick = () => openPanel(b.dataset.open));
 }
 
+// 센서 종류 그림(선 아이콘) — 판넬 카드·'지금' 탭의 센서 목록
+const SN_ICO = {
+  temp: '<path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/>',
+  humidity: '<path d="M12 3c-4 5-6 8-6 11a6 6 0 0 0 12 0c0-3-2-6-6-11z"/>',
+  h2: '<circle cx="12" cy="12" r="8.5"/><path d="M9.5 8.5v7M14.5 8.5v7M9.5 12h5"/>',
+  voc: '<path d="M7 18a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.7-1.4A4.2 4.2 0 0 1 17 18z"/>',
+  co: '<path d="M7 18a4 4 0 0 1-.6-8 5.5 5.5 0 0 1 10.7-1.4A4.2 4.2 0 0 1 17 18z"/><path d="M9 21h6"/>',
+  smoke: '<path d="M12 3c2 3.2 5 5.6 5 9.6A5 5 0 0 1 7 12.6c0-1.8.8-3.2 2-4.4.3 1.6 1.2 2.6 2.2 2.8C11 8.6 11.2 5.6 12 3Z"/>',
+  current: '<path d="M13 3L5.5 13.5h6L10.5 21 18.5 10h-6z"/>',
+  vibration: '<path d="M3 12h3l2-5 3 10 3-12 3 9 1.5-2H21"/>',
+  door: '<rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M15 11.5v1"/>',
+  pressure: '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/>',
+  other: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5"/>' };
+const snIco = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SN_ICO[k] || (k === "gas" ? SN_ICO.voc : SN_ICO.other)}</svg>`;
 function paintPanels(ps){
   const box = $("#gd-panels");
   if (!ps.length){ setHTML(box, `<div class="gd-empty">아직 연결된 판넬이 없습니다.<br>설치가 끝나면 이곳에서 24시간 지켜봅니다.</div>`); box._ids = ""; return; }
@@ -987,7 +1017,7 @@ function paintPanels(ps){
     return `<span class="h"><i class="gd-dot ${p.status}" aria-hidden="true"></i><b>${esc(p.panel_name)}</b><span>${esc(p.word)}</span></span>` +
       `<span class="v"><div><b>${p.temp == null ? "—" : p.temp + "℃"}</b><span>온도</span></div><div><b>${p.humidity == null ? "—" : p.humidity + "%"}</b><span>습도</span></div>` +
       (third ? `<div><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</span>` +
-      "";
+      ((p.sensors || []).length ? `<span class="gd-sens">${p.sensors.map(x => `<span class="gd-sn ${esc(x.level)}" title="${esc(x.name)}">${snIco(x.kind)}<b>${esc(x.say)}</b><small>${esc(x.name)}</small></span>`).join("")}</span>` : "");
   };
   const cls = p => "gd-card" + (p.status === "warn" || p.status === "crit" ? " " + p.status : "");
   const ids = ps.map(p => p.panel).join("\n");
@@ -1065,6 +1095,7 @@ async function openPanel(pid){
       `<div class="gd-g"><b>${p.humidity == null ? "—" : p.humidity}<small>%</small></b><span>습도${p.dew !== "—" ? " · " + esc(p.dew) : ""}</span></div>` +
       (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span></div>` : "") +
       (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span></div>` : "") + `</div>` +
+      ((p.sensors || []).length ? `<div class="gd-snl"><h5>달린 센서 ${p.sensors.length + (p.temp != null) + (p.humidity != null)}개</h5>${p.sensors.map(x => `<div class="${esc(x.level)}">${snIco(x.kind)}<span>${esc(x.name)}</span><b>${esc(x.say)}</b></div>`).join("")}</div>` : "") +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
       `</section>` +
       `<section class="gd-pane" id="gd-pane-fc" role="tabpanel" aria-labelledby="gd-tab-fc" hidden><div class="gd-fc" id="gd-fc"><div class="gd-note">불러오는 중</div></div></section>` +

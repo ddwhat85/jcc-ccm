@@ -88,6 +88,24 @@ def run():
     vc = guard.guard_view(st, {"p1"}, "평택 2공장")
     check("고객 범위: 자기 판넬만", [p["panel_name"] for p in vc["panels"]] == ["A동 배터리실"] and vc["site"] == "평택 2공장")
 
+    # 판넬 카드 = 노드에 달린 센서 전부(대표 온습도 제외, 미확인 값은 빼고, 경보 걸린 센서는 그 등급)
+    st.ingest({"device_id": "ccm-1b", "panel": "p1", "panel_name": "A동 배터리실", "readings": [
+        {"key": "cabinet_temp", "name": "함내 온도", "unit": "C", "kind": "temp", "value": 30.0, "ok": True, "ts": now},
+        {"key": "h2_lel", "name": "수소 농도", "unit": "%LEL", "kind": "h2", "value": 0.42, "ok": True, "ts": now},
+        {"key": "smoke", "name": "열연기", "unit": "", "kind": "smoke", "value": 0, "ok": True, "ts": now},
+        {"key": "main_current", "name": "메인차단기 전류", "unit": "A", "kind": "current", "value": 13.87, "ok": True, "ts": now},
+        {"key": "unknown_5", "name": "미확인", "unit": "?", "kind": "unknown", "value": 43.0, "ok": True, "ts": now}]})
+    st.raise_alarm("ccm-1b", "main_current", "alarm_warn", "전류 주의")
+    sp = {x["name"]: x for x in guard.guard_view(st, {"p1"}, "x")["panels"][0]["sensors"]}
+    check("센서 목록: 수소·연기·전류·두 번째 함내 온도", set(sp) == {"수소 농도", "열연기", "메인차단기 전류", "함내 온도 2"}
+          if "함내 온도" not in sp else False, str(sp))
+    check("센서 값 한 마디", sp.get("수소 농도", {}).get("say") == "0.4 %LEL" and sp.get("열연기", {}).get("say") == "없음"
+          and sp.get("메인차단기 전류", {}).get("say") == "14 A", str(sp))
+    check("경보 걸린 센서는 주의", sp.get("메인차단기 전류", {}).get("level") == "warn" and sp.get("수소 농도", {}).get("level") == "ok", str(sp))
+    with st._lock:      # 이 확인용 경보는 뒤 시험(이번 달 사건 목록)에 섞이지 않게 지운다
+        st._conn.execute("DELETE FROM alarms WHERE device_id = ?", ("ccm-1b",))
+        st._conn.commit()
+
     # 위험 순간: 위험 경보 → 판넬이 스스로 환기(이벤트) → JCC 확인
     st.raise_alarm("ccm-1", "cabinet_temp", "alarm", "함내 온도 61C — 위험(55 초과)")
     st.log_event("ccm-1", "", "vent_open", "화재 징조 → 벤트 자동 개방", source="system")
