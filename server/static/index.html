@@ -435,6 +435,7 @@
   .hero-mini.pass .hm-dot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
   /* 예지보전 카드 — 화재·접점·결로 위험도 + 벤트·히터·팬 */
   .pdm{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 13px 12px;margin-bottom:12px}
+  .pdm-why.pdm-ac{color:var(--warn);font-weight:600}
   .pdm-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
   .pdm-title{flex:none;white-space:nowrap;font:700 13px var(--sans);letter-spacing:-.01em;color:var(--ink)}
   .pdm-age{min-width:0;text-align:right;font:600 10px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
@@ -2938,7 +2939,7 @@ function renderPred(){
         `<div class="pdm-row ok" data-pdm="${k}" title="클릭하면 해당 센서 노드를 표시합니다">`+
         `<span class="pdm-name">${nm}</span><span class="pdm-meter"><i></i></span>`+
         `<span class="pdm-num">—</span><span class="pdm-chip">대기</span></div>`).join("")+
-      `</div><div class="pdm-why" id="pdm-why"></div><div class="pdm-act">`+
+      `</div><div class="pdm-why" id="pdm-why"></div><div class="pdm-why pdm-ac" id="pdm-ac" hidden></div><div class="pdm-act">`+
       [["vent","벤트"],["heater","히터"],["fan","팬"]].map(([k,nm])=>
         `<button class="pdm-a" data-act="${k}" aria-pressed="false"><span class="an">${nm}</span>`+
         `<span class="as">—</span><span class="am">자동</span><span class="ac"></span></button>`).join("")+
@@ -2969,6 +2970,7 @@ function renderPred(){
     box.innerHTML = `<div class="pdm-head"><span class="pdm-title">예지보전</span><span class="pdm-age" id="pdm-age">${focusPanel ? "이 판넬은 예지 데이터가 아직 없습니다" : "데이터 쌓이는 중"}</span></div>`;
     return; }
   pdmPaintActs(box, pdmActs(p));
+  pdmVentAc(p, pdmActs(p).vent.on);
   pdmPaintEdge(box, p);
   const f = p.fire||{}, c = p.contact||{}, d = p.dew||{};
   const rows = {
@@ -3011,6 +3013,19 @@ function renderPred(){
 }
 // 액추에이터 상태 읽기(벤트=fire.vent, 히터·팬=dew). 그 출력을 현장 CCM(엣지)이 직접 쥐고
 // 보고했으면 서버 모델이 아니라 CCM이 실제로 쓴 릴레이 상태를 보여준다(site=true).
+// 벤트가 열린 동안 에어컨이 바깥 공기를 식히면 응축수만 늘어난다(리탈 에어컨의 문 열림 스위치와 같은 이유) —
+// 그 판넬에 연결된 에어컨이 돌고 있으면 일시 정지를 '권장'만 한다. 에어컨 연결은 읽기 전용이라 직접 끄지 않는다
+function pdmVentAc(p, ventOpen){
+  const el = $("#pdm-ac"); if (!el) return;
+  const panel = (lastPanels || []).find(x => x.panel === p.panel);
+  const run = panel ? panel.ccms.flatMap(c => c.latest || []).filter(s => /^ac\d+_run$/.test(s.sensor_key || "")) : [];
+  if (!ventOpen || !run.length){ el.hidden = true; el.textContent = ""; return; }
+  const on = run.filter(s => s.value != null && s.value >= 0.5).length;
+  el.hidden = false;
+  el.textContent = on
+    ? `벤트 개방 중 · 에어컨 ${on}대 운전 중 — 일시 정지 권장(바깥 공기를 식히면 응축수가 늘어남). 벤트가 닫히면 다시 운전해 온도·습기를 뺍니다.`
+    : `벤트 개방 중 · 에어컨 쉬는 중 — 벤트가 닫히면 다시 운전해 온도·습기를 빼세요.`;
+}
 function pdmActs(p){
   const f = p.fire||{}, d = p.dew||{};
   const acts = {

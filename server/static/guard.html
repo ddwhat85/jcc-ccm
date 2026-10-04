@@ -367,6 +367,14 @@
   .gd-inc h2{margin:12px 0 4px;font:600 var(--t-h)/1.38 var(--sans);letter-spacing:-.01em}
   .gd-inc .d{font-size:var(--t-cap);color:var(--ink-2);line-height:1.5}
   .gd-steps{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .gd-vent{margin-top:14px;display:flex;flex-wrap:wrap;gap:8px}
+  .gd-vchip{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 14px 0 10px;border-radius:var(--pill);border:1px solid var(--line)}
+  .gd-vchip svg{width:22px;height:22px;color:var(--ink-2)}
+  .gd-vchip b{font:700 var(--t-body) var(--sans);font-variant-numeric:tabular-nums}
+  .gd-vchip.on{border-color:transparent;background:color-mix(in srgb,var(--ok) 14%,transparent)}
+  .gd-vchip.on svg{color:var(--ok);animation:gd-wind 1.6s ease-in-out infinite}
+  @keyframes gd-wind{50%{transform:translateX(3px)}}
+  @media (prefers-reduced-motion:reduce){.gd-vchip.on svg{animation:none}}
   /* 해결 진행 게이지 — 끝난 칸은 초록, 지금 칸은 줄무늬가 흐른다(일하는 중), 남은 칸은 회색 */
   .gd-prog{margin-top:16px}
   .gd-prog-h{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
@@ -1100,6 +1108,17 @@ function progHTML(inc){
     `<div class="gd-prog-bar">${st.map((x, i) => `<i class="${x[1] ? "done" : i === nowIdx ? "now" : ""}"></i>`).join("")}</div>` +
     `<ol class="gd-prog-st">${st.map((x, i) => `<li class="${x[1] ? "done" : i === nowIdx ? "now" : ""}">${x[0]}</li>`).join("")}</ol></div>`;
 }
+// 벤트가 열린 동안 — 바깥 공기가 들어와 판넬 안 온도·습도가 오를 수 있다. 가스를 빼는 게 먼저라 벤트는 닫지 않는다
+function ventHTML(inc){
+  const pm = ((G.d && G.d.panels) || []).find(x => x.panel === inc.panel);
+  if (!pm || !pm.vent_open) return "";
+  const v = [pm.temp == null ? "" : `${pm.temp}℃`, pm.humidity == null ? "" : `습도 ${pm.humidity}%`].filter(Boolean).join(" · ");
+  // 글 대신 그림 칩 세 개 — 벤트 열림 · 판넬 안 온도 · 습도(고객은 긴 글을 읽지 않는다)
+  return `<div class="gd-vent" role="group" aria-label="벤트 열림${v ? ", 판넬 안 " + esc(v) : ""}">` +
+    `<span class="gd-vchip on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/></svg><b>벤트 열림</b></span>` +
+    (pm.temp == null ? "" : `<span class="gd-vchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></svg><b>${esc(pm.temp)}℃</b></span>`) +
+    (pm.humidity == null ? "" : `<span class="gd-vchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c-4 5-6 8-6 11a6 6 0 0 0 12 0c0-3-2-6-6-11z"/></svg><b>${esc(pm.humidity)}%</b></span>`) + `</div>`;
+}
 function paintIncident(inc){
   const box = $("#gd-inc");
   if (!inc){ box.hidden = true; setHTML(box, ""); return; }
@@ -1107,8 +1126,8 @@ function paintIncident(inc){
   box.hidden = false;
   if (!setHTML(box, `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
     `<h2>${esc(inc.panel_name)}에서<br>${esc(inc.sensor_name)} 이상을 감지했습니다</h2><div class="d">${esc(clean(inc.detail))}</div>` +
-    progHTML(inc) +
-    `<div class="gd-steps">${inc.steps.map(s => `<div class="gd-step"><i class="${s.done ? "ok" : "go"}" aria-hidden="true"></i><span>${esc(clean(s.text))}<small>${s.ts ? fmtT(s.ts) : "진행 중"}</small></span></div>`).join("")}</div>` +
+    progHTML(inc) + ventHTML(inc) +
+    "" +
     `<div class="gd-acts${G.d.contact.phone ? "" : " one"}">${G.d.contact.phone ? `<a class="p" href="tel:${esc(G.d.contact.phone.replace(/[^0-9+]/g, ""))}">JCC에 전화</a>` : ""}` +
     (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`)) return;
   const ack = $("#gd-ack");
