@@ -358,6 +358,8 @@ A separate visual world for customer accounts and sales demos; the drawing-sheet
 The tokens live in `guard.html` `:root` (day) with the dark night values under `prefers-color-scheme: dark` and `[data-theme="dark"]`.
 
 - **Concept:** premium car instrument cluster. One large ring "안심 지수" (0-100) is the hero; everything else is quiet.
+- **Question cards:** the home is a set of question cards (지금 우리 공장은? · 제가 할 일이 있나요? · 판넬은 각각 괜찮나요? · 이번 달 JCC가 한 일 · 문제가 생기면 누구에게?), each a one-line answer plus 자세히; explanations live behind 자세히.
+- **Verdict hero:** the 지금 우리 공장은? card is the peak of the page: full width, always on the login's night plate `--night` #0e1114 (day or night mode alike), answer in `--t-hero` clamp(38-76px) weight 300 (phone `--t-hero-m` clamp 36-46px), ring figure `--t-hero-fig` clamp(44-80px). In danger the whole plate turns `--night-crit` #832926 with white type. Other cards' answers drop to `--t-fig` so the hero stays the only loud thing.
 - **Color:** day ground `#f1efea`, card `#ffffff`, ink `#1b1a17`; night ground `#0b0d10`, card `#15191d`, ink `#e9e6df`.
   State colors only: safe `#2f9a6c`/`#7fd1a8`, watch `#b9822a`/`#e9b45a`, danger `#c0362f`/`#ff6b60`.
   Danger tints the whole ground (alert glow) and is the only time red appears.

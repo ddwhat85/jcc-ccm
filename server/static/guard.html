@@ -30,7 +30,7 @@
     --ink:#1b1a17;--ink-2:#4c4840;--ink-3:#7a766d;--ok:#2f9a6c;--warn:#b9822a;--crit:#c0362f;--crit-ink:#c0362f;
     --btn:#1b1a17;--btn-ink:#ffffff;--alert-bg:#fbeeec;--alert-glow:#fff6f5;--shadow:0 1px 0 rgba(27,26,23,.06);
     --r-s:10px;--r-l:22px;--pill:999px;
-    --t-cap:12px;--t-body:15px;--t-h:19px;--t-fig:24px;--t-big:30px;--t-ring:64px;   /* 글자 단계(1.25배 이상씩) */
+    --t-cap:12px;--t-body:15px;--t-h:19px;--t-fig:24px;--t-big:30px;--t-ring:64px;--t-hero:clamp(38px,5.8vw,76px);--t-hero-m:clamp(36px,10.5vw,46px);--t-hero-fig:clamp(44px,6vw,80px);--night:#0e1114;--night-crit:#832926;   /* 글자 단계(1.25배 이상씩) */
     --sans:"Gothic A1",-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;--r:14px;color-scheme:light}
   @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
     --bg:#0b0d10;--glow:#1d2228;--card:#15191d;--card-2:#111418;--line:#2a2e33;--line-2:#23282e;--track:#23282e;
@@ -164,10 +164,39 @@
   .gd-c-state{order:1} .gd-c-inc{order:2} .gd-c-todo{order:3} .gd-c-call{order:4} .gd-c-panels{order:5} .gd-c-month{order:6} .gd-c-docs{order:7} .gd-inst{order:8}
   @media (min-width:960px){
     .gd-main{grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
-    .gd-c-state{grid-column:span 2} .gd-c-inc,.gd-c-panels{grid-column:1/-1}
-    /* PC: 상태(넓게)·할 일 / 위험 / 판넬 / 연락·이번 달·보고서 */
-    .gd-c-todo{order:2} .gd-c-inc{order:3} .gd-c-panels{order:4} .gd-c-call{order:5} .gd-c-month{order:6} .gd-c-docs{order:7}
+    .gd-c-state,.gd-c-inc,.gd-c-panels,.gd-c-docs{grid-column:1/-1}
+    /* PC: 답(가로 전체) / 위험 / 할 일·이번 달·연락 / 판넬 / 보고서 */
+    .gd-c-todo{order:3} .gd-c-month{order:4} .gd-c-call{order:5} .gd-c-panels{order:6} .gd-c-docs{order:7}
+    .gd-c-docs .gd-docs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));column-gap:24px}
+    .gd-c-docs .gd-doc:last-child{border-bottom:1px solid var(--line-2)}
   }
+  /* 첫 화면의 주인공 = 답 한 줄. 로그인 왼쪽과 같은 밤 판(낮·밤 모드와 무관), 위험이면 판 전체가 붉어진다 */
+  .gd-c-state{--ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--line:#3a3f45;--track:#262b31;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff6b60;--crit-ink:#ffb4ab;
+    position:relative;overflow:hidden;background:var(--night);border-color:#23282e;color:var(--ink);color-scheme:dark;
+    flex-direction:row-reverse;justify-content:space-between;padding:clamp(26px,4.4vw,56px);gap:clamp(20px,4vw,64px);
+    transition:background-color .6s ease}
+  .gd-c-state .gd-q{color:var(--ink-3)}
+  .gd-c-state .gd-a{font-size:var(--t-hero);line-height:1.1;letter-spacing:-.04em;text-wrap:balance;margin-top:4px}
+  .gd-c-state .gd-ring{width:min(270px,30vw)}
+  .gd-c-state .gd-ring b{font-size:var(--t-hero-fig)}
+  .gd-c-state .gd-fresh{margin-top:10px}
+  .gd-c-state .gd-more{margin-top:18px;border-color:var(--line)}
+  .gd-c-state .gd-more:hover{border-color:var(--ink-3)}
+  .gd-c-state.crit{background:var(--night-crit);border-color:transparent;
+    --ink-3:#f3cfcb;--line:rgba(255,255,255,.34);--track:rgba(255,255,255,.16);--crit:#ffffff;--crit-ink:#ffffff}
+  .gd-c-state.crit .gd-fresh.off{color:#fff}
+  @media (max-width:640px){
+    /* 휴대폰: 답은 가로 전체, 지수 원은 갱신 시각·자세히 옆에 작게 — 위험 카드가 첫 화면에 같이 보이게 */
+    .gd-c-state{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"q q" "a a" "f r" "m r";column-gap:16px;row-gap:0;align-items:end}
+    .gd-c-state .gd-c-body{display:contents}
+    .gd-c-state .gd-q{grid-area:q} .gd-c-state .gd-a{grid-area:a;font-size:var(--t-hero-m)}
+    .gd-c-state .gd-fresh{grid-area:f;align-self:start;margin-top:14px} .gd-c-state .gd-more{grid-area:m;justify-self:start}
+    .gd-c-state .gd-ring{grid-area:r;width:112px;margin-top:14px}
+    .gd-c-state .gd-ring b{font-size:var(--t-big)}
+    .gd-c-state .gd-ring .mid>span{margin-top:4px;letter-spacing:.08em}
+  }
+  /* 답이 주인공이니 나머지 카드의 답은 한 단계 작게 */
+  .gd-c:not(.gd-c-state) .gd-a{font-size:var(--t-fig);line-height:1.3}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
   /* 계기판 */
@@ -835,7 +864,7 @@ async function load(){
   catch(_){ if (!onLogin()) offline(); }
 }
 function offline(){
-  const ring = $("#gd-ring"); ring.className = "gd-ring off";
+  const ring = $("#gd-ring"); ring.className = "gd-ring off"; $(".gd-c-state").className = "gd-c gd-c-state off";
   $("#gd-title").textContent = "연결을 다시 잇는 중";
   $("#gd-sub").textContent = "판넬은 현장에서 스스로 지키고 있습니다";
   fresh(true);
@@ -861,6 +890,7 @@ function paint(){
   $("#gd-why-hint").textContent = ix.items.length ? `−${100 - ix.score} · 이유 보기` : "눌러서 근거 보기";
   $("#gd-title").textContent = d.state.title; $("#gd-sub").textContent = d.state.sub;
   $("#gd-title").className = "gd-a " + (ix.color === "crit" ? "act" : ix.color === "warn" ? "watch" : "");
+  $(".gd-c-state").className = "gd-c gd-c-state " + ix.color;
   paintTodo(d.todo || []);
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
