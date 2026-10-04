@@ -347,6 +347,11 @@ Device nodes are inked boxes: dark head band (node-head, `#15191c` / `#232a31`) 
 - **Don't** hard-code color hexes in component CSS; use the theme tokens so both themes stay correct.
 - **Don't** remove a focus outline without replacing it with the 2px accent outline.
 
+### Panel settings hub (staff, `#ps-overlay`)
+One square dialog per panel: a 3×3 grid of tiles (온도·습도·화재 징조 / 단자 발열·내부 발열·공조 장치 / 설치 환경·기타 센서·판넬 정보).
+Each tile = drawn line icon (24 viewBox, 1.6 stroke — no emoji), name, one-line current value, and a corner dot (set / todo ring / warn / crit; no sensors = dimmed).
+Opening a tile swaps the body for that item's form only (back arrow returns to the grid); each item saves on its own. Staff tokens only (2px radius, --rule borders, --accent on hover).
+
 ## Customer surface — JCC GUARD (`server/static/guard.html`)
 
 A separate visual world for customer accounts and sales demos; the drawing-sheet rules above do not apply there.

@@ -1157,8 +1157,9 @@ class Handler(BaseHTTPRequestHandler):
             alarm_warn=body.get("alarm_warn"),
             relay_modes=rm if isinstance(rm, dict) else None,
         )
-        detail = (f"셋팅={new.get('setpoint')} 경고={new.get('alarm_warn')} "
-                  f"위험={new.get('alarm_min')}~{new.get('alarm_max')}")
+        f = lambda v: "—" if v is None else f"{v:g}" if isinstance(v, (int, float)) else str(v)   # noqa: E731 — 비어 있으면 None 대신 —
+        detail = (f"셋팅={f(new.get('setpoint'))} 경고={f(new.get('alarm_warn'))} "
+                  f"위험={f(new.get('alarm_min'))}~{f(new.get('alarm_max'))}")
         self.storage.log_event(dev, key, "setting", detail)
         return self._json({"ok": True, "device_id": dev, "sensor_key": key, **new})
 

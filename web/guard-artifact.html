@@ -2987,7 +2987,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
             const v = norm(body[f]); if (v !== undefined) cur[f] = v;
           });
           if (body.relay_modes && typeof body.relay_modes === "object") cur.relay_modes = body.relay_modes;
-          logEvent(dev, key, "setting", `셋팅=${cur.setpoint} 경고=${cur.alarm_warn} 위험=${cur.alarm_min}~${cur.alarm_max}`, "user");
+          const f = v => v == null ? "—" : v;   // 비어 있으면 undefined 대신 —
+          logEvent(dev, key, "setting", `셋팅=${f(cur.setpoint)} 경고=${f(cur.alarm_warn)} 위험=${f(cur.alarm_min)}~${f(cur.alarm_max)}`, "user");
           return Promise.resolve(J(Object.assign({ ok: true, device_id: dev, sensor_key: key }, cur)));
         }
         if (p === "/api/device/command") {

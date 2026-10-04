@@ -1077,8 +1077,34 @@
   .acct-cust.acct-req{border-color:var(--warn)}
   .acct-cust.acct-req small{color:var(--warn)}
   .mb-item .acct-badge{opacity:1;color:var(--warn);font-weight:700}
-  .eq-grid{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:18px;margin-top:10px}
-  @media (max-width:820px){.eq-grid{grid-template-columns:1fr}}
+  .ps-shell{width:min(760px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));display:flex;flex-direction:column}
+  .ps-head{gap:10px;justify-content:flex-start}
+  .ps-head h3{margin:0}
+  .ps-back[hidden],.ps-foot[hidden]{display:none!important}
+  .ps-panel{margin-left:auto;font:600 12.5px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:6px 8px;max-width:220px}
+  .ps-body{flex:1;overflow:auto;padding:16px 18px}
+  .ps-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(150px,1fr);gap:10px;height:100%}
+  @media (max-width:560px){.ps-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  .ps-tile{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:4px;padding:16px;text-align:left;cursor:pointer;
+    background:var(--surface);border:1px solid var(--rule);border-radius:2px;color:var(--ink);position:relative;transition:border-color .15s ease}
+  .ps-tile:hover,.ps-tile:focus-visible{border-color:var(--accent)}
+  .ps-tile svg{width:34px;height:34px;color:var(--ink-2);margin-bottom:auto}
+  .ps-tile:hover svg{color:var(--accent)}
+  .ps-tile b{font:700 15px var(--sans)}
+  .ps-tile span{font:500 12px/1.45 var(--sans);color:var(--ink-3)}
+  .ps-tile::after{content:"";position:absolute;top:16px;right:16px;width:8px;height:8px;border-radius:50%;background:var(--ok)}
+  .ps-tile.todo::after{background:transparent;border:1.5px solid var(--ink-3)}
+  .ps-tile.off{opacity:.55} .ps-tile.off::after{display:none}
+  .ps-tile.warn::after{background:var(--warn)} .ps-tile.bad::after{background:var(--crit)} .ps-tile.bad span{color:var(--crit)}
+  .ps-sensor{display:grid;grid-template-columns:minmax(0,1.6fr) repeat(3,minmax(0,1fr));gap:8px;align-items:end;padding:10px 0;border-top:1px solid var(--rule-2)}
+  .ps-sn b{display:block;font:600 13px var(--sans)} .ps-sn small{display:block;font:500 11px var(--sans);color:var(--ink-3);margin-top:2px}
+  .ps-f{display:flex;flex-direction:column;gap:3px;font:600 11px var(--sans);color:var(--ink-3)}
+  .ps-f span{display:flex;align-items:center;gap:4px;color:var(--ink-2)}
+  .ps-f input{width:100%;min-width:0;font:500 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:6px 7px}
+  @media (max-width:560px){.ps-sensor{grid-template-columns:repeat(3,minmax(0,1fr))} .ps-sn{grid-column:1/-1}}
+  .ps-calc{margin-top:14px}
+  .ps-foot{display:flex;align-items:center;gap:12px;padding:10px 18px;border-top:1px solid var(--rule)}
+  .ps-foot .cmsn-msg{flex:1;margin:0}
   .eq-h{margin:14px 0 6px;font:700 12.5px var(--sans);color:var(--ink)} .eq-h span{font-weight:500;color:var(--ink-3);margin-left:6px}
   .eq-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
   .eq-line{display:grid;grid-template-columns:minmax(0,2fr) 90px 64px auto;gap:6px;margin-bottom:6px}
@@ -1093,7 +1119,6 @@
   .eq-out{padding:12px 14px;border:1px solid var(--rule);border-radius:2px;align-self:start}
   .eq-out .eq-h{margin-top:0}
   .eq-st{margin:0 0 8px;font:700 15px var(--sans)} .eq-st.short{color:var(--crit)} .eq-st.tight{color:var(--warn)} .eq-st.ok,.eq-st.passive{color:var(--ok)} .eq-st.unknown{color:var(--ink-3)}
-  .eq-save{margin-top:12px;justify-content:flex-end}
   .tc-cap.short{color:var(--crit);font-weight:700} .tc-cap.tight{color:var(--warn);font-weight:700}
   .tc-lv{font-weight:700;white-space:nowrap} .tc-lv.act{color:var(--crit)} .tc-lv.watch{color:var(--warn)}
   .acct-wprev{margin:0 0 10px;padding:9px 11px;border:1px dashed var(--rule);border-radius:2px;white-space:pre-wrap;
@@ -1724,7 +1749,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item jcc-admin" id="btn-tune">예지 튜닝 콘솔</button>
         <button class="mb-item jcc-admin" id="btn-accounts">계정 관리<span class="sc acct-badge" id="acct-badge" hidden></span></button>
         <button class="mb-item jcc-admin" id="btn-notify-test">알림 테스트 발송</button>
-        <button class="mb-item jcc-admin" id="btn-eq">판넬 설비·공조</button>
+        <button class="mb-item jcc-admin" id="btn-eq">판넬 설정</button>
         <button class="mb-item jcc-admin" id="btn-tc">공조 점검 후보<span class="sc acct-badge" id="tc-badge" hidden></span></button>
         <button class="mb-item jcc-admin" id="btn-bk">데이터 백업</button>
         <button class="mb-item jcc-admin" id="btn-guard">고객 화면으로 보기</button>
@@ -1927,42 +1952,17 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     </section>
   </div>
 
-  <!-- 판넬 설비·공조: 크기·설치 방식·발열 기기·공조 장치 등록 → 냉각 용량 계산(필요 = 발열 − 겉면 방열). 제안까지만 -->
-  <div class="overlay" id="eq-overlay">
-    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="eq-title" style="width:min(940px,calc(100vw - 32px))">
-      <h3 id="eq-title">판넬 설비·공조</h3>
-        <button class="cmsn-x" id="eq-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
-      <div class="cmsn-body">
-        <div class="pchk-row"><label class="acct-f eq-pick">판넬<select id="eq-panel"></select></label>
-          <span class="acct-note" id="eq-who"></span></div>
-        <div class="eq-grid">
-          <div class="eq-form">
-            <h4 class="eq-h">판넬</h4>
-            <div class="eq-row">
-              <label class="acct-f">한 칸 폭 (mm)<input id="eq-w" type="number" inputmode="numeric" min="100" step="100"></label>
-              <label class="acct-f">높이 (mm)<input id="eq-h" type="number" inputmode="numeric" min="100" step="100"></label>
-              <label class="acct-f">깊이 (mm)<input id="eq-d" type="number" inputmode="numeric" min="100" step="100"></label>
-              <label class="acct-f">열반 수<input id="eq-bays" type="number" inputmode="numeric" min="1" max="30" value="1"></label>
-            </div>
-            <div class="eq-row">
-              <label class="acct-f">설치<select id="eq-mount"><option value="free">사방 트임</option><option value="wall">벽 붙임</option></select></label>
-              <label class="acct-f">재질<select id="eq-mat"><option value="steel">도장 강판</option><option value="stainless">스테인리스</option><option value="aluminum">알루미늄</option><option value="plastic">플라스틱</option></select></label>
-              <label class="acct-f">목표 내부 ℃<input id="eq-ti" type="number" step="1" value="35"></label>
-              <label class="acct-f">주변 최고 ℃<input id="eq-tu" type="number" step="1" value="35"></label>
-            </div>
-            <h4 class="eq-h">발열 기기 <span>손실(W) · 인버터는 보통 정격의 약 3%</span></h4>
-            <div class="eq-line eq-hd" aria-hidden="true"><span>기기</span><span>손실 W</span><span>수량</span><span></span></div>
-            <div id="eq-heat"></div>
-            <button class="cmsn-btn" id="eq-heat-add" type="button">기기 추가</button>
-            <h4 class="eq-h">공조 장치 <span>에어컨·열교환기는 냉각 W, 팬필터는 풍량 m³/h</span></h4>
-            <div id="eq-units"></div>
-            <button class="cmsn-btn" id="eq-unit-add" type="button">장치 추가</button>
-          </div>
-          <aside class="eq-out" aria-live="polite"><h4 class="eq-h">냉각 용량</h4><div id="eq-calc"><p class="acct-note">판넬을 고르세요.</p></div></aside>
-        </div>
-        <div class="pchk-row eq-save"><button class="cmsn-btn primary" id="eq-save">저장</button></div>
-        <div class="cmsn-msg" id="eq-msg" aria-live="polite"></div>
-      </div>
+  <!-- 판넬 설정: 판넬 하나의 적용 조건을 3×3 칸으로 — 칸을 누르면 그 항목만 입력(온도·습도·화재 징조·단자 발열 기준,
+       내부 발열·공조 장치·설치 환경, 기타 센서, 판넬 이름). 저장은 칸마다 -->
+  <div class="overlay" id="ps-overlay">
+    <section class="cmsn-shell ps-shell" role="dialog" aria-modal="true" aria-labelledby="ps-title">
+      
+        <button class="cmsn-x ps-back" id="ps-back" aria-label="판넬 설정으로 돌아가기" hidden><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5L5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <h3 id="ps-title">판넬 설정</h3>
+        <select class="ps-panel" id="ps-panel" aria-label="판넬 고르기"></select>
+        <button class="cmsn-x" id="ps-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="ps-body" id="ps-body"></div>
+      <footer class="ps-foot" id="ps-foot" hidden><div class="cmsn-msg" id="ps-msg" aria-live="polite"></div><button class="cmsn-btn primary" id="ps-save">저장</button></footer>
     </section>
   </div>
 
@@ -4659,7 +4659,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
             const v = norm(body[f]); if (v !== undefined) cur[f] = v;
           });
           if (body.relay_modes && typeof body.relay_modes === "object") cur.relay_modes = body.relay_modes;
-          logEvent(dev, key, "setting", `셋팅=${cur.setpoint} 경고=${cur.alarm_warn} 위험=${cur.alarm_min}~${cur.alarm_max}`, "user");
+          const f = v => v == null ? "—" : v;   // 비어 있으면 undefined 대신 —
+          logEvent(dev, key, "setting", `셋팅=${f(cur.setpoint)} 경고=${f(cur.alarm_warn)} 위험=${f(cur.alarm_min)}~${f(cur.alarm_max)}`, "user");
           return Promise.resolve(J(Object.assign({ ok: true, device_id: dev, sensor_key: key }, cur)));
         }
         if (p === "/api/device/command") {
@@ -7188,11 +7189,121 @@ $("#ho-seen").onclick = async () => {
     if (!r.ok) throw new Error(); $("#ho-overlay").classList.remove("open"); setStatus("인계 확인 — 다음 요약은 지금부터"); }
   catch(_){ setStatus("인계 확인을 저장하지 못했습니다 — 연결 확인"); } };
 
-// ── 판넬 설비·공조 ─────────────────────────────────────
-const EQ = { panel: "", spec: null, t: 0 };
+// ── 판넬 설정(3×3 칸) ───────────────────────────────────
+// 칸 = 항목. 누르면 그 항목만 입력하고 그 항목만 저장한다. 센서 기준은 /api/setting(센서마다), 크기·발열·공조·설치 환경은 판넬 설비 하나(/api/admin/panel_spec)
+const PS = { panel: "", view: "grid", spec: null, eqv: null, panelRow: null, t: 0 };
+const EQ = { get spec(){ return PS.spec; } };          // 줄 그리기 함수(eqUnitRow)가 저장된 장치 여부를 볼 때 쓴다
 const EQ_KIND = [["aircon", "에어컨"], ["heat_exchanger", "열교환기"], ["fan_filter", "팬필터"]], EQ_POS = [["", "위치"], ["side", "측면"], ["door", "도어"], ["roof", "상부"]];
-function eqMsg(t, bad){ const m = $("#eq-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
 const eqOpt = (list, v) => list.map(([k, n]) => `<option value="${k}" ${k === v ? "selected" : ""}>${n}</option>`).join("");
+const PS_ICO = {
+  temp: '<path d="M10 4.5a2 2 0 0 1 4 0v9.3a4 4 0 1 1-4 0z"/><path d="M12 10v5.5"/>',
+  hum: '<path d="M12 3.5c3.2 4.2 5.5 7.1 5.5 10.2a5.5 5.5 0 0 1-11 0c0-3.1 2.3-6 5.5-10.2z"/>',
+  fire: '<path d="M12 3c2 3.2 5 5.6 5 9.6A5 5 0 0 1 7 12.6c0-1.8.8-3.2 2-4.4.3 1.6 1.2 2.6 2.2 2.8C11 8.6 11.2 5.6 12 3Z"/>',
+  contact: '<path d="M13 3L5.5 13H11l-1 8 7.5-10H12z"/>',
+  heat: '<rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M10 3.5V7M14 3.5V7M10 17v3.5M14 17v3.5M3.5 10H7M3.5 14H7M17 10h3.5M17 14h3.5"/>',
+  cool: '<path d="M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9"/><path d="M9.5 4.5L12 7l2.5-2.5M9.5 19.5L12 17l2.5 2.5"/>',
+  env: '<path d="M3.5 11L12 4.5l8.5 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/>',
+  other: '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4.2-4.2"/><circle cx="12" cy="16" r="1.2"/>',
+  info: '<path d="M3.5 12.5V4h8.5l9 9-8.5 8.5z"/><circle cx="8" cy="8.5" r="1.4"/>' };
+const psIco = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PS_ICO[k]}</svg>`;
+// 센서 묶음: 화면이 고르는 게 아니라 센서의 종류(kind)·키로
+const PS_GROUP = {
+  temp:    { name: "온도",     ico: "temp",    test: s => s.kind === "temp" && !/ncontact/i.test(s.sensor_key), say: "판넬 안 온도의 주의·위험 기준" },
+  hum:     { name: "습도",     ico: "hum",     test: s => s.kind === "humidity", say: "습도 주의·위험 기준 — 높으면 결로" },
+  fire:    { name: "화재 징조", ico: "fire",    test: s => ["h2", "voc", "co", "smoke", "gas"].includes(s.kind), say: "수소·VOC·일산화탄소 같은 가스 기준" },
+  contact: { name: "단자 발열", ico: "contact", test: s => /ncontact/i.test(s.sensor_key), say: "전선 연결부(비접촉 온도) 기준" } };
+function psSensors(test){ const out = []; (PS.panelRow ? PS.panelRow.ccms : []).forEach(c => (c.latest || []).forEach(x => { if (x.sensor_key && test(x)) out.push({...x, device_id: c.device_id}); })); return out; }
+const psOther = () => psSensors(x => !Object.values(PS_GROUP).some(g => g.test(x)));
+const psNum = v => v === null || v === undefined || v === "" ? "" : String(v);
+function psMsg(t, bad){ const m = $("#ps-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
+
+function psTiles(){
+  const sp = PS.spec || {}, v = PS.eqv, c = v && v.calc;
+  const lim = list => { const x = list.find(s => /cabinet/i.test(s.sensor_key)) || list[0]; if (!x) return null;
+    const u = x.unit === "C" ? "℃" : x.unit === "%RH" ? "%" : (x.unit || "");
+    return [x.alarm_warn != null ? `주의 ${x.alarm_warn}${u}` : "", x.alarm_max != null ? `위험 ${x.alarm_max}${u}` : ""].filter(Boolean).join(" · ") || "기준 없음"; };
+  const t = [];
+  Object.entries(PS_GROUP).forEach(([k, g]) => { const ss = psSensors(g.test);
+    t.push({ k, name: g.name, ico: g.ico, sub: ss.length ? (k === "fire" || k === "contact" ? `센서 ${ss.length}개` : lim(ss)) : "센서 없음", st: ss.length ? "set" : "off" }); });
+  const hw = (sp.heat || []).reduce((a, h) => a + (h.loss_w || 0) * (h.qty || 1), 0);
+  t.push({ k: "heat", name: "내부 발열", ico: "heat", sub: sp.width ? `${sp.width}×${sp.height}×${sp.depth}${(sp.bays || 1) > 1 ? ` · ${sp.bays}면` : ""}${hw ? ` · ${(hw / 1000).toFixed(1)}kW` : ""}` : "판넬 크기·전장 입력 전", st: sp.width && hw ? "set" : "todo" });
+  const capW = {ok: "충분", tight: "빠듯", short: "부족", passive: "공조 없이도 충분"};
+  t.push({ k: "cool", name: "공조 장치", ico: "cool", sub: (sp.equipment || []).length ? `${v.summary}${c && capW[c.status] ? " · " + capW[c.status] : ""}` : "장치 입력 전",
+    st: !(sp.equipment || []).length ? "todo" : c && c.status === "short" ? "bad" : c && c.status === "tight" ? "warn" : "set" });
+  t.push({ k: "env", name: "설치 환경", ico: "env", sub: sp.target_c != null ? `${sp.mount === "wall" ? "벽 붙임" : "사방 트임"} · 목표 ${sp.target_c}℃ · 주변 ${sp.ambient_c}℃` : "설치 방식·설계 온도 입력 전", st: sp.target_c != null ? "set" : "todo" });
+  const ot = psOther();
+  t.push({ k: "other", name: "기타 센서", ico: "other", sub: ot.length ? ot.slice(0, 3).map(x => x.name || x.sensor_key).join("·") + (ot.length > 3 ? ` 외 ${ot.length - 3}` : "") : "없음", st: ot.length ? "set" : "off" });
+  t.push({ k: "info", name: "판넬 정보", ico: "info", sub: `${PS.panelRow ? PS.panelRow.panel_name || PS.panel : PS.panel} · CCM ${PS.panelRow ? PS.panelRow.ccms.length : 0}대`, st: "set" });
+  return t;
+}
+function psGrid(){
+  PS.view = "grid"; $("#ps-back").hidden = true; $("#ps-title").textContent = "판넬 설정"; $("#ps-foot").hidden = true;
+  $("#ps-body").innerHTML = `<div class="ps-grid">${psTiles().map(x =>
+    `<button class="ps-tile ${x.st}" data-ps="${x.k}">${psIco(x.ico)}<b>${x.name}</b><span>${escapeHtml(x.sub)}</span></button>`).join("")}</div>`;
+  $("#ps-body").querySelectorAll("[data-ps]").forEach(b => b.onclick = () => psOpen(b.dataset.ps));
+}
+// ── 칸 하나 열기 ──
+function psSensorView(list, say){
+  if (!list.length) return `<p class="acct-note">이 판넬에는 해당 센서가 없습니다. 센서를 달면 자동 탐색으로 여기에 나타납니다.</p>`;
+  return `<p class="acct-note">${escapeHtml(say)}. 비우면 제품 기본값으로 돌아갑니다. 저장하면 CCM에도 바로 적용됩니다.</p>` +
+    list.map(x => { const u = x.unit === "C" ? "℃" : x.unit === "%RH" ? "%" : (x.unit || "");
+      const inp = (k, d, lbl) => `<label class="ps-f">${lbl}<span><input type="number" step="any" data-k="${k}" value="${psNum(x[k])}" placeholder="${psNum(d)}">${escapeHtml(u)}</span></label>`;
+      return `<div class="ps-sensor" data-dev="${escapeHtml(x.device_id)}" data-key="${escapeHtml(x.sensor_key)}" data-orig='${escapeHtml(JSON.stringify({w: psNum(x.alarm_warn), x: psNum(x.alarm_max), n: psNum(x.alarm_min)}))}'>` +
+        `<div class="ps-sn"><b>${escapeHtml(x.name || x.sensor_key)}</b><small>${escapeHtml(x.device_id)} · 지금 ${x.value == null ? "—" : fmtValue(x.value) + escapeHtml(u)}</small></div>` +
+        inp("alarm_warn", x.alarm_warn_default, "주의") + inp("alarm_max", x.alarm_max_default, "위험") + inp("alarm_min", x.alarm_min_default, "최저") + `</div>`; }).join("");
+}
+function psOpen(k){
+  PS.view = k; $("#ps-back").hidden = false; psMsg("");
+  const g = PS_GROUP[k], sp = PS.spec || {}, body = $("#ps-body");
+  const calc = `<aside class="eq-out ps-calc" aria-live="polite"><h4 class="eq-h">냉각 용량</h4><div id="eq-calc"></div></aside>`;
+  if (g){ $("#ps-title").textContent = g.name; body.innerHTML = psSensorView(psSensors(g.test), g.say); }
+  else if (k === "other"){ $("#ps-title").textContent = "기타 센서"; body.innerHTML = psSensorView(psOther(), "문 열림·진동 같은 나머지 센서의 기준"); }
+  else if (k === "heat"){ $("#ps-title").textContent = "내부 발열";
+    body.innerHTML = `<h4 class="eq-h">판넬 크기</h4><div class="eq-row">` +
+      `<label class="acct-f">한 칸 폭 (mm)<input id="eq-w" type="number" min="100" step="100" value="${psNum(sp.width)}"></label>` +
+      `<label class="acct-f">높이 (mm)<input id="eq-h" type="number" min="100" step="100" value="${psNum(sp.height)}"></label>` +
+      `<label class="acct-f">깊이 (mm)<input id="eq-d" type="number" min="100" step="100" value="${psNum(sp.depth)}"></label>` +
+      `<label class="acct-f">열반 수<input id="eq-bays" type="number" min="1" max="30" value="${sp.bays || 1}"></label></div>` +
+      `<h4 class="eq-h">내부 전장 <span>발열 기기 손실(W) · 인버터는 보통 정격의 약 3%</span></h4>` +
+      `<div class="eq-line eq-hd" aria-hidden="true"><span>기기</span><span>손실 W</span><span>수량</span><span></span></div>` +
+      `<div id="eq-heat">${(sp.heat && sp.heat.length ? sp.heat : [{}]).map(eqHeatRow).join("")}</div>` +
+      `<button class="cmsn-btn" id="eq-heat-add" type="button">기기 추가</button>` + calc;
+    $("#eq-heat-add").onclick = () => { $("#eq-heat").insertAdjacentHTML("beforeend", eqHeatRow()); }; }
+  else if (k === "cool"){ $("#ps-title").textContent = "공조 장치";
+    body.innerHTML = `<p class="acct-note">에어컨·열교환기는 냉각 W, 팬필터는 풍량 m³/h. 여러 대면 대수로.</p>` +
+      `<div id="eq-units">${(sp.equipment || []).map((x, i) => eqUnitRow(x, i)).join("")}</div>` +
+      `<button class="cmsn-btn" id="eq-unit-add" type="button">장치 추가</button>` + calc;
+    $("#eq-unit-add").onclick = () => { $("#eq-units").insertAdjacentHTML("beforeend", eqUnitRow()); eqPreview(); }; }
+  else if (k === "env"){ $("#ps-title").textContent = "설치 환경";
+    body.innerHTML = `<div class="eq-row">` +
+      `<label class="acct-f">설치<select id="eq-mount">${eqOpt([["free", "사방 트임"], ["wall", "벽 붙임"]], sp.mount || "free")}</select></label>` +
+      `<label class="acct-f">재질<select id="eq-mat">${eqOpt([["steel", "도장 강판"], ["stainless", "스테인리스"], ["aluminum", "알루미늄"], ["plastic", "플라스틱"]], sp.material || "steel")}</select></label>` +
+      `<label class="acct-f">목표 내부 ℃<input id="eq-ti" type="number" step="1" value="${psNum(sp.target_c ?? 35)}"></label>` +
+      `<label class="acct-f">주변 최고 ℃<input id="eq-tu" type="number" step="1" value="${psNum(sp.ambient_c ?? 35)}"></label></div>` +
+      `<p class="acct-note">주변 최고 온도는 여름 한낮 판넬 주변 기준. 바깥이 판넬 안보다 더우면 겉면으로 열이 들어와 필요한 냉각이 커집니다.</p>` + calc; }
+  else if (k === "info"){ $("#ps-title").textContent = "판넬 정보";
+    const r = PS.panelRow || {ccms: []};
+    body.innerHTML = `<label class="acct-f">판넬 이름<input id="ps-name" maxlength="60" value="${escapeHtml(r.panel_name || "")}" placeholder="${escapeHtml(PS.panel)}"></label>` +
+      `<table class="pchk-tbl" style="margin-top:12px"><thead><tr><th>감시 장치(CCM)</th><th>상태</th><th>센서</th></tr></thead><tbody>${r.ccms.map(c =>
+        `<tr><td>${escapeHtml(c.device_id)}</td><td>${c.online ? "연결됨" : "끊김"}</td><td>${(c.latest || []).length}개</td></tr>`).join("")}</tbody></table>`; }
+  $("#ps-foot").hidden = false;
+  if (["heat", "cool", "env"].includes(k)) eqPreview();
+}
+// ── 판넬 설비(크기·발열·공조·설치 환경): 화면에 있는 칸만 읽고 나머지는 저장된 값 그대로 ──
+function eqRead(){
+  const sp = PS.spec || {}, has = id => !!$(id), n = (id, d) => { if (!has(id)) return d; const v = $(id).value; return v === "" ? null : Number(v); };
+  const rows = sel => [...document.querySelectorAll(sel)];
+  return { width: n("#eq-w", sp.width), height: n("#eq-h", sp.height), depth: n("#eq-d", sp.depth), bays: n("#eq-bays", sp.bays) || 1,
+    mount: has("#eq-mount") ? $("#eq-mount").value : sp.mount, material: has("#eq-mat") ? $("#eq-mat").value : sp.material,
+    target_c: n("#eq-ti", sp.target_c), ambient_c: n("#eq-tu", sp.ambient_c),
+    heat: has("#eq-heat") ? rows("#eq-heat [data-heat]").map(r => ({ name: r.querySelector('[data-k="name"]').value, loss_w: Number(r.querySelector('[data-k="loss_w"]').value || 0),
+      qty: Number(r.querySelector('[data-k="qty"]').value || 1) })).filter(h => h.name || h.loss_w) : (sp.heat || []),
+    equipment: has("#eq-units") ? rows("#eq-units [data-unit]").map(r => { const g = k => r.querySelector(`[data-k="${k}"]`).value, kind = g("kind"), i = r.dataset.i;
+      const old = i !== "" && sp.equipment ? sp.equipment[+i] : null;
+      return { kind, name: g("name"), qty: Number(g("qty") || 1), position: g("position"), filter_days: Number(g("filter_days") || 0),
+        capacity_w: kind === "fan_filter" ? 0 : Number(g("cap") || 0), airflow_m3h: kind === "fan_filter" ? Number(g("cap") || 0) : 0,
+        last_service: old ? old.last_service : null }; }) : (sp.equipment || []) };
+}
 function eqHeatRow(x){ x = x || {}; return `<div class="eq-line" data-heat><input aria-label="기기 이름" placeholder="예: 인버터 15kW" maxlength="40" value="${escapeHtml(x.name || "")}" data-k="name">` +
   `<input aria-label="손실 W" type="number" min="0" placeholder="손실 W" value="${x.loss_w ?? ""}" data-k="loss_w"><input aria-label="수량" type="number" min="1" value="${x.qty || 1}" data-k="qty">` +
   `<button class="cmsn-btn" type="button" data-del aria-label="이 줄 지우기">지우기</button></div>`; }
@@ -7207,19 +7318,6 @@ function eqUnitRow(x, i){ x = x || {kind: "aircon", qty: 1}; const saved = i != 
   L("필터 청소 주기(일)", `<input type="number" min="0" value="${x.filter_days || ""}" data-k="filter_days">`) +
   `<div class="eq-act">` + (saved ? `<button class="cmsn-btn" type="button" data-svc="${i}">필터 청소함</button><small>${x.last_service ? "마지막 " + new Date(x.last_service * 1000).toLocaleDateString("ko-KR") : "청소 기록 없음"}</small>` : "") +
   `<button class="cmsn-btn" type="button" data-del aria-label="이 장치 지우기">지우기</button></div></div>`; }
-function eqRead(){
-  const n = id => { const v = $(id).value; return v === "" ? null : Number(v); };
-  const rows = sel => [...document.querySelectorAll(sel)];
-  return { width: n("#eq-w"), height: n("#eq-h"), depth: n("#eq-d"), bays: n("#eq-bays") || 1, mount: $("#eq-mount").value, material: $("#eq-mat").value,
-    target_c: n("#eq-ti"), ambient_c: n("#eq-tu"),
-    heat: rows("#eq-heat [data-heat]").map(r => ({ name: r.querySelector('[data-k="name"]').value, loss_w: Number(r.querySelector('[data-k="loss_w"]').value || 0),
-      qty: Number(r.querySelector('[data-k="qty"]').value || 1) })).filter(h => h.name || h.loss_w),
-    equipment: rows("#eq-units [data-unit]").map(r => { const g = k => r.querySelector(`[data-k="${k}"]`).value, kind = g("kind"), i = r.dataset.i;
-      const old = i !== "" && EQ.spec && EQ.spec.equipment ? EQ.spec.equipment[+i] : null;
-      return { kind, name: g("name"), qty: Number(g("qty") || 1), position: g("position"), filter_days: Number(g("filter_days") || 0),
-        capacity_w: kind === "fan_filter" ? 0 : Number(g("cap") || 0), airflow_m3h: kind === "fan_filter" ? Number(g("cap") || 0) : 0,
-        last_service: old ? old.last_service : null }; }) };
-}
 function eqCalcHTML(v){
   const c = v.calc, W = {ok: "충분", tight: "빠듯", short: "부족", passive: "공조 없이도 충분", unknown: "정보 부족"};
   const rows = c.status === "unknown" ? "" : `<table class="pchk-tbl"><tbody>` +
@@ -7228,60 +7326,73 @@ function eqCalcHTML(v){
     `<tr><td>필요 냉각 (여유 10%)</td><td><b>${Math.max(0, c.need_w)} W</b> (${c.need_margin_w} W)</td></tr><tr><td>설치된 냉각</td><td><b>${c.installed_w} W</b></td></tr></tbody></table>`;
   return `<p class="eq-st ${c.status}">${W[c.status] || ""}</p>${rows}<p class="acct-note">${escapeHtml(v.advice)}</p>`;
 }
-async function eqPreview(){
-  clearTimeout(EQ.t);
-  EQ.t = setTimeout(async () => {
+function eqPreview(){
+  clearTimeout(PS.t);
+  PS.t = setTimeout(async () => {
+    if (!$("#eq-calc")) return;
     try { const r = await fetch("/api/admin/cooling_calc", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({spec: eqRead()})});
-      const j = await r.json(); if (r.ok) $("#eq-calc").innerHTML = eqCalcHTML(j.view); } catch(_){}
+      const j = await r.json(); if (r.ok && $("#eq-calc")) $("#eq-calc").innerHTML = eqCalcHTML(j.view); } catch(_){}
   }, 250);
 }
-function eqFill(sp){
-  sp = sp || {}; EQ.spec = sp;
-  const set = (id, v, d) => { $(id).value = v ?? d ?? ""; };
-  set("#eq-w", sp.width); set("#eq-h", sp.height); set("#eq-d", sp.depth); set("#eq-bays", sp.bays, 1);
-  set("#eq-mount", sp.mount, "free"); set("#eq-mat", sp.material, "steel"); set("#eq-ti", sp.target_c, 35); set("#eq-tu", sp.ambient_c, 35);
-  $("#eq-heat").innerHTML = (sp.heat && sp.heat.length ? sp.heat : [{}]).map(eqHeatRow).join("");
-  $("#eq-units").innerHTML = (sp.equipment || []).map((x, i) => eqUnitRow(x, i)).join("");
-  $("#eq-who").textContent = sp.updated_at ? `마지막 저장 ${new Date(sp.updated_at * 1000).toLocaleString("ko-KR", {hour12:false})} · ${sp.updated_by || ""}` : "아직 등록 안 됨";
-  eqPreview();
+async function psLoad(pid){
+  PS.panel = pid; psMsg("");
+  try {
+    const [pr, sr] = await Promise.all([fetch("/api/panels", {cache:"no-store"}), fetch(`/api/admin/panel_spec?panel=${encodeURIComponent(pid)}`, {cache:"no-store"})]);
+    const pj = await pr.json(), sj = await sr.json(); if (!sr.ok) throw new Error(sj.error || "불러오지 못함");
+    PS.panelRow = (pj.panels || []).find(x => x.panel === pid) || null; PS.spec = sj.spec || {}; PS.eqv = sj.view;
+  } catch(e){ psMsg(e.message, true); }
 }
-async function eqLoad(pid){
-  EQ.panel = pid; eqMsg("");
-  try { const r = await fetch(`/api/admin/panel_spec?panel=${encodeURIComponent(pid)}`, {cache:"no-store"}); const j = await r.json();
-    if (!r.ok) throw new Error(j.error || "불러오지 못함"); eqFill(j.spec); } catch(e){ eqMsg(e.message, true); }
+async function openPs(pid, view){
+  $("#ps-overlay").classList.add("open"); $("#ps-body").innerHTML = `<p class="acct-note">불러오는 중…</p>`;
+  try { const r = await fetch("/api/fleet", {cache:"no-store"}); const j = await r.json(); const ps = j.panels || [];
+    $("#ps-panel").innerHTML = ps.map(p => `<option value="${escapeHtml(p.panel)}">${escapeHtml(p.panel_name || p.panel)}</option>`).join("");
+    const first = pid || (ps[0] || {}).panel;
+    if (!first){ $("#ps-body").innerHTML = `<p class="acct-note">아직 연결된 판넬이 없습니다.</p>`; return; }
+    $("#ps-panel").value = first; await psLoad(first); view ? psOpen(view) : psGrid();
+  } catch(_){ $("#ps-body").innerHTML = `<p class="acct-note">판넬 목록을 불러오지 못했습니다.</p>`; }
 }
-async function openEq(pid){
-  $("#eq-overlay").classList.add("open");
-  try { const r = await fetch("/api/fleet", {cache:"no-store"}); const j = await r.json();
-    const ps = j.panels || []; $("#eq-panel").innerHTML = ps.map(p => `<option value="${escapeHtml(p.panel)}">${escapeHtml(p.panel_name || p.panel)}</option>`).join("");
-    const first = pid || (ps[0] || {}).panel; if (!first) { $("#eq-calc").innerHTML = `<p class="acct-note">아직 연결된 판넬이 없습니다.</p>`; return; }
-    $("#eq-panel").value = first; eqLoad(first);
-  } catch(_){ eqMsg("판넬 목록을 불러오지 못했습니다", true); }
+async function psSave(){
+  const b = $("#ps-save"); b.disabled = true;
+  try {
+    if (PS_GROUP[PS.view] || PS.view === "other"){
+      let n = 0;
+      for (const row of document.querySelectorAll("#ps-body .ps-sensor")){
+        const o = JSON.parse(row.dataset.orig), g = k => row.querySelector(`[data-k="${k}"]`).value.trim(), patch = {};
+        if (g("alarm_warn") !== o.w) patch.alarm_warn = g("alarm_warn") === "" ? "" : Number(g("alarm_warn"));
+        if (g("alarm_max") !== o.x) patch.alarm_max = g("alarm_max") === "" ? "" : Number(g("alarm_max"));
+        if (g("alarm_min") !== o.n) patch.alarm_min = g("alarm_min") === "" ? "" : Number(g("alarm_min"));
+        if (!Object.keys(patch).length) continue;
+        const j = await setSetting(row.dataset.dev, row.dataset.key, patch); if (!j || !j.ok) throw new Error((j && j.error) || "저장하지 못했습니다"); n++;
+      }
+      psMsg(n ? `센서 ${n}개 기준을 저장했습니다 — CCM에도 적용됩니다` : "바뀐 값이 없습니다"); if (n){ refresh(); await psLoad(PS.panel); psOpen(PS.view); psMsg(`센서 ${n}개 기준을 저장했습니다 — CCM에도 적용됩니다`); }
+    } else if (PS.view === "info"){
+      const v = $("#ps-name").value.trim();
+      const r = await fetch("/api/panel/name", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, name: v})});
+      if (!r.ok) throw new Error("이름을 저장하지 못했습니다"); topoSig = ""; refresh(); psMsg("판넬 이름을 저장했습니다");
+    } else {
+      const r = await fetch("/api/admin/panel_spec", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, spec: eqRead()})});
+      const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "저장하지 못했습니다");
+      const k = PS.view; await psLoad(PS.panel); psOpen(k); psMsg("저장했습니다 — 고객 화면 판넬 상세에도 반영됩니다");
+    }
+  } catch(e){ psMsg(e.message, true); }
+  b.disabled = false;
 }
-$("#btn-eq").onclick = () => openEq();
-$("#eq-close").onclick = () => $("#eq-overlay").classList.remove("open");
-$("#eq-panel").onchange = e => eqLoad(e.target.value);
-$("#eq-heat-add").onclick = () => { $("#eq-heat").insertAdjacentHTML("beforeend", eqHeatRow()); };
-$("#eq-unit-add").onclick = () => { $("#eq-units").insertAdjacentHTML("beforeend", eqUnitRow()); eqPreview(); };
-$("#eq-overlay").addEventListener("input", e => { if (e.target.closest(".eq-form")) eqPreview(); });
-$("#eq-overlay").addEventListener("change", e => {
+$("#btn-eq").onclick = () => openPs();
+$("#ps-close").onclick = () => $("#ps-overlay").classList.remove("open");
+$("#ps-back").onclick = async () => { await psLoad(PS.panel); psGrid(); };
+$("#ps-save").onclick = psSave;
+$("#ps-panel").onchange = async e => { await psLoad(e.target.value); PS.view === "grid" ? psGrid() : psOpen(PS.view); };
+$("#ps-overlay").addEventListener("input", e => { if (e.target.closest("#eq-heat,#eq-units,.eq-row")) eqPreview(); });
+$("#ps-overlay").addEventListener("change", e => {
   if (e.target.dataset.k === "kind"){ const c = e.target.closest("[data-unit]").querySelector("[data-cap]"); if (c) c.textContent = e.target.value === "fan_filter" ? "풍량 m³/h" : "냉각 W"; }
-  if (e.target.closest(".eq-form")) eqPreview(); });
-$("#eq-overlay").addEventListener("click", async e => {
+  if (e.target.closest("#eq-heat,#eq-units,.eq-row")) eqPreview(); });
+$("#ps-overlay").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]"); if (del){ (del.closest("[data-unit]") || del.parentElement).remove(); eqPreview(); return; }
   const svc = e.target.closest("[data-svc]");
-  if (svc){ try { const r = await fetch("/api/admin/serviced", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: EQ.panel, index: Number(svc.dataset.svc)})});
+  if (svc){ try { const r = await fetch("/api/admin/serviced", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: PS.panel, index: Number(svc.dataset.svc)})});
       const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "기록하지 못했습니다");
-      eqMsg("필터 청소·점검을 기록했습니다 — 다음 청소일이 오늘부터 다시 셉니다"); eqLoad(EQ.panel); } catch(err){ eqMsg(err.message, true); } }
+      await psLoad(PS.panel); psOpen("cool"); psMsg("필터 청소·점검을 기록했습니다 — 다음 청소일이 오늘부터 다시 셉니다"); } catch(err){ psMsg(err.message, true); } }
 });
-$("#eq-save").onclick = async () => {
-  const b = $("#eq-save"); b.disabled = true;
-  try { const r = await fetch("/api/admin/panel_spec", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: EQ.panel, spec: eqRead()})});
-    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "저장하지 못했습니다");
-    eqMsg("저장했습니다 — 고객 화면 판넬 상세에도 공조 장치가 보입니다"); eqLoad(EQ.panel);
-  } catch(e){ eqMsg(e.message, true); }
-  b.disabled = false;
-};
 
 // ── 공조 점검 후보 ─────────────────────────────────────
 function tcMsg(t, bad){ const m = $("#tc-msg"); m.textContent = t || ""; m.className = "cmsn-msg" + (bad ? " bad" : t ? " ok" : ""); }
@@ -7299,7 +7410,7 @@ async function tcLoad(){
         `<td>${p.request ? `냉각 용량 검토<br><small>${escapeHtml(p.request.username || "")} · ${new Date(p.request.created_at * 1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit"})}</small>` +
           `<br><button class="cmsn-btn" data-tcdone="${p.request.id}">처리 완료</button>` : "—"}</td></tr>`).join("") + `</tbody></table>`
       : `<p class="acct-note">지금은 후보가 없습니다 — 모든 판넬이 주의 기준보다 충분히 낮습니다(기록 14일 이상인 판넬 기준).</p>`;
-    $("#tc-list").querySelectorAll("[data-tceq]").forEach(b => b.onclick = () => { $("#tc-overlay").classList.remove("open"); openEq(b.dataset.tceq); });
+    $("#tc-list").querySelectorAll("[data-tceq]").forEach(b => b.onclick = () => { $("#tc-overlay").classList.remove("open"); openPs(b.dataset.tceq, "cool"); });
     $("#tc-list").querySelectorAll("[data-tcdone]").forEach(b => b.onclick = async () => {
       try { const rr = await fetch("/api/admin/request_done", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({request_id: Number(b.dataset.tcdone)})});
         const jj = await rr.json().catch(() => ({})); if (!rr.ok) throw new Error(jj.error || "처리하지 못했습니다");
@@ -8812,7 +8923,7 @@ $("#ap-ackall").onclick = (e)=>{ e.stopPropagation();
 // Esc: 열린 오버레이·패널 닫기 → 없으면 노드 선택 해제
 window.addEventListener("keydown", (e)=>{
   if(e.key !== "Escape") return;
-  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","eq-overlay","tc-overlay","bk-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
+  const ov = ["qk-overlay","xp-overlay","alh-overlay","ho-overlay","ps-overlay","tc-overlay","bk-overlay","report-overlay","heal-overlay","health-overlay","algo-overlay","overlay"].map(id=>$("#"+id))
     .find(el=>el && el.classList.contains("open"));
   if(ov){ ov.classList.remove("open"); return; }
   if(alarmPanelOpen){ alarmPanelOpen=false; $("#alarm-panel").hidden=true; return; }
