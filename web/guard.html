@@ -189,6 +189,40 @@
   }
   /* 답이 주인공이니 나머지 카드의 답은 한 단계 작게 */
   .gd-c:not(.gd-c-state) .gd-a{font-size:var(--t-fig);line-height:1.3}
+  /* 게임 메뉴처럼 — 카드마다 그림 판 하나 + 큰 숫자 하나. 카드 어디를 눌러도 열린다 */
+  .gd-qh{display:flex;align-items:center;gap:12px}
+  .gd-plate{--pc:var(--ink-2);width:48px;height:48px;border-radius:var(--r);flex:none;display:grid;place-items:center;color:var(--pc);
+    background:color-mix(in srgb,var(--pc) 12%,transparent);border:1px solid color-mix(in srgb,var(--pc) 24%,transparent)}
+  .gd-plate svg{width:26px;height:26px}
+  .gd-plate.sm{width:44px;height:44px;border-radius:var(--r)} .gd-plate.sm svg{width:23px;height:23px}
+  [data-tone=ok] .gd-plate,.gd-c-month .gd-plate{--pc:var(--ok)} [data-tone=warn] .gd-plate{--pc:var(--warn)} [data-tone=crit] .gd-plate{--pc:var(--crit)}
+  .gd-c-call .gd-plate,.gd-c-docs .gd-qh .gd-plate{--pc:var(--ink)}
+  .gd-fig{margin:10px 0 0;display:flex;align-items:baseline;gap:6px;font:300 var(--t-ring)/1 var(--sans);letter-spacing:-.05em;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .gd-fig small{font:600 var(--t-h)/1 var(--sans);letter-spacing:-.01em;color:var(--ink-2)}
+  .gd-fig.ok{color:var(--ok)} .gd-fig.watch{color:var(--warn)} .gd-fig.act{color:var(--crit-ink)}
+  .gd-fig-sub{margin:0;font:600 var(--t-body)/1.45 var(--sans);color:var(--ink-2)}
+  .gd-c-todo .gd-todo{margin-top:4px}
+  .gd-tile{cursor:pointer;transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease}
+  .gd-tile:hover{transform:translateY(-3px);border-color:var(--line);box-shadow:0 14px 28px -18px rgba(27,26,23,.45)}
+  .gd-tile:active{transform:translateY(0) scale(.99)}
+  .gd-contact .gd-who{display:flex;flex-direction:column;gap:2px;margin-top:10px}
+  .gd-contact .gd-who b{font:600 var(--t-big)/1.15 var(--sans);letter-spacing:-.03em}
+  .gd-contact .gd-who small:first-child{margin:0;font-weight:600;color:var(--ink-2)}
+  .gd-contact a{height:48px;padding:0 20px;font-size:var(--t-body)} .gd-contact a svg{width:17px;height:17px}
+  .gd-card .v b{font-size:var(--t-big)}
+  .gd-card .h span{padding:4px 10px;border-radius:var(--pill);font-weight:600;color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+  .gd-card.warn .h span{background:color-mix(in srgb,var(--warn) 14%,transparent)} .gd-card.crit .h span{background:color-mix(in srgb,var(--crit) 14%,transparent)}
+  .gd-card.offline .h span{color:var(--ink-3);background:var(--card-2)}
+  .gd-card{transition:transform .25s cubic-bezier(.2,.7,.2,1),box-shadow .25s ease,border-color .25s ease}
+  .gd-card:hover{transform:translateY(-3px);box-shadow:0 14px 28px -18px rgba(27,26,23,.45)}
+  .gd-c-docs .gd-docs.gd-docs-c{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:6px}
+  .gd-c-docs .gd-doc.gd-dtile{flex-direction:column;align-items:flex-start;justify-content:space-between;gap:16px;min-height:118px;padding:16px;
+    border:1px solid var(--line-2);border-radius:var(--r);background:var(--card-2);font:600 var(--t-body)/1.35 var(--sans);
+    transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s ease}
+  .gd-c-docs .gd-doc.gd-dtile span:last-child{color:var(--ink);font-size:var(--t-body)}
+  .gd-c-docs .gd-doc.gd-dtile:hover{transform:translateY(-3px);border-color:var(--line)}
+  @media (min-width:960px){.gd-c-docs .gd-docs.gd-docs-c{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
   /* 계기판 */
@@ -624,16 +658,16 @@
       </div>
     </section>
     <div class="gd-c-inc" id="gd-inc" hidden></div>
-    <section class="gd-c gd-c-todo" aria-labelledby="gd-q-todo"><h2 class="gd-q" id="gd-q-todo">제가 할 일이 있나요?</h2><div class="gd-c-fill" id="gd-todo"></div></section>
-    <section class="gd-c gd-c-call" aria-labelledby="gd-q-call"><h2 class="gd-q" id="gd-q-call">문제가 생기면 누구에게?</h2><div class="gd-contact" id="gd-contact"></div></section>
-    <section class="gd-sec gd-c-panels" id="gd-sec-panels" aria-labelledby="gd-q-panels"><h2 class="gd-q" id="gd-q-panels">판넬은 각각 괜찮나요?</h2><div class="gd-grid" id="gd-panels"></div></section>
-    <section class="gd-c gd-c-month" id="gd-sec-month" aria-labelledby="gd-q-month"><h2 class="gd-q" id="gd-q-month">이번 달 JCC가 한 일</h2><div class="gd-c-fill" id="gd-month"></div></section>
-    <section class="gd-c gd-c-docs" id="gd-sec-docs" aria-labelledby="gd-q-docs"><h2 class="gd-q" id="gd-q-docs">보고서·기록이 필요할 때</h2>
+    <section class="gd-c gd-c-todo gd-tile" id="gd-sec-todo" aria-labelledby="gd-q-todo"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 12.5l2 2 4-4.5"/><path d="M9 17.5h6"/></svg></span><h2 class="gd-q" id="gd-q-todo">제가 할 일이 있나요?</h2></div><div class="gd-c-fill" id="gd-todo"></div></section>
+    <section class="gd-c gd-c-call" aria-labelledby="gd-q-call"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-2a8 8 0 0 1 16 0v2"/><rect x="3" y="13.5" width="4" height="6" rx="1.5"/><rect x="17" y="13.5" width="4" height="6" rx="1.5"/><path d="M19 19.5c0 1.4-1.3 2-3 2h-2.5"/></svg></span><h2 class="gd-q" id="gd-q-call">문제가 생기면 누구에게?</h2></div><div class="gd-contact" id="gd-contact"></div></section>
+    <section class="gd-sec gd-c-panels" id="gd-sec-panels" aria-labelledby="gd-q-panels"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v18"/><path d="M8 8h1M15 8h1M8 12h1M15 12h1"/><path d="M4 17h16"/></svg></span><h2 class="gd-q" id="gd-q-panels">판넬은 각각 괜찮나요?</h2></div><div class="gd-grid" id="gd-panels"></div></section>
+    <section class="gd-c gd-c-month gd-tile" id="gd-sec-month" aria-labelledby="gd-q-month"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5.5c0 4.4-3 8-7 9.5-4-1.5-7-5.1-7-9.5V6z"/><path d="M9 12l2.2 2.2L15.5 10"/></svg></span><h2 class="gd-q" id="gd-q-month">이번 달 JCC가 한 일</h2></div><div class="gd-c-fill" id="gd-month"></div></section>
+    <section class="gd-c gd-c-docs" id="gd-sec-docs" aria-labelledby="gd-q-docs"><div class="gd-qh"><span class="gd-plate" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M10 12h5M10 16h5"/></svg></span><h2 class="gd-q" id="gd-q-docs">보고서·기록이 필요할 때</h2></div>
       <div class="gd-docs gd-docs-c">
-        <button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>›</span></button>
-        <button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서</span><span>›</span></button>
-        <button class="gd-doc" id="gd-docs-x"><span>사건 보고서</span><span>›</span></button>
-        <button class="gd-doc" id="gd-docs-o"><span>감시 끊김 기록</span><span>›</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-m"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/><path d="M8 14h3M8 17h6"/></svg></span><span>월간 보고서</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-i"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v6"/><path d="M14 3v4h4"/><path d="M7 3v18h6"/><circle cx="17" cy="17" r="3"/><path d="M19.2 19.2L21 21"/></svg></span><span>정기 점검 보고서</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-x"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/></svg></span><span>사건 보고서</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-o"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4"/><path d="M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/><path d="M4 4l16 16"/></svg></span><span>감시 끊김 기록</span></button>
       </div></section>
     <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
   </main>
@@ -890,10 +924,10 @@ function paint(){
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
   const m = d.month;
-  const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
+  const c = d.contact, role = c.engineer ? (c.assigned ? "우리 공장 담당" : "최근 점검") : "JCC", who = c.engineer ? esc(c.engineer) : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
   void due;   // 정기 점검 기한은 '할 일' 카드에(지났을 때만)
-  setHTML($("#gd-contact"), `<span><b>${who}</b><small>이상하면 JCC가 먼저 연락드립니다</small></span>` +
+  setHTML($("#gd-contact"), `<span class="gd-who"><small>${role}</small><b>${who}</b><small>이상하면 JCC가 먼저 연락드립니다</small></span>` +
     (!c.phone ? `<small class="gd-mut">연락처가 아직 등록되지 않았습니다 — JCC 담당자에게 알려 주세요</small>` : "") +
     (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC에 전화 ${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>${esc(c.phone)}</a>` : ""));
   paintPanels(d.panels);
@@ -945,7 +979,7 @@ function paintMonth(){
   const m = G.month, el = $("#gd-month");
   const body = m.building
     ? `<p class="gd-a">기록이 쌓이는 중</p><p class="gd-mut" style="margin:0">설치 후 며칠이 지나면 이곳에 쌓입니다.</p>`
-    : `<p class="gd-a"><em class="gd-hours">${m.hours.toLocaleString("ko-KR")}시간</em> 지켰습니다</p><button class="gd-more" id="gd-m-more">자세히</button>`;
+    : `<p class="gd-fig ok">${m.hours.toLocaleString("ko-KR")}<small>시간</small></p><p class="gd-fig-sub">쉬지 않고 지켰습니다</p><button class="gd-more" id="gd-m-more">자세히</button>`;
   if (!setHTML(el, body)) return;
   if (!m.building) $("#gd-m-more").onclick = openMonthDetail;
 }
@@ -1020,9 +1054,11 @@ async function openPanel(pid){
 // '제가 할 일이 있나요?' — 카드엔 몇 건·첫 항목 한 줄만, 자세히에 이유와 '판넬 보기'
 function paintTodo(list){
   const el = $("#gd-todo"); if (!el) return;
-  if (!list.length){ setHTML(el, `<p class="gd-a">없습니다</p><p class="gd-mut" style="margin:0">JCC와 판넬이 지키고 있습니다.</p>`); return; }
+  const tone = !list.length ? "ok" : list[0].level === "act" ? "crit" : list[0].level === "watch" ? "warn" : "info";
+  $("#gd-sec-todo").dataset.tone = tone;
+  if (!list.length){ setHTML(el, `<p class="gd-fig ok">0<small>건</small></p><p class="gd-fig-sub">할 일 없음 · JCC와 판넬이 지키고 있습니다</p>`); return; }
   const top = list.slice(0, 2);
-  if (!setHTML(el, `<p class="gd-a ${list[0].level === "act" ? "act" : list[0].level === "watch" ? "watch" : ""}">${list.length}건</p>` +
+  if (!setHTML(el, `<p class="gd-fig ${list[0].level === "act" ? "act" : list[0].level === "watch" ? "watch" : ""}">${list.length}<small>건</small></p>` +
     `<ul class="gd-todo">${top.map(x => `<li><i class="${x.level}"></i><span><b>${esc(x.panel_name || "공장 전체")}</b> ${esc(x.title)}</span></li>`).join("")}</ul>` +
     `<button class="gd-more" id="gd-todo-more">자세히</button>`)) return;
   $("#gd-todo-more").onclick = () => openTodo(list);
@@ -1319,6 +1355,7 @@ async function openAlarmLink(){
 }
 
 // ── 보고서 고르기 · 바로 가기(휴대폰 아래 메뉴) ─────────────────
+document.querySelectorAll(".gd-tile").forEach(t => t.addEventListener("click", e => { if (e.target.closest("a,button")) return; const b = t.querySelector(".gd-more"); if (b) b.click(); }));
 $("#gd-docs-m").onclick = () => openMonthly(); $("#gd-docs-i").onclick = () => openInspections();
 $("#gd-docs-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-docs-o").onclick = () => openOutages((G.month || G.d.month).period);
 $("#gd-state-more").onclick = () => $("#gd-ring").click();
