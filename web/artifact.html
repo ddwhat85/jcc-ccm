@@ -421,8 +421,8 @@
   /* 예지보전 카드 — 화재·접점·결로 위험도 + 벤트·히터·팬 */
   .pdm{background:var(--surface);border:1px solid var(--rule);border-radius:2px;padding:12px 13px 12px;margin-bottom:12px}
   .pdm-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:6px}
-  .pdm-title{font:700 13px var(--sans);letter-spacing:-.01em;color:var(--ink)}
-  .pdm-age{font:600 10px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .pdm-title{flex:none;white-space:nowrap;font:700 13px var(--sans);letter-spacing:-.01em;color:var(--ink)}
+  .pdm-age{min-width:0;text-align:right;font:600 10px var(--mono);color:var(--ink-3);font-variant-numeric:tabular-nums}
   .pdm-row{display:grid;grid-template-columns:62px 1fr auto auto;align-items:center;gap:8px;
            padding:7px 2px;border-top:1px solid var(--rule);cursor:pointer}
   .pdm-row:first-child{border-top:0}
@@ -5431,7 +5431,7 @@ function heroHtml(){
 let _ovSig = "", _spotIdx = 0, _spotTimer = null, _spotPaused = false, _spotList = [];
 function ovSensorList(panels){
   const out = [];
-  for(const p of panels||[]) for(const c of (p.ccms||[])) for(const r of (c.latest||[]))
+  for(const p of panels||[]) if(!GF.only || p.panel===GF.only) for(const c of (p.ccms||[])) for(const r of (c.latest||[]))
     out.push({dev:c.device_id, key:r.sensor_key});
   return out;
 }
@@ -5515,8 +5515,9 @@ function renderOverview(panels){
   }
   const ccmOnline = ccms.filter(c=>c.online && !clientOff.has("ccm:"+c.device_id)).length;
   _spotList = ovSensorList(panels);
-  const sig = "n"+_spotList.length+"|c"+ccms.length;   // 구조 변화 시에만 재구성(순회 상태 보존)
+  const sig = (GF.only||"*")+"|n"+_spotList.length+"|c"+ccms.length;   // 구조·보는 판넬이 바뀔 때만 재구성(순회 상태 보존)
   if(sig !== _ovSig || !box.querySelector("#spot-card")){
+    if(_ovSig.split("|")[0] !== (GF.only||"*")) _spotIdx = 0;   // 다른 판넬로 바꾸면 그 판넬 첫 센서부터
     _ovSig = sig;
     box.innerHTML = `<div id="ov-hero"></div><div class="pdm" id="ov-pred"></div><div class="spot" id="spot-card"></div><div class="ov-mini" id="ov-mini"></div>`;
     const sc = $("#spot-card");
@@ -5601,7 +5602,9 @@ function renderPred(){
     };
   }
   const p = lastPred;
-  if(!p){ $("#pdm-age").textContent = "데이터 쌓이는 중"; return; }
+  if(!p){   // 앞 판넬의 값이 남지 않게 칸을 비운다(다음에 값이 오면 다시 그린다)
+    box.innerHTML = `<div class="pdm-head"><span class="pdm-title">예지보전</span><span class="pdm-age" id="pdm-age">${focusPanel ? "이 판넬은 예지 데이터가 아직 없습니다" : "데이터 쌓이는 중"}</span></div>`;
+    return; }
   pdmPaintActs(box, pdmActs(p));
   pdmPaintEdge(box, p);
   const f = p.fire||{}, c = p.contact||{}, d = p.dew||{};
@@ -5714,7 +5717,8 @@ function pdmToggle(act){
 function loadPredict(){
   fetch("/api/predict",{cache:"no-store"}).then(r=>r.json()).then(d=>{
     // 현장 목록에서 고른 판넬(없으면 첫 판넬)의 예지 상태를 보여 준다
-    lastPred = (d.panels||[]).find(p=>p.panel===focusPanel) || (d.panels||[])[0] || null;
+    // 고른 판넬에 예지 데이터가 없으면 첫 판넬 것을 대신 보이지 않는다(다른 판넬 값이 섞여 보이는 오해)
+    lastPred = (d.panels||[]).find(p=>p.panel===focusPanel) || (focusPanel ? null : (d.panels||[])[0]) || null;
     renderPred();
     loadRul();
   }).catch(()=>{});
@@ -8031,7 +8035,8 @@ function setGraphOnly(pid, quiet){
   try { GF.only ? localStorage.setItem("jcc-graph-only", GF.only) : localStorage.removeItem("jcc-graph-only"); } catch(_){}
   const sel = $("#gf-only"); if (sel) sel.value = GF.only || "";
   nodePos = loadPos(); topoSig = "";            // 그 보기의 배치로 다시 그린다
-  if (!quiet){ refresh(); setStatus(GF.only ? `배선 보기: ${(lastPanels.find(p => p.panel === GF.only) || {}).panel_name || GF.only}만` : "배선 보기: 전체 판넬"); }
+  focusPanel = GF.only;                          // 오른쪽 예지보전·센서 순회도 이 판넬로
+  if (!quiet){ loadPredict(); refresh(); setStatus(GF.only ? `배선 보기: ${(lastPanels.find(p => p.panel === GF.only) || {}).panel_name || GF.only}만` : "배선 보기: 전체 판넬"); }
 }
 { const sel = $("#gf-only"); if (sel) sel.onchange = () => setGraphOnly(sel.value || null); }
 function openPanel(pid){
