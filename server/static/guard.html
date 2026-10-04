@@ -161,10 +161,6 @@
   .gd-state{text-align:center;margin-top:6px}
   .gd-state h2{margin:0;font:600 var(--t-h)/1.4 var(--sans);letter-spacing:-.01em}
   .gd-state p{margin:4px 0 0;font-size:var(--t-cap);color:var(--ink-3);line-height:1.5}
-  .gd-tri{display:grid;grid-template-columns:repeat(3,1fr);margin-top:24px;border-top:1px solid var(--line)}
-  .gd-tri div{padding:16px 4px 4px;text-align:center}
-  .gd-tri b{display:block;font:300 var(--t-fig) var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .gd-tri span{display:block;margin-top:2px;font-size:var(--t-cap);line-height:1.35;color:var(--ink-3)}
   .gd-contact{margin-top:20px;padding-top:18px;border-top:1px solid var(--line);display:flex;align-items:center;gap:14px}
   .gd-contact>span{min-width:0;flex:1}
   .gd-contact:empty{display:none}
@@ -233,6 +229,16 @@
   .gd-docs{margin-top:14px;display:flex;flex-direction:column;gap:8px}
   .gd-doc{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-radius:var(--r-s);background:var(--card-2);border:1px solid var(--line-2);font-size:var(--t-body);cursor:pointer;width:100%;text-align:left}
   .gd-doc span:last-child{color:var(--ink-3);font-size:var(--t-cap)}
+  .gd-kpi{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:22px;border-top:1px solid var(--line-2)}
+  .gd-kpi div{padding:16px 0 2px}
+  .gd-kpi div + div{padding-left:16px;border-left:1px solid var(--line-2)}
+  .gd-kpi b{display:block;font:300 var(--t-big)/1.1 var(--sans);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .gd-kpi b small{font-size:var(--t-body);margin-left:2px;color:var(--ink-3);letter-spacing:0}
+  .gd-kpi span{display:block;margin-top:6px;font-size:var(--t-cap);color:var(--ink-3)}
+  .gd-mlinks{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .gd-mlink{min-height:40px;padding:0 16px;border-radius:var(--pill);border:1px solid var(--line);background:transparent;cursor:pointer;
+    font:600 var(--t-cap) var(--sans);color:var(--ink)}
+  .gd-mlink:hover{border-color:var(--ink-3)}
   .gd-month .gd-docs{margin-top:20px;gap:0;border-top:1px solid var(--line-2)}
   .gd-month .gd-doc{background:none;border:0;border-bottom:1px solid var(--line-2);border-radius:0;padding:15px 2px;min-height:48px}
   .gd-month .gd-doc:hover span:first-child{text-decoration:underline;text-underline-offset:3px}
@@ -324,6 +330,27 @@
     font:600 var(--t-cap) var(--sans);padding:11px 16px;border-radius:var(--pill);opacity:0;transition:opacity .25s ease;pointer-events:none}
   .gd-toast.on{opacity:1}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+  .gd-seg{position:sticky;top:-10px;z-index:2;display:flex;gap:4px;margin:14px -4px 6px;padding:8px 4px;background:var(--card);
+    overflow-x:auto;scrollbar-width:none}
+  .gd-seg::-webkit-scrollbar{display:none}
+  .gd-seg button{flex:none;min-height:36px;padding:0 14px;border-radius:var(--pill);border:1px solid var(--line);background:transparent;
+    font:600 var(--t-cap) var(--sans);color:var(--ink-2);cursor:pointer;transition:background-color .15s ease,color .15s ease}
+  .gd-seg button[aria-selected="true"]{background:var(--btn);color:var(--btn-ink);border-color:var(--btn)}
+  .gd-pane{padding-top:4px}
+  @media (min-width:760px){.gd-sheet:has(.gd-seg){height:min(680px,86vh)}}   /* 탭을 바꿔도 창이 튀지 않게(PC 가운데 창) */
+  .gd-pane .gd-gg{margin-top:8px}
+  .gd-pane .gd-fc,.gd-pane .gd-tk,.gd-pane .gd-eq{margin-top:4px;padding-top:0;border-top:0}
+  .gd-tk-flag{display:flex;align-items:center;gap:10px;margin:8px 0 4px;padding:12px 14px;border-radius:var(--r-s);background:var(--card-2);font-size:var(--t-body)}
+  .gd-tk-flag i{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none} .gd-tk-flag i.act{background:var(--crit)}
+  .gd-tk-flag span{flex:1;font-weight:600}
+  .gd-tk-flag button{border:0;background:none;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;min-height:36px}
+  .gd-fc-more{margin-top:12px}
+  .gd-fc-more summary{cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2);min-height:36px;display:flex;align-items:center;list-style:none}
+  .gd-fc-more summary::-webkit-details-marker{display:none}
+  .gd-fc-more summary::after{content:"";width:6px;height:6px;margin-left:10px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+    transform:translateY(-2px) rotate(45deg);transition:transform .15s ease}
+  .gd-fc-more[open] summary::after{transform:translateY(2px) rotate(-135deg)}
+  .gd-eq-sum{margin:0 0 10px;font-size:var(--t-cap);color:var(--ink-3)}
   .gd-fc{margin-top:18px}
   .gd-fc h5{margin:0 0 6px}
   .gd-fc-say{margin:0;font-size:var(--t-body);line-height:1.55;color:var(--ink-2)}
@@ -530,7 +557,6 @@
         <span class="mid"><b id="gd-score">—</b><span>안심 지수</span><small id="gd-why-hint">눌러서 이유 보기</small></span>
       </button>
       <div class="gd-state"><h2 id="gd-title">불러오는 중</h2><p id="gd-sub"></p><p class="gd-fresh" id="gd-fresh" aria-live="polite"></p></div>
-      <div class="gd-tri" id="gd-tri" hidden></div>
       <div class="gd-contact" id="gd-contact"></div>
       <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
     </div>
@@ -786,12 +812,6 @@ function paint(){
   document.body.classList.toggle("gd-alert", !!d.incident);
   paintIncident(d.incident);
   const m = d.month;
-  // 기록이 쌓이기 전에는 빈 숫자(—)를 늘어놓지 않는다 — '지켜낸 것' 카드가 같은 말을 한다
-  $("#gd-tri").hidden = !!m.building;
-  if (!m.building) setHTML($("#gd-tri"),
-    `<div><b>${m.precursors.total}</b><span>이번 달<br>미리 잡은 징조</span></div><div><b>${m.actions.total}</b><span>판넬이<br>스스로 한 조치</span></div>` +
-      (m.uptime == null ? `<div><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b><span>위험 경보<br>평균 대응</span></div>`
-        : `<div><b>${pct(m.uptime)}</b><span>이번 달<br>감시 가동률</span></div>`));
   const c = d.contact, who = c.engineer ? `${c.assigned ? "우리 공장 담당" : "최근 점검"} ${esc(c.engineer)}` : esc(c.desk);
   const due = d.next_inspection ? (d.next_inspection < Date.now() / 1000 ? "정기 점검 기한 지남" : `다음 정기 점검 <span style="white-space:nowrap">D-${Math.ceil((d.next_inspection - Date.now() / 1000) / 86400)}</span>`) : "정기 점검 일정 협의 중";
   setHTML($("#gd-contact"), `<span><b>${who}</b><small>${due}</small></span>` +
@@ -848,24 +868,34 @@ function paintMonth(){
     `<button class="gd-ico" id="gd-mprev" aria-label="이전 달"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 6l-6 6 6 6"/></svg></button>` +
     `<b class="gd-mo" aria-live="polite">${m.period.slice(0, 4)}년 ${per(m.period)}</b>` +
     `<button class="gd-ico" id="gd-mnext" aria-label="다음 달" ${isNow ? "disabled" : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button></div>`;
+  const links = `<div class="gd-mlinks"><button class="gd-mlink" id="gd-m-more"${m.building ? " hidden" : ""}>이번 달 자세히</button>` +
+    `<button class="gd-mlink" id="gd-m-docs">보고서 · 사건 · 끊김 기록</button></div>`;
   const body = m.building
     ? `<div class="gd-big">기록이 쌓이는 중입니다.</div><p class="lede">설치 후 며칠이 지나면 이곳에 JCC가 지켜낸 것이 쌓입니다. 지금도 24시간 감시하고 있습니다.</p>`
     : `<div class="gd-big">${isNow ? "이번 달" : per(m.period) + "에"}, JCC가<br><em>${m.hours.toLocaleString("ko-KR")}시간</em> 지켰습니다.</div>` +
-      `<p class="lede">사람이 순찰했다면 약 ${m.patrols.count.toLocaleString("ko-KR")}번이 필요했던 시간입니다 <span class="gd-mut">(하루 ${m.patrols.per_day}회 기준 추정)</span>.</p>` +
-      `<div class="gd-led">` +
-      `<div><span>미리 잡은 위험 징조<small>화재 ${m.precursors.fire} · 단자 과열 ${m.precursors.contact} · 결로 ${m.precursors.dew}</small></span><b>${m.precursors.total}건</b></div>` +
-      `<div><span>판넬이 스스로 한 조치<small>환기 ${m.actions.vent} · 히터·팬 ${m.actions.dew}</small></span><b>${m.actions.total}회</b></div>` +
-      `<div><span>원격으로 해결<small>현장 출동 없이 다시 잇기</small></span><b>${m.remote}건</b></div>` +
-      `<div><span>위험 경보 평균 대응</span><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b></div>` +
-      (m.uptime == null ? "" : `<div><span>감시 가동률<small>${downSay(m)}</small></span><b>${pct(m.uptime)}</b></div>`) +
-      `</div>`;
-  if (!setHTML(el, head + body + `<div class="gd-docs"><button class="gd-doc" id="gd-docs-m"><span>월간 보고서</span><span>열기 ›</span></button>` +
-    `<button class="gd-doc" id="gd-docs-i"><span>정기 점검 보고서 · 고객 서명</span><span>열기 ›</span></button>` +
-    `<button class="gd-doc" id="gd-docs-x"><span>사건 보고서 · 경보마다 한 장</span><span>열기 ›</span></button>` +
-    `<button class="gd-doc" id="gd-docs-o"><span>감시 끊김 기록 · 언제·왜·그동안 보호됐나</span><span>열기 ›</span></button></div>`)) return;
+      `<div class="gd-kpi"><div><b>${m.precursors.total}<small>건</small></b><span>미리 잡은 징조</span></div>` +
+      `<div><b>${m.actions.total}<small>회</small></b><span>판넬이 스스로 한 조치</span></div>` +
+      (m.uptime == null ? `<div><b>${m.remote}<small>건</small></b><span>원격으로 해결</span></div>`
+        : `<div><b>${pct(m.uptime).replace("%", "")}<small>%</small></b><span>감시 가동률</span></div>`) + `</div>`;
+  if (!setHTML(el, head + body + links)) return;
   $("#gd-mprev").onclick = () => moveMonth(-1);
   $("#gd-mnext").onclick = () => moveMonth(1);
-  $("#gd-docs-m").onclick = openMonthly; $("#gd-docs-i").onclick = openInspections; $("#gd-docs-x").onclick = () => openIncidents(G.month.period); $("#gd-docs-o").onclick = () => openOutages(G.month.period);
+  $("#gd-m-more").onclick = openMonthDetail;
+  $("#gd-m-docs").onclick = openDocs;
+}
+// 이번 달 자세히 — 예전 카드에 펼쳐져 있던 장부를 시트로
+function openMonthDetail(){
+  const m = G.month;
+  sheet(`<h4 id="gd-sheet-t">${m.period.slice(0, 4)}년 ${per(m.period)} · 지켜낸 것</h4>` +
+    `<div class="sub">사람이 순찰했다면 약 ${m.patrols.count.toLocaleString("ko-KR")}번이 필요했던 시간입니다(하루 ${m.patrols.per_day}회 기준 추정).</div>` +
+    `<div class="gd-led">` +
+    `<div><span>미리 잡은 위험 징조<small>화재 ${m.precursors.fire} · 단자 과열 ${m.precursors.contact} · 결로 ${m.precursors.dew}</small></span><b>${m.precursors.total}건</b></div>` +
+    `<div><span>판넬이 스스로 한 조치<small>환기 ${m.actions.vent} · 히터·팬 ${m.actions.dew}</small></span><b>${m.actions.total}회</b></div>` +
+    `<div><span>원격으로 해결<small>현장 출동 없이 다시 잇기</small></span><b>${m.remote}건</b></div>` +
+    `<div><span>위험 경보 평균 대응</span><b>${m.ack_min_avg == null ? "—" : m.ack_min_avg + "분"}</b></div>` +
+    (m.uptime == null ? "" : `<div><span>감시 가동률<small>${downSay(m)}</small></span><b>${pct(m.uptime)}</b></div>`) + `</div>` +
+    `<div class="gd-docs"><button class="gd-doc" id="gd-md-docs"><span>보고서 · 사건 · 끊김 기록</span><span>열기 ›</span></button></div>`);
+  $("#gd-md-docs").onclick = openDocs;
 }
 async function moveMonth(dir){
   const [y, mo] = G.month.period.split("-").map(Number), dt = new Date(y, mo - 1 + dir, 1);
@@ -893,32 +923,48 @@ async function openPanel(pid){
   sheet(`<h4 id="gd-sheet-t">불러오는 중</h4>`);
   try { const r = await fetch(`/api/guard/panel?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
     const {panel: p, timeline, equipment: eq} = await r.json();
+    G.fc = null;                                    // 앞 판넬의 예측이 새 판넬 탭에 그려지지 않게
     const lf = p.life;
+    const tabs = [["now", "지금"], ["fc", "내일"], ["tk", "원인·할 일"]].concat(eq && eq.units.length ? [["eq", "공조"]] : []).concat([["log", "기록"]]);
     sheet(`<h4 id="gd-sheet-t">${esc(p.panel_name)}</h4><div class="sub">${esc(p.word)}${p.why.length && p.status !== "ok" ? " · " + esc(p.why[0]) : ""}${p.vent_open ? " · 환기 열림" : ""}</div>` +
-      `<div class="gd-gg"><div class="gd-g"><b>${p.temp == null ? "—" : p.temp}<small>℃</small></b><span>판넬 안 온도</span>` +
-      `<em class="gd-help">높으면 부품 수명이 줄고 불이 날 위험이 커집니다</em></div>` +
-      `<div class="gd-g"><b>${p.humidity == null ? "—" : p.humidity}<small>%</small></b><span>습도${p.dew !== "—" ? " · " + esc(p.dew) : ""}</span>` +
-      `<em class="gd-help">높으면 판넬 안에 물방울(결로)이 맺혀 누전될 수 있습니다</em></div>` +
-      (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span><em class="gd-help">가스·온도를 함께 보고 불나기 전 신호를 찾습니다</em></div>` : "") +
-      (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span><em class="gd-help">전선 연결부가 풀리면 전류보다 온도가 먼저 오릅니다</em></div>` : "") + `</div>` +
+      `<div class="gd-seg" role="tablist" aria-label="판넬 보기">${tabs.map(([k, n], i) =>
+        `<button role="tab" id="gd-tab-${k}" data-tab="${k}" aria-selected="${i === 0}" aria-controls="gd-pane-${k}">${n}</button>`).join("")}</div>` +
+      `<section class="gd-pane" id="gd-pane-now" role="tabpanel" aria-labelledby="gd-tab-now">` +
+      `<div class="gd-tk-flag" id="gd-tk-flag" hidden></div>` +
+      `<div class="gd-gg"><div class="gd-g"><b>${p.temp == null ? "—" : p.temp}<small>℃</small></b><span>판넬 안 온도</span></div>` +
+      `<div class="gd-g"><b>${p.humidity == null ? "—" : p.humidity}<small>%</small></b><span>습도${p.dew !== "—" ? " · " + esc(p.dew) : ""}</span></div>` +
+      (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span></div>` : "") +
+      (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span></div>` : "") + `</div>` +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
-      eqHTML(eq) +
-      `<div class="gd-fc" id="gd-fc"><h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">불러오는 중</div></div>` +
-      `<div class="gd-tk" id="gd-tk"><h5>온도가 오르는 이유와 할 일</h5><div class="gd-note">불러오는 중</div></div>` +
+      `</section>` +
+      `<section class="gd-pane" id="gd-pane-fc" role="tabpanel" aria-labelledby="gd-tab-fc" hidden><div class="gd-fc" id="gd-fc"><div class="gd-note">불러오는 중</div></div></section>` +
+      `<section class="gd-pane" id="gd-pane-tk" role="tabpanel" aria-labelledby="gd-tab-tk" hidden><div class="gd-tk" id="gd-tk"><div class="gd-note">불러오는 중</div></div></section>` +
+      (eq && eq.units.length ? `<section class="gd-pane" id="gd-pane-eq" role="tabpanel" aria-labelledby="gd-tab-eq" hidden>${eqHTML(eq)}</section>` : "") +
+      `<section class="gd-pane" id="gd-pane-log" role="tabpanel" aria-labelledby="gd-tab-log" hidden>` +
       (timeline.length ? `<div class="gd-tl">${timeline.map(t => `<div class="${t.who === "판넬이 스스로" ? "self" : t.who === "감지" ? "alarm" : ""}">${esc(clean(t.text))}<small>${fmtT(t.ts)} · ${esc(t.who)}</small></div>`).join("")}</div>`
-        : `<div class="gd-empty">최근 7일 동안 특별한 일이 없었습니다.</div>`));
+        : `<div class="gd-empty">최근 7일 동안 특별한 일이 없었습니다.</div>`) + `</section>`);
+    $("#gd-sheet-body").querySelectorAll("[data-tab]").forEach(b => b.onclick = () => panelTab(b.dataset.tab));
     loadForecast(pid); loadThermal(pid);
   } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4><div class="sub">잠시 뒤 다시 열어 주세요</div>`); }
 }
+
+// 판넬 상세 탭 — 한 번에 하나만. '내일' 그래프는 보일 때 그 칸 폭으로 그린다(숨은 칸은 폭이 0)
+function panelTab(k){
+  document.querySelectorAll("#gd-sheet-body [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
+  document.querySelectorAll("#gd-sheet-body .gd-pane").forEach(x => { x.hidden = x.id !== "gd-pane-" + k; });
+  if (k === "fc" && G.fc && $("#gd-fc")) $("#gd-fc").innerHTML = fcHTML(G.fc, $("#gd-fc").clientWidth);
+}
+function dropTab(k){ const b = $("#gd-tab-" + k), x = $("#gd-pane-" + k); if (b) b.remove(); if (x) x.remove(); }
 
 // ── 내일 온도 예측 ─────────────────────────────────────────
 // 그 판넬의 지난 8주 같은 요일·시각 + 최근 3일 흐름으로 낸 예측. 예측은 늘 '범위'와 '지난 오차'를 같이 보인다(실제 기록으로 잰 것)
 async function loadForecast(pid){
   const box = $("#gd-fc"); if (!box) return;
   try { const r = await fetch(`/api/guard/forecast?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"});
-    if (r.status === 404){ box.remove(); return; }          // 온도 센서가 없는 판넬 — 예측할 게 없다
+    if (r.status === 404){ dropTab("fc"); return; }          // 온도 센서가 없는 판넬 — 예측할 게 없다
     if (!r.ok) throw new Error();
-    const f = await r.json(); if ($("#gd-fc") === box) box.innerHTML = fcHTML(f, box.clientWidth);
+    const f = await r.json(); G.fc = f;
+    if ($("#gd-fc") === box && box.clientWidth) box.innerHTML = fcHTML(f, box.clientWidth);   // 보이는 중이면 바로, 아니면 탭을 열 때
   } catch(_){ if ($("#gd-fc") === box) box.innerHTML = `<h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">예측을 불러오지 못했습니다</div>`; }
 }
 const hh = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour:"numeric", hour12:false}).replace(/\D/g, "") + "시";
@@ -936,7 +982,7 @@ function eqHTML(v){
   const c = v.calc, kw = w => w >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${w}W`;
   const CAP = {ok: ["충분", "ok"], tight: ["빠듯", "watch"], short: ["부족", "act"], passive: ["공조 없이도 충분", "ok"]}[c.status];
   const day = t => new Date(t * 1000).toLocaleDateString("ko-KR", {...KST, month:"long", day:"numeric"});
-  return `<div class="gd-eq"><h5>공조 장치 <span>${esc(v.summary)}</span></h5><ul>` + v.units.map(u =>
+  return `<div class="gd-eq"><p class="gd-eq-sum">${esc(v.summary)}</p><ul>` + v.units.map(u =>
     `<li><b>${esc(u.word)}${u.qty > 1 ? ` ${u.qty}대` : ""}</b><span>${[u.position, u.cap, u.name].filter(Boolean).map(esc).join(" · ")}</span>` +
     (u.live ? acLive(u.live) : "") +
     (u.next_service ? `<em class="${u.service_due ? "due" : ""}">${u.service_due ? "필터 청소 시기 지남 — JCC가 일정을 잡습니다" : "다음 필터 청소 " + day(u.next_service)}</em>` : "") + `</li>`).join("") + `</ul>` +
@@ -950,10 +996,15 @@ function eqHTML(v){
 async function loadThermal(pid){
   const box = $("#gd-tk"); if (!box) return;
   try { const r = await fetch(`/api/guard/thermal?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"});
-    if (r.status === 404){ box.remove(); return; }
+    if (r.status === 404){ dropTab("tk"); return; }
     if (!r.ok) throw new Error();
     const t = await r.json(); if ($("#gd-tk") !== box) return;
     box.innerHTML = tkHTML(t);
+    const flag = $("#gd-tk-flag");                          // '지금' 탭 맨 위에 한 줄만 — 자세한 건 '원인·할 일'에
+    if (flag && !t.building && t.level !== "ok"){
+      flag.innerHTML = `<i class="${t.level}"></i><span>${t.level === "act" ? "조치가 필요합니다" : "지켜볼 것이 있습니다"}</span><button type="button">원인·할 일 보기</button>`;
+      flag.hidden = false; flag.querySelector("button").onclick = () => panelTab("tk");
+    }
     const b = $("#gd-tk-req");
     if (b) b.onclick = async () => { b.disabled = true;
       try { const rr = await fetch("/api/guard/request", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({panel: pid, kind: "cooling_review"})});
@@ -962,7 +1013,7 @@ async function loadThermal(pid){
   } catch(_){ if ($("#gd-tk") === box) box.innerHTML = `<h5>온도가 오르는 이유와 할 일</h5><div class="gd-note">불러오지 못했습니다</div>`; }
 }
 function tkHTML(t){
-  const title = `<h5>온도가 오르는 이유와 할 일</h5>`;
+  const title = "";
   if (t.building) return title + `<p class="gd-note">이 판넬의 기록이 14일 쌓이면 왜 오르는지와 할 일을 알려 드립니다 — 지금 ${Math.floor(t.days)}일째입니다.</p>`;
   const w = t.warn, pk = t.weekday_peak;
   const LV = {act: ["조치가 필요합니다", "act"], watch: ["지켜볼 것이 있습니다", "watch"], ok: ["지금은 할 일이 없습니다", "ok"]}[t.level] || ["", ""];
@@ -981,7 +1032,7 @@ function tkHTML(t){
     `설정 변경·교체는 JCC가 확인한 뒤 사람이 합니다.${t.demo ? " (시연판 — 가상 기록)" : ""}</p>`;
 }
 function fcHTML(f, width){
-  const title = `<h5>판넬 안 온도 — 내일 예측</h5>`;
+  const title = "";
   if (f.building) return title + `<p class="gd-note">예측은 이 판넬의 기록이 7일 쌓이면 시작합니다 — 지금 ${Math.floor(f.days)}일째입니다.</p>`;
   const D = 86400, now = f.now, day0 = Math.floor((now + 9 * 3600) / D) * D - 9 * 3600, tm0 = day0 + D;
   const tom = f.forecast.filter(x => x.ts >= tm0), pk = f.peak, lo = f.low;
@@ -1018,9 +1069,9 @@ function fcHTML(f, width){
     (last ? `<circle class="dot" cx="${X(last.ts)}" cy="${Y(last.v)}" r="3"/>` : "") + `</svg>`;
   const key = `<div class="gd-fc-key"><span><i class="act"></i>실제</span><span><i class="fcl"></i>예측${f.band != null ? " · 범위" : ""}</span>` +
     (f.last_year.length ? `<span><i class="ly"></i>작년 같은 날</span>` : "") + (warn ? `<span><i class="w"></i>주의 기준</span>` : "") + `</div>`;
-  const grid = `<div class="gd-fc-hours" role="table" aria-label="내일 시간별 예측">${tom.map(x =>
+  const grid = `<details class="gd-fc-more"><summary>시간별 보기</summary><div class="gd-fc-hours" role="table" aria-label="내일 시간별 예측">${tom.map(x =>
     `<div role="row" class="${x.ts === pk.ts ? "pk" : ""}${f.warn != null && (x.hi != null ? x.hi : x.v) >= f.warn ? " w" : ""}"><small role="cell">${hh(x.ts)}</small>` +
-    `<b role="cell">${f1(x.v)}</b>${x.lo != null ? `<span role="cell">${rng(x)}</span>` : ""}</div>`).join("")}</div>`;
+    `<b role="cell">${f1(x.v)}</b>${x.lo != null ? `<span role="cell">${rng(x)}</span>` : ""}</div>`).join("")}</div></details>`;
   const how = `<p class="gd-note">예측 방법: 이 판넬의 지난 8주 같은 요일·같은 시각 온도와 최근 3일 흐름으로 계산합니다. 바깥 날씨는 아직 반영하지 않습니다. ` +
     (f.mae != null ? `지난 ${f.tested_days}일 동안 실제와 비교한 평균 오차는 <b>±${f1(f.mae)}℃</b>이고, 범위는 지난 오차의 80%가 들어온 폭입니다.`
       : "실제와 비교할 기록이 더 쌓이면 예측 범위와 평균 오차가 함께 나옵니다.") +
