@@ -376,6 +376,10 @@
   .gd-prog-bar{display:flex;gap:4px;height:10px}
   .gd-prog-bar i{flex:1;border-radius:var(--pill);background:var(--track);overflow:hidden;position:relative}
   .gd-prog-bar i.done{background:var(--ok)}
+  .gd-prog-bar i.done.fill{background:var(--track)}
+  .gd-prog-bar i.done.fill::before{content:"";position:absolute;inset:0;background:var(--ok);transform-origin:left center;
+    animation:gd-fill .8s cubic-bezier(.2,.7,.2,1) var(--fd,0s) both}
+  @keyframes gd-fill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .gd-prog-bar i.now{background:color-mix(in srgb,var(--ok) 30%,var(--track))}
   .gd-prog-bar i.now::after{content:"";position:absolute;inset:0 -40px 0 0;
     background:repeating-linear-gradient(-45deg,color-mix(in srgb,var(--ok) 70%,transparent) 0 8px,transparent 8px 16px);
@@ -384,7 +388,7 @@
   .gd-prog-st{display:flex;gap:4px;margin:6px 0 0;padding:0;list-style:none}
   .gd-prog-st li{flex:1;font-size:var(--t-cap);color:var(--ink-3);text-align:center}
   .gd-prog-st li.done{color:var(--ink-2)} .gd-prog-st li.now{color:var(--ink);font-weight:700}
-  @media (prefers-reduced-motion:reduce){.gd-prog-bar i.now::after{animation:none}}
+  @media (prefers-reduced-motion:reduce){.gd-prog-bar i.now::after,.gd-prog-bar i.done.fill::before{animation:none}}
   .gd-step{display:flex;gap:11px;align-items:flex-start;padding:11px 12px;border-radius:var(--r-s);background:color-mix(in srgb,var(--ink) 5%,transparent);font-size:var(--t-body);line-height:1.45}
   .gd-step i{flex:none;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--ok);position:relative;margin-top:1px}
   .gd-step i.ok::after{content:"";position:absolute;left:5px;top:2px;width:4px;height:8px;border:solid var(--ok);border-width:0 1.5px 1.5px 0;transform:rotate(45deg)}
@@ -1098,9 +1102,13 @@ function progHTML(inc){
   const st = [["감지", true]].concat(selfDone ? [["판넬 자동 조치", true]] : []).concat([["JCC 확인", !!inc.acked_at], ["정상 복귀", false]]);
   const done = st.filter(x => x[1]).length, pctv = Math.round(100 * done / st.length), next = st.find(x => !x[1]);
   const nowIdx = st.findIndex(x => !x[1]);
+  // 차오름: 이 사건을 처음 보면 0%부터 끝난 단계까지 차례로, 단계가 넘어가면 새로 끝난 칸만 — 숫자도 따라 올라간다
+  const prev = G.progPrev && G.progPrev.id === inc.id ? G.progPrev : {done: 0, pct: 0};
+  G.progNext = {id: inc.id, done, pct: pctv, from: Math.min(prev.pct, pctv)};
   return `<div class="gd-prog" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pctv}" aria-label="해결 진행 ${pctv}%">` +
-    `<div class="gd-prog-h"><b>${pctv}<small>%</small></b><span>해결 진행 중 · 다음: ${esc(next ? next[0] : "정상 복귀")}</span></div>` +
-    `<div class="gd-prog-bar">${st.map((x, i) => `<i class="${x[1] ? "done" : i === nowIdx ? "now" : ""}"></i>`).join("")}</div>` +
+    `<div class="gd-prog-h"><b><span class="gd-prog-n">${G.progNext.from}</span><small>%</small></b><span>해결 진행 중 · 다음: ${esc(next ? next[0] : "정상 복귀")}</span></div>` +
+    `<div class="gd-prog-bar">${st.map((x, i) => `<i class="${x[1] ? "done" : i === nowIdx ? "now" : ""}${x[1] && i >= prev.done ? " fill" : ""}"` +
+      (x[1] && i >= prev.done ? ` style="--fd:${((i - prev.done) * .28).toFixed(2)}s"` : "") + `></i>`).join("")}</div>` +
     `<ol class="gd-prog-st">${st.map((x, i) => `<li class="${x[1] ? "done" : i === nowIdx ? "now" : ""}">${x[0]}</li>`).join("")}</ol></div>`;
 }
 // 벤트가 열린 동안 — 바깥 공기가 들어와 판넬 안 온도·습도가 오를 수 있다. 가스를 빼는 게 먼저라 벤트는 닫지 않는다
@@ -1114,17 +1122,30 @@ function ventHTML(inc){
     (pm.temp == null ? "" : `<span class="gd-vchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14.5V5a2 2 0 0 1 4 0v9.5a4 4 0 1 1-4 0z"/><path d="M12 9v7"/></svg><b>${esc(pm.temp)}℃</b></span>`) +
     (pm.humidity == null ? "" : `<span class="gd-vchip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c-4 5-6 8-6 11a6 6 0 0 0 12 0c0-3-2-6-6-11z"/></svg><b>${esc(pm.humidity)}%</b></span>`) + `</div>`;
 }
+// 숫자가 올라가는 효과(0.8초, 끝에서 느려지게). 동작 줄이기면 바로 끝 숫자
+function countUp(el, from, to){
+  if (!el || from === to) { if (el) el.textContent = to; return; }
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = to; return; }
+  const t0 = Date.now(), dur = 800;
+  // 타이머로 — 화면이 가려진 탭에선 requestAnimationFrame이 멈춰 숫자가 0에 남는다
+  const iv = setInterval(() => { const k = Math.min(1, (Date.now() - t0) / dur), e = 1 - Math.pow(1 - k, 3);
+    if (!el.isConnected) return clearInterval(iv);
+    el.textContent = Math.round(from + (to - from) * e); if (k >= 1) clearInterval(iv); }, 30);
+}
 function paintIncident(inc){
   const box = $("#gd-inc");
   if (!inc){ box.hidden = true; setHTML(box, ""); return; }
   const canAck = G.user && G.user.role === "manager" && !inc.acked_at;
   box.hidden = false;
-  if (!setHTML(box, `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
+  const html = `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
     `<h2>${esc(inc.panel_name)}에서<br>${esc(inc.sensor_name)} 이상을 감지했습니다</h2><div class="d">${esc(clean(inc.detail))}</div>` +
     progHTML(inc) + ventHTML(inc) +
     "" +
     `<div class="gd-acts${G.d.contact.phone ? "" : " one"}">${G.d.contact.phone ? `<a class="p" href="tel:${esc(G.d.contact.phone.replace(/[^0-9+]/g, ""))}">JCC에 전화</a>` : ""}` +
-    (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`)) return;
+    (canAck ? `<button class="s" id="gd-ack">현장 확인했어요</button>` : `<button class="s" data-open="${esc(inc.panel)}">자세히 보기</button>`) + `</div></div>`;
+  const pn = G.progNext; G.progPrev = {id: pn.id, done: pn.done, pct: pn.pct};
+  if (!setHTML(box, html)) return;
+  countUp(box.querySelector(".gd-prog-n"), pn.from, pn.pct);
   const ack = $("#gd-ack");
   if (ack) ack.onclick = async () => { ack.disabled = true;
     const r = await fetch("/api/alarm/ack", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({alarm_id: inc.id, note: "고객 현장 확인", cause: ""})}).catch(() => null);
