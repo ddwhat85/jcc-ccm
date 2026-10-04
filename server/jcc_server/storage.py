@@ -123,6 +123,16 @@ CREATE TABLE IF NOT EXISTS monthly_reports (
     report      TEXT,
     PRIMARY KEY (customer_id, period)
 );
+-- 안전 관리 확인서(분기·연간) — JCC 직원이 발행한 스냅숏. 다시 발행하면 개정 번호(rev)가 오른다
+CREATE TABLE IF NOT EXISTS certificates (
+    customer_id INTEGER,
+    period      TEXT,
+    rev         INTEGER,
+    created_at  REAL,
+    by          TEXT,
+    report      TEXT,
+    PRIMARY KEY (customer_id, period)
+);
 -- 시운전(설치 점검) 기록 — 판넬별, 고객도 자기 판넬 것은 본다(설치 품질 증빙)
 CREATE TABLE IF NOT EXISTS commission_reports (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -830,6 +840,41 @@ class Storage:
             rows = self._conn.execute(q, (*args, int(limit))).fetchall()
         return [dict(customer_id=r["customer_id"], period=r["period"], created_at=r["created_at"], by=r["by"],
                      report=json.loads(r["report"] or "{}")) for r in rows]
+
+    def save_certificate(self, customer_id: int, period: str, by: str, report: dict) -> int:
+        """확인서 저장 — 같은 기간을 다시 발행하면 개정 번호가 하나 오른다. 돌려주는 값 = 개정 번호."""
+        with self._lock:
+            row = self._conn.execute("SELECT rev FROM certificates WHERE customer_id=? AND period=?",
+                                     (customer_id, period)).fetchone()
+            rev = (row["rev"] or 0) + 1 if row else 1
+            self._conn.execute(
+                "INSERT INTO certificates (customer_id, period, rev, created_at, by, report) VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(customer_id, period) DO UPDATE SET rev=excluded.rev, created_at=excluded.created_at, "
+                "by=excluded.by, report=excluded.report",
+                (customer_id, period, rev, time.time(), by, json.dumps(report, ensure_ascii=False)))
+            self._conn.commit()
+        return rev
+
+    @staticmethod
+    def _cert_row(r) -> dict:
+        return dict(customer_id=r["customer_id"], period=r["period"], rev=r["rev"], created_at=r["created_at"], by=r["by"],
+                    no=f"JCC-SC-{r['period']}-{r['customer_id']:03d}" + (f"-R{r['rev']}" if (r["rev"] or 1) > 1 else ""),
+                    report=json.loads(r["report"] or "{}"))
+
+    def get_certificate(self, customer_id: int, period: str) -> dict | None:
+        with self._lock:
+            r = self._conn.execute("SELECT * FROM certificates WHERE customer_id=? AND period=?", (customer_id, period)).fetchone()
+        return self._cert_row(r) if r else None
+
+    def list_certificates(self, customer_id=None, limit: int = 60) -> list:
+        q, args = "SELECT * FROM certificates", []
+        if customer_id is not None:
+            q += " WHERE customer_id=?"
+            args.append(customer_id)
+        q += " ORDER BY period DESC, customer_id LIMIT ?"
+        with self._lock:
+            rows = self._conn.execute(q, (*args, int(limit))).fetchall()
+        return [self._cert_row(r) for r in rows]
 
     def add_commission_report(self, panel: str, by: str, overall: str, report: dict) -> int:
         with self._lock:

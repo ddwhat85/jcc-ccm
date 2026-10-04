@@ -239,10 +239,53 @@ def _events(storage, keys, since: float, until: float | None = None, limit: int 
         return [dict(r) for r in storage._conn.execute(q, args).fetchall()]
 
 
+_CRIT_WHY = ("화재 징조(", "접점 발열 위험")
+
+
+def _calm_silent(storage, rows: list) -> list:
+    """고객 화면: 값이 안 들어오는 것(센서·CCM 침묵)은 '이상을 감지한 위험'이 아니라 '신호 끊김 — 주의'.
+    직원 화면(fleet)은 그대로 위험 — 빨리 고치게. 진짜 위험(다른 위험 경보·화재 징조·접점 발열)이 같이 있으면 위험 그대로."""
+    sil: dict = {}
+    since = None
+    silent = [a for a in storage.list_active_alarms() if a.get("kind") == "silent" and a.get("severity") == "crit"]
+    for a in silent:
+        sil[a["device_id"]] = sil.get(a["device_id"], 0) + 1
+        since = a["raised_at"] if since is None else min(since, a["raised_at"])
+    if not sil:
+        return rows
+    # 자동 복구가 먼저 — 채널 재시작(1단계)·CCM 재시작(2단계)을 다 해 보고도 안 되면 그때 JCC 직원
+    with storage._lock:
+        heal = storage._conn.execute("SELECT device_id, sensor_key, etype, ts FROM events WHERE ts >= ? AND etype IN "
+                                     "('heal_giveup', 'heal2_giveup')", (since - 5,)).fetchall()
+    gave = set()
+    for a in silent:
+        if any(h["device_id"] == a["device_id"] and h["ts"] >= a["raised_at"] - 5
+               and (h["etype"] == "heal2_giveup" or (h["sensor_key"] or "") == (a.get("sensor_key") or "")) for h in heal):
+            gave.add(a["device_id"])
+    keys = {p["panel"]: {p["panel"]} | {c["device_id"] for c in p["ccms"]} for p in storage.list_panels()}
+    out = []
+    for r in rows:
+        n = sum(sil.get(k, 0) for k in keys.get(r["panel"], {r["panel"]}))
+        if not n:
+            out.append(r)
+            continue
+        al = dict(r["alarms"], crit=max(0, r["alarms"]["crit"] - n), warn=r["alarms"]["warn"] + n)
+        why = [w for w in r["why"] if not w.startswith("위험 경보")]
+        if al["crit"]:
+            why.insert(0, f"위험 경보 {al['crit']}")
+        gaveup = any(k in gave for k in keys.get(r["panel"], {r["panel"]}))
+        why.append("센서 신호 끊김 — 자동 복구가 안 돼 JCC 직원이 확인합니다" if gaveup else "센서 신호 끊김 — 자동 복구 중")
+        still = al["crit"] > 0 or any(w.startswith(_CRIT_WHY) for w in why)
+        status = "crit" if still else ("offline" if r["status"] == "offline" or r.get("ccm_online") == 0 else "warn")
+        out.append(dict(r, alarms=al, why=why[:4], status=status))
+    return out
+
+
 def _incident(storage, rows, lat, panels):
     """가장 최근 활성 위험 경보 → 감지 · 판넬이 한 일 · JCC가 한 일 · 알림."""
     keys = None if panels is None else set().union(*(lat.get(p, {}).get("keys", {p}) for p in panels)) if panels else set()
-    act = [a for a in storage.list_active_alarms() if a.get("severity") == "crit" and (keys is None or a.get("device_id") in keys)]
+    act = [a for a in storage.list_active_alarms() if a.get("severity") == "crit" and a.get("kind") != "silent"   # 값 안 들어옴은 '이상 감지'가 아니다
+           and (keys is None or a.get("device_id") in keys)]
     if not act:
         return None
     a = min(act, key=lambda x: (_INC_ORDER.get(x["kind"], 9), -x["raised_at"]))
@@ -273,7 +316,7 @@ def guard_view(storage, panels: set | None, site: str, now: float | None = None,
     from .fleet import fleet
     from .inspection import history as insp_history
     now = time.time() if now is None else now
-    rows = fleet(storage, panels)
+    rows = _calm_silent(storage, fleet(storage, panels))
     lat = _latest(storage)
     model = [_panel_model(p, lat.get(p["panel"])) for p in rows]
     dues = [p["next_inspection"] for p in rows if p.get("next_inspection")]
@@ -536,7 +579,7 @@ def _mins(m: float) -> str:
 def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     from .fleet import fleet
     now = time.time() if now is None else now
-    rows = fleet(storage, {panel})
+    rows = _calm_silent(storage, fleet(storage, {panel}))
     if not rows:
         return None
     lat = _latest(storage)

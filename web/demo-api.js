@@ -234,7 +234,23 @@
   function gdRows() {
     // 직원 화면 현장 목록(fleetView)과 같은 6면 — 이름·상태·경보·센서가 두 화면에서 같다
     const pl = Object.fromEntries(panelList().map(p => [p.panel, p]));
-    return fleetView().map(f => Object.assign({}, f, gdLatest((pl[f.panel] || {}).ccms || [])));
+    // guard._calm_silent: 고객 화면에선 센서·CCM 침묵을 '신호 끊김 — 주의'로(진짜 위험이 같이 있으면 위험 그대로)
+    const sil = {};
+    const silent = S.alarms.filter(a => !a.cleared_at && a.kind === "silent" && a.severity === "crit"), gave = new Set();
+    silent.forEach(a => { sil[a.device_id] = (sil[a.device_id] || 0) + 1;
+      if (S.events.some(e => e.device_id === a.device_id && e.ts >= a.raised_at - 5 && (e.etype === "heal2_giveup" || (e.etype === "heal_giveup" && (e.sensor_key || "") === (a.sensor_key || "")))))
+        gave.add(a.device_id); });   // 자동 복구(채널·CCM 재시작)를 다 해 보고도 안 되면 그때 JCC 직원
+    return fleetView().map(f => {
+      let r = Object.assign({}, f, gdLatest((pl[f.panel] || {}).ccms || []));
+      const keys = [f.panel].concat(((pl[f.panel] || {}).ccms || []).map(c => c.device_id)), n = keys.reduce((s, k) => s + (sil[k] || 0), 0);
+      if (!n) return r;
+      const al = Object.assign({}, r.alarms, { crit: Math.max(0, r.alarms.crit - n), warn: r.alarms.warn + n });
+      const why = r.why.filter(w => !w.startsWith("위험 경보"));
+      if (al.crit) why.unshift(`위험 경보 ${al.crit}`);
+      why.push(keys.some(k => gave.has(k)) ? "센서 신호 끊김 — 자동 복구가 안 돼 JCC 직원이 확인합니다" : "센서 신호 끊김 — 자동 복구 중");
+      const still = al.crit > 0 || why.some(w => w.startsWith("화재 징조(") || w.startsWith("접점 발열 위험"));
+      return Object.assign(r, { alarms: al, why: why.slice(0, 4), status: still ? "crit" : (r.status === "offline" || r.ccm_online === 0 ? "offline" : "warn") });
+    });
   }
   function gdScore(rows, t) {
     const items = []; let crit = false, off = 0;
@@ -283,7 +299,7 @@
   function gdPlain(x) { const t = String(x || "").replace(/\s*\(FRI [\d.]+\)/g, ""); return t.split(" — ").filter(p => !p.includes("/분")).join(" — ").trim() || t.trim(); }
   function gdIncident(rows) {
     const ORD = { fire: 0, contact: 1, actuator_fault: 2 };
-    const act = S.alarms.filter(a => !a.cleared_at && a.severity === "crit").sort((a, b) => ((ORD[a.kind] ?? 9) - (ORD[b.kind] ?? 9)) || b.raised_at - a.raised_at);
+    const act = S.alarms.filter(a => !a.cleared_at && a.severity === "crit" && a.kind !== "silent").sort((a, b) => ((ORD[a.kind] ?? 9) - (ORD[b.kind] ?? 9)) || b.raised_at - a.raised_at);
     if (!act.length) return null;
     const a = act[0], names = {};
     panelList().forEach(p => p.ccms.forEach(c => c.latest.forEach(s => { names[c.device_id + "|" + s.sensor_key] = s.name || s.sensor_key; })));
@@ -1926,6 +1942,47 @@
     return rep;
   }
 
+  // ── 안전 관리 확인서 (데모: 서버 certificate.py와 같은 모양) — 끝난 분기·연도만. 예시 경보는 '시연' 표시 ──
+  const CERTS = [];
+  const certRe = /^(20[2-9][0-9])(?:-Q([1-4]))?$/;
+  function certBounds(p) { const m = p.match(certRe), y = +m[1];
+    if (m[2]) { const m0 = 3 * (+m[2] - 1); return [Date.UTC(y, m0, 1, -9) / 1000, Date.UTC(y, m0 + 3, 1, -9) / 1000]; }
+    return [Date.UTC(y, 0, 1, -9) / 1000, Date.UTC(y + 1, 0, 1, -9) / 1000]; }
+  const certLabel = p => { const m = p.match(certRe); return m[2] ? `${m[1]}년 ${m[2]}분기` : `${m[1]}년 연간`; };
+  function certIssue(cid, period, by) {
+    const c = ACC.customers.find(x => x.id === cid); if (!c) return [{ error: "없는 고객사입니다" }, 400];
+    const [start, end] = certBounds(period);
+    if (end > now()) return [{ error: "기간이 끝난 뒤에 발행할 수 있습니다" }, 400];
+    const base = buildReport(90), pr = base.summary.predict, panels = panelList().filter(p => ACC.owner[p.panel] === cid);
+    const rows = panels.map(p => ({ panel: p.panel, panel_name: p.panel_name, ccms: p.ccms.length, uptime: 99.96, crit: 0, warn: 0, faults: 0, commission: null }));
+    const crit = [];
+    const p1 = panels.find(p => p.panel === SIM.panel), p3 = panels.find(p => p.panel === "panel-03");
+    if (p1) { crit.push({ at: start + 23 * 86400 + 2 * 3600 + 31 * 60, panel_name: p1.panel_name, sensor_name: "수소 농도", detail: "수소 농도 11 %LEL — 위험(10 초과)", self_sec: 41, ack_min: 7.5, cause: "" }); rows.find(r => r.panel === p1.panel).crit = 1; }
+    if (p3) { crit.push({ at: start + 51 * 86400 + 14 * 3600 + 5 * 60, panel_name: p3.panel_name, sensor_name: "비접촉 온도", detail: "단자 온도 61℃ — 위험(60 초과)", self_sec: null, ack_min: 12, cause: "" }); rows.find(r => r.panel === p3.panel).crit = 1; }
+    const W = { ok: "ok", fix: "fix", bad: "bad" };
+    const insp = pchkHistDemo("").filter(x => x.status === "done" && x.done_at >= start && x.done_at < end && panels.some(p => p.panel === x.panel))
+      .map(x => ({ at: x.done_at, panel_name: x.panel_name || x.panel, overall: W[x.overall] || x.overall, by: x.by || "", signer: x.signer || "" }));
+    const acks = crit.filter(x => x.ack_min != null).map(x => x.ack_min);
+    const rep = { customer: c.name, customer_id: cid, period, range: [start, end], generated_at: now(), panels: rows, kind: "certificate", label: certLabel(period),
+      watch_from: start, crit, inspections: insp, demo: true,
+      summary: { panels: rows.length, uptime: rows.length ? 99.96 : null, precursors: pr.fire.detected + pr.contact.detected + pr.dew.detected + crit.length,   // 예시 경보와 숫자가 맞게
+        vent_auto: pr.fire.vent_auto + (p1 ? 1 : 0), alarms_crit: crit.length, alarms_warn: base.summary.alarms.warn,
+        ack_min_avg: acks.length ? Math.round(acks.reduce((a, b) => a + b, 0) / acks.length * 10) / 10 : null },
+      note: "이 확인서는 JCC GUARD가 기간 동안 남긴 감시 기록의 요약입니다. 법정 안전 점검이나 보험 인수 기준의 적합 판정을 대신하지 않습니다." };
+    const i = CERTS.findIndex(r => r.customer_id === cid && r.period === period), rev = i >= 0 ? CERTS[i].rev + 1 : 1;
+    const row = { customer_id: cid, period, rev, created_at: now(), by: by || "데모", customer: c.name, report: rep,
+      no: `JCC-SC-${period}-${String(cid).padStart(3, "0")}` + (rev > 1 ? `-R${rev}` : "") };
+    if (i >= 0) CERTS[i] = row; else CERTS.push(row);
+    CERTS.sort((a, b) => (b.period > a.period ? 1 : b.period < a.period ? -1 : a.customer_id - b.customer_id));
+    logEvent("", "", "certificate", `${c.name} ${rep.label} 안전 관리 확인서 발행 (데모, 개정 ${rev})`, "system");
+    return [{ ok: true, certificate: row }, 200];
+  }
+  function certSeed() {     // 처음 열 때 지난 분기 확인서 한 장(고객 화면 시연용)
+    if (CERTS.length || !ACC.customers.length) return;
+    const d = new Date(), qi = Math.floor(d.getMonth() / 3), y = qi ? d.getFullYear() : d.getFullYear() - 1;
+    certIssue(ACC.customers[0].id, `${y}-Q${qi || 4}`, "김현장");
+  }
+
   // ── fetch 가로채기 ──────────────────────────────────────────────────────
   const realFetch = window.fetch ? window.fetch.bind(window) : null;
   const J = (obj, status) => new Response(JSON.stringify(obj), {
@@ -2039,6 +2096,12 @@
           return Promise.resolve(J({ error: "고객사와 월(YYYY-MM)을 확인하세요" }, 400));
         const rep = monthlyIssue(body.customer_id, body.period);
         return Promise.resolve(rep ? J({ ok: true, report: rep }) : J({ error: "없는 고객사입니다" }, 400)); }
+      if (p === "/api/certificates") { certSeed(); const q = qs.get("customer_id");
+        return Promise.resolve(J({ certificates: CERTS.filter(r => !q || String(r.customer_id) === q) })); }
+      if (p === "/api/certificates/issue" && method === "POST") {
+        if (!Number.isInteger(body.customer_id) || !certRe.test(String(body.period || "")))
+          return Promise.resolve(J({ error: "고객사와 기간(분기 YYYY-Qn 또는 연도 YYYY)을 확인하세요" }, 400));
+        const [obj, st] = certIssue(body.customer_id, body.period, "데모"); return Promise.resolve(J(obj, st)); }
       if (p === "/api/commission/check") { const r = cmCheck(qs.get("panel") || ""); return Promise.resolve(r ? J(r) : J({ error: "없는 판넬입니다" }, 404)); }
       if (p === "/api/commission/reports") return Promise.resolve(J({ reports: CM.reports }));
       const mc = p.match(/^\/api\/commission\/(output_test|complete)$/);

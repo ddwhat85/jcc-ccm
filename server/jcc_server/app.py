@@ -129,6 +129,7 @@ ROUTES = [
     ("GET", "/api/commission/check", "admin"), ("POST", "/api/commission/output_test", "admin"),
     ("POST", "/api/commission/complete", "admin"), ("GET", "/api/commission/reports", "read"),
     ("GET", "/api/monthly", "read"), ("POST", "/api/monthly/issue", "admin"),
+    ("GET", "/api/certificates", "read"), ("POST", "/api/certificates/issue", "admin"),
     ("GET", "/api/ai/status", "read"), ("POST", "/api/ai/ask", "read"), ("GET", "/api/rul", "read"),
     ("GET", "/api/sensor/manual", "admin"), ("POST", "/api/sensor/manual", "admin"),
     ("GET", "/api/sensor/profiles", "admin"), ("GET", "/api/fleet", "read"), ("GET", "/api/alarms/history", "read"),
@@ -591,10 +592,22 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 cid = u["customer_id"]                  # 고객은 무엇을 물어도 자기 고객사만
             names = {c["id"]: c["name"] for c in self.storage.accounts.list_customers()}
-            reps = self.storage.list_monthly(cid)
+            reps = self.storage.list_monthly(cid) if (cid is not None or u["role"] == "admin") else []   # 고객사 없는 비관리자 = 볼 것 없음(None이 '전체'가 되지 않게)
             for r in reps:
                 r["customer"] = names.get(r["customer_id"], "")
             return self._json({"reports": reps})
+        if path == "/api/certificates":               # 안전 관리 확인서 — 고객은 자기 고객사 것만
+            u = self._user()
+            if u["role"] == "admin":
+                q = (parse_qs(parsed.query).get("customer_id") or [""])[0]
+                cid = int(q) if q.isdigit() else None
+            else:
+                cid = u["customer_id"]
+            names = {c["id"]: c["name"] for c in self.storage.accounts.list_customers()}
+            certs = self.storage.list_certificates(cid) if (cid is not None or u["role"] == "admin") else []
+            for r in certs:
+                r["customer"] = names.get(r["customer_id"], "")
+            return self._json({"certificates": certs})
         if path == "/api/inspection":                 # 점검 화면 준비(관리자): 볼 곳·초안·이력
             from . import inspection as insp
             panel = (parse_qs(parsed.query).get("panel") or [""])[0]
@@ -812,6 +825,21 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "고객사와 월(YYYY-MM)을 확인하세요"}, 400)
             rep = issue(self.storage, cid, period, self._user()["username"])
             return self._json({"ok": True, "report": rep}) if rep else self._json({"error": "없는 고객사입니다"}, 400)
+        if parsed.path == "/api/certificates/issue":
+            from . import certificate as cert
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            try:
+                b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 10_000 else {}
+            except (ValueError, UnicodeDecodeError):
+                return self._json({"error": "잘못된 JSON"}, 400)
+            cid, period = b.get("customer_id"), str(b.get("period", ""))
+            if not isinstance(cid, int) or isinstance(cid, bool) or not cert.valid_period(period):
+                return self._json({"error": "고객사와 기간(분기 YYYY-Qn 또는 연도 YYYY)을 확인하세요"}, 400)
+            try:
+                c = cert.issue(self.storage, cid, period, self._user()["username"])
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json({"ok": True, "certificate": c}) if c else self._json({"error": "없는 고객사입니다"}, 400)
         if parsed.path == "/api/ai/ask":
             return self._ai_ask()
         if parsed.path == "/api/handover/seen":       # 인계 확인 — 다음 요약은 지금부터

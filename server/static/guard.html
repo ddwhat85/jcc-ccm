@@ -225,7 +225,7 @@
     transition:transform .25s cubic-bezier(.2,.7,.2,1),border-color .25s ease}
   .gd-c-docs .gd-doc.gd-dtile span:last-child{color:var(--ink);font-size:var(--t-body)}
   .gd-c-docs .gd-doc.gd-dtile:hover{transform:translateY(-3px);border-color:var(--line)}
-  @media (min-width:960px){.gd-c-docs .gd-docs.gd-docs-c{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  @media (min-width:960px){.gd-c-docs .gd-docs.gd-docs-c{grid-template-columns:repeat(5,minmax(0,1fr))}}
   /* 힘 싣기 — 굵은 제목·큰 바탕 그림·깊이, 이번 달은 초록 밤 판 */
   .gd-c:not(.gd-c-state){position:relative;overflow:hidden;isolation:isolate}
   .gd-c:not(.gd-c-state) .gd-q,.gd-c-panels .gd-q{font:700 var(--t-h)/1.3 var(--sans);letter-spacing:-.02em;color:var(--ink)}
@@ -275,6 +275,20 @@
   .gd-card.offline{border-color:var(--line)}
   .gd-snl b{display:inline-flex;align-items:center;gap:6px}
   .gd-snl .gd-st{width:16px;height:16px}
+  /* 안전 관리 확인서 — 제출용 문서라 표는 작고 촘촘하게, 머리·서명은 문서답게 */
+  .gd-cert-h{padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:14px}
+  .gd-cert-h small{font-size:var(--t-cap);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .gd-cert-h h4{margin:6px 0 2px}
+  .gd-cert-h p{margin:0;font-weight:600;color:var(--ink)}
+  .gd-cert table{font-size:var(--t-cap)}
+  .gd-cert th{text-align:left;font-weight:600;color:var(--ink-3);padding:6px 4px;border-bottom:1px solid var(--line)}
+  .gd-kpi.gd-kpi4{grid-template-columns:repeat(2,minmax(0,1fr))}   /* 시트 폭이 좁아 PC에서도 2x2 */
+  .gd-kpi.gd-kpi4 div:nth-child(3){padding-left:0;border-left:0}
+  .gd-kpi.gd-kpi4 div:nth-child(n+3){border-top:1px solid var(--line-2);margin-top:12px}
+  .gd-kpi4 span{display:block;margin-top:4px;font-size:var(--t-cap);color:var(--ink-3)}
+  .gd-cert-sig{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-top:20px;padding-top:12px;border-top:1px solid var(--line);font-size:var(--t-cap);color:var(--ink-3)}
+  .gd-cert-sig b{font:700 var(--t-h) var(--sans);color:var(--ink);letter-spacing:.02em}
+  @media (max-width:959px){.gd-c-docs .gd-docs.gd-docs-c .gd-dtile:last-child{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center}}
   @media (prefers-reduced-motion:reduce){.gd-tile,.gd-card,.gd-c-docs .gd-doc.gd-dtile{transition:none}.gd-tile:hover,.gd-card:hover,.gd-c-docs .gd-doc.gd-dtile:hover{transform:none}}
   /* 왼쪽 계기판은 고정하지 않는다 — 위험 카드가 붙으면 화면보다 길어져 아래(성과·연락처)를 못 본다 */
 
@@ -738,6 +752,7 @@
         <button class="gd-doc gd-dtile" id="gd-docs-i"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v6"/><path d="M14 3v4h4"/><path d="M7 3v18h6"/><circle cx="17" cy="17" r="3"/><path d="M19.2 19.2L21 21"/></svg></span><span>정기 점검 보고서</span></button>
         <button class="gd-doc gd-dtile" id="gd-docs-x"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4"/><path d="M6 4h11l-2.5 4L17 12H6"/></svg></span><span>사건 보고서</span></button>
         <button class="gd-doc gd-dtile" id="gd-docs-o"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4M15 3v4"/><path d="M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/><path d="M4 4l16 16"/></svg></span><span>감시 끊김 기록</span></button>
+        <button class="gd-doc gd-dtile" id="gd-docs-c"><span class="gd-plate sm" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="9" r="5.5"/><path d="M9.2 13.7L7.8 21l4.2-2.4 4.2 2.4-1.4-7.3"/><path d="M9.8 9l1.5 1.5 3-3"/></svg></span><span>안전 관리 확인서</span></button>
       </div></section>
     <button class="gd-inst" id="gd-install" hidden>홈 화면에 앱으로 설치</button>
   </main>
@@ -1314,6 +1329,44 @@ function monthlyDoc(r){
     ((rp.advice || []).length ? `<h5>JCC가 권하는 것</h5><ul>${rp.advice.map(a => `<li>${esc(a)}</li>`).join("")}</ul>` : "") +
     printBtn() + `</div>`);
 }
+// 안전 관리 확인서 — 분기·연간, JCC가 기록을 검토해 발행(보험·감사·윗선 보고용). 숫자는 발행 때 그대로
+async function openCerts(){
+  sheet(`<h4 id="gd-sheet-t">안전 관리 확인서</h4><div class="sub">불러오는 중</div>`);
+  try { const j = await (await fetch("/api/certificates?" + q(), {cache:"no-store"})).json(); const list = j.certificates || [];
+    if (!list.length) return sheet(`<h4 id="gd-sheet-t">안전 관리 확인서</h4><div class="gd-empty">아직 발행된 확인서가 없습니다.<br>분기·연간 확인서는 JCC가 기록을 검토해 발행합니다. 필요하시면 담당자에게 요청해 주세요.</div>`);
+    sheet(`<h4 id="gd-sheet-t">안전 관리 확인서</h4><div class="sub">보험·감사·보고용 — JCC가 검토해 발행한 그대로 보관됩니다</div><div class="gd-docs">` +
+      list.map((c, i) => `<button class="gd-doc" data-i="${i}"><span>${esc((c.report || {}).label || c.period)}</span><span>${esc(c.no)} ›</span></button>`).join("") + `</div>`);
+    $("#gd-sheet-body").querySelectorAll("[data-i]").forEach(b => b.onclick = () => certDoc(list[+b.dataset.i]));
+  } catch(_){ sheet(`<h4 id="gd-sheet-t">불러오지 못했습니다</h4>`); }
+}
+function certDoc(c){
+  const r = c.report || {}, s = r.summary || {}, rg = r.range || [0, 0];
+  const d = t => new Date(t * 1000).toLocaleDateString("ko-KR", KST);
+  const sec = v => v == null ? "—" : v < 60 ? `${v}초` : `${Math.round(v / 60)}분`;
+  const W = {ok:"이상 없음", fix:"현장 조치 완료", bad:"조치 필요 항목 있음"}, CM = {pass:"합격", warn:"조건부", fail:"불합격", wait:"미완료"};
+  const crit = r.crit || [], insp = r.inspections || [];
+  sheet(`<div class="gd-rep gd-cert">` +
+    `<div class="gd-cert-h"><small>문서 번호 ${esc(c.no)}${r.demo ? " · 시연 문서(실제 기록 아님)" : ""}</small><h4 id="gd-sheet-t">안전 관리 확인서</h4><p>${esc(r.customer || "")} 귀중</p></div>` +
+    `<p>JCC Solution은 <b>${esc(r.label || c.period)}</b>(${d(rg[0])} ~ ${d(rg[1] - 1)}) 동안 아래 판넬 <b>${s.panels ?? 0}면</b>을 JCC GUARD로 감시했으며, 그 기록은 다음과 같습니다.` +
+      (r.watch_from && r.watch_from > rg[0] + 3600 ? ` 감시는 설치일인 ${d(r.watch_from)}부터입니다.` : "") + `</p>` +
+    `<div class="gd-kpi gd-kpi4"><div><b>${s.uptime == null ? "—" : pct(s.uptime).replace("%", "")}<small>%</small></b><span>감시 가동률</span></div>` +
+      `<div><b>${s.precursors ?? 0}<small>건</small></b><span>미리 잡은 위험 징조</span></div>` +
+      `<div><b>${s.vent_auto ?? 0}<small>회</small></b><span>판넬 자동 조치</span></div>` +
+      `<div><b>${s.alarms_crit ?? 0}<small>건</small></b><span>위험 경보${s.ack_min_avg != null ? ` · 평균 ${s.ack_min_avg}분 확인` : ""}</span></div></div>` +
+    `<h5>판넬별 기록</h5><table><thead><tr><th>판넬</th><th>가동률</th><th>위험</th><th>주의</th><th>설치 점검</th></tr></thead><tbody>` +
+      (r.panels || []).map(p => `<tr><td>${esc(p.panel_name)}</td><td>${p.uptime == null ? "—" : p.uptime + "%"}</td><td>${p.crit}</td><td>${p.warn}</td><td>${p.commission ? CM[p.commission] || "" : "기록 없음"}</td></tr>`).join("") + `</tbody></table>` +
+    `<h5>위험 경보 기록</h5>` + (crit.length
+      ? `<table><thead><tr><th>일시</th><th>판넬 · 센서</th><th>내용</th><th>판넬 자동 조치</th><th>JCC 확인</th></tr></thead><tbody>` +
+        crit.map(x => `<tr><td>${fmtT(x.at)}</td><td>${esc(x.panel_name)}${x.sensor_name ? " · " + esc(x.sensor_name) : ""}</td><td>${esc(clean(x.detail))}</td><td>${x.self_sec == null ? "—" : sec(x.self_sec) + " 만에"}</td><td>${x.ack_min == null ? "기록 없음" : x.ack_min + "분"}</td></tr>`).join("") + `</tbody></table>`
+      : `<p>이 기간 위험 경보는 없었습니다.</p>`) +
+    `<h5>정기 점검 기록</h5>` + (insp.length
+      ? `<table><thead><tr><th>일시</th><th>판넬</th><th>결과</th><th>점검자</th><th>고객 확인</th></tr></thead><tbody>` +
+        insp.map(x => `<tr><td>${fmtT(x.at)}</td><td>${esc(x.panel_name)}</td><td>${esc(W[x.overall] || "")}</td><td>${esc(x.by || "")}</td><td>${esc(x.signer || "—")}</td></tr>`).join("") + `</tbody></table>`
+      : `<p>이 기간에 완료된 정기 점검은 없습니다.</p>`) +
+    `<p class="gd-note">${esc(r.note || "")}</p>` +
+    `<div class="gd-cert-sig"><span>발행 ${d(c.created_at)} · 검토 ${esc(c.by)}${c.rev > 1 ? ` · 개정 ${c.rev}` : ""}</span><b>JCC Solution</b></div>` +
+    printBtn() + `</div>`);
+}
 async function openInspections(){
   sheet(`<h4 id="gd-sheet-t">정기 점검 보고서</h4><div class="sub">불러오는 중</div>`);
   try { const j = await (await fetch("/api/inspections", {cache:"no-store"})).json();
@@ -1450,6 +1503,7 @@ async function openAlarmLink(){
 // ── 보고서 고르기 · 바로 가기(휴대폰 아래 메뉴) ─────────────────
 document.querySelectorAll(".gd-tile").forEach(t => t.addEventListener("click", e => { if (e.target.closest("a,button")) return; const b = t.querySelector(".gd-more"); if (b) b.click(); }));
 $("#gd-docs-m").onclick = () => openMonthly(); $("#gd-docs-i").onclick = () => openInspections();
+$("#gd-docs-c").onclick = () => openCerts();
 $("#gd-docs-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-docs-o").onclick = () => openOutages((G.month || G.d.month).period);
 $("#gd-state-more").onclick = () => $("#gd-ring").click();
 function openDocs(){

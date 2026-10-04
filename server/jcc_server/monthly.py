@@ -73,11 +73,16 @@ def _alarm_stats(storage, keys: set, start: float, end: float) -> dict:
 
 def build_monthly(storage, customer_id: int, period: str, now: float | None = None) -> dict | None:
     """고객사 한 곳의 그 달 리포트(스냅숏). 고객사가 없으면 None."""
+    start, end = month_bounds(period)
+    return build_range(storage, customer_id, period, start, end, now)
+
+
+def build_range(storage, customer_id: int, period: str, start: float, end: float, now: float | None = None) -> dict | None:
+    """[start, end) 구간 집계 — 월간 리포트와 안전 관리 확인서(분기·연간)가 같은 숫자를 쓴다."""
     now = time.time() if now is None else now
     cust = next((c for c in storage.accounts.list_customers() if c["id"] == customer_id), None)
     if cust is None:
         return None
-    start, end = month_bounds(period)
     owner = storage.accounts.panel_owner_map()
     panels = sorted(p for p, c in owner.items() if c == customer_id)
     all_panels = {p["panel"]: p for p in storage.list_panels()}

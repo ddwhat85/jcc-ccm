@@ -1765,6 +1765,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div class="mb-div"></div>
         <button class="mb-item" id="btn-alh">경보 이력</button>
         <button class="mb-item" id="btn-monthly">월간 리포트</button>
+        <button class="mb-item" id="btn-cert">안전 관리 확인서</button>
         <button class="mb-item" id="btn-report">기간 리포트</button>
         <button class="mb-item" id="btn-xp">엑셀(CSV) 내보내기</button>
       </div>
@@ -2134,6 +2135,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div class="mrep-ctl jcc-admin">
           <select id="mrep-cust" aria-label="고객사"></select>
           <input type="month" id="mrep-month" aria-label="발행할 달">
+          <select id="mrep-cper" aria-label="확인서 기간" hidden></select>
           <button class="cmsn-btn" id="mrep-issue">지금 발행</button>
         </div>
         <button class="cmsn-btn" id="mrep-print" hidden>인쇄·PDF</button>
@@ -3459,6 +3461,7 @@ const EVENT_META = {
   account:     {label:"계정",         dot:"info", ic:"•"},
   commission:  {label:"설치 점검",    dot:"info", ic:"•"},
   monthly:     {label:"월간 리포트",  dot:"info", ic:"•"},
+  certificate: {label:"안전 관리 확인서", dot:"info", ic:"•"},
   weekly:      {label:"주간 요약",    dot:"info", ic:"•"},
   service_request: {label:"고객 점검 요청", dot:"warn", ic:"•"},
   ccm_boot:    {label:"CCM 다시 켜짐", dot:"warn", ic:"•"},
@@ -4465,7 +4468,7 @@ document.addEventListener("keydown", e => {
 
 // ── 월간 리포트 ─────────────────────────────────────────
 // 발행 시점 스냅숏(서버 monthly.py). 결과 언어로 — '무엇을 먼저 잡았나'를 문장으로.
-const MREP = { reps: [] };
+const MREP = { reps: [], kind: "m", certs: [] };   // kind m = 월간 리포트, c = 안전 관리 확인서(분기·연간)
 const mrepEsc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const mrepMonth = p => `${p.slice(0, 4)}년 ${Number(p.slice(5, 7))}월`;
 function mrepMsg(t, bad){ const m = $("#mrep-msg"); m.textContent = t || ""; m.className = "cmsn-msg mrep-noprint" + (bad ? " bad" : t ? " ok" : ""); }
@@ -4473,6 +4476,7 @@ function mrepPrevMonth(){ const d = new Date(); d.setDate(1); d.setMonth(d.getMo
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 async function mrepList(){
   $("#mrep-print").hidden = true;
+  if (MREP.kind === "c") return certList();
   const cid = document.body.dataset.acct === "admin" ? $("#mrep-cust").value : "";
   try { MREP.reps = (await fetch("/api/monthly" + (cid ? "?customer_id=" + cid : ""), {cache:"no-store"}).then(r => r.json())).reports || []; }
   catch(_){ MREP.reps = []; mrepMsg("리포트를 불러오지 못했습니다", true); }
@@ -4523,7 +4527,60 @@ function mrepShow(rep){
   $("#mrep-print").hidden = false;
   $("#mrep-back").onclick = mrepList;
 }
-async function openMonthly(){
+// ── 안전 관리 확인서(분기·연간) — 직원이 기록을 검토하고 발행. 끝난 기간만 고를 수 있다 ──
+function mrepMode(k){
+  MREP.kind = k;
+  $("#mrep-title").textContent = k === "c" ? "안전 관리 확인서" : "월간 리포트";
+  $("#mrep-month").hidden = k === "c"; $("#mrep-cper").hidden = k !== "c";
+  $("#mrep-issue").textContent = k === "c" ? "검토 후 발행" : "지금 발행";
+}
+function certPeriods(){
+  const d = new Date(), y = d.getFullYear(), qi = Math.floor(d.getMonth() / 3), out = [];
+  for (let i = 1; i <= 8; i++){ const k = qi - i, yy = y + Math.floor(k / 4), qq = ((k % 4) + 4) % 4 + 1; out.push([`${yy}-Q${qq}`, `${yy}년 ${qq}분기`]); }
+  out.push([String(y - 1), `${y - 1}년 연간`], [String(y - 2), `${y - 2}년 연간`]);
+  const cur = $("#mrep-cper").value;
+  $("#mrep-cper").innerHTML = out.map(([v, t]) => `<option value="${v}">${t}</option>`).join("");
+  if (cur) $("#mrep-cper").value = cur;
+}
+async function certList(){
+  const cid = document.body.dataset.acct === "admin" ? $("#mrep-cust").value : "";
+  try { MREP.certs = (await fetch("/api/certificates" + (cid ? "?customer_id=" + cid : ""), {cache:"no-store"}).then(r => r.json())).certificates || []; }
+  catch(_){ MREP.certs = []; mrepMsg("확인서를 불러오지 못했습니다", true); }
+  const when = t => new Date(t * 1000).toLocaleDateString("ko-KR");
+  $("#mrep-body").innerHTML = MREP.certs.length ? MREP.certs.map((c, i) => `<button class="cmsn-rep" data-i="${i}">` +
+      `${mrepEsc(c.customer || c.report.customer)} · ${mrepEsc(c.report.label)}<span class="cmsn-chip pass">${mrepEsc(c.no)}</span>` +
+      `<small>발행 ${when(c.created_at)} · ${mrepEsc(c.by)}${c.rev > 1 ? " · 개정 " + c.rev : ""}</small></button>`).join("")
+    : `<p class="acct-note">아직 발행된 확인서가 없습니다. 고객사와 기간을 고르고, 기록을 검토한 뒤 발행하세요. 끝난 분기·연도만 발행할 수 있습니다.</p>`;
+  $("#mrep-body").querySelectorAll(".cmsn-rep").forEach(b => b.onclick = () => certShow(MREP.certs[Number(b.dataset.i)]));
+}
+function certShow(c){
+  const r = c.report, s = r.summary, dd = t => new Date(t * 1000).toLocaleDateString("ko-KR");
+  const dt = t => new Date(t * 1000).toLocaleString("ko-KR", {month:"numeric", day:"numeric", hour:"2-digit", minute:"2-digit", hour12:false});
+  const W = {ok:"이상 없음", fix:"현장 조치 완료", bad:"조치 필요 항목 있음"}, cm = {pass:"합격", warn:"조건부", fail:"불합격", wait:"미완료"};
+  const sec = v => v == null ? "—" : v < 60 ? v + "초 만에" : Math.round(v / 60) + "분 만에";
+  $("#mrep-body").innerHTML = `<div id="mrep-doc"><div><h2>안전 관리 확인서 — ${mrepEsc(r.customer)} 귀중</h2>` +
+    `<div class="meta">문서 번호 ${mrepEsc(c.no)} · ${mrepEsc(r.label)} (${dd(r.range[0])} ~ ${dd(r.range[1] - 1)}) · 판넬 ${s.panels}개` +
+    `${r.watch_from && r.watch_from > r.range[0] + 3600 ? " · 감시 시작 " + dd(r.watch_from) : ""}${r.demo ? " · 시연 문서(실제 기록 아님)" : ""}</div></div>` +
+    `<div><h4>기간 기록</h4><ul class="mrep-results"><li>감시 가동률 <b>${s.uptime == null ? "—" : s.uptime + "%"}</b> <small>(통신이 끊긴 시간을 뺀 비율)</small></li>` +
+      `<li>미리 잡은 위험 징조 <b>${s.precursors}건</b>, 판넬이 스스로 한 환기 <b>${s.vent_auto}회</b></li>` +
+      `<li>위험 경보 <b>${s.alarms_crit}건</b>${s.ack_min_avg != null ? ` — 확인까지 평균 <b>${s.ack_min_avg}분</b>` : ""}, 주의 <b>${s.alarms_warn}건</b></li>` +
+      `<li>정기 점검 <b>${r.inspections.length}회</b> 완료</li></ul></div>` +
+    `<div><h4>판넬별</h4><table class="mrep-table"><thead><tr><th>판넬</th><th class="n">가동률</th><th class="n">위험</th><th class="n opt">주의</th><th class="opt">설치 점검</th></tr></thead><tbody>` +
+      r.panels.map(p => `<tr><td>${mrepEsc(p.panel_name)}</td><td class="n">${p.uptime == null ? "—" : p.uptime + "%"}</td><td class="n">${p.crit}</td><td class="n opt">${p.warn}</td><td class="opt">${p.commission ? cm[p.commission] : "기록 없음"}</td></tr>`).join("") +
+      `</tbody></table></div>` +
+    `<div><h4>위험 경보 기록</h4>${r.crit.length ? `<table class="mrep-table"><thead><tr><th>일시</th><th>판넬 · 센서</th><th>내용</th><th>자동 조치</th><th class="n">확인</th></tr></thead><tbody>` +
+      r.crit.map(x => `<tr><td>${dt(x.at)}</td><td>${mrepEsc(x.panel_name)}${x.sensor_name ? " · " + mrepEsc(x.sensor_name) : ""}</td><td>${mrepEsc(x.detail)}</td><td>${sec(x.self_sec)}</td><td class="n">${x.ack_min == null ? "—" : x.ack_min + "분"}</td></tr>`).join("") +
+      `</tbody></table>` : `<p class="acct-note">이 기간 위험 경보는 없었습니다.</p>`}</div>` +
+    `<div><h4>정기 점검 기록</h4>${r.inspections.length ? `<ul class="mrep-list">` +
+      r.inspections.map(x => `<li>${dt(x.at)} · ${mrepEsc(x.panel_name)} — ${W[x.overall] || ""} (점검 ${mrepEsc(x.by || "")}, 고객 확인 ${mrepEsc(x.signer || "—")})</li>`).join("") + `</ul>` : `<p class="acct-note">이 기간에 완료된 정기 점검은 없습니다.</p>`}</div>` +
+    `<p class="mrep-foot">${mrepEsc(r.note)}<br>발행 ${dd(c.created_at)} · 검토 ${mrepEsc(c.by)}${c.rev > 1 ? " · 개정 " + c.rev : ""} · JCC Solution</p>` +
+    `<p class="mrep-noprint"><button class="cmsn-btn" id="mrep-back">목록으로</button></p></div>`;
+  $("#mrep-print").hidden = false;
+  $("#mrep-back").onclick = mrepList;
+}
+async function openCert(){ mrepMode("c"); certPeriods(); await mrepOpen(); }
+async function openMonthly(){ mrepMode("m"); await mrepOpen(); }
+async function mrepOpen(){
   $("#mrep-overlay").classList.add("open"); mrepMsg("");
   if (document.body.dataset.acct === "admin"){
     if (!$("#mrep-month").value) $("#mrep-month").value = mrepPrevMonth();
@@ -4537,11 +4594,22 @@ async function openMonthly(){
   mrepList();
 }
 $("#btn-monthly").onclick = openMonthly;
+$("#btn-cert").onclick = openCert;
 $("#mrep-close").onclick = () => $("#mrep-overlay").classList.remove("open");
 $("#mrep-cust").onchange = mrepList;
 $("#mrep-issue").onclick = async () => {
   const cid = Number($("#mrep-cust").value), period = $("#mrep-month").value;
   if (!cid){ mrepMsg("발행할 고객사를 고르세요", true); return; }
+  if (MREP.kind === "c"){
+    const cp = $("#mrep-cper").value;
+    try { const r = await fetch("/api/certificates/issue", {method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({customer_id: cid, period: cp})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok){ mrepMsg(j.error || `발행 못 함 (${r.status})`, true); return; }
+      mrepMsg(`${j.certificate.report.customer} ${j.certificate.report.label} 확인서 발행 — 같은 기간을 다시 발행하면 개정 번호가 오릅니다`); certShow(j.certificate);
+    } catch(_){ mrepMsg("서버에 닿지 못했습니다", true); }
+    return;
+  }
   if (!/^\d{4}-\d{2}$/.test(period)){ mrepMsg("발행할 달을 고르세요", true); return; }
   try { const r = await fetch("/api/monthly/issue", {method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({customer_id: cid, period})});
@@ -4561,7 +4629,7 @@ const QK_CMDS = [
   ["현장 목록", () => setView("list")], ["배선 보기", () => setView("graph")],
   ["정기 점검", () => $("#btn-pchk").click(), true], ["점검 보고서", () => $("#btn-pchk-reports").click()],
   ["노드 추가 · 장비 검색", () => $("#btn-addnode").click(), true], ["AI에게 물어보기", () => $("#btn-ask").click()],
-  ["월간 리포트", () => $("#btn-monthly").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
+  ["월간 리포트", () => $("#btn-monthly").click()], ["안전 관리 확인서", () => $("#btn-cert").click()], ["엑셀(CSV) 내보내기", () => $("#btn-xp").click()],
   ["경보 이력 · 지난 경보 원인 적기", () => $("#btn-alh").click()], ["데이터 백업 · 사본 내려받기", () => $("#btn-bk").click(), true], ["고객 화면으로 보기 · JCC GUARD", () => $("#btn-guard").click(), true], ["인계 요약 · 지난 확인 뒤 있었던 일", () => $("#btn-ho").click()],
   ["계정 관리", () => $("#btn-accounts").click(), true], ["설치 점검", () => $("#btn-commission").click(), true],
   ["예지 튜닝 콘솔", () => $("#btn-tune").click(), true], ["기간 리포트", () => $("#btn-report").click()],

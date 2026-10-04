@@ -113,6 +113,22 @@ def run():
         st._conn.execute("DELETE FROM alarms WHERE device_id = ?", ("ccm-1b",))
         st._conn.commit()
 
+    # 센서 값이 안 들어옴(침묵) — 직원 화면은 위험이지만 고객 화면은 '이상 감지 위험'이 아니라 '신호 끊김 — 주의'
+    st.raise_alarm("ccm-1", "cabinet_temp", "silent", "함내 온도 34초째 데이터 없음")
+    vs = guard.guard_view(st, {"p1"}, "x")
+    p1 = vs["panels"][0]
+    check("신호 끊김: 위험 카드 안 뜸", vs["incident"] is None, str(vs["incident"]))
+    check("신호 끊김: 판넬은 주의·먼저 자동 복구 중", p1["status"] == "warn" and any("자동 복구 중" in w for w in p1["why"]), str(p1["why"]))
+    st.log_event("ccm-1", "cabinet_temp", "heal_giveup", "자동 복구 실패", source="system")
+    p1g = guard.guard_view(st, {"p1"}, "x")["panels"][0]
+    check("자동 복구가 안 되면 그때 JCC 직원", any("JCC 직원이 확인" in w for w in p1g["why"]), str(p1g["why"]))
+    check("신호 끊김: 답 줄이 '위험'이 아님", not vs["state"]["title"].startswith("위험"), vs["state"]["title"])
+    from jcc_server.fleet import fleet
+    check("직원 화면은 그대로 위험", next(r for r in fleet(st, {"p1"}))["status"] == "crit")
+    with st._lock:
+        st._conn.execute("DELETE FROM alarms WHERE kind='silent'")
+        st._conn.commit()
+
     # 위험 순간: 위험 경보 → 판넬이 스스로 환기(이벤트) → JCC 확인
     st.raise_alarm("ccm-1", "cabinet_temp", "alarm", "함내 온도 61C — 위험(55 초과)")
     st.log_event("ccm-1", "", "vent_open", "화재 징조 → 벤트 자동 개방", source="system")
