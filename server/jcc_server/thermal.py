@@ -198,7 +198,25 @@ def panel_thermal(storage, panel: str, now: float | None = None) -> dict | None:
     if first is not None:                       # 화면에 보일 쌓인 날수는 4주 창이 아니라 처음부터
         out["days"] = round((now - first) / D, 1)
     out.update(panel=panel, sensor_name=name, open_request=open_request(storage, panel))
+    _with_cooling(storage, panel, out)
     return out
+
+
+def _with_cooling(storage, panel: str, out: dict) -> None:
+    """등록된 판넬 설비가 있으면 냉각 용량 계산을 붙이고, '냉각 용량 검토' 할 일의 근거를 계산으로 바꾼다."""
+    from .equipment import get as eq_get, view as eq_view
+    v = eq_view(eq_get(storage, panel))
+    out["cooling"] = None if v is None else {"status": v["calc"]["status"], "advice": v["advice"], "summary": v["summary"]}
+    if v is None or out.get("building"):
+        return
+    st = v["calc"]["status"]
+    for a in out["actions"]:
+        if a.get("request") == "cooling_review":
+            a["why"] = ("계산으로도 모자랍니다 — " if st == "short" else "") + v["advice"]
+    if st in ("ok", "passive") and out["level"] == "act":
+        # 용량은 맞는데 기준을 넘는다 → 용량보다 필터·설정·고장 쪽이 먼저
+        out["causes"].append({"kind": "cooling_ok", "title": "공조 용량은 계산상 충분",
+                              "why": v["advice"] + " 그런데도 기준을 넘으니 필터 막힘·설정온도·공조 고장 쪽을 먼저 보는 편이 맞습니다."})
 
 
 def open_request(storage, panel: str):
@@ -247,6 +265,7 @@ def candidates(storage, now: float | None = None) -> list:
             continue
         cid = owner.get(p["panel"])
         out.append({"panel": p["panel"], "panel_name": p["panel_name"], "customer": custs.get(cid, "배정 없음"),
+                    "cooling": (t.get("cooling") or {}).get("status", "unregistered"),
                     "level": t["level"], "causes": [c["title"] for c in t["causes"]], "over_days": t.get("over_days", 0),
                     "max14": t.get("max14"), "warn": t.get("warn"), "weekday_peak": t.get("weekday_peak"),
                     "hot_hours": t.get("hot_hours", ""), "request": t.get("open_request")})

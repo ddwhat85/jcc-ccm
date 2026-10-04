@@ -348,6 +348,16 @@
   .gd-fc-hours .pk b{font-weight:700}
   .gd-fc-hours .w b,.gd-fc-hours .w small{color:var(--warn)}
   @media (max-width:520px){.gd-fc-hours{grid-template-columns:repeat(4,minmax(0,1fr))}}
+  .gd-eq{margin-top:18px;padding-top:16px;border-top:1px solid var(--line-2)}
+  .gd-eq h5{margin:0 0 8px} .gd-eq h5 span{font-weight:500;color:var(--ink-3);margin-left:6px}
+  .gd-eq ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .gd-eq li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:10px 12px;border-radius:var(--r-s);background:var(--card-2)}
+  .gd-eq li b{font:600 var(--t-body) var(--sans)} .gd-eq li span{font-size:var(--t-cap);color:var(--ink-2)}
+  .gd-eq li em{flex-basis:100%;font-style:normal;font-size:var(--t-cap);color:var(--ink-3)} .gd-eq li em.due{color:var(--warn);font-weight:600}
+  .gd-eq-cap{margin:12px 0 0;font-size:var(--t-body);color:var(--ink-2)}
+  .gd-eq-cap b{color:var(--ink)} .gd-eq-cap span{font-size:var(--t-cap);color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .gd-eq-cap i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:1px;background:var(--ok)}
+  .gd-eq-cap i.watch{background:var(--warn)} .gd-eq-cap i.act{background:var(--crit)}
   .gd-tk{margin-top:22px;padding-top:18px;border-top:1px solid var(--line-2)}
   .gd-tk h5{margin:0 0 8px}
   .gd-tk-head{margin:0;font-size:var(--t-body);line-height:1.55;color:var(--ink-2)}
@@ -525,7 +535,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=f4fb580e"></script>
+<script src="demo-api.js?v=d907c7ab"></script>
 <script>
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -857,7 +867,7 @@ $("#gd-ring").onclick = () => {
 async function openPanel(pid){
   sheet(`<h4 id="gd-sheet-t">불러오는 중</h4>`);
   try { const r = await fetch(`/api/guard/panel?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"}); if (!r.ok) throw new Error();
-    const {panel: p, timeline} = await r.json();
+    const {panel: p, timeline, equipment: eq} = await r.json();
     const lf = p.life;
     sheet(`<h4 id="gd-sheet-t">${esc(p.panel_name)}</h4><div class="sub">${esc(p.word)}${p.why.length && p.status !== "ok" ? " · " + esc(p.why[0]) : ""}${p.vent_open ? " · 환기 열림" : ""}</div>` +
       `<div class="gd-gg"><div class="gd-g"><b>${p.temp == null ? "—" : p.temp}<small>℃</small></b><span>판넬 안 온도</span>` +
@@ -867,6 +877,7 @@ async function openPanel(pid){
       (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span><em class="gd-help">가스·온도를 함께 보고 불나기 전 신호를 찾습니다</em></div>` : "") +
       (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span><em class="gd-help">전선 연결부가 풀리면 전류보다 온도가 먼저 오릅니다</em></div>` : "") + `</div>` +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
+      eqHTML(eq) +
       `<div class="gd-fc" id="gd-fc"><h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">불러오는 중</div></div>` +
       `<div class="gd-tk" id="gd-tk"><h5>온도가 오르는 이유와 할 일</h5><div class="gd-note">불러오는 중</div></div>` +
       (timeline.length ? `<div class="gd-tl">${timeline.map(t => `<div class="${t.who === "판넬이 스스로" ? "self" : t.who === "감지" ? "alarm" : ""}">${esc(clean(t.text))}<small>${fmtT(t.ts)} · ${esc(t.who)}</small></div>`).join("")}</div>`
@@ -885,6 +896,20 @@ async function loadForecast(pid){
 }
 const hh = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour:"numeric", hour12:false}).replace(/\D/g, "") + "시";
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
+// ── 공조 장치(등록된 판넬만) — 몇 대가 어디에, 다음 필터 청소, 냉각 용량이 맞는지(계산) ──
+function eqHTML(v){
+  if (!v || !v.units.length) return "";
+  const c = v.calc, kw = w => w >= 1000 ? `${(w / 1000).toFixed(1)}kW` : `${w}W`;
+  const CAP = {ok: ["충분", "ok"], tight: ["빠듯", "watch"], short: ["부족", "act"], passive: ["공조 없이도 충분", "ok"]}[c.status];
+  const day = t => new Date(t * 1000).toLocaleDateString("ko-KR", {...KST, month:"long", day:"numeric"});
+  return `<div class="gd-eq"><h5>공조 장치 <span>${esc(v.summary)}</span></h5><ul>` + v.units.map(u =>
+    `<li><b>${esc(u.word)}${u.qty > 1 ? ` ${u.qty}대` : ""}</b><span>${[u.position, u.cap, u.name].filter(Boolean).map(esc).join(" · ")}</span>` +
+    (u.next_service ? `<em class="${u.service_due ? "due" : ""}">${u.service_due ? "필터 청소 시기 지남 — JCC가 일정을 잡습니다" : "다음 필터 청소 " + day(u.next_service)}</em>` : "") + `</li>`).join("") + `</ul>` +
+    (CAP ? `<p class="gd-eq-cap"><i class="${CAP[1]}"></i>냉각 용량 <b>${CAP[0]}</b>` +
+      (c.status !== "passive" ? ` <span>필요 ${kw(c.need_w)} · 설치 ${kw(c.installed_w)}${c.deficit_w ? ` · 약 ${kw(c.deficit_w)} 모자람` : ""}</span>` : "") + `</p>` +
+      `<p class="gd-note">판넬 크기·발열 기기·설계 온도로 계산한 값입니다(필요 냉각 = 판넬 안 발열 − 판넬 겉면으로 빠지는 열, 여유 10%).</p>` : "") + `</div>`;
+}
+
 // ── 온도가 오르는 이유와 할 일 ─────────────────────────────
 // 원인은 기록의 모양(평일·주말, 시간대, 주별 추세)으로 가른 '가능성'이고, 할 일은 제안이다(바꾸는 건 사람)
 async function loadThermal(pid){

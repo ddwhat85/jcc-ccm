@@ -136,7 +136,7 @@ ROUTES = [
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
     ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
-    ("GET", "/api/admin/thermal", "admin"),
+    ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
@@ -699,6 +699,13 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(blob)
             return
+        if path == "/api/admin/panel_spec":          # 판넬 설비(크기·발열·공조) + 냉각 용량 계산
+            from . import equipment as eqm
+            pid = (parse_qs(parsed.query).get("panel") or [""])[0]
+            if pid not in {p["panel"] for p in self.storage.list_panels()}:
+                return self._json({"error": "없는 판넬입니다"}, 404)
+            sp = eqm.get(self.storage, pid)
+            return self._json({"panel": pid, "spec": sp, "view": eqm.view(sp)})
         if path == "/api/admin/thermal":             # 공조 점검 후보(조치 필요·지켜볼 판넬 + 고객 요청)
             from .thermal import candidates
             return self._json({"panels": candidates(self.storage)})
@@ -1457,6 +1464,25 @@ class Handler(BaseHTTPRequestHandler):
                 ac.set_monthly_notify(cid, on)
                 audit(f"고객사 #{cid} 월간 리포트 알림 {'켬' if on else '끔'}")
                 return self._json({"ok": True})
+            if action in ("panel_spec", "cooling_calc", "serviced"):   # 판넬 설비 저장·계산 미리 보기·필터 청소 함
+                from . import equipment as eqm
+                pid = str(b.get("panel", ""))
+                if action != "cooling_calc" and pid not in {p["panel"] for p in self.storage.list_panels()}:
+                    return self._json({"error": "없는 판넬입니다"}, 400)
+                if action == "cooling_calc":
+                    sp = eqm._clean(b.get("spec") if isinstance(b.get("spec"), dict) else {})
+                    return self._json({"ok": True, "view": eqm.view(sp)})
+                if action == "serviced":
+                    idx = b.get("index")
+                    if not isinstance(idx, int) or not eqm.mark_serviced(self.storage, pid, idx, me["username"]):
+                        return self._json({"error": "장치를 확인하세요"}, 400)
+                    audit(f"{pid} 공조 장치 #{idx + 1} 필터 청소·점검")
+                    return self._json({"ok": True})
+                if not isinstance(b.get("spec"), dict):
+                    return self._json({"error": "설비 정보가 없습니다"}, 400)
+                sp = eqm.save(self.storage, pid, b["spec"], me["username"])
+                audit(f"{pid} 판넬 설비 저장(공조 {len(sp['equipment'])}종 · 발열 {len(sp['heat'])}종)")
+                return self._json({"ok": True, "view": eqm.view(sp)})
             if action == "request_done":          # 고객 점검 요청 처리 완료
                 from .thermal import close_request
                 rid = as_id(b.get("request_id"))

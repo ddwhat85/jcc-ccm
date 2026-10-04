@@ -420,4 +420,5 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
         else:
             continue
         tl.append({"ts": e["ts"], "who": who, "text": _plain(e["detail"])})
-    return {"panel": _panel_model(rows[0], lat.get(panel)), "timeline": tl[:20]}
+    from .equipment import get as eq_get, view as eq_view
+    return {"panel": _panel_model(rows[0], lat.get(panel)), "timeline": tl[:20], "equipment": eq_view(eq_get(storage, panel))}

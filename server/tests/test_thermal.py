@@ -105,6 +105,18 @@ def run():
     check("판넬: 주의 기준(설정값)·원인·결로 하한", pt and pt["warn"] == 34 and pt["level"] == "act" and pt.get("setpoint_floor"),
           str(pt and (pt["warn"], pt["level"], pt.get("setpoint_floor"))))
     check("조용한 판넬은 후보에 없음", [c["panel"] for c in T.candidates(st, now)] == ["p1"])
+    from jcc_server import equipment as E
+    E.save(st, "p1", {"width": 800, "height": 2000, "depth": 600, "target_c": 35, "ambient_c": 35,
+                      "heat": [{"loss_w": 300, "qty": 2}], "equipment": [{"kind": "aircon", "capacity_w": 1500, "qty": 1}]}, "test")
+    pt2 = T.panel_thermal(st, "p1", now)
+    check("용량은 충분한데 기준을 넘으면 → 필터·설정·고장부터", any(c["kind"] == "cooling_ok" for c in pt2["causes"])
+          and pt2["cooling"]["status"] == "ok", str([c["kind"] for c in pt2["causes"]]))
+    E.save(st, "p1", {"width": 800, "height": 2000, "depth": 600, "target_c": 35, "ambient_c": 40,
+                      "heat": [{"loss_w": 300, "qty": 4}], "equipment": [{"kind": "aircon", "capacity_w": 1000, "qty": 1}]}, "test")
+    pt3 = T.panel_thermal(st, "p1", now)
+    why = next(a["why"] for a in pt3["actions"] if a.get("request"))
+    check("용량 부족이면 '냉각 용량 검토' 근거가 계산 숫자로", why.startswith("계산으로도 모자랍니다") and "W" in why, why)
+    check("운영자 후보에 용량 계산 결과", T.candidates(st, now)[0]["cooling"] == "short")
 
     cid = st.accounts.create_customer("평택")
     st.accounts.assign_panel("p1", cid)

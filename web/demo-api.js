@@ -420,13 +420,91 @@
     if (out.level === "act") A.push({ who: "JCC", title: "냉각 용량 검토", request: "cooling_review", why: "판넬 안 발열량을 계산해 지금 공조로 충분한지 보고, 모자라면 맞는 용량을 제안합니다." });
     return out;
   }
+  // ── 판넬 설비·냉각 용량(서버 equipment.py와 같은 계산) — 시연 판넬 두 곳은 미리 등록해 둔다 ──
+  const EQK = { steel: 5.5, stainless: 4.5, aluminum: 12, plastic: 3.5 }, EQW = { aircon: "에어컨", heat_exchanger: "열교환기", fan_filter: "팬필터" },
+    EQP = { side: "측면", door: "도어", roof: "상부" }, EQM = { steel: "도장 강판", stainless: "스테인리스", aluminum: "알루미늄", plastic: "플라스틱" };
+  const EQS = {
+    "panel-03": { width: 800, height: 2000, depth: 600, bays: 3, mount: "free", material: "steel", target_c: 35, ambient_c: 40,
+      heat: [{ name: "인버터 22kW", loss_w: 660, qty: 2 }, { name: "인버터 7.5kW", loss_w: 225, qty: 3 }, { name: "PLC·전원", loss_w: 150, qty: 1 }],
+      equipment: [{ kind: "aircon", name: "측면 에어컨", capacity_w: 1500, airflow_m3h: 0, qty: 1, position: "side", filter_days: 30, last_service: null },
+        { kind: "fan_filter", name: "도어 팬필터", capacity_w: 0, airflow_m3h: 160, qty: 1, position: "door", filter_days: 60, last_service: null }] },
+    "panel-01": { width: 800, height: 2000, depth: 600, bays: 1, mount: "wall", material: "steel", target_c: 35, ambient_c: 35,
+      heat: [{ name: "BMS·충전 제어", loss_w: 250, qty: 1 }],
+      equipment: [{ kind: "aircon", name: "도어 에어컨", capacity_w: 1000, airflow_m3h: 0, qty: 1, position: "door", filter_days: 30, last_service: null }] } };
+  (function () { const t = now(); EQS["panel-03"].equipment[0].last_service = t - 41 * FC.D; EQS["panel-03"].equipment[1].last_service = t - 20 * FC.D; EQS["panel-01"].equipment[0].last_service = t - 9 * FC.D;
+    Object.values(EQS).forEach(sp => { sp.updated_at = t - 3 * FC.D; sp.updated_by = "김현장(시연)"; }); })();
+  function eqArea1(w, h, d, wall, pos) {
+    if (pos === "single") return wall ? 1.4 * w * (h + d) + 1.8 * d * h : 1.8 * h * (w + d) + 1.4 * w * d;
+    if (pos === "end") return wall ? 1.4 * h * (w + d) + 1.4 * w * d : 1.4 * d * (h + w) + 1.8 * w * h;
+    return wall ? 1.4 * w * (h + d) + d * h : 1.8 * w * h + 1.4 * w * d + d * h;
+  }
+  function eqArea(sp) { const w = sp.width / 1000, h = sp.height / 1000, d = sp.depth / 1000; if (!(w > 0 && h > 0 && d > 0)) return null;
+    const n = Math.max(1, sp.bays || 1), wall = sp.mount === "wall"; return n === 1 ? eqArea1(w, h, d, wall, "single") : 2 * eqArea1(w, h, d, wall, "end") + (n - 2) * eqArea1(w, h, d, wall, "mid"); }
+  function eqClean(sp) { sp = sp || {}; const num = (v, lo, hi) => { const x = Number(v); return v === null || v === "" || !isFinite(x) || x < lo || x > hi ? null : x; };
+    return { width: num(sp.width, 100, 10000), height: num(sp.height, 100, 4000), depth: num(sp.depth, 100, 2000), bays: Math.round(num(sp.bays, 1, 30) || 1),
+      mount: sp.mount === "wall" ? "wall" : "free", material: EQK[sp.material] ? sp.material : "steel", target_c: num(sp.target_c, 10, 60), ambient_c: num(sp.ambient_c, -20, 60),
+      heat: (sp.heat || []).slice(0, 40).map(x => ({ name: String(x.name || "").slice(0, 40), loss_w: num(x.loss_w, 0, 1e5) || 0, qty: Math.round(num(x.qty, 1, 999) || 1) })),
+      equipment: (sp.equipment || []).slice(0, 20).filter(e => EQW[e.kind]).map(e => ({ kind: e.kind, name: String(e.name || "").slice(0, 60), qty: Math.round(num(e.qty, 1, 20) || 1),
+        capacity_w: num(e.capacity_w, 0, 5e4) || 0, airflow_m3h: num(e.airflow_m3h, 0, 5000) || 0, position: EQP[e.position] ? e.position : "",
+        filter_days: Math.round(num(e.filter_days, 0, 730) || 0), last_service: num(e.last_service, 0, 4e9) })) }; }
+  function eqCalc(sp) {
+    const out = { status: "unknown", missing: [] }, a = eqArea(sp);
+    if (a == null) out.missing.push("판넬 크기");
+    const heat = sp.heat || [], qv = heat.reduce((t, x) => t + Math.max(0, x.loss_w || 0) * Math.max(1, x.qty || 1), 0);
+    if (!heat.length) out.missing.push("발열 기기");
+    if (sp.target_c == null || sp.ambient_c == null) out.missing.push("목표·주변 온도");
+    const k = EQK[sp.material] || 5.5, eq = sp.equipment || [];
+    Object.assign(out, { heat_w: Math.round(qv), k, units: eq.reduce((t, e) => t + Math.max(1, e.qty || 1), 0) });
+    if (out.missing.length) return out;
+    const ti = sp.target_c, tu = sp.ambient_c, loss = k * a * (ti - tu), need = qv - loss; let inst = 0;
+    eq.forEach(e => { const q = Math.max(1, e.qty || 1);
+      if (e.kind === "aircon" || (e.kind === "heat_exchanger" && tu < ti)) inst += Math.max(0, e.capacity_w || 0) * q;
+      else if (e.kind === "fan_filter" && ti > tu) inst += Math.max(0, e.airflow_m3h || 0) * (ti - tu) / 3.1 * q; });
+    Object.assign(out, { area: Math.round(a * 100) / 100, passive_w: Math.round(loss), need_w: Math.round(need), installed_w: Math.round(inst),
+      need_margin_w: Math.round(Math.max(0, need) * 1.1), dt: Math.round((ti - tu) * 10) / 10 });
+    if (need <= 0) out.status = "passive"; else if (inst >= need * 1.1) out.status = "ok"; else if (inst >= need) out.status = "tight";
+    else { out.status = "short"; out.deficit_w = Math.ceil((need * 1.1 - inst) / 100) * 100; }
+    return out;
+  }
+  function eqAdvice(sp, c) {
+    if (c.status === "unknown") return "냉각 용량을 계산하려면 " + c.missing.join("·") + " 정보가 필요합니다.";
+    if (c.status === "passive") return `판넬 겉면으로 ${Math.abs(c.passive_w)} W를 내보낼 수 있어 발열 ${c.heat_w} W는 공조 없이도 감당되는 계산입니다.`;
+    const base = `필요 냉각 ${c.need_w} W(여유 10% 포함 ${c.need_margin_w} W), 설치된 냉각 ${c.installed_w} W`;
+    if (c.status === "ok") return base + " — 충분합니다.";
+    if (c.status === "tight") return base + " — 여유가 거의 없습니다. 여름 최고 온도나 기기 추가에 대비해 두는 편이 좋습니다.";
+    return base + ` — 약 ${c.deficit_w} W가 모자랍니다. 그만큼 냉각을 더하거나 더 큰 공조로 바꾸는 것을 검토하세요.` +
+      ((sp.bays || 1) >= 3 ? " 열반이면 끝단 측면에 큰 유닛, 가운데 칸은 도어 유닛으로 나누는 배치를 권합니다." : "");
+  }
+  function eqView(sp) {
+    if (!sp) return null; const t = now(), c = eqCalc(sp);
+    const units = (sp.equipment || []).map((e, i) => { const nx = e.filter_days && e.last_service ? e.last_service + e.filter_days * FC.D : null;
+      return { i, kind: e.kind, word: EQW[e.kind], name: e.name || "", qty: e.qty || 1, cap: e.kind === "fan_filter" ? `${e.airflow_m3h} m³/h` : `${e.capacity_w} W`,
+        position: EQP[e.position] || "", next_service: nx, service_due: !!(nx && nx <= t) }; });
+    return { units, calc: c, advice: eqAdvice(sp, c), summary: units.map(u => `${u.word} ${u.qty}대`).join(" · ") || "공조 장치 등록 없음",
+      size: sp.width ? `${sp.width}×${sp.height}×${sp.depth}` + ((sp.bays || 1) > 1 ? ` · ${sp.bays}면 열반` : "") : "", material: EQM[sp.material] || "" };
+  }
+  function eqAdmin(action, b) {
+    if (action === "cooling_calc") return [{ ok: true, view: eqView(eqClean(b.spec)) }, 200];
+    if (!gdRows().some(p => p.panel === b.panel)) return [{ error: "없는 판넬입니다" }, 400];
+    if (action === "serviced") { const sp = EQS[b.panel]; if (!sp || !sp.equipment[b.index]) return [{ error: "장치를 확인하세요" }, 400];
+      sp.equipment[b.index].last_service = now(); return [{ ok: true }, 200]; }
+    const sp = eqClean(b.spec); sp.updated_at = now(); sp.updated_by = "시연 운영자"; EQS[b.panel] = sp; return [{ ok: true, view: eqView(sp) }, 200];
+  }
   function gdThermal(pid) {
     const f = gdForecast(pid); if (!f) return null;
     const t = now(), temp = FC.cache[pid + "|" + Math.floor(t / FC.H)], row = gdRows().find(p => p.panel === pid);
     const hBase = row && row.humidity != null ? row.humidity : 50, hum = new Map();
     temp.forEach((v, u) => { if (u >= t - 15 * FC.D) hum.set(u, Math.max(20, Math.min(90, hBase - (v - temp.get(Math.floor(t / FC.H) * FC.H - FC.H)) * 1.5))); });
     const req = TK.reqs.find(r => r.panel === pid && r.status === "open") || null;
-    return Object.assign(tkAnalyze(temp, hum, t, f.warn), { panel: pid, sensor_name: f.sensor_name, open_request: req, demo: true });
+    const out = Object.assign(tkAnalyze(temp, hum, t, f.warn), { panel: pid, sensor_name: f.sensor_name, open_request: req, demo: true });
+    const v = eqView(EQS[pid]);
+    out.cooling = v ? { status: v.calc.status, advice: v.advice, summary: v.summary } : null;
+    if (v && !out.building) {
+      out.actions.forEach(a => { if (a.request === "cooling_review") a.why = (v.calc.status === "short" ? "계산으로도 모자랍니다 — " : "") + v.advice; });
+      if ((v.calc.status === "ok" || v.calc.status === "passive") && out.level === "act")
+        out.causes.push({ kind: "cooling_ok", title: "공조 용량은 계산상 충분", why: v.advice + " 그런데도 기준을 넘으니 필터 막힘·설정온도·공조 고장 쪽을 먼저 보는 편이 맞습니다." });
+    }
+    return out;
   }
   function gdRequest(b) {
     if (!gdRows().some(p => p.panel === b.panel)) return [{ error: "볼 수 없는 판넬입니다" }, 404];
@@ -440,7 +518,8 @@
     const out = [];
     gdRows().forEach(p => { const th = gdThermal(p.panel); if (!th || (th.level === "ok" && !th.open_request)) return;
       out.push({ panel: p.panel, panel_name: p.panel_name, customer: ACC.customers[0].name, level: th.level, causes: th.causes.map(c => c.title),
-        over_days: th.over_days || 0, max14: th.max14, warn: th.warn, weekday_peak: th.weekday_peak, hot_hours: th.hot_hours || "", request: th.open_request }); });
+        over_days: th.over_days || 0, max14: th.max14, warn: th.warn, weekday_peak: th.weekday_peak, hot_hours: th.hot_hours || "", request: th.open_request,
+        cooling: (th.cooling || {}).status || "unregistered" }); });
     const rank = { act: 0, watch: 1, ok: 2 };
     return out.sort((a, b) => (a.request == null) - (b.request == null) || rank[a.level] - rank[b.level] || b.over_days - a.over_days);
   }
@@ -450,7 +529,7 @@
     const SELF = ["vent_open", "vent_close", "dew_actuate", "edge_actuate"];   // vent_hold('열림 유지')는 새 조치가 아니라 뺀다
     const tl = S.events.filter(e => devs.has(e.device_id) && (SELF.includes(e.etype) || e.etype === "ack" || ["fire", "contact", "dew", "alarm", "alarm_warn"].includes(e.etype)))
       .slice(0, 20).map(e => ({ ts: e.ts, who: SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : "감지", text: gdPlain(e.detail) }));
-    return { panel: gdModel(row), timeline: tl };
+    return { panel: gdModel(row), timeline: tl, equipment: eqView(EQS[pid]) };
   }
   // 근무 인계 요약(서버 handover.py와 같은 모양). 기준 시각은 메모리(S.hoSeen) — 처음 12시간, 최대 7일
   function handoverView() {
@@ -1655,6 +1734,7 @@
       if (b.customer_id == null) delete ACC.owner[b.panel]; else ACC.owner[b.panel] = b.customer_id; return [{ ok: true }, 200]; }
     if (action === "monthly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
       c.monthly_notify = !!b.on; return [{ ok: true }, 200]; }
+    if (action === "panel_spec" || action === "cooling_calc" || action === "serviced") return eqAdmin(action, b);
     if (action === "request_done") { const r = TK.reqs.find(x => x.id === b.request_id && x.status === "open");
       if (!r) return [{ error: "이미 처리했거나 없는 요청입니다" }, 400]; r.status = "done"; return [{ ok: true }, 200]; }
     if (action === "weekly_notify") { const c = cust(b.customer_id); if (!c) return [{ error: "고객사를 확인하세요" }, 400];
@@ -1774,6 +1854,9 @@
       if (p === "/api/guard/month") return Promise.resolve(J(gdMonth(qs.get("period") || "")));
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
+      if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
+        if (!gdRows().some(x => x.panel === pid)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
+        return Promise.resolve(J({ panel: pid, spec: EQS[pid] || null, view: eqView(EQS[pid]) })); }
       if (p === "/api/admin/thermal") return Promise.resolve(J({ panels: gdThermalCandidates() }));
       if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/incidents") return Promise.resolve(J(gdIncidents(qs.get("period") || "")));
