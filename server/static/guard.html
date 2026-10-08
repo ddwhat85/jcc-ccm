@@ -810,11 +810,21 @@
   .gd-mt-tr svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
   .gd-mt-tr .cap{display:flex;justify-content:space-between;font:500 clamp(9px,4cqh,12px) var(--sans);color:var(--ink-3)}
   .gd-mt-tr .cap em{font-style:normal;color:var(--warn)}
-  .gd-mt-sn{display:flex;flex-wrap:wrap;gap:6px 12px;font:600 clamp(10px,4.8cqh,15px) var(--sans);color:var(--ink-3)}
-  .gd-mt-sn span{display:inline-flex;align-items:center;gap:6px}
-  .gd-mt-sn em{font-style:normal}
-  .gd-mt-sn svg{width:1.25em;height:1.25em;color:var(--ok)}
-  .gd-mt-sn .warn,.gd-mt-sn .warn svg{color:var(--warn)} .gd-mt-sn .crit,.gd-mt-sn .crit svg{color:var(--crit)}
+  .gd-mt-sn{display:flex;flex-direction:column;gap:6px}
+  .gd-mt-sg{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+  .gd-mt-sg.flip{animation:gd-mt-flip .45s ease-out}
+  @keyframes gd-mt-flip{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .gd-mt-sg > div{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:7px;align-items:center;min-width:0;
+    padding:clamp(5px,2.6cqh,10px) clamp(6px,1.6cqw,10px);border-radius:var(--r-s);background:var(--card-2);border:1px solid var(--line-2)}
+  .gd-mt-sg svg{grid-row:span 2;width:clamp(16px,7cqh,24px);height:clamp(16px,7cqh,24px);color:var(--ok)}
+  .gd-mt-sg b{font:600 clamp(11px,6cqh,19px)/1.15 var(--sans);font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-mt-sg em{font:500 clamp(9px,4cqh,13px)/1.2 var(--sans);font-style:normal;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-mt-sg .warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent)} .gd-mt-sg .warn svg,.gd-mt-sg .warn b{color:var(--warn)}
+  .gd-mt-sg .crit{border-color:var(--crit);background:color-mix(in srgb,var(--crit) 14%,var(--card-2))} .gd-mt-sg .crit svg,.gd-mt-sg .crit b{color:var(--crit)}
+  @container (max-width:640px){.gd-mt-sg{grid-template-columns:repeat(2,minmax(0,1fr))}}   /* 좁은 칸은 2개씩 두 줄 — 값이 잘리지 않게 */
+  .gd-mt-pg{display:flex;justify-content:center;gap:5px}
+  .gd-mt-pg i{width:6px;height:6px;border-radius:var(--pill);background:var(--line)} .gd-mt-pg i.on{width:16px;background:var(--ink-3)}
+  @media (prefers-reduced-motion:reduce){.gd-mt-sg.flip{animation:none}}
   .gd-mt-nod{font:500 clamp(10px,4cqh,13px) var(--sans);color:var(--ink-3);align-self:center;margin:auto}
 
   /* 오른쪽 칸 */
@@ -2500,16 +2510,40 @@ function monSpark(tr, p){
     `<polyline points="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg></span>`;
 }
 function monTile(p){
-  const st = ST_OF[p.status] || "ok", sens = p.sensors || [], bad = sens.filter(x => x.level !== "ok");
+  const st = ST_OF[p.status] || "ok";
   const third = p.fire && p.fire !== "—" && p.fire !== "낮음" ? ["화재 징조", p.fire] : p.contact && p.contact !== "—" && p.contact !== "정상" ? ["단자 발열", p.contact] : null;
   const tr = MON.live && MON.live.trends ? MON.live.trends[p.panel] : null;
-  return `<article class="gd-mt s-${esc(p.status)}"><header><b>${esc(p.panel_name)}</b><span class="gd-mt-chip ${st}">${stIco(st)}${esc(p.word)}</span></header>` +
+  return `<article class="gd-mt s-${esc(p.status)}" data-p="${esc(p.panel)}"><header><b>${esc(p.panel_name)}</b><span class="gd-mt-chip ${st}">${stIco(st)}${esc(p.word)}</span></header>` +
     `<div class="gd-mt-v"><div class="hot"><b>${p.temp == null ? "—" : esc(p.temp)}<small>℃</small></b><span>온도</span></div>` +
     `<div><b>${p.humidity == null ? "—" : esc(p.humidity)}<small>%</small></b><span>습도</span></div>` +
     (third ? `<div class="w"><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</div>` +
     `<div class="gd-mt-tr">${monSpark(tr, p)}</div>` +
-    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}<em>${esc(x.name)}</em> ${esc(x.say)}${znB(x)}</span>`).join("")
-      : sens.length ? `<span>${stIco("ok")}센서 ${sens.length + (p.temp != null) + (p.humidity != null)}개 모두 정상</span>` : ""}</footer></article>`;
+    `<footer class="gd-mt-sn">${monSnHTML(p)}</footer></article>`;
+}
+// 판넬에 달린 센서(대표 온습도 빼고) — 한 칸에 MON_SN개. 위험·주의 센서는 늘 고정해 보이고(넘치면 그것끼리 돌고),
+// 남은 자리에서만 정상 센서가 MON_SN_SEC초마다 다음 묶음으로 넘어간다
+const MON_SN = 4, MON_SN_SEC = 4, MON_R = {crit: 2, warn: 1, ok: 0};
+function monSnPick(p){
+  const all = (p.sensors || []).map((x, i) => [x, i]).sort((a, b) => (MON_R[b[0].level] || 0) - (MON_R[a[0].level] || 0) || a[1] - b[1]).map(a => a[0]);
+  const bad = all.filter(x => x.level !== "ok"), ok = all.filter(x => x.level === "ok"), t = MON.snTick || 0;
+  if (bad.length >= MON_SN){ const pages = Math.ceil(bad.length / MON_SN), pg = t % pages; return {show: bad.slice(pg * MON_SN, pg * MON_SN + MON_SN), pages, pg}; }
+  const slots = MON_SN - bad.length, pages = Math.max(1, Math.ceil(ok.length / slots)), pg = t % pages;
+  return {show: bad.concat(ok.slice(pg * slots, pg * slots + slots)), pages, pg};
+}
+function monSnHTML(p, flip){
+  if (!(p.sensors || []).length) return "";
+  const {show, pages, pg} = monSnPick(p);
+  return `<div class="gd-mt-sg${flip && pages > 1 ? " flip" : ""}">${show.map(x =>
+      `<div class="${esc(x.level)}">${snIco(x.kind)}<b>${esc(x.say)}${znB(x)}</b><em>${esc(x.name)}</em></div>`).join("")}</div>` +
+    (pages > 1 ? `<div class="gd-mt-pg" aria-hidden="true">${Array.from({length: pages}, (_, i) => `<i class="${i === pg ? "on" : ""}"></i>`).join("")}</div>` : "");
+}
+function monSnRotate(){
+  if (!MON.on || !G.d) return;
+  MON.snTick = (MON.snTick || 0) + 1;
+  document.querySelectorAll("#gd-mon-grid .gd-mt[data-p]").forEach(el => {
+    const p = (G.d.panels || []).find(x => x.panel === el.dataset.p), f = el.querySelector(".gd-mt-sn");
+    if (p && f && (p.sensors || []).length > MON_SN) f.innerHTML = monSnHTML(p, true);
+  });
 }
 // 판넬 수에 맞춰 칸을 나눈다: 다 들어가면 가장 크게, 안 들어가면 페이지로(문제 판넬이 첫 페이지)
 function monLayout(n){
@@ -2604,7 +2638,7 @@ function monOpen(){
   try { localStorage.setItem("gd-mon", "1"); } catch(_){}
   $("#gd-mon").hidden = false; document.body.classList.add("gd-mon-on");
   paintMon(); monLive(); monWake();
-  MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000),
+  MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000), setInterval(monSnRotate, MON_SN_SEC * 1000),
     setInterval(() => { if (MON.pages > 1){ MON.page = (MON.page + 1) % MON.pages; paintMon(); } }, 12000),
     setInterval(() => { const s = [[0, 0], [2, 1], [1, -1], [-1, 2], [-2, -1]][++MON.shift % 5];   // 번인 방지 — 몇 분마다 화면을 1~2px 옮긴다
       $("#gd-mon").style.transform = `translate(${s[0]}px, ${s[1]}px)`; }, 180000)];
