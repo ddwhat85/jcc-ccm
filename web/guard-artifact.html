@@ -676,23 +676,30 @@
   body.gd-mon-on .gd-app,body.gd-mon-on .gd-login{display:none!important}
   .gd-mon{--bg:#0b0d10;--card:#15191d;--card-2:#111418;--line:#2a2e33;--line-2:#23282e;--track:#23282e;
     --ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff3d6e;--crit-ink:#ffb3c7;color-scheme:dark;
-    position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
-    padding:clamp(12px,1.4vw,28px);gap:clamp(10px,1vw,18px);transition:transform 2s ease}
+    --u:19.2px;position:fixed;inset:0;z-index:40;overflow:hidden;background:var(--bg);color:var(--ink);transition:transform 2s ease}
   .gd-mon[hidden]{display:none}
-  .gd-mon-top{display:flex;align-items:center;gap:clamp(10px,1.2vw,22px);min-height:clamp(44px,4.4vw,72px);padding:0 4px}
-  .gd-mon-brand{display:flex;align-items:center;gap:10px;font:700 clamp(12px,.9vw,16px) var(--sans);letter-spacing:.16em}
-  .gd-mon-brand svg{width:clamp(22px,1.8vw,32px);height:auto}
-  .gd-mon-site{font:500 clamp(14px,1.2vw,22px) var(--sans);color:var(--ink-2);padding-left:clamp(10px,1.2vw,22px);border-left:1px solid var(--line);
+  /* 판 하나(기본 1920x1080)를 화면에 맞춰 통째로 확대·축소 — 휴대폰·태블릿·모니터 어디서나 같은 배치 */
+  .gd-mon-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:0 0;
+    display:flex;flex-direction:column;padding:clamp(12px,calc(1.4 * var(--u)),28px);gap:clamp(10px,calc(1 * var(--u)),18px)}
+  .gd-mon-turn{position:absolute;left:0;right:0;bottom:max(16px,env(safe-area-inset-bottom));display:none;justify-content:center;align-items:center;gap:8px;
+    font:600 13px var(--sans);color:var(--ink-3)}
+  .gd-mon-turn svg{width:20px;height:20px}
+  .gd-mon-turn button{margin-left:10px;min-height:40px;padding:0 16px;border-radius:var(--pill);border:1px solid var(--line);background:none;color:var(--ink-2);font:600 13px var(--sans);cursor:pointer}
+  @media (orientation:portrait){.gd-mon-turn{display:flex}}
+  .gd-mon-top{display:flex;align-items:center;gap:clamp(10px,calc(1.2 * var(--u)),22px);min-height:clamp(44px,calc(4.4 * var(--u)),72px);padding:0 4px}
+  .gd-mon-brand{display:flex;align-items:center;gap:10px;font:700 clamp(12px,calc(.9 * var(--u)),16px) var(--sans);letter-spacing:.16em}
+  .gd-mon-brand svg{width:clamp(22px,calc(1.8 * var(--u)),32px);height:auto}
+  .gd-mon-site{font:500 clamp(14px,calc(1.2 * var(--u)),22px) var(--sans);color:var(--ink-2);padding-left:clamp(10px,calc(1.2 * var(--u)),22px);border-left:1px solid var(--line);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
   .gd-mon-sp{flex:1}
-  .gd-mon-live{display:inline-flex;align-items:center;gap:8px;font:700 clamp(11px,.8vw,14px) var(--sans);letter-spacing:.12em;color:var(--ok)}
+  .gd-mon-live{display:inline-flex;align-items:center;gap:8px;font:700 clamp(11px,calc(.8 * var(--u)),14px) var(--sans);letter-spacing:.12em;color:var(--ok)}
   .gd-mon-live i{width:9px;height:9px;border-radius:50%;background:currentColor;animation:gd-mon-blink 2s ease-in-out infinite}
   .gd-mon-live.off{color:var(--crit)} .gd-mon-live.off i{animation:none}
   @keyframes gd-mon-blink{50%{opacity:.25}}
   .gd-mon-clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
-  .gd-mon-clock b{font:300 clamp(22px,2.2vw,42px)/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .gd-mon-clock span{font:500 clamp(11px,.75vw,13px) var(--sans);color:var(--ink-3);margin-top:4px}
-  .gd-mon-btn{width:clamp(38px,2.6vw,48px);height:clamp(38px,2.6vw,48px);border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink-2);
+  .gd-mon-clock b{font:300 clamp(22px,calc(2.2 * var(--u)),42px)/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .gd-mon-clock span{font:500 clamp(11px,calc(.75 * var(--u)),13px) var(--sans);color:var(--ink-3);margin-top:4px}
+  .gd-mon-btn{width:clamp(38px,calc(2.6 * var(--u)),48px);height:clamp(38px,calc(2.6 * var(--u)),48px);border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink-2);
     display:grid;place-items:center;cursor:pointer}
   .gd-mon-btn:hover{border-color:var(--ink-3);color:var(--ink)}
   .gd-mon-btn svg{width:46%;height:46%}
@@ -700,22 +707,22 @@
   #gd-mon-sound[aria-pressed="true"]{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
 
   /* 위험 띠 — 위험이 있을 때만, 리탈 레드 */
-  .gd-mon-alert{display:flex;align-items:center;gap:clamp(12px,1.4vw,28px);padding:clamp(12px,1.1vw,20px) clamp(16px,1.6vw,28px);border-radius:var(--r-l);
+  .gd-mon-alert{display:flex;align-items:center;gap:clamp(12px,calc(1.4 * var(--u)),28px);padding:clamp(12px,calc(1.1 * var(--u)),20px) clamp(16px,calc(1.6 * var(--u)),28px);border-radius:var(--r-l);
     background:var(--night-crit);color:#ffffff}
-  .gd-mon-alert .pill{flex:none;font:800 clamp(12px,.9vw,16px) var(--sans);letter-spacing:.12em;padding:6px 12px;border-radius:var(--pill);background:#ffffff;color:var(--night-crit)}
+  .gd-mon-alert .pill{flex:none;font:800 clamp(12px,calc(.9 * var(--u)),16px) var(--sans);letter-spacing:.12em;padding:6px 12px;border-radius:var(--pill);background:#ffffff;color:var(--night-crit)}
   .gd-mon-alert .what{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-  .gd-mon-alert .what b{font:700 clamp(18px,1.6vw,30px)/1.2 var(--sans);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .gd-mon-alert .what span{font:500 clamp(12px,.9vw,16px) var(--sans);opacity:.85}
+  .gd-mon-alert .what b{font:700 clamp(18px,calc(1.6 * var(--u)),30px)/1.2 var(--sans);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-mon-alert .what span{font:500 clamp(12px,calc(.9 * var(--u)),16px) var(--sans);opacity:.85}
   .gd-mon-steps{display:flex;gap:6px;flex:none}
-  .gd-mon-steps i{display:flex;flex-direction:column;align-items:center;gap:6px;font:600 clamp(10px,.7vw,13px) var(--sans);font-style:normal;opacity:.6}
-  .gd-mon-steps i::before{content:"";width:clamp(36px,3.4vw,64px);height:6px;border-radius:var(--pill);background:rgba(255,255,255,.3)}
+  .gd-mon-steps i{display:flex;flex-direction:column;align-items:center;gap:6px;font:600 clamp(10px,calc(.7 * var(--u)),13px) var(--sans);font-style:normal;opacity:.6}
+  .gd-mon-steps i::before{content:"";width:clamp(36px,calc(3.4 * var(--u)),64px);height:6px;border-radius:var(--pill);background:rgba(255,255,255,.3)}
   .gd-mon-steps i.done{opacity:1} .gd-mon-steps i.done::before{background:#ffffff}
   .gd-mon-steps i.now{opacity:1} .gd-mon-steps i.now::before{background:repeating-linear-gradient(-45deg,#ffffff 0 6px,rgba(255,255,255,.35) 6px 12px)}
-  .gd-mon-alert .el{flex:none;display:flex;flex-direction:column;align-items:flex-end;font:600 clamp(11px,.75vw,13px) var(--sans);opacity:.9}
-  .gd-mon-alert .el b{font:300 clamp(24px,2.4vw,44px)/1 var(--sans);font-variant-numeric:tabular-nums;opacity:1}
+  .gd-mon-alert .el{flex:none;display:flex;flex-direction:column;align-items:flex-end;font:600 clamp(11px,calc(.75 * var(--u)),13px) var(--sans);opacity:.9}
+  .gd-mon-alert .el b{font:300 clamp(24px,calc(2.4 * var(--u)),44px)/1 var(--sans);font-variant-numeric:tabular-nums;opacity:1}
 
-  .gd-mon-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,23vw,440px);gap:clamp(10px,1vw,18px)}
-  .gd-mon-grid{min-height:0;display:grid;gap:clamp(8px,.8vw,14px)}
+  .gd-mon-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,calc(23 * var(--u)),440px);gap:clamp(10px,calc(1 * var(--u)),18px)}
+  .gd-mon-grid{min-height:0;display:grid;gap:clamp(8px,calc(.8 * var(--u)),14px)}
 
   /* 판넬 타일 — 크기에 맞춰 글자가 커진다(컨테이너 단위) */
   .gd-mt{container-type:size;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;gap:clamp(6px,3cqh,14px);
@@ -751,51 +758,44 @@
   .gd-mt-nod{font:500 clamp(10px,4cqh,13px) var(--sans);color:var(--ink-3);align-self:center;margin:auto}
 
   /* 오른쪽 칸 */
-  .gd-mon-side{min-height:0;display:flex;flex-direction:column;gap:clamp(10px,1vw,18px)}
-  .gd-mon-side>section{border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);padding:clamp(14px,1.2vw,22px)}
-  .gd-mon-side h3{margin:0 0 10px;font:700 clamp(11px,.8vw,14px) var(--sans);letter-spacing:.12em;color:var(--ink-3)}
-  .gd-mon-state{display:flex;align-items:center;gap:clamp(12px,1.2vw,22px)}
-  .gd-mon-state svg{width:clamp(84px,7vw,132px);height:auto;flex:none}
+  .gd-mon-side{min-height:0;display:flex;flex-direction:column;gap:clamp(10px,calc(1 * var(--u)),18px)}
+  .gd-mon-side>section{border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);padding:clamp(14px,calc(1.2 * var(--u)),22px)}
+  .gd-mon-side h3{margin:0 0 10px;font:700 clamp(11px,calc(.8 * var(--u)),14px) var(--sans);letter-spacing:.12em;color:var(--ink-3)}
+  .gd-mon-state{display:flex;align-items:center;gap:clamp(12px,calc(1.2 * var(--u)),22px)}
+  .gd-mon-state svg{width:clamp(84px,calc(7 * var(--u)),132px);height:auto;flex:none}
   .gd-mon-state .t{display:flex;flex-direction:column;gap:6px;min-width:0}
-  .gd-mon-state .t small{font:600 clamp(11px,.8vw,14px) var(--sans);color:var(--ink-3)}
-  .gd-mon-state .t b{font:600 clamp(18px,1.6vw,30px)/1.2 var(--sans);letter-spacing:-.02em}
+  .gd-mon-state .t small{font:600 clamp(11px,calc(.8 * var(--u)),14px) var(--sans);color:var(--ink-3)}
+  .gd-mon-state .t b{font:600 clamp(18px,calc(1.6 * var(--u)),30px)/1.2 var(--sans);letter-spacing:-.02em}
   .gd-mon-state.crit{background:var(--night-crit);border-color:transparent} .gd-mon-state.crit .t small{color:#ffffff;opacity:.85}
   .gd-mon-state.warn .t b{color:var(--warn)}
   .gd-mon-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;text-align:center}
   .gd-mon-kpi div{display:flex;flex-direction:column;gap:4px;padding:4px 0}
   .gd-mon-kpi div + div{border-left:1px solid var(--line-2)}
-  .gd-mon-kpi b{font:300 clamp(24px,2.2vw,42px)/1 var(--sans);font-variant-numeric:tabular-nums}
-  .gd-mon-kpi span{font:600 clamp(10px,.7vw,13px) var(--sans);color:var(--ink-3)}
+  .gd-mon-kpi b{font:300 clamp(24px,calc(2.2 * var(--u)),42px)/1 var(--sans);font-variant-numeric:tabular-nums}
+  .gd-mon-kpi span{font:600 clamp(10px,calc(.7 * var(--u)),13px) var(--sans);color:var(--ink-3)}
   .gd-mon-kpi .crit b{color:var(--crit)} .gd-mon-kpi .warn b{color:var(--warn)} .gd-mon-kpi .off b{color:var(--ink-2)}
   .gd-mon-kpi .zero b{color:var(--ink-3)}
   .gd-mon-feed{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .gd-mon-feed ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;overflow:hidden;
     -webkit-mask-image:linear-gradient(var(--bg) 80%,transparent);mask-image:linear-gradient(var(--bg) 80%,transparent)}
   .gd-mon-feed li{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)}
-  .gd-mon-feed time{font:500 clamp(11px,.8vw,14px) var(--sans);color:var(--ink-3);font-variant-numeric:tabular-nums;padding-top:2px}
-  .gd-mon-feed i{width:clamp(18px,1.3vw,22px);height:clamp(18px,1.3vw,22px);font-style:normal;color:var(--ink-2)}
+  .gd-mon-feed time{font:500 clamp(11px,calc(.8 * var(--u)),14px) var(--sans);color:var(--ink-3);font-variant-numeric:tabular-nums;padding-top:2px}
+  .gd-mon-feed i{width:clamp(18px,calc(1.3 * var(--u)),22px);height:clamp(18px,calc(1.3 * var(--u)),22px);font-style:normal;color:var(--ink-2)}
   .gd-mon-feed i svg{width:100%;height:100%}
   .gd-mon-feed i.ok{color:var(--ok)} .gd-mon-feed i.warn{color:var(--warn)} .gd-mon-feed i.crit{color:var(--crit)}
-  .gd-mon-feed p{margin:0;font:500 clamp(12px,.85vw,15px)/1.45 var(--sans);color:var(--ink-2);min-width:0}
+  .gd-mon-feed p{margin:0;font:500 clamp(12px,calc(.85 * var(--u)),15px)/1.45 var(--sans);color:var(--ink-2);min-width:0}
   .gd-mon-feed p b{color:var(--ink);font-weight:700}
   .gd-mon-feed li.new{animation:gd-mon-new 1.2s ease-out}
   @keyframes gd-mon-new{from{background:color-mix(in srgb,var(--ok) 14%,transparent)}to{background:transparent}}
-  .gd-mon-feed .none{font:500 clamp(12px,.85vw,15px) var(--sans);color:var(--ink-3);padding:6px 0}
+  .gd-mon-feed .none{font:500 clamp(12px,calc(.85 * var(--u)),15px) var(--sans);color:var(--ink-3);padding:6px 0}
   .gd-mon-month{display:flex;justify-content:space-between;gap:12px}
   .gd-mon-month div{display:flex;flex-direction:column;gap:4px}
-  .gd-mon-month b{font:300 clamp(20px,1.8vw,34px)/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--ok)}
+  .gd-mon-month b{font:300 clamp(20px,calc(1.8 * var(--u)),34px)/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--ok)}
   .gd-mon-month b small{font-size:.5em;color:var(--ink-2);margin-left:2px}
-  .gd-mon-month span{font:600 clamp(10px,.7vw,13px) var(--sans);color:var(--ink-3)}
-  .gd-mon-foot{display:flex;justify-content:space-between;font:600 clamp(10px,.7vw,12px) var(--sans);letter-spacing:.08em;color:var(--ink-3);padding:0 4px}
+  .gd-mon-month span{font:600 clamp(10px,calc(.7 * var(--u)),13px) var(--sans);color:var(--ink-3)}
+  .gd-mon-foot{display:flex;justify-content:space-between;font:600 clamp(10px,calc(.7 * var(--u)),12px) var(--sans);letter-spacing:.08em;color:var(--ink-3);padding:0 4px}
   .gd-mon-foot i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:6px}
   .gd-mon-foot i.on{background:var(--ink-2)}
-  @media (max-width:900px){
-    .gd-mon{overflow:auto}
-    .gd-mon-body{grid-template-columns:minmax(0,1fr)}
-    .gd-mon-grid{grid-auto-rows:240px}
-    .gd-mon-site,.gd-mon-clock span{display:none}
-    .gd-mon-alert{flex-wrap:wrap} .gd-mon-steps{order:3;width:100%}
-  }
   @media (prefers-reduced-motion:reduce){.gd-mt.s-crit,.gd-mon-live i,.gd-mon-feed li.new{animation:none}.gd-mon{transition:none}}
 </style>
 
@@ -963,6 +963,7 @@
 
 <!-- 모니터링 모드 — 사무실 벽 모니터에 켜 두는 실시간 상황판. 늘 어두운 화면, 스크롤 없이 한 화면, 누르지 않아도 다 보이게 -->
 <section class="gd-mon" id="gd-mon" hidden aria-label="모니터링 모드">
+ <div class="gd-mon-stage" id="gd-mon-stage">
   
     <div class="gd-mon-brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="#2a2e33" stroke-width="3"/><path d="M16 3a13 13 0 1 1-12.4 9" stroke="#7fd1a8" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="#7fd1a8"/></svg>JCC GUARD</div>
     <div class="gd-mon-site" id="gd-mon-site"></div>
@@ -984,6 +985,8 @@
     </aside>
   </div>
   <footer class="gd-mon-foot"><span id="gd-mon-page"></span><span>JCC GUARD · 24시간 감시</span></footer>
+ </div>
+ <div class="gd-mon-turn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 14a9 9 0 0 0 6 6M3 14l-.5 3M3 14l3 .5"/></svg><span>가로로 돌리면 크게 보입니다</span><button type="button" id="gd-mon-x2">끝내기</button></div>
 </section>
 <div class="gd-scrim" id="gd-scrim"></div>
 <div class="gd-sheet" id="gd-sheet" role="dialog" aria-modal="true" aria-labelledby="gd-sheet-t"><div class="gd-grab"></div>
@@ -4005,7 +4008,7 @@ const EN = {
   "이 화면에서는 전체 화면을 쓸 수 없습니다 — 브라우저의 전체 화면(F11)을 쓰세요": "Full screen isn't available here — use the browser's full screen (F11)",
   "재시작 확인 — CCM 프로그램이 다시 켜져 보고했습니다": "Restart confirmed — the CCM program is back and reporting",
   "채널 재시작 확인 — CCM이 센서 연결을 다시 초기화했습니다": "Channel restart confirmed — the CCM re-initialized the sensor link",
-  "벤트 자동 개방": "vent opened automatically", "벤트 닫힘": "vent closed", "팬 가동": "fan running", "히터·팬 가동": "heater and fan running", "습도 상승": "humidity rising",
+  "가로로 돌리면 크게 보입니다": "Turn sideways for a larger view", "벤트 자동 개방": "vent opened automatically", "벤트 닫힘": "vent closed", "팬 가동": "fan running", "히터·팬 가동": "heater and fan running", "습도 상승": "humidity rising",
   // 단위(작은 글씨)
   "건": "", "시간": "hours", "회": "times", "명": "people", "대": "units", "면": "panels", "개": "", "점": "pts", "초": "s", "분": "min", "일": "days", "번": "times",
 };
@@ -5152,8 +5155,18 @@ function monLayout(n){
   const cols = Math.max(1, Math.floor((W + gap) / (minW + gap))), rows = Math.max(1, Math.floor((H + gap) / (minH + gap)));
   return {cols, rows, cap: cols * rows};
 }
+// 판 크기: 기본 1920x1080. 더 넓은 화면은 가로를(최대 2560), 4:3 같은 화면은 세로를(최대 1440) 늘려 빈틈을 줄이고,
+// 그 판을 화면에 맞춰 배율만 바꾼다 — 기기마다 배치가 달라지지 않는다
+function monFit(){
+  const vw = innerWidth, vh = innerHeight, a = vw / Math.max(1, vh), st = $("#gd-mon-stage");
+  const W = Math.round(Math.max(1920, Math.min(2560, 1080 * a))), H = Math.round(Math.max(1080, Math.min(1440, 1920 / a)));
+  const k = Math.min(vw / W, vh / H);
+  st.style.width = W + "px"; st.style.height = H + "px";
+  st.style.transform = `scale(${k}) translate(-50%, -50%)`;
+}
 function paintMon(){
   if (!MON.on || !G.d) return;
+  monFit();
   const d = G.d, ix = d.index || {}, ps = (d.panels || []).slice().sort((a, b) => (monRank[a.status] ?? 9) - (monRank[b.status] ?? 9));
   $("#gd-mon-site").textContent = d.site || "";
   // 판넬 칸
@@ -5161,7 +5174,7 @@ function paintMon(){
   MON.pages = Math.max(1, Math.ceil(ps.length / L.cap)); if (MON.page >= MON.pages) MON.page = 0;
   const show = ps.slice(MON.page * L.cap, MON.page * L.cap + L.cap), rows = Math.ceil(show.length / L.cols) || 1;
   g.style.gridTemplateColumns = `repeat(${L.cols}, minmax(0,1fr))`;
-  g.style.gridTemplateRows = matchMedia("(max-width:900px)").matches ? "" : `repeat(${Math.max(rows, MON.pages > 1 ? L.rows : rows)}, minmax(0,1fr))`;
+  g.style.gridTemplateRows = `repeat(${Math.max(rows, MON.pages > 1 ? L.rows : rows)}, minmax(0,1fr))`;
   setHTML(g, show.length ? show.map(monTile).join("") : `<div class="gd-mt-nod">아직 연결된 판넬이 없습니다.</div>`);
   $("#gd-mon-page").innerHTML = MON.pages > 1 ? Array.from({length: MON.pages}, (_, i) => `<i class="${i === MON.page ? "on" : ""}"></i>`).join("") + ` ${MON.page + 1} / ${MON.pages}` : "";
   // 위험 띠
@@ -5236,7 +5249,7 @@ function monClose(){
 }
 const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 $("#gd-mon-open").onclick = monOpen;
-$("#gd-mon-x").onclick = monClose;
+$("#gd-mon-x").onclick = $("#gd-mon-x2").onclick = monClose;
 $("#gd-mon-sound").onclick = () => { MON.sound = !MON.sound; $("#gd-mon-sound").setAttribute("aria-pressed", String(MON.sound));
   $("#gd-mon-sound").setAttribute("aria-label", MON.sound ? "경보 소리 끄기" : "경보 소리 켜기"); if (MON.sound) monBeep(); };
 $("#gd-mon-full").onclick = () => { const e = document.documentElement;
