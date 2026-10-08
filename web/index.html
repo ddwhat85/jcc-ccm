@@ -588,6 +588,9 @@
   .insp-btnrow{display:flex;gap:8px;margin-top:8px}
   .insp-btnrow .insp-btn{margin-top:0}
   .insp-btn.ghost{background:var(--canvas);color:var(--ink);border-color:var(--rule)}
+  .insp-prev{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding:7px 9px;border-radius:2px;background:var(--canvas);font-size:12px;color:var(--ink-2)}
+  .insp-prev:empty{display:none}
+  .insp-prev .lk{font-weight:700} .insp-prev .lk.crit{color:var(--crit)} .insp-prev .lk.warn{color:var(--warn)} .insp-prev .lk.ok{color:var(--ok)}
   .insp-btn.warn{background:var(--canvas);color:var(--warn);border-color:var(--warn)}
   .insp-btn.danger{background:var(--canvas);color:var(--crit);border-color:var(--crit)}
   .insp-btn.danger:hover,.insp-btn.warn:hover{filter:none;color:#fff}
@@ -3605,6 +3608,14 @@ function updateInspLive(value, unit, sev){
 }
 function num(v){ return (v===null||v===undefined||v==="") ? "" : v; }
 
+// 같은 제품: 품번이 있으면 품번+측정 항목, 없으면 제품명+측정 항목이 같은 다른 센서(이 센서 빼고)
+function sameProduct(id, r){
+  const me = id.split(":").slice(1).join(":");
+  const pn = (r.part_no||"").trim(), pr = (r.product||"").trim();
+  if(!pn && !pr) return [];
+  return Object.entries(sensorRec).filter(([k, x]) => k!==me && x.sensor_key===r.sensor_key &&
+    (pn ? (x.part_no||"").trim()===pn : (x.product||"").trim()===pr)).map(([, x]) => x);
+}
 function renderInspector(id, n){
   const insp = $("#inspector"), box = $("#insp-in");
   const kindKo = KIND_KO[n.kind] || n.kind;
@@ -3654,7 +3665,11 @@ function renderInspector(id, n){
         `<input id="set-amax" type="number" step="any" value="${num(r.alarm_max)}" placeholder="${num(r.alarm_max_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<div class="insp-set"><label>알람 최저치</label>`+
         `<input id="set-amin" type="number" step="any" value="${num(r.alarm_min)}" placeholder="${num(r.alarm_min_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
+      // 판정 미리보기 — 고치는 동안 '이 기준이면 지금 값은 ○○'(빈칸 = 제품 기본값)
+      `<div class="insp-prev" id="set-prev"></div>`+
       `<button class="insp-btn" id="set-save">설정 저장 (CCM 적용)</button>`+
+      // 같은 제품(품번·측정 항목)이 다른 판넬에도 있으면 같은 기준을 한 번에
+      (sameProduct(id, r).length ? `<button class="insp-btn ghost" id="set-same">같은 제품 ${sameProduct(id, r).length}개에도 이 기준 적용</button>` : "")+
       // 제품에 릴레이가 있으면 접점 상태를 실제 동작대로 보여준다(배선 확인용)
       ((r.relays && r.relays.length) ? (
         `<div class="insp-sec">릴레이 접점</div>` +
@@ -3751,8 +3766,43 @@ function renderInspector(id, n){
   box.innerHTML = html;
   $("#insp-close").onclick = ()=> showOverview();   // 닫으면 개요로 복귀
 
+  const prev = $("#set-prev");
+  if(prev){
+    const r0 = sensorRec[id.split(":")[1]+":"+id.split(":")[2]] || {};
+    const eff = (sel, dflt)=>{ const t = $(sel).value.trim(); return t==="" ? (dflt ?? null) : Number(t); };
+    const paint = ()=>{
+      const th = {alarm_warn: eff("#set-awarn", r0.alarm_warn_default), alarm_max: eff("#set-amax", r0.alarm_max_default), alarm_min: eff("#set-amin", r0.alarm_min_default)};
+      if(r0.value==null){ prev.innerHTML = ""; return; }
+      const sv = severity(id.split(":")[2], r0.value, th) || "ok";
+      const z = r0.kind==="vibration" ? isoChip(isoZone(r0.value, th.alarm_warn, th.alarm_max)) : "";
+      prev.innerHTML = `이 기준이면 지금 값 <b>${fmtValue(r0.value)}</b> → <span class="lk ${sv}">${sevLabel(sv)}</span>${z}`;
+    };
+    ["#set-awarn","#set-amax","#set-amin"].forEach(q=>{ const el=$(q); if(el) el.addEventListener("input", paint); });
+    paint();
+  }
   const isoSel = $("#set-iso");
-  if(isoSel) isoSel.onchange = ()=>{ const c = ISO_CLS[isoSel.value]; if(!c) return; $("#set-awarn").value = c[1]; $("#set-amax").value = c[2]; };
+  if(isoSel) isoSel.onchange = ()=>{ const c = ISO_CLS[isoSel.value]; if(!c) return; $("#set-awarn").value = c[1]; $("#set-amax").value = c[2];
+    $("#set-awarn").dispatchEvent(new Event("input")); };
+  const sameBtn = $("#set-same");
+  if(sameBtn){
+    // confirm()은 아티팩트에서 막히므로 두 번 눌러 확인(전원 끄기와 같은 방식). 기준값만 보낸다(셋팅값·릴레이는 그대로)
+    let armed = false, armT; const label = sameBtn.textContent;
+    sameBtn.onclick = async ()=>{
+      const targets = sameProduct(id, sensorRec[id.split(":")[1]+":"+id.split(":")[2]] || {});
+      if(!armed){ armed = true; sameBtn.textContent = `${targets.map(t=>t.device_id).join(", ")}에 적용? (다시 클릭)`;
+        armT = setTimeout(()=>{ armed=false; sameBtn.textContent=label; }, 4000); return; }
+      clearTimeout(armT); armed = false; sameBtn.disabled = true; sameBtn.textContent = "적용 중…";
+      const patch = {alarm_max: $("#set-amax").value, alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value};
+      let ok = 0;
+      for(const t of targets){
+        try{ const res = await setSetting(t.device_id, t.sensor_key, patch); const rr = sensorRec[t.device_id+":"+t.sensor_key];
+          if(rr){ rr.alarm_min=res.alarm_min; rr.alarm_max=res.alarm_max; rr.alarm_warn=res.alarm_warn; } ok++; }catch(_){}
+      }
+      sameBtn.textContent = ok===targets.length ? `${ok}개 적용됨 ✓` : `${ok}/${targets.length}개만 적용 — 다시 시도`;
+      setStatus(`같은 제품 ${ok}개에 알람 기준 적용`);
+      setTimeout(()=>{ sameBtn.textContent=label; sameBtn.disabled=false; }, 1800);
+    };
+  }
   // 센서 설정 저장 배선
   const saveBtn = $("#set-save");
   if(saveBtn){
