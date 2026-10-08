@@ -444,14 +444,76 @@
     for (let i = 400 * 24 - 1; i >= 1; i--) { const u = h0 - i * FC.H; s.set(u, live + shape(u) - ref + (rnd() - 0.5) * 0.8); }
     return s;
   }
-  function gdForecast(pid) {
+  // 센서마다(서버 forecast.panel_forecasts와 같은 모양) — 시연판은 센서 종류별로 그럴듯한 1년 기록을 합성한다
+  const FC_LIFE_ADV = { humidity: "히터·제습·밀폐 상태 점검을 계획하세요", current: "부하와 단자 체결 점검을 계획하세요", vibration: "팬·베어링·고정 상태 점검을 계획하세요" };   // forecast._LIFE_ADV
+  const FC_SIGNAL = ["door", "smoke"], FC_UNIT = { C: "℃", "°C": "℃", DEGC: "℃", "%RH": "%", RH: "%" }, FC_GAS = ["h2", "voc", "co"];
+  function fcSynthKind(pid, s, live, warn, t) {
+    let seed = 7; for (const ch of pid + s.sensor_key) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const seed0 = seed, rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let z = seed; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
+    const clock = u => { const k = new Date((u + 9 * FC.H) * 1000), h = k.getUTCHours(), wd = k.getUTCDay();
+      return { h, work: wd >= 1 && wd <= 5 && h >= 8 && h < 19, doy: (u - Date.UTC(k.getUTCFullYear(), 0, 1) / 1000) / FC.D }; };
+    const kind = s.kind, h0 = Math.floor(t / FC.H) * FC.H, out = new Map();
+    // 가스: 지금 값이 사건(화재 징조 등)으로 튀어 있으면 평소 값은 기준의 몇 %로 — 과거를 사건 값으로 지어내지 않는다
+    const base = FC_GAS.includes(kind) && warn != null && live > warn * 0.5 ? warn * 0.08 : live;
+    const amp = Math.max(Math.abs(base), 1);
+    let shape;
+    if (kind === "humidity") shape = u => { const c = clock(u); return -6 * Math.max(0, Math.sin(Math.PI * (c.h - 7) / 12)) - 4 * Math.sin(2 * Math.PI * (c.doy - 110) / 365) + (rnd() - 0.5) * 2; };
+    else if (kind === "current") shape = u => (clock(u).work ? 0.55 : -0.25) * amp + (rnd() - 0.5) * 0.05 * amp;
+    else if (kind === "vibration") {                    // 진동: 가동 중 높고, 베어링 마모처럼 천천히 오른다(시연)
+      // 마모는 최근 45일부터 시작했다고 보고(그 전은 평평), 45일 동안 지금 값의 절반 넘게는 오르지 않게
+      const days = 35 + seed0 % 80, slope = warn != null && warn > base ? Math.min((warn - base) * 0.9 / days, 0.5 * base / 45) / FC.D : 0;
+      shape = u => (clock(u).work ? 0.25 : -0.3) * amp - slope * Math.min(h0 - u, 45 * FC.D) + (rnd() - 0.5) * 0.06 * amp; }
+    else if (FC_GAS.includes(kind)) shape = u => 0.15 * amp * Math.sin(Math.PI * clock(u).h / 12) + (rnd() - 0.5) * 0.1 * amp;
+    else if (kind === "temp") shape = u => { const c = clock(u); return 3 * Math.sin(2 * Math.PI * (c.doy - 110) / 365) + 2.5 * Math.max(0, Math.sin(Math.PI * (c.h - 7) / 12)) + (c.work ? 1.5 : 0) + (rnd() - 0.5) * 0.8; };
+    else shape = u => (rnd() - 0.5) * 0.06 * amp;
+    const ref = shape(h0);
+    for (let i = 400 * 24 - 1; i >= 1; i--) { const u = h0 - i * FC.H; out.set(u, Math.max(0, base + shape(u) - ref)); }
+    return out;
+  }
+  function fcLife(ser, s, kind, t) {                    // 경고선까지 여유(rul.estimate와 같은 규칙 — 하루 대표값 30일)
+    const thr = s.alarm_warn != null ? [s.alarm_warn, "up"] : s.alarm_max != null ? [s.alarm_max, "up"] : s.alarm_min != null ? [s.alarm_min, "down"] : null;
+    if (!thr) return null;
+    const d0 = fcDay0(t), days = [];
+    for (let k = 30; k >= 1; k--) { const v = []; for (let i = 0; i < 24; i++) { const u = d0 - k * FC.D + i * FC.H; if (ser.has(u)) v.push(ser.get(u)); } if (v.length >= 3) days.push(fcMed(v)); }
+    const e = Object.assign(rulEstimate(days, thr[0], thr[1]), { kind: FC_GAS.includes(kind) ? "gas" : "sensor" });
+    const r1 = v => v == null ? null : Math.round(v * 10) / 10;
+    return { status: e.status, days: r1(e.days), days_lo: r1(e.days_lo), days_hi: r1(e.days_hi), threshold: thr[0], direction: thr[1], say: rulSay(e),
+      advice: e.status === "ok" || e.status === "reached" ? (e.kind === "gas" ? "센서 교정이 필요합니다" : FC_LIFE_ADV[kind] || "원인(냉각·환기·부하)을 점검하세요") : "" };
+  }
+  function gdForecast(pid) {                           // 같은 판넬은 1분 안이면 다시 계산하지 않는다(모니터링 모드가 자주 부른다)
+    const t0 = now(), c = (FC.out = FC.out || {})[pid];
+    if (c && t0 - c.at < 60) return c.v;
+    const v = gdForecastCalc(pid); FC.out[pid] = { at: t0, v }; return v;
+  }
+  function gdForecastCalc(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
-    const t = now(), live = row.temp != null ? row.temp : 27, key = pid + "|" + Math.floor(t / FC.H);
-    if (!FC.cache[key]) FC.cache = { [key]: fcSynth(pid, live, t) };        // 시간마다 한 번만 새로 만든다
-    const dev = (((panelList().find(p => p.panel === pid) || {}).ccms || [])[0] || {}).device_id;
-    const sd = dev && (S.discovered[dev] || []).find(x => x.kind === "temp" && !(x.key || "").includes("ncontact"));
-    const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
-    return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
+    const t = now(), hk = Math.floor(t / FC.H), ccms = ((panelList().find(p => p.panel === pid) || {}).ccms || []);
+    if (FC.hour !== hk) { FC.cache = {}; FC.hour = hk; }                      // 시간마다 한 번만 새로 만든다
+    const all = ccms.flatMap(c => (c.latest || []).map(x => [c.device_id, x]));
+    const temps = all.filter(([, x]) => x.kind === "temp" && !(x.sensor_key || "").includes("ncontact"));
+    const prim = temps.find(([, x]) => (x.sensor_key || "").includes("cabinet")) || temps[0];
+    const sensors = [], signals = [], seen = {};
+    all.forEach(([dev, x]) => {
+      const kind = x.kind || "other", key = x.sensor_key;
+      if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || /^ac[0-9]+_/i.test(key) || x.unit === "?" || x.enabled === false) return;
+      let name = x.name || key; seen[name] = (seen[name] || 0) + 1; if (seen[name] > 1) name += " " + seen[name];
+      if (FC_SIGNAL.includes(kind)) { signals.push({ name, kind }); return; }
+      const isP = !!prim && prim[0] === dev && prim[1].sensor_key === key;
+      const warn = x.alarm_warn != null ? x.alarm_warn : x.alarm_max != null ? x.alarm_max : (isP ? 38 : null);
+      const live = isP && row.temp != null ? row.temp : (x.value != null ? x.value : (kind === "temp" ? 27 : 0));
+      const ck = pid + "|" + dev + "|" + key; if (!FC.cache[ck]) FC.cache[ck] = fcSynthKind(pid, x, live, warn, t);
+      const f = fcBuild(FC.cache[ck], t, warn);
+      if (!isP) f.last_year = [];
+      Object.assign(f, { id: dev + ":" + key, name, kind, unit: FC_UNIT[(x.unit || "").toUpperCase()] || x.unit || "", primary: isP, life: fcLife(FC.cache[ck], x, kind, t) });
+      const lf = f.life || {};
+      f.concern = f.near_warn ? 2 : (lf.status === "reached" || (lf.status === "ok" && lf.days <= 60)) ? 1 : 0;
+      sensors.push(f);
+    });
+    if (!sensors.length) return null;
+    sensors.sort((a, b) => (b.concern - a.concern) || (b.primary - a.primary));
+    const top = sensors.find(f => f.primary);
+    return Object.assign({}, top || { building: true, days: 0, forecast: [] }, { panel: pid, now: t, demo: true, sensors, signals },
+      top ? { sensor_name: top.name, unit: "℃" } : {});
   }
   // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
   const LIVE = { cache: {} };

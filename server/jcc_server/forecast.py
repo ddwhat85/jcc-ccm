@@ -1,4 +1,4 @@
-"""판넬 온도 예측 — 내일 시간별 온도를, 그 판넬이 남긴 기록의 패턴만으로.
+"""판넬 센서 예측 — 내일 시간별 값을, 그 센서가 남긴 기록의 패턴만으로(온도·습도·전류·진동·가스 각각).
 
 바깥 날씨(기상청)는 아직 쓰지 않는다(나중에 붙인다). 예측 = 같은 요일·같은 시각의 지난 8주 값(중앙값)
 + 최근 3일이 그 패턴보다 얼마나 높았나(흐름, 0.6배로 눌러 반영). 계절은 이 '흐름'이 천천히 따라간다.
@@ -8,6 +8,8 @@
   - 기록이 MIN_DAYS보다 적으면 예측하지 않는다(building).
 
 원본 값(readings)은 14일만 남기므로, 시간별 평균을 hourly 표에 따로 오래 남긴다(rollup, 기본 3년).
+판넬 하나의 모든 센서(panel_forecasts): 센서마다 내일 시간별 예측 + 경고선까지 남은 여유(rul.py — 하루 대표값의 추세).
+문·연기처럼 켜짐/꺼짐 신호는 값을 예측하지 않는다(실시간 감시로 지킨다).
 """
 from __future__ import annotations
 
@@ -39,7 +41,8 @@ def ensure(storage) -> None:
 
 # ── 시간별 평균 쌓기 ───────────────────────────────────────
 def rollup(storage, now: float | None = None, hours: int = 48) -> int:
-    """지난 hours 시간의 원본 값을 시간별 평균으로(다 지난 시간만). 온도·습도만. 같은 시간은 다시 계산해 덮는다."""
+    """지난 hours 시간의 원본 값을 시간별 평균으로(다 지난 시간만). 숫자로 재는 센서 전부(온도·습도·전류·진동·가스 —
+    센서마다 내일을 예측하려면 각자의 시간별 기록이 있어야 한다). 같은 시간은 다시 계산해 덮는다."""
     ensure(storage)
     now = time.time() if now is None else now
     end = (now // H) * H
@@ -48,8 +51,6 @@ def rollup(storage, now: float | None = None, hours: int = 48) -> int:
         rows = storage._conn.execute(
             "SELECT device_id, sensor_key, CAST(ts / 3600 AS INTEGER) * 3600 AS h, AVG(value) AS a, MIN(value) AS lo, "
             "MAX(value) AS hi, COUNT(*) AS n FROM readings WHERE ok=1 AND value IS NOT NULL AND ts >= ? AND ts < ? "
-            "AND (UPPER(unit) IN ('C', '°C', 'DEGC', '%RH', 'RH') OR sensor_key LIKE '%temp%' OR sensor_key LIKE '%humid%' "
-            "OR sensor_key GLOB 'ac[0-9]*_run') "
             "GROUP BY device_id, sensor_key, h", (start, end)).fetchall()
         storage._conn.executemany(
             "INSERT OR REPLACE INTO hourly (device_id, sensor_key, hour, avg, vmin, vmax, n) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -207,4 +208,75 @@ def panel_forecast(storage, panel: str, now: float | None = None) -> dict | None
     s = series(storage, dev, key, now - 400 * D)
     out = build(s, now, warn)
     out.update(panel=panel, sensor_name=name, unit="℃", now=now)
+    return out
+
+
+# ── 판넬의 센서 전부 ──────────────────────────────────────
+_SIGNAL_KINDS = {"door", "smoke"}          # 켜짐·꺼짐 신호 — 값 예측 대신 실시간 감시
+_UNIT = {"C": "℃", "°C": "℃", "DEGC": "℃", "%RH": "%", "RH": "%"}
+LIFE_SOON = 60                             # 경고선까지 이 날수 안이면 '보전 계획' 대상으로 표시
+# 경고선에 다가가는 센서별 보전 할 일(가스는 rul.py 그대로 '센서 교정')
+_LIFE_ADV = {"temp": "원인(냉각·환기·부하)을 점검하세요", "humidity": "히터·제습·밀폐 상태 점검을 계획하세요",
+             "current": "부하와 단자 체결 점검을 계획하세요", "vibration": "팬·베어링·고정 상태 점검을 계획하세요"}
+
+
+def _concern(f: dict) -> int:
+    """2 = 내일 주의 기준에 닿을 수 있음 · 1 = 경고선까지 여유가 60일 안(또는 이미 닿음) · 0 = 평소 범위."""
+    if f.get("near_warn"):
+        return 2
+    lf = f.get("life") or {}
+    if lf.get("status") == "reached" or (lf.get("status") == "ok" and (lf.get("days") or 1e9) <= LIFE_SOON):
+        return 1
+    return 0
+
+
+def panel_forecasts(storage, panel: str, now: float | None = None) -> dict | None:
+    """판넬에 달린 센서 각각의 내일 예측 + 경고선까지 남은 여유. 위쪽 필드는 대표 온도(예전 모양 그대로),
+    sensors = 센서 전부(걱정되는 것부터, 같으면 대표 온도 먼저), signals = 예측하지 않는 켜짐/꺼짐 신호."""
+    from . import guard, rul
+    now = time.time() if now is None else now
+    ccms = next((p["ccms"] for p in storage.list_panels() if p["panel"] == panel), None)
+    if ccms is None:
+        return None
+    src = panel_forecast_source(storage, panel)
+    primary = (src[0], src[1]) if src else None
+    sensors, signals, seen = [], [], {}
+    for c in ccms:
+        for x in c.get("latest") or []:
+            kind = guard._kind(x) or guard._guess(x)
+            key = x["sensor_key"]
+            if (kind in guard._SKIP_KINDS or kind.startswith("aircon") or re.match(r"^ac[0-9]+_", key.lower())
+                    or (x.get("unit") or "") == "?" or x.get("enabled") is False):
+                continue
+            name = x.get("name") or key
+            seen[name] = seen.get(name, 0) + 1
+            name = name + (f" {seen[name]}" if seen[name] > 1 else "")
+            if kind in _SIGNAL_KINDS:
+                signals.append({"name": name, "kind": kind})
+                continue
+            is_primary = primary == (c["device_id"], key)
+            warn = src[3] if is_primary else (x.get("alarm_warn") if x.get("alarm_warn") is not None else x.get("alarm_max"))
+            f = build(series(storage, c["device_id"], key, now - 400 * D), now, warn)
+            unit = _UNIT.get((x.get("unit") or "").upper(), x.get("unit") or "")
+            f.update(id=f"{c['device_id']}:{key}", name=name, kind=kind, unit=unit, primary=is_primary)
+            rule = rul._sensor_rule(x)
+            ser = rul.series(storage, f"sensor:{c['device_id']}:{key}") if rule else []
+            if ser and not all(v in (0, 1) for _, v in ser):
+                e = rul.estimate(ser, rule[0], rule[1])
+                item = dict(e, kind="gas" if kind in rul._GAS else "sensor")
+                f["life"] = {"status": e["status"], "days": e["days"], "days_lo": e["days_lo"], "days_hi": e["days_hi"],
+                             "threshold": rule[0], "direction": rule[1], "say": rul._say(item),
+                             "advice": rul._advice(item) and (_LIFE_ADV.get(kind) or rul._advice(item))}
+            else:
+                f["life"] = None
+            f["concern"] = _concern(f)
+            sensors.append(f)
+    if not sensors:
+        return None
+    sensors.sort(key=lambda f: (-f["concern"], not f["primary"]))
+    top = next((f for f in sensors if f["primary"]), None)
+    out = dict(top) if top else {"panel": panel, "building": True, "days": 0, "forecast": []}
+    out.update(panel=panel, now=now, sensors=sensors, signals=signals)
+    if top:
+        out.update(sensor_name=top["name"], unit="℃")
     return out

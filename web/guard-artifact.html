@@ -578,6 +578,43 @@
   .gd-tk-flag i{width:8px;height:8px;border-radius:50%;background:var(--warn);flex:none} .gd-tk-flag i.act{background:var(--crit)}
   .gd-tk-flag span{flex:1;font-weight:600}
   .gd-tk-flag button{border:0;background:none;cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2);text-decoration:underline;text-underline-offset:3px;min-height:36px}
+  /* 내일 — 센서별 예측 칸 */
+  .gd-fcs-head{display:flex;align-items:center;gap:10px;margin:2px 0 12px}
+  .gd-fcs-head svg{width:26px;height:26px;flex:none;color:var(--ok)} .gd-fcs-head.warn svg{color:var(--warn)}
+  .gd-fcs-head b{font:700 var(--t-h)/1.3 var(--sans);letter-spacing:-.01em}
+  .gd-fcs-head span{margin-left:auto;font:600 var(--t-cap) var(--sans);color:var(--ink-3);white-space:nowrap}
+  .gd-fcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .gd-fcs-t{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:12px 12px 10px;text-align:left;
+    border-radius:var(--r-s);border:1px solid var(--line-2);background:var(--card-2);color:var(--ink);cursor:pointer;font-family:var(--sans);
+    transition:border-color .15s ease,background-color .15s ease}
+  .gd-fcs-t:hover{border-color:var(--line)}
+  .gd-fcs-t.on{border-color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--ink-2)}
+  .gd-fcs-t .nm{display:flex;align-items:center;gap:6px;min-width:0;width:100%;font:600 var(--t-cap)/1.3 var(--sans);color:var(--ink-2)}
+  .gd-fcs-t .nm svg{width:18px;height:18px;flex:none;color:var(--ink-3)}
+  .gd-fcs-t .nm em{font-style:normal;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-fcs-t > b{margin-top:6px;font:300 var(--t-fig)/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .gd-fcs-t > b small{font:500 var(--t-cap) var(--sans);color:var(--ink-3);margin-left:3px;letter-spacing:0}
+  .gd-fcs-t .cap{font:500 11px var(--sans);color:var(--ink-3)}
+  .gd-fcs-t .sp{display:block;width:100%;height:34px;margin:6px 0 8px;overflow:visible}
+  .gd-fcs-t .sp .a{fill:none;stroke:var(--ink-2);stroke-width:1.6;vector-effect:non-scaling-stroke}
+  .gd-fcs-t .sp .f{fill:none;stroke:var(--ok);stroke-width:1.6;stroke-dasharray:4 3;vector-effect:non-scaling-stroke}
+  .gd-fcs-t .sp .w{stroke:var(--warn);stroke-width:1;stroke-dasharray:3 3;vector-effect:non-scaling-stroke}
+  .gd-fcs-t .pill{font:700 11px/1 var(--sans);font-style:normal;padding:5px 8px;border-radius:var(--pill);background:var(--track,var(--line-2));color:var(--ink-3)}
+  .gd-fcs-t.ok .pill{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .gd-fcs-t.warn{border-color:color-mix(in srgb,var(--warn) 55%,transparent)}
+  .gd-fcs-t.warn .pill,.gd-fcs-t.life .pill{background:var(--fill-warn,var(--warn));color:var(--on-warn,#1b1a17)}
+  .gd-fcs-t.warn .nm svg,.gd-fcs-t.life .nm svg{color:var(--warn)}
+  .gd-fcs-t.warn .sp .f,.gd-fcs-t.life .sp .f{stroke:var(--warn)}
+  .gd-fcs-sel{display:flex;align-items:center;gap:8px;margin:22px 0 8px;padding-top:16px;border-top:1px solid var(--line-2);scroll-margin-top:12px}
+  .gd-fcs-sel svg{width:22px;height:22px;color:var(--ink-2)} .gd-fcs-sel b{font:700 var(--t-h) var(--sans)}
+  .gd-fcs-life{display:flex;align-items:baseline;gap:10px;margin:10px 0 0;font-size:var(--t-body);line-height:1.5;color:var(--ink-2)}
+  .gd-fcs-life i{flex:none;font:700 11px var(--sans);font-style:normal;padding:4px 8px;border-radius:var(--pill);background:var(--track,var(--line-2));color:var(--ink-3)}
+  .gd-fcs-life.due{color:var(--ink)} .gd-fcs-life.due i{background:var(--fill-warn,var(--warn));color:var(--on-warn,#1b1a17)}
+  .gd-fcs-sig{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line-2)}
+  .gd-fcs-sig span{display:inline-flex;align-items:center;gap:6px;font:600 var(--t-cap) var(--sans);color:var(--ink-2)}
+  .gd-fcs-sig span svg{width:18px;height:18px;color:var(--ink-3)}
+  .gd-fcs-sig small{flex-basis:100%;font-size:var(--t-cap);color:var(--ink-3)}
+  @media (max-width:420px){.gd-fcs{grid-template-columns:repeat(2,minmax(0,1fr))}.gd-fcs-head span{display:none}}
   .gd-fc-more{margin-top:12px}
   .gd-fc-more summary{cursor:pointer;font:600 var(--t-cap) var(--sans);color:var(--ink-2);min-height:36px;display:flex;align-items:center;list-style:none}
   .gd-fc-more summary::-webkit-details-marker{display:none}
@@ -1913,14 +1950,76 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     for (let i = 400 * 24 - 1; i >= 1; i--) { const u = h0 - i * FC.H; s.set(u, live + shape(u) - ref + (rnd() - 0.5) * 0.8); }
     return s;
   }
-  function gdForecast(pid) {
+  // 센서마다(서버 forecast.panel_forecasts와 같은 모양) — 시연판은 센서 종류별로 그럴듯한 1년 기록을 합성한다
+  const FC_LIFE_ADV = { humidity: "히터·제습·밀폐 상태 점검을 계획하세요", current: "부하와 단자 체결 점검을 계획하세요", vibration: "팬·베어링·고정 상태 점검을 계획하세요" };   // forecast._LIFE_ADV
+  const FC_SIGNAL = ["door", "smoke"], FC_UNIT = { C: "℃", "°C": "℃", DEGC: "℃", "%RH": "%", RH: "%" }, FC_GAS = ["h2", "voc", "co"];
+  function fcSynthKind(pid, s, live, warn, t) {
+    let seed = 7; for (const ch of pid + s.sensor_key) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const seed0 = seed, rnd = () => { seed = (seed + 0x6D2B79F5) >>> 0; let z = seed; z = Math.imul(z ^ (z >>> 15), z | 1); z ^= z + Math.imul(z ^ (z >>> 7), z | 61); return ((z ^ (z >>> 14)) >>> 0) / 4294967296; };
+    const clock = u => { const k = new Date((u + 9 * FC.H) * 1000), h = k.getUTCHours(), wd = k.getUTCDay();
+      return { h, work: wd >= 1 && wd <= 5 && h >= 8 && h < 19, doy: (u - Date.UTC(k.getUTCFullYear(), 0, 1) / 1000) / FC.D }; };
+    const kind = s.kind, h0 = Math.floor(t / FC.H) * FC.H, out = new Map();
+    // 가스: 지금 값이 사건(화재 징조 등)으로 튀어 있으면 평소 값은 기준의 몇 %로 — 과거를 사건 값으로 지어내지 않는다
+    const base = FC_GAS.includes(kind) && warn != null && live > warn * 0.5 ? warn * 0.08 : live;
+    const amp = Math.max(Math.abs(base), 1);
+    let shape;
+    if (kind === "humidity") shape = u => { const c = clock(u); return -6 * Math.max(0, Math.sin(Math.PI * (c.h - 7) / 12)) - 4 * Math.sin(2 * Math.PI * (c.doy - 110) / 365) + (rnd() - 0.5) * 2; };
+    else if (kind === "current") shape = u => (clock(u).work ? 0.55 : -0.25) * amp + (rnd() - 0.5) * 0.05 * amp;
+    else if (kind === "vibration") {                    // 진동: 가동 중 높고, 베어링 마모처럼 천천히 오른다(시연)
+      // 마모는 최근 45일부터 시작했다고 보고(그 전은 평평), 45일 동안 지금 값의 절반 넘게는 오르지 않게
+      const days = 35 + seed0 % 80, slope = warn != null && warn > base ? Math.min((warn - base) * 0.9 / days, 0.5 * base / 45) / FC.D : 0;
+      shape = u => (clock(u).work ? 0.25 : -0.3) * amp - slope * Math.min(h0 - u, 45 * FC.D) + (rnd() - 0.5) * 0.06 * amp; }
+    else if (FC_GAS.includes(kind)) shape = u => 0.15 * amp * Math.sin(Math.PI * clock(u).h / 12) + (rnd() - 0.5) * 0.1 * amp;
+    else if (kind === "temp") shape = u => { const c = clock(u); return 3 * Math.sin(2 * Math.PI * (c.doy - 110) / 365) + 2.5 * Math.max(0, Math.sin(Math.PI * (c.h - 7) / 12)) + (c.work ? 1.5 : 0) + (rnd() - 0.5) * 0.8; };
+    else shape = u => (rnd() - 0.5) * 0.06 * amp;
+    const ref = shape(h0);
+    for (let i = 400 * 24 - 1; i >= 1; i--) { const u = h0 - i * FC.H; out.set(u, Math.max(0, base + shape(u) - ref)); }
+    return out;
+  }
+  function fcLife(ser, s, kind, t) {                    // 경고선까지 여유(rul.estimate와 같은 규칙 — 하루 대표값 30일)
+    const thr = s.alarm_warn != null ? [s.alarm_warn, "up"] : s.alarm_max != null ? [s.alarm_max, "up"] : s.alarm_min != null ? [s.alarm_min, "down"] : null;
+    if (!thr) return null;
+    const d0 = fcDay0(t), days = [];
+    for (let k = 30; k >= 1; k--) { const v = []; for (let i = 0; i < 24; i++) { const u = d0 - k * FC.D + i * FC.H; if (ser.has(u)) v.push(ser.get(u)); } if (v.length >= 3) days.push(fcMed(v)); }
+    const e = Object.assign(rulEstimate(days, thr[0], thr[1]), { kind: FC_GAS.includes(kind) ? "gas" : "sensor" });
+    const r1 = v => v == null ? null : Math.round(v * 10) / 10;
+    return { status: e.status, days: r1(e.days), days_lo: r1(e.days_lo), days_hi: r1(e.days_hi), threshold: thr[0], direction: thr[1], say: rulSay(e),
+      advice: e.status === "ok" || e.status === "reached" ? (e.kind === "gas" ? "센서 교정이 필요합니다" : FC_LIFE_ADV[kind] || "원인(냉각·환기·부하)을 점검하세요") : "" };
+  }
+  function gdForecast(pid) {                           // 같은 판넬은 1분 안이면 다시 계산하지 않는다(모니터링 모드가 자주 부른다)
+    const t0 = now(), c = (FC.out = FC.out || {})[pid];
+    if (c && t0 - c.at < 60) return c.v;
+    const v = gdForecastCalc(pid); FC.out[pid] = { at: t0, v }; return v;
+  }
+  function gdForecastCalc(pid) {
     const row = gdRows().find(p => p.panel === pid); if (!row) return null;
-    const t = now(), live = row.temp != null ? row.temp : 27, key = pid + "|" + Math.floor(t / FC.H);
-    if (!FC.cache[key]) FC.cache = { [key]: fcSynth(pid, live, t) };        // 시간마다 한 번만 새로 만든다
-    const dev = (((panelList().find(p => p.panel === pid) || {}).ccms || [])[0] || {}).device_id;
-    const sd = dev && (S.discovered[dev] || []).find(x => x.kind === "temp" && !(x.key || "").includes("ncontact"));
-    const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
-    return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
+    const t = now(), hk = Math.floor(t / FC.H), ccms = ((panelList().find(p => p.panel === pid) || {}).ccms || []);
+    if (FC.hour !== hk) { FC.cache = {}; FC.hour = hk; }                      // 시간마다 한 번만 새로 만든다
+    const all = ccms.flatMap(c => (c.latest || []).map(x => [c.device_id, x]));
+    const temps = all.filter(([, x]) => x.kind === "temp" && !(x.sensor_key || "").includes("ncontact"));
+    const prim = temps.find(([, x]) => (x.sensor_key || "").includes("cabinet")) || temps[0];
+    const sensors = [], signals = [], seen = {};
+    all.forEach(([dev, x]) => {
+      const kind = x.kind || "other", key = x.sensor_key;
+      if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || /^ac[0-9]+_/i.test(key) || x.unit === "?" || x.enabled === false) return;
+      let name = x.name || key; seen[name] = (seen[name] || 0) + 1; if (seen[name] > 1) name += " " + seen[name];
+      if (FC_SIGNAL.includes(kind)) { signals.push({ name, kind }); return; }
+      const isP = !!prim && prim[0] === dev && prim[1].sensor_key === key;
+      const warn = x.alarm_warn != null ? x.alarm_warn : x.alarm_max != null ? x.alarm_max : (isP ? 38 : null);
+      const live = isP && row.temp != null ? row.temp : (x.value != null ? x.value : (kind === "temp" ? 27 : 0));
+      const ck = pid + "|" + dev + "|" + key; if (!FC.cache[ck]) FC.cache[ck] = fcSynthKind(pid, x, live, warn, t);
+      const f = fcBuild(FC.cache[ck], t, warn);
+      if (!isP) f.last_year = [];
+      Object.assign(f, { id: dev + ":" + key, name, kind, unit: FC_UNIT[(x.unit || "").toUpperCase()] || x.unit || "", primary: isP, life: fcLife(FC.cache[ck], x, kind, t) });
+      const lf = f.life || {};
+      f.concern = f.near_warn ? 2 : (lf.status === "reached" || (lf.status === "ok" && lf.days <= 60)) ? 1 : 0;
+      sensors.push(f);
+    });
+    if (!sensors.length) return null;
+    sensors.sort((a, b) => (b.concern - a.concern) || (b.primary - a.primary));
+    const top = sensors.find(f => f.primary);
+    return Object.assign({}, top || { building: true, days: 0, forecast: [] }, { panel: pid, now: t, demo: true, sensors, signals },
+      top ? { sensor_name: top.name, unit: "℃" } : {});
   }
   // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
   const LIVE = { cache: {} };
@@ -3854,7 +3953,20 @@ const EN = {
   "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다.": "Limit reached. JCC will schedule the work and call you.",
   "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다.": "At the current trend it will need attention around then. We'll check it at the next inspection.",
   "최근 7일 동안 특별한 일이 없었습니다.": "Nothing notable in the last 7 days.", "판넬이 스스로": "Panel itself", "감지": "Detected",
-  "판넬 안 온도 — 내일 예측": "Temp inside panel — tomorrow's forecast", "시간별 보기": "Hourly view", "내일 시간별 예측": "Tomorrow, hour by hour",
+  "판넬 안 온도 — 내일 예측": "Temp inside panel — tomorrow's forecast", "내일 모든 센서가 평소 범위입니다": "All sensors in their usual range tomorrow",
+  "센서별 예측": "Forecast by sensor", "내일 최고": "Tomorrow's high", "평소 범위": "Usual range", "주의 기준 근접": "Near watch limit",
+  "기록 쌓는 중": "Building history", "예측 준비 중": "Getting ready", "경고선 도달": "At warning line", "장기 추세": "Long-term trend",
+  "켜짐·꺼짐 신호 — 예측 대신 실시간으로 지킵니다": "On/off signals — watched live instead of forecast",
+  "예측 방법: 센서마다 지난 8주 같은 요일·같은 시각 값과 최근 3일 흐름으로 계산합니다.": "Method: for each sensor, the same weekday and hour over the last 8 weeks plus the last 3 days' trend.",
+  "장기 추세는 하루 대표값 30일의 기울기로 경고선까지 남은 기간을 셉니다.": "The long-term trend counts the time left to the warning line from the slope of 30 days of daily values.",
+  "환기·팬 상태를 미리 살펴 두시면 좋습니다": "Worth checking vents and fans ahead of time", "히터·제습 상태를 미리 살펴 두시면 좋습니다": "Worth checking the heater and dehumidifier ahead of time",
+  "부하와 단자 체결 상태를 미리 살펴 두시면 좋습니다": "Worth checking load and terminal tightness ahead of time",
+  "팬·베어링·고정 상태를 미리 살펴 두시면 좋습니다": "Worth checking fans, bearings and mounting ahead of time",
+  "환기와 배터리 상태를 미리 살펴 두시면 좋습니다": "Worth checking ventilation and the batteries ahead of time", "상태를 미리 살펴 두시면 좋습니다": "Worth checking ahead of time",
+  "뚜렷하게 나빠지는 추세 없음": "No clear worsening trend", "1년 넘게 여유": "Over a year of margin", "이미 기준선에 닿음": "Already at the line",
+  "원인(냉각·환기·부하)을 점검하세요": "Check the cause (cooling, ventilation, load)", "센서 교정이 필요합니다": "Sensor needs calibration",
+  "접점 조임·청소 점검을 계획하세요": "Plan a contact tightening and cleaning check", "히터·제습·밀폐 상태 점검을 계획하세요": "Plan a heater, dehumidifier and seal check",
+  "부하와 단자 체결 점검을 계획하세요": "Plan a load and terminal tightness check", "팬·베어링·고정 상태 점검을 계획하세요": "Plan a fan, bearing and mounting check", "시간별 보기": "Hourly view", "내일 시간별 예측": "Tomorrow, hour by hour",
   "작년 같은 날": "Same day last year", "주의 기준": "Watch limit", "예측을 불러오지 못했습니다": "Couldn't load the forecast",
   "아직 내일을 예측할 기록이 모자랍니다.": "Not enough history to forecast tomorrow yet.", "내일 가장 높을 때": "Tomorrow's peak",
   "실제와 비교할 기록이 더 쌓이면 예측 범위와 평균 오차가 함께 나옵니다.": "Once there's more history to compare against, the range and average error appear too.",
@@ -4060,6 +4172,7 @@ const EN_RE = [
   [/^계산으로도 모자랍니다 — $/, "Short on paper too — "],
   [/^이 판넬의 기록이 14일 쌓이면 왜 오르는지와 할 일을 알려 드립니다 — 지금 (\d+)일째입니다\.$/, "After 14 days of history we'll explain why it warms up and what to do — day $1 now."],
   [/^예측은 이 판넬의 기록이 7일 쌓이면 시작합니다 — 지금 (\d+)일째입니다\.$/, "Forecasts start after 7 days of history — day $1 now."],
+  [/^예측은 이 센서의 기록이 7일 쌓이면 시작합니다 — 지금 (\d+)일째입니다\.$/, "This sensor's forecast starts after 7 days of history — day $1 now."],
   [/^지난 14일 중 (\d+)일, 주의 기준\(([\d.]+)℃\)을 넘었습니다\. 가장 높을 때 ([\d.]+)℃\.$/, "On $1 of the last 14 days it went over the watch limit ($2℃). Peak $3℃."],
   [/^(\d+)~(\d+)시$/, "$1–$2h"],
   [/^안심 지수 (\d+)점$/, "Safety index $1"], [/^([\d,]+)시간 지켰습니다$/, "Protected for $1 hours"],
@@ -4087,6 +4200,12 @@ const EN_RE = [
   [/^JCC에 전화 (.+)$/, "Call JCC $1"], [/^어제·오늘 실제 온도와 내일 예측 그래프\. 내일 가장 높을 때 (.+) ([\d.]+)도$/, (m, h, v) => `Yesterday and today's actual temperature and tomorrow's forecast. Tomorrow's peak ${enDates(h)} ${v}°`],
   [/^벤트 열림, 판넬 안 (.+)$/, (m, a) => `Vent open, inside the panel ${enText(a) || a}`],
   [/^센서 (\d+)개 모두 정상$/, "All $1 sensors OK"],
+  [/^내일 살펴볼 센서 (\d+)개$/, "$1 sensors to watch tomorrow"], [/^센서 (\d+)개 예측$/, "$1 sensors forecast"],
+  [/^기록 쌓는 중 (\d+)일째$/, "Building history · day $1"], [/^경고선까지 약 (\d+)(주|일)$/, (m, a, u) => `~${a} ${u === "주" ? "wk" : "d"} to warning line`],
+  [/^경고선까지(\(기준선 드리프트\))? 약 (\d+)(주|일)(?: \((\d+)~(\d+)(주|일)\))?$/, (m, g, a, u, lo, hi) => `about ${a} ${u === "주" ? "weeks" : "days"} to the warning line${g ? " (baseline drift)" : ""}${lo ? ` (${lo}–${hi} ${u === "주" ? "weeks" : "days"})` : ""}`],
+  [/^데이터 (\d+)일 — 7일 쌓이면 예측$/, "$1 days of data — trend after 7"],
+  [/^(.+) — 어제·오늘 실제와 내일 예측 그래프\. 내일 가장 높을 때 (.+)$/, (m, n, a) => `${enName(n)} — yesterday and today's actuals and tomorrow's forecast. Tomorrow's peak ${enDates(a)}`],
+  [/^주의 기준 (.+)에 닿을 수 있습니다$/, "May reach the watch limit of $1"], [/^주의 ([\d.]+ ?[^\s]*)$/, "Watch $1"],
   [/^지난 24시간 · (.+)$/, "Last 24 h · $1"], [/^주의 ([\d.]+℃) ┄$/, "Watch $1 ┄"], [/^(\d+) \/ (\d+)$/, "$1 / $2"],
   [/^평일 ([^·—]+?) 평균 최고 ([\d.]+)℃$/, (m, h, a) => `Weekday ${enHours(h)} peaks average ${a}℃`],
   [/^주의 기준\(([\d.]+)℃\)에 가깝습니다\.$/, "close to the watch limit ($1℃)."],
@@ -4626,20 +4745,21 @@ function openTodo(list){
 function panelTab(k){
   document.querySelectorAll("#gd-sheet-body [data-tab]").forEach(b => b.setAttribute("aria-selected", String(b.dataset.tab === k)));
   document.querySelectorAll("#gd-sheet-body .gd-pane").forEach(x => { x.hidden = x.id !== "gd-pane-" + k; });
-  if (k === "fc" && G.fc && $("#gd-fc")) $("#gd-fc").innerHTML = fcHTML(G.fc, $("#gd-fc").clientWidth);
+  if (k === "fc" && G.fc && $("#gd-fc")) fcPaint($("#gd-fc"));
 }
 function dropTab(k){ const b = $("#gd-tab-" + k), x = $("#gd-pane-" + k); if (b) b.remove(); if (x) x.remove(); }
 
-// ── 내일 온도 예측 ─────────────────────────────────────────
-// 그 판넬의 지난 8주 같은 요일·시각 + 최근 3일 흐름으로 낸 예측. 예측은 늘 '범위'와 '지난 오차'를 같이 보인다(실제 기록으로 잰 것)
+// ── 내일 예측 — 판넬에 달린 센서 각각 ───────────────────────
+// 센서마다 지난 8주 같은 요일·시각 + 최근 3일 흐름으로 낸 예측 + 경고선까지 남은 여유(하루 대표값 추세).
+// 예측은 늘 '범위'와 '지난 오차'를 같이 보인다(실제 기록으로 잰 것). 문·연기 같은 켜짐/꺼짐 신호는 예측하지 않는다
 async function loadForecast(pid){
   const box = $("#gd-fc"); if (!box) return;
   try { const r = await fetch(`/api/guard/forecast?panel=${encodeURIComponent(pid)}&${q()}`, {cache:"no-store"});
-    if (r.status === 404){ dropTab("fc"); return; }          // 온도 센서가 없는 판넬 — 예측할 게 없다
+    if (r.status === 404){ dropTab("fc"); return; }          // 숫자로 재는 센서가 없는 판넬 — 예측할 게 없다
     if (!r.ok) throw new Error();
-    const f = await r.json(); G.fc = f;
-    if ($("#gd-fc") === box && box.clientWidth) box.innerHTML = fcHTML(f, box.clientWidth);   // 보이는 중이면 바로, 아니면 탭을 열 때
-  } catch(_){ if ($("#gd-fc") === box) box.innerHTML = `<h5>판넬 안 온도 — 내일 예측</h5><div class="gd-note">예측을 불러오지 못했습니다</div>`; }
+    const f = await r.json(); G.fc = f; G.fcSel = null;
+    if ($("#gd-fc") === box && box.clientWidth) fcPaint(box);   // 보이는 중이면 바로, 아니면 탭을 열 때
+  } catch(_){ if ($("#gd-fc") === box) box.innerHTML = `<div class="gd-note">예측을 불러오지 못했습니다</div>`; }
 }
 const hh = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour:"numeric", hour12:false}).replace(/\D/g, "") + "시";
 const f1 = v => (Math.round(v * 10) / 10).toFixed(1);
@@ -4705,52 +4825,112 @@ function tkHTML(t){
     `<p class="gd-note">이유는 이 판넬 기록의 모양(평일·주말, 시간대, 주별 추세)으로 추정한 것입니다. 인버터 부하와 바깥 온도는 아직 재지 않습니다. ` +
     `설정 변경·교체는 JCC가 확인한 뒤 사람이 합니다.${t.demo ? " (시연판 — 가상 기록)" : ""}</p>`;
 }
-function fcHTML(f, width){
-  const title = "";
-  if (f.building) return title + `<p class="gd-note">예측은 이 판넬의 기록이 7일 쌓이면 시작합니다 — 지금 ${Math.floor(f.days)}일째입니다.</p>`;
-  const D = 86400, now = f.now, day0 = Math.floor((now + 9 * 3600) / D) * D - 9 * 3600, tm0 = day0 + D;
-  const tom = f.forecast.filter(x => x.ts >= tm0), pk = f.peak, lo = f.low;
-  if (!tom.length) return title + `<p class="gd-note">아직 내일을 예측할 기록이 모자랍니다.</p>`;
-  const rng = x => x.lo == null ? "" : `${f1(x.lo)}~${f1(x.hi)}`;
-  const say = `<p class="gd-fc-say">내일 가장 높을 때 <b>${hh(pk.ts)} ${f1(pk.v)}℃</b>${pk.lo != null ? ` <span>(예상 ${rng(pk)}℃)</span>` : ""}` +
-    ` · 가장 낮을 때 ${hh(lo.ts)} ${f1(lo.v)}℃</p>` +
-    (f.near_warn ? `<p class="gd-fc-warn">주의 기준 ${f1(f.warn)}℃에 닿을 수 있습니다 — 환기·팬 상태를 미리 살펴 두시면 좋습니다.</p>` : "");
-  // 그래프: 어제 0시 ~ 내일 24시(72시간)
-  // 그래프 폭 = 실제 칸 폭(휴대폰에서 글자가 줄어들지 않게), 높이는 폭에 맞춰
-  const W = Math.round(Math.max(300, Math.min(600, width || 520))), Ht = Math.round(Math.max(180, W * 0.42)), L = 30, R = 8, T = 12, B = 26, x0 = day0 - D, x1 = day0 + 2 * D;
-  const act = [...f.yesterday, ...f.today];
-  const ys = [...act.map(a => a.v), ...f.forecast.flatMap(a => a.lo == null ? [a.v] : [a.lo, a.hi]), ...f.last_year.map(a => a.v)];
+// 값 + 단위(℃·%는 붙여서, 나머지는 한 칸 띄워서). 100 넘는 값(ppm 등)은 정수로
+const fcN = v => Math.abs(v) >= 100 ? String(Math.round(v)) : f1(v);
+const fcV = (v, u) => fcN(v) + (!u ? "" : u === "℃" || u === "%" ? u : " " + u);
+const FC_ADV = {temp: "환기·팬", humidity: "히터·제습", current: "부하와 단자 체결", vibration: "팬·베어링·고정", h2: "환기와 배터리", voc: "환기와 배터리", co: "환기와 배터리"};
+const fcWeeks = d => d >= 21 ? `약 ${Math.round(d / 7)}주` : `약 ${Math.max(1, Math.round(d))}일`;
+// 센서 칸의 상태 — 내일 주의 기준 근접(노랑) > 경고선까지 60일 안(보전 계획) > 기록 쌓는 중 > 평소 범위
+function fcState(x){
+  const lf = x.life || {};
+  if (x.concern >= 2) return {cls: "warn", word: "주의 기준 근접"};
+  if (x.concern === 1) return {cls: "life", word: lf.status === "reached" ? "경고선 도달" : `경고선까지 ${fcWeeks(lf.days)}`};
+  if (x.building) return {cls: "", word: "기록 쌓는 중"};
+  return {cls: "ok", word: "평소 범위"};
+}
+// 칸 안 작은 그림: 오늘 실제(실선) → 내일 예측(점선)
+function fcSpark(x){
+  const pts = [...(x.today || []), ...(x.forecast || [])];
+  if (pts.length < 3) return `<svg class="sp" viewBox="0 0 120 34" aria-hidden="true"></svg>`;
+  const t0 = pts[0].ts, t1 = pts[pts.length - 1].ts, vs = pts.map(p => p.v);
+  let y0 = Math.min(...vs), y1 = Math.max(...vs);
+  if (x.warn != null && x.warn > y1 && x.warn - y1 < (y1 - y0 || 1)) y1 = x.warn;
+  if (y1 - y0 < 1e-6){ y0 -= 1; y1 += 1; }
+  const X = t => 2 + (t - t0) / Math.max(1, t1 - t0) * 116, Y = v => 31 - (v - y0) / (y1 - y0) * 28;
+  const line = a => a.map((p, i) => `${i ? "L" : "M"}${X(p.ts).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
+  const act = x.today || [], fc = act.length ? [act[act.length - 1], ...(x.forecast || [])] : (x.forecast || []);
+  return `<svg class="sp" viewBox="0 0 120 34" preserveAspectRatio="none" aria-hidden="true">` +
+    (x.warn != null && x.warn <= y1 && x.warn >= y0 ? `<line class="w" x1="0" x2="120" y1="${Y(x.warn).toFixed(1)}" y2="${Y(x.warn).toFixed(1)}"/>` : "") +
+    (act.length > 1 ? `<path class="a" d="${line(act)}"/>` : "") + (fc.length > 1 ? `<path class="f" d="${line(fc)}"/>` : "") + `</svg>`;
+}
+function fcPaint(box){
+  box.innerHTML = fcHTML(G.fc, box.clientWidth);
+  box.querySelectorAll("[data-fc]").forEach(b => b.onclick = () => { G.fcSel = b.dataset.fc; fcPaint(box);
+    const c = box.querySelector(".gd-fcs-sel"); if (c && c.scrollIntoView) c.scrollIntoView({block: "nearest", behavior: "smooth"}); });
+}
+function fcHTML(F, width){
+  const list = F.sensors && F.sensors.length ? F.sensors
+    : [Object.assign({id: "_", name: F.sensor_name || "판넬 안 온도", kind: "temp", unit: "℃", concern: F.near_warn ? 2 : 0, life: null}, F)];
+  if (!list.some(x => x.id === G.fcSel)) G.fcSel = list[0].id;
+  const sel = list.find(x => x.id === G.fcSel), busy = list.filter(x => x.concern > 0).length;
+  const head = `<div class="gd-fcs-head ${busy ? "warn" : "ok"}">${stIco(busy ? "warn" : "ok")}<b>${busy ? `내일 살펴볼 센서 ${busy}개` : "내일 모든 센서가 평소 범위입니다"}</b><span>센서 ${list.length}개 예측</span></div>`;
+  const tiles = `<div class="gd-fcs" role="tablist" aria-label="센서별 예측">` + list.map(x => {
+    const st = fcState(x), on = x.id === sel.id;
+    return `<button type="button" class="gd-fcs-t ${st.cls}${on ? " on" : ""}" data-fc="${esc(x.id)}" role="tab" aria-selected="${on}">` +
+      `<span class="nm">${snIco(x.kind)}<em>${esc(x.name)}</em></span>` +
+      (x.peak ? `<b>${fcN(x.peak.v)}<small>${esc(x.unit || "")}</small></b><small class="cap">내일 최고</small>`
+        : `<b>—</b><small class="cap">${x.building ? `기록 쌓는 중 ${Math.floor(x.days)}일째` : "예측 준비 중"}</small>`) +
+      fcSpark(x) + `<i class="pill">${st.word}</i></button>`;
+  }).join("") + `</div>`;
+  const sig = (F.signals || []).length ? `<div class="gd-fcs-sig">${F.signals.map(x => `<span>${snIco(x.kind)}${esc(x.name)}</span>`).join("")}` +
+    `<small>켜짐·꺼짐 신호 — 예측 대신 실시간으로 지킵니다</small></div>` : "";
+  return head + tiles + `<div class="gd-fcs-sel">${snIco(sel.kind)}<b>${esc(sel.name)}</b></div>` + fcOne(sel, width, F) + sig;
+}
+// 고른 센서 하나 — 내일 최고·최저, 72시간 그래프(어제·오늘 실제 + 내일 예측 범위), 장기 추세, 시간별 표
+function fcOne(f, width, F){
+  const u = f.unit || "";
+  const lf = f.life;
+  const life = lf ? `<p class="gd-fcs-life ${lf.status === "reached" || (lf.status === "ok" && lf.days <= 60) ? "due" : ""}"><i>장기 추세</i>` +
+    `<span>${esc(lf.say)}${lf.advice ? ` — ${esc(lf.advice)}` : ""}</span></p>` : "";
+  if (f.building) return life + `<p class="gd-note">예측은 이 센서의 기록이 7일 쌓이면 시작합니다 — 지금 ${Math.floor(f.days)}일째입니다.</p>`;
+  const D = 86400, now = F.now, day0 = Math.floor((now + 9 * 3600) / D) * D - 9 * 3600, tm0 = day0 + D;
+  const tom = (f.forecast || []).filter(x => x.ts >= tm0), pk = f.peak, lo = f.low;
+  if (!tom.length || !pk) return life + `<p class="gd-note">아직 내일을 예측할 기록이 모자랍니다.</p>`;
+  // 0 밑으로 갈 수 없는 값(전류·진동·가스·습도)은 범위 아래쪽을 0에서 자른다
+  const nn = f.kind !== "temp" && [...(f.yesterday || []), ...(f.today || [])].every(a => a.v >= 0), LO = x => nn ? Math.max(0, x.lo) : x.lo;
+  const rng = x => x.lo == null ? "" : `${fcN(LO(x))}~${fcV(x.hi, u)}`;
+  const say = `<p class="gd-fc-say">내일 가장 높을 때 <b>${hh(pk.ts)} ${fcV(pk.v, u)}</b>${pk.lo != null ? ` <span>(예상 ${rng(pk)})</span>` : ""}` +
+    ` · 가장 낮을 때 ${hh(lo.ts)} ${fcV(lo.v, u)}</p>` +
+    (f.near_warn ? `<p class="gd-fc-warn">주의 기준 ${fcV(f.warn, u)}에 닿을 수 있습니다 — ${FC_ADV[f.kind] || ""}${FC_ADV[f.kind] ? " " : ""}상태를 미리 살펴 두시면 좋습니다</p>` : "");
+  // 그래프: 어제 0시 ~ 내일 24시(72시간). 폭 = 실제 칸 폭(휴대폰에서 글자가 줄어들지 않게)
+  const W = Math.round(Math.max(300, Math.min(600, width || 520))), Ht = Math.round(Math.max(180, W * 0.42)), L = 34, R = 8, T = 12, B = 26, x0 = day0 - D, x1 = day0 + 2 * D;
+  const act = [...(f.yesterday || []), ...(f.today || [])], ly = f.last_year || [];
+  const ys = [...act.map(a => a.v), ...f.forecast.flatMap(a => a.lo == null ? [a.v] : [LO(a), a.hi]), ...ly.map(a => a.v)];
   let y0 = Math.min(...ys), y1 = Math.max(...ys);
-  if (f.warn != null && f.warn > y1 && f.warn - y1 < 4) y1 = f.warn;
-  if (f.warn != null && f.warn < y0 && y0 - f.warn < 4) y0 = f.warn;
-  y0 = Math.floor(y0 - 0.5); y1 = Math.ceil(y1 + 0.5);
+  const near = Math.max((y1 - y0) * 0.5, Math.abs(y1) * 0.1, 0.5);           // 기준선이 가까우면 그래프에 넣는다
+  if (f.warn != null && f.warn > y1 && f.warn - y1 < near) y1 = f.warn;
+  if (f.warn != null && f.warn < y0 && y0 - f.warn < near) y0 = f.warn;
+  const span = Math.max(y1 - y0, Math.abs(y1) * 0.04, 0.2), dec = span < 4 ? 1 : 0;
+  y0 -= span * 0.08; y1 += span * 0.08;
+  if (!dec){ y0 = Math.floor(y0); y1 = Math.ceil(y1); }
+  if (y0 < 0 && (nn || Math.min(...ys) >= 0)) y0 = 0;
   const X = t => L + (t - x0) / (x1 - x0) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (Ht - T - B);
   const path = pts => pts.map((p, i) => `${i ? "L" : "M"}${X(p.ts).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
   const last = act.length ? act[act.length - 1] : null, fcl = last ? [last, ...f.forecast] : f.forecast;
   const band = f.forecast[0] && f.forecast[0].lo != null
     ? `<path class="band" d="${f.forecast.map((p, i) => `${i ? "L" : "M"}${X(p.ts).toFixed(1)},${Y(p.hi).toFixed(1)}`).join("")}` +
-      `${f.forecast.slice().reverse().map(p => `L${X(p.ts).toFixed(1)},${Y(p.lo).toFixed(1)}`).join("")}Z"/>` : "";
-  const ticks = [y0, (y0 + y1) / 2, y1].map(v => `<line class="g" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="yl" x="${L - 6}" y="${Y(v) + 3.5}">${Math.round(v)}</text>`).join("");
+      `${f.forecast.slice().reverse().map(p => `L${X(p.ts).toFixed(1)},${Y(LO(p)).toFixed(1)}`).join("")}Z"/>` : "";
+  const ticks = [y0, (y0 + y1) / 2, y1].map(v => `<line class="g" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="yl" x="${L - 6}" y="${Y(v) + 3.5}">${dec ? v.toFixed(1) : Math.round(v)}</text>`).join("");
   const days = [["어제", x0], ["오늘", day0], ["내일", tm0]].map(([n, t], i) =>
     (i ? `<line class="d" x1="${X(t)}" x2="${X(t)}" y1="${T}" y2="${Ht - B}"/>` : "") + `<text class="xl" x="${X(t + D / 2)}" y="${Ht - 8}">${n}</text>`).join("");
   const warn = f.warn != null && f.warn >= y0 && f.warn <= y1
-    ? `<line class="w" x1="${L}" x2="${W - R}" y1="${Y(f.warn)}" y2="${Y(f.warn)}"/><text class="wl" x="${W - R - 2}" y="${Y(f.warn) - 4}">주의 ${f1(f.warn)}℃</text>` : "";
-  const svg = `<svg class="gd-fc-chart" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="어제·오늘 실제 온도와 내일 예측 그래프. 내일 가장 높을 때 ${hh(pk.ts)} ${f1(pk.v)}도">` +
+    ? `<line class="w" x1="${L}" x2="${W - R}" y1="${Y(f.warn)}" y2="${Y(f.warn)}"/><text class="wl" x="${W - R - 2}" y="${Y(f.warn) - 4}">주의 ${fcV(f.warn, u)}</text>` : "";
+  const svg = `<svg class="gd-fc-chart" viewBox="0 0 ${W} ${Ht}" role="img" aria-label="${esc(f.name)} — 어제·오늘 실제와 내일 예측 그래프. 내일 가장 높을 때 ${hh(pk.ts)} ${fcV(pk.v, u)}">` +
     ticks + days + band + warn +
-    (f.last_year.length ? `<path class="ly" d="${path(f.last_year)}"/>` : "") +
-    `<path class="act" d="${path(act)}"/><path class="fcl" d="${path(fcl)}"/>` +
+    (ly.length ? `<path class="ly" d="${path(ly)}"/>` : "") +
+    (act.length ? `<path class="act" d="${path(act)}"/>` : "") + `<path class="fcl" d="${path(fcl)}"/>` +
     `<line class="now" x1="${X(now)}" x2="${X(now)}" y1="${T}" y2="${Ht - B}"/>` +
     (last ? `<circle class="dot" cx="${X(last.ts)}" cy="${Y(last.v)}" r="3"/>` : "") + `</svg>`;
   const key = `<div class="gd-fc-key"><span><i class="act"></i>실제</span><span><i class="fcl"></i>예측${f.band != null ? " · 범위" : ""}</span>` +
-    (f.last_year.length ? `<span><i class="ly"></i>작년 같은 날</span>` : "") + (warn ? `<span><i class="w"></i>주의 기준</span>` : "") + `</div>`;
+    (ly.length ? `<span><i class="ly"></i>작년 같은 날</span>` : "") + (warn ? `<span><i class="w"></i>주의 기준</span>` : "") + `</div>`;
   const grid = `<details class="gd-fc-more"><summary>시간별 보기</summary><div class="gd-fc-hours" role="table" aria-label="내일 시간별 예측">${tom.map(x =>
     `<div role="row" class="${x.ts === pk.ts ? "pk" : ""}${f.warn != null && (x.hi != null ? x.hi : x.v) >= f.warn ? " w" : ""}"><small role="cell">${hh(x.ts)}</small>` +
-    `<b role="cell">${f1(x.v)}</b>${x.lo != null ? `<span role="cell">${rng(x)}</span>` : ""}</div>`).join("")}</div></details>`;
-  const how = `<p class="gd-note">예측 방법: 이 판넬의 지난 8주 같은 요일·같은 시각 온도와 최근 3일 흐름으로 계산합니다. 바깥 날씨는 아직 반영하지 않습니다. ` +
-    (f.mae != null ? `지난 ${f.tested_days}일 동안 실제와 비교한 평균 오차는 <b>±${f1(f.mae)}℃</b>이고, 범위는 지난 오차의 80%가 들어온 폭입니다.`
+    `<b role="cell">${fcN(x.v)}</b>${x.lo != null ? `<span role="cell">${fcN(LO(x))}~${fcN(x.hi)}</span>` : ""}</div>`).join("")}</div></details>`;
+  const how = `<p class="gd-note">예측 방법: 센서마다 지난 8주 같은 요일·같은 시각 값과 최근 3일 흐름으로 계산합니다. 장기 추세는 하루 대표값 30일의 기울기로 경고선까지 남은 기간을 셉니다. 바깥 날씨는 아직 반영하지 않습니다. ` +
+    (f.mae != null ? `지난 ${f.tested_days}일 동안 실제와 비교한 평균 오차는 <b>±${fcV(f.mae, u)}</b>이고, 범위는 지난 오차의 80%가 들어온 폭입니다.`
       : "실제와 비교할 기록이 더 쌓이면 예측 범위와 평균 오차가 함께 나옵니다.") +
-    (f.demo ? " (시연판 — 1년 운영을 가정한 가상 기록입니다.)" : "") + `</p>`;
-  return title + say + svg + key + grid + how;
+    (F.demo ? " (시연판 — 1년 운영을 가정한 가상 기록입니다.)" : "") + `</p>`;
+  return say + life + svg + key + grid + how;
 }
 
 async function openMonthly(){

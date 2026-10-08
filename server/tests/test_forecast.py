@@ -94,7 +94,7 @@ def run():
     F.rollup(st, now)
     ser = F.series(st, "ccm-1", "cabinet_temp", 0)
     check("한 시간 평균", ser.get(h) == 31.0, str(ser))
-    check("습도도 쌓고, 가스 센서는 안 쌓음", F.series(st, "ccm-1", "cabinet_humidity", 0) and not F.series(st, "ccm-1", "h2_lel", 0))
+    check("습도·가스도 센서마다 쌓음(센서별 예측용)", F.series(st, "ccm-1", "cabinet_humidity", 0) and F.series(st, "ccm-1", "h2_lel", 0))
     check("아직 안 끝난 시간은 안 쌓음", not F.series(st, "ccm-2", "cabinet_temp", 0))
     F.rollup(st, now)
     check("다시 돌려도 같은 값(덮어씀)", F.series(st, "ccm-1", "cabinet_temp", 0).get(h) == 31.0)
@@ -107,6 +107,27 @@ def run():
     check("판넬 예측: 함내 온도·내일", pf and pf["sensor_name"] == "함내 온도" and len([f for f in pf["forecast"] if f["ts"] >= tm0]) == 24,
           str(pf and pf.get("days")))
     check("없는 판넬은 None", F.panel_forecast(st, "zz", now) is None)
+
+    print("\n=== 판넬 센서 전부 ===")
+    st.ingest({"device_id": "ccm-1", "panel": "p1", "panel_name": "A동", "readings": [
+        {"key": "main_current", "name": "메인 차단기 전류", "unit": "A", "kind": "current", "value": 20, "ok": True, "ts": now - 60},
+        {"key": "door_gap", "name": "문", "unit": "mm", "kind": "door", "value": 0, "ok": True, "ts": now - 60}]})
+    cur = {t: 18 + (v - 26) * 2 for t, v in synth(now, 30).items()}      # 전류: 가동 시간에 오르는 모양
+    with st._lock:
+        st._conn.executemany("INSERT OR REPLACE INTO hourly (device_id, sensor_key, hour, avg, vmin, vmax, n) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             [("ccm-1", "main_current", t, v, v, v, 6) for t, v in cur.items()])
+        st._conn.commit()
+    pfs = F.panel_forecasts(st, "p1", now)
+    by = {f["name"]: f for f in pfs["sensors"]}
+    check("센서마다 예측: 온도·습도·수소·전류", {"함내 온도", "함내 습도", "수소", "메인 차단기 전류"} <= set(by), str(list(by)))
+    check("전류도 내일 24시간 예측", len([f for f in by["메인 차단기 전류"]["forecast"] if f["ts"] >= tm0]) == 24 and by["메인 차단기 전류"]["unit"] == "A")
+    check("기록이 짧은 센서는 '쌓이는 중'(지어내지 않음)", by["수소"]["building"] and not by["수소"]["forecast"])
+    check("문은 예측 대신 신호로", [x["name"] for x in pfs["signals"]] == ["문"] and "문" not in by)
+    check("대표 온도는 위쪽 필드 그대로(예전 화면 호환)", pfs["sensor_name"] == "함내 온도" and pfs["forecast"] and by["함내 온도"]["primary"])
+    check("단위는 화면용(℃·%)", by["함내 온도"]["unit"] == "℃" and by["함내 습도"]["unit"] == "%")
+    check("걱정 순서: 같은 걱정이면 대표 온도 먼저", pfs["sensors"][0]["concern"] >= pfs["sensors"][-1]["concern"]
+          and (pfs["sensors"][0]["primary"] or pfs["sensors"][0]["concern"] > 0))
+    check("예측 없는 판넬은 None", F.panel_forecasts(st, "zz", now) is None)
     with st._lock:   # 제품 기본: 주의 38·위험 45 / 운영자는 '위험'만 50으로 → 주의선은 그대로 38
         st._conn.execute("INSERT OR REPLACE INTO discovered (device_id, sensor_key, name, unit, kind, alarm_warn, alarm_max) "
                          "VALUES ('ccm-1', 'cabinet_temp', '함내 온도', 'C', 'temp', 38, 45)")
@@ -147,6 +168,8 @@ def run():
         call("/api/login", {"user": "view.f", "password": "view-f-pw-2026"})
         s1, j = call("/api/guard/forecast?panel=p1")
         check("고객: 자기 판넬 예측", s1 == 200 and j.get("forecast"), str(s1))
+        # 위에서 discovered에 함내 온도만 넣어 이 장비는 '탐색 끝' — 목록이 그 센서만 남는다(실장비도 같은 규칙)
+        check("고객: 센서별 예측도 같이", [f["name"] for f in j.get("sensors") or []] == ["함내 온도"] and "signals" in j, str(j.get("sensors") and len(j["sensors"])))
         check("고객: 남의 판넬 예측 404", call("/api/guard/forecast?panel=p2")[0] == 404)
     finally:
         srv.shutdown()

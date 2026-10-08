@@ -429,10 +429,10 @@ class Handler(BaseHTTPRequestHandler):
             pid = (q.get("panel") or [""])[0]
             t = panel_thermal(self.storage, pid) if panels is None or pid in panels else None
             return self._json(t) if t else self._json({"error": "볼 수 없는 판넬입니다"}, 404)
-        if path == "/api/guard/forecast":        # 판넬 온도 예측(내일 시간별) — 고객은 자기 판넬만
-            from .forecast import panel_forecast
+        if path == "/api/guard/forecast":        # 판넬 센서별 예측(내일 시간별 + 경고선까지 여유) — 고객은 자기 판넬만
+            from .forecast import panel_forecasts
             pid = (q.get("panel") or [""])[0]
-            f = panel_forecast(self.storage, pid) if panels is None or pid in panels else None
+            f = panel_forecasts(self.storage, pid) if panels is None or pid in panels else None
             return self._json(f) if f else self._json({"error": "볼 수 없는 판넬입니다"}, 404)
         if path == "/api/guard/incident":        # 사건 보고서 한 장(고객은 자기 범위만)
             try:
