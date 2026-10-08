@@ -745,6 +745,7 @@
   .gd-mt-tr .cap em{font-style:normal;color:var(--warn)}
   .gd-mt-sn{display:flex;flex-wrap:wrap;gap:6px 12px;font:600 clamp(10px,4.8cqh,15px) var(--sans);color:var(--ink-3)}
   .gd-mt-sn span{display:inline-flex;align-items:center;gap:6px}
+  .gd-mt-sn em{font-style:normal}
   .gd-mt-sn svg{width:1.25em;height:1.25em;color:var(--ok)}
   .gd-mt-sn .warn,.gd-mt-sn .warn svg{color:var(--warn)} .gd-mt-sn .crit,.gd-mt-sn .crit svg{color:var(--crit)}
   .gd-mt-nod{font:500 clamp(10px,4cqh,13px) var(--sans);color:var(--ink-3);align-self:center;margin:auto}
@@ -4101,7 +4102,7 @@ function enPiece(k){
   return null;
 }
 // 한 줄 번역: 통째 → 틀 → " — "·" · "·문장 단위로 쪼개서(조각마다). 하나도 못 바꾸면 null(그대로 둠)
-const EN_SPLIT = [/((?<=[.!?)]) (?=\S))/, /( — )/, /( · )/];
+const EN_SPLIT = [/((?<=[.!?)]) (?=\S))/, /( — )/, /( · )/, /( → )/];
 function enText(t, lv){
   const k = String(t).trim(); if (!/[가-힣]/.test(k)) return null;
   const whole = enPiece(k); if (whole != null) return whole;
@@ -5134,7 +5135,7 @@ function monTile(p){
     `<div><b>${p.humidity == null ? "—" : esc(p.humidity)}<small>%</small></b><span>습도</span></div>` +
     (third ? `<div class="w"><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</div>` +
     `<div class="gd-mt-tr">${monSpark(tr, p)}</div>` +
-    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}${esc(x.name)} ${esc(x.say)}</span>`).join("")
+    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}<em>${esc(x.name)}</em> ${esc(x.say)}</span>`).join("")
       : sens.length ? `<span>${stIco("ok")}센서 ${sens.length + (p.temp != null) + (p.humidity != null)}개 모두 정상</span>` : ""}</footer></article>`;
 }
 // 판넬 수에 맞춰 칸을 나눈다: 다 들어가면 가장 크게, 안 들어가면 페이지로(문제 판넬이 첫 페이지)
