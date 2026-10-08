@@ -219,8 +219,9 @@
     const all = ccms.flatMap(c => c.latest.map(s => [c.device_id, s])), picked = new Set(), d = { temp: null, humidity: null, sensors: [] };
     all.forEach(([dev, s]) => {
       if (s.value == null) return;
-      if (s.kind === "temp" && d.temp == null && s.sensor_key.includes("cabinet")) { d.temp = gdRound(s.value, 1); picked.add(dev + ":" + s.sensor_key); }
-      if (s.kind === "humidity" && d.humidity == null) { d.humidity = gdRound(s.value, 0); picked.add(dev + ":" + s.sensor_key); }
+      const lv = k => [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, k)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0];
+      if (s.kind === "temp" && d.temp == null && s.sensor_key.includes("cabinet")) { d.temp = gdRound(s.value, 1); d.temp_id = dev + ":" + s.sensor_key; d.temp_level = lv("temp"); picked.add(dev + ":" + s.sensor_key); }
+      if (s.kind === "humidity" && d.humidity == null) { d.humidity = gdRound(s.value, 0); d.humidity_id = dev + ":" + s.sensor_key; d.humidity_level = lv("humidity"); picked.add(dev + ":" + s.sensor_key); }
     });
     if (d.temp == null) { const f = all.find(([, s]) => s.kind === "temp" && s.value != null); if (f) { d.temp = gdRound(f[1].value, 1); picked.add(f[0] + ":" + f[1].sensor_key); } }
     const seen = {};
@@ -229,7 +230,7 @@
       if (picked.has(dev + ":" + s.sensor_key)) { seen[name] = (seen[name] || 0) + 1; return; }
       if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || s.unit === "?" || s.enabled === false) return;
       seen[name] = (seen[name] || 0) + 1;
-      const item = { name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] };
+      const item = { id: dev + ":" + s.sensor_key, name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] };
       if (kind === "vibration") item.zone = gdZone(s.value, s.alarm_warn, s.alarm_max);
       d.sensors.push(item);
     });
@@ -285,6 +286,7 @@
     const pr = p.predict;
     return { panel: p.panel, panel_name: p.panel_name, site: "", status: p.status,
       word: { crit: "위험", offline: "연결 끊김", warn: "지켜보는 중", ok: "정상" }[p.status], why: p.why, temp: p.temp, humidity: p.humidity, sensors: p.sensors || [],
+      temp_id: p.temp_id, humidity_id: p.humidity_id, temp_level: p.temp_level || "ok", humidity_level: p.humidity_level || "ok",
       fire: GD_WORD.fire[pr.fire] || "—", contact: GD_WORD.contact[pr.contact] || "—", dew: GD_WORD.dew[pr.dew] || "—", vent_open: !!pr.vent_open,
       life: p.life ? Object.assign({}, p.life, { label: gdLife(p.life.label) }) : null, alarms: p.alarms, next_inspection: p.next_inspection, ccm_online: p.ccm_online, ccm_total: p.ccm_total, last_seen: p.last_seen };
   }
@@ -534,7 +536,16 @@
       : ["fire", "contact", "dew", "alarm", "alarm_warn", "actuator_fault"].includes(e.etype) ? "감지" : null;
     const feed = S.events.filter(e => e.ts >= t - 86400 && WHO(e)).slice(0, 30)
       .map(e => ({ ts: e.ts, who: WHO(e), kind: e.etype, panel_name: names[e.device_id] || "", text: gdPlain(e.detail) }));
-    return { now: t, trends, feed, demo: true };
+    const series = {};
+    rows.forEach(r => { const out = {};
+      if (!gdForecast(r.panel)) return;
+      [r.temp_id, r.humidity_id].concat((r.sensors || []).filter(x => x.kind !== "door" && x.kind !== "smoke").map(x => x.id)).filter(Boolean).forEach(id => {
+        const ser = FC.cache[r.panel + "|" + id.replace(":", "|")]; if (!ser) return;
+        const pts = []; ser.forEach((v, u) => { if (u >= t - 24 * FC.H) pts.push([u, Math.round(v * 100) / 100]); });
+        const sf = ((gdForecast(r.panel) || {}).sensors || []).find(f => f.id === id);
+        out[id] = { points: pts.sort((a, b) => a[0] - b[0]), warn: sf ? sf.warn : null }; });
+      series[r.panel] = out; });
+    return { now: t, trends, series, feed, demo: true };
   }
 
   // ── 온도가 오르는 이유와 할 일(서버 thermal.py와 같은 규칙) — 시연판은 위 가상 1년 기록으로 ──

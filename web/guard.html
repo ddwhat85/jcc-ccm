@@ -794,7 +794,11 @@
   .gd-mt-v b{font:300 clamp(26px,22cqh,96px)/1 var(--sans);letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
   .gd-mt-v b small{font-size:.42em;letter-spacing:0;margin-left:2px;color:var(--ink-2)}
   .gd-mt-v span{font:500 clamp(10px,4.5cqh,14px) var(--sans);color:var(--ink-3);margin-top:4px}
-  .gd-mt.s-crit .gd-mt-v .hot b{color:var(--crit-ink)}
+  .gd-mt-v .crit b{color:var(--crit)} .gd-mt-v .warn b{color:var(--warn)}
+  .gd-mt-v .gd-zn{font-size:.3em;vertical-align:.9em;letter-spacing:0}
+  .gd-mt-v.flip,.gd-mt-tr.flip{animation:gd-mt-flip .45s ease-out}
+  .gd-mt header .gd-mt-pg{margin-left:auto}
+  @media (prefers-reduced-motion:reduce){.gd-mt-v.flip,.gd-mt-tr.flip{animation:none}}
   .gd-mt-v .w b{font:700 clamp(14px,9cqh,40px)/1.1 var(--sans);letter-spacing:-.01em}
   .gd-mt.s-crit .gd-mt-v .w b{color:var(--crit)} .gd-mt.s-warn .gd-mt-v .w b{color:var(--warn)}
   .gd-mt-tr{flex:1;min-height:clamp(28px,20cqh,130px);display:flex;flex-direction:column;gap:4px}
@@ -1058,7 +1062,7 @@
 
 <script src="predict-core.js?v=715bbefa"></script>
 <script src="tuning-data.js?v=06a3f067"></script>
-<script src="demo-api.js?v=60fbb784"></script>
+<script src="demo-api.js?v=201a21fb"></script>
 <script>
 // ── 언어: 한국어 / English ─────────────────────────────────────────
 // 화면 코드는 한국어 그대로 쓰고, 그려진 글을 영어 사전으로 바꾼다(서버가 보낸 문구까지 같은 사전).
@@ -1398,7 +1402,8 @@ const EN_RE = [
   [/^데이터 (\d+)일 — 7일 쌓이면 예측$/, "$1 days of data — trend after 7"],
   [/^(.+) — 어제·오늘 실제와 내일 예측 그래프\. 내일 가장 높을 때 (.+)$/, (m, n, a) => `${enName(n)} — yesterday and today's actuals and tomorrow's forecast. Tomorrow's peak ${enDates(a)}`],
   [/^주의 기준 (.+)에 닿을 수 있습니다$/, "May reach the watch limit of $1"], [/^주의 ([\d.]+ ?[^\s]*)$/, "Watch $1"],
-  [/^지난 24시간 · (.+)$/, "Last 24 h · $1"], [/^주의 ([\d.]+℃) ┄$/, "Watch $1 ┄"], [/^(\d+) \/ (\d+)$/, "$1 / $2"],
+  [/^지난 24시간 · (.+)$/, "Last 24 h · $1"], [/^(.+) · 지난 24시간 (.+)$/, (m, n, r) => `${enName(n)} · last 24 h ${r}`],
+  [/^(.+) 흐름 기록이 쌓이는 중$/, (m, n) => `Building ${enName(n)} history`], [/^주의 ([\d.]+℃) ┄$/, "Watch $1 ┄"], [/^(\d+) \/ (\d+)$/, "$1 / $2"],
   [/^평일 ([^·—]+?) 평균 최고 ([\d.]+)℃$/, (m, h, a) => `Weekday ${enHours(h)} peaks average ${a}℃`],
   [/^주의 기준\(([\d.]+)℃\)에 가깝습니다\.$/, "close to the watch limit ($1℃)."],
   [/^주의 기준\(([\d.]+)℃\)보다 ([\d.]+)℃ 낮습니다\.$/, "$2℃ below the watch limit ($1℃)."],
@@ -2489,55 +2494,65 @@ function monClock(){
   lv.classList.toggle("off", stale); lv.querySelector("span").textContent = stale ? "연결 끊김" : "실시간";
 }
 // 지난 24시간 실제 온도(시간별 평균) — 주의 기준선을 같이(가까울 때만), 마지막 점은 지금 값
-function monSpark(tr, p){
-  const pts = ((tr && tr.points) || []).slice(); if (p.temp != null) pts.push([Date.now() / 1000, p.temp]);
-  if (pts.length < 3) return `<div class="gd-mt-nod">온도 흐름 기록이 쌓이는 중</div>`;
-  const t1 = Date.now() / 1000, t0 = t1 - 24 * 3600, vs = pts.map(x => x[1]), warn = tr && tr.warn;
+// ── 판넬 칸: 메인 숫자 두 개 + 그 센서의 지난 24시간 + 나머지 센서 칸 ──
+// 메인도 MON_SEC초마다 다음 센서 둘로 넘어간다(온도·습도 → 수소·VOC → …). 위험·주의 센서가 있으면 그 둘이 먼저.
+// 그래프는 지금 메인 첫 번째 센서의 것(숫자와 그래프가 같은 센서). 아래 칸은 메인에 없는 센서 — 위험·주의는 고정, 정상만 돈다.
+const MON_SEC = 5, MON_SN = 4, MON_R = {crit: 2, warn: 1, ok: 0}, MON_SIGNAL = ["door", "smoke"];
+function monItems(p){
+  const out = [];
+  if (p.temp != null) out.push({id: p.temp_id, kind: "temp", name: "온도", say: `${p.temp}℃`, level: p.temp_level || "ok"});
+  if (p.humidity != null) out.push({id: p.humidity_id, kind: "humidity", name: "습도", say: `${p.humidity}%`, level: p.humidity_level || "ok"});
+  return out.concat(p.sensors || []);
+}
+const monSort = a => a.map((x, i) => [x, i]).sort((x, y) => (MON_R[y[0].level] || 0) - (MON_R[x[0].level] || 0) || x[1] - y[1]).map(x => x[0]);
+function monPick(p){
+  const all = monItems(p), mains = monSort(all.filter(x => !MON_SIGNAL.includes(x.kind))), t = MON.tick || 0;
+  const mp = Math.max(1, Math.ceil(mains.length / 2)), mpg = t % mp, main = mains.slice(mpg * 2, mpg * 2 + 2);
+  const rest = monSort(all.filter(x => !main.includes(x))), bad = rest.filter(x => x.level !== "ok"), ok = rest.filter(x => x.level === "ok");
+  let chips, cp = 1, cpg = 0;
+  if (bad.length >= MON_SN){ cp = Math.ceil(bad.length / MON_SN); cpg = t % cp; chips = bad.slice(cpg * MON_SN, cpg * MON_SN + MON_SN); }
+  else { const slots = MON_SN - bad.length; cp = Math.max(1, Math.ceil(ok.length / slots)); cpg = t % cp; chips = bad.concat(ok.slice(cpg * slots, cpg * slots + slots)); }
+  return {main, mp, mpg, chips, cp, cpg};
+}
+// '8.1 %LEL' → ['8.1', '%LEL'] / '닫힘' → ['닫힘', '']
+const monSplit = say => { const m = /^(-?\d[\d.,]*)\s*(.*)$/.exec(String(say || "")); return m ? [m[1], m[2]] : [String(say || "—"), ""]; };
+function monSpark(x, p){
+  const tr = x && MON.live && ((MON.live.series || {})[p.panel] || {})[x.id] || (x && x.kind === "temp" && x.id === p.temp_id && MON.live && MON.live.trends ? MON.live.trends[p.panel] : null);
+  const [num, unit] = monSplit(x && x.say), cur = Number(String(num).replace(/,/g, ""));
+  const pts = ((tr && tr.points) || []).slice(); if (x && isFinite(cur)) pts.push([Date.now() / 1000, cur]);
+  if (pts.length < 3) return `<div class="gd-mt-nod">${x ? `${esc(x.name)} 흐름 기록이 쌓이는 중` : ""}</div>`;
+  const t1 = Date.now() / 1000, t0 = t1 - 24 * 3600, vs = pts.map(v => v[1]), warn = tr && tr.warn;
   let lo = Math.min(...vs), hi = Math.max(...vs);
-  if (warn != null && warn - hi < 6) hi = Math.max(hi, warn);
-  if (hi - lo < 2){ const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
+  const span = Math.max(hi - lo, Math.abs(hi) * .05, .2);
+  if (warn != null && warn > hi && warn - hi < span * 1.5) hi = warn;
+  if (hi - lo < span){ const m = (hi + lo) / 2; lo = m - span / 2; hi = m + span / 2; }
+  const f = v => Math.abs(v) >= 100 ? Math.round(v) : (Math.round(v * 10) / 10).toFixed(1), u = unit === "℃" || unit === "%" ? unit : unit ? " " + unit : "";
   const X = t => Math.max(0, Math.min(100, (t - t0) / (t1 - t0) * 100)), Y = v => 6 + (1 - (v - lo) / (hi - lo)) * 88;
-  const line = pts.filter(x => x[0] >= t0).map(x => `${X(x[0]).toFixed(1)},${Y(x[1]).toFixed(1)}`).join(" ");
-  const c = p.status === "crit" ? "var(--crit)" : p.status === "warn" ? "var(--warn)" : "var(--ok)", last = pts[pts.length - 1];
-  return `<span class="cap"><span>지난 24시간 · ${Math.min(...vs).toFixed(1)}~${Math.max(...vs).toFixed(1)}℃</span>${warn != null && warn <= hi ? `<em>주의 ${esc(warn)}℃ ┄</em>` : ""}</span><span class="ch"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">` +
+  const line = pts.filter(v => v[0] >= t0).map(v => `${X(v[0]).toFixed(1)},${Y(v[1]).toFixed(1)}`).join(" ");
+  const c = x.level === "crit" ? "var(--crit)" : x.level === "warn" ? "var(--warn)" : "var(--ok)", last = pts[pts.length - 1];
+  return `<span class="cap"><span>${esc(x.name)} · 지난 24시간 ${f(Math.min(...vs))}~${f(Math.max(...vs))}${esc(u)}</span>${warn != null && warn <= hi ? `<em>주의 ${esc(f(warn))}${esc(u)} ┄</em>` : ""}</span><span class="ch"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">` +
     (warn != null && warn <= hi ? `<line x1="0" x2="100" y1="${Y(warn).toFixed(1)}" y2="${Y(warn).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" opacity=".7"/>` : "") +
     `<polygon points="0,100 ${line} ${X(last[0]).toFixed(1)},100" fill="${c}" opacity=".10"/>` +
     `<polyline points="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg></span>`;
 }
-function monTile(p){
-  const st = ST_OF[p.status] || "ok";
+function monTile(p, flip){
+  const st = ST_OF[p.status] || "ok", P = monPick(p);
   const third = p.fire && p.fire !== "—" && p.fire !== "낮음" ? ["화재 징조", p.fire] : p.contact && p.contact !== "—" && p.contact !== "정상" ? ["단자 발열", p.contact] : null;
-  const tr = MON.live && MON.live.trends ? MON.live.trends[p.panel] : null;
-  return `<article class="gd-mt s-${esc(p.status)}" data-p="${esc(p.panel)}"><header><b>${esc(p.panel_name)}</b><span class="gd-mt-chip ${st}">${stIco(st)}${esc(p.word)}</span></header>` +
-    `<div class="gd-mt-v"><div class="hot"><b>${p.temp == null ? "—" : esc(p.temp)}<small>℃</small></b><span>온도</span></div>` +
-    `<div><b>${p.humidity == null ? "—" : esc(p.humidity)}<small>%</small></b><span>습도</span></div>` +
+  const big = x => { const [n, u] = monSplit(x.say); return `<div class="${esc(x.level)}"><b>${esc(n)}${u ? `<small>${esc(u)}</small>` : ""}${znB(x)}</b><span>${esc(x.name)}</span></div>`; };
+  const dots = (n, i) => n > 1 ? `<div class="gd-mt-pg" aria-hidden="true">${Array.from({length: n}, (_, k) => `<i class="${k === i ? "on" : ""}"></i>`).join("")}</div>` : "";
+  return `<article class="gd-mt s-${esc(p.status)}" data-p="${esc(p.panel)}"><header><b>${esc(p.panel_name)}</b>${dots(P.mp, P.mpg)}<span class="gd-mt-chip ${st}">${stIco(st)}${esc(p.word)}</span></header>` +
+    `<div class="gd-mt-v${flip && P.mp > 1 ? " flip" : ""}">${P.main.map(big).join("")}` +
     (third ? `<div class="w"><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</div>` +
-    `<div class="gd-mt-tr">${monSpark(tr, p)}</div>` +
-    `<footer class="gd-mt-sn">${monSnHTML(p)}</footer></article>`;
+    `<div class="gd-mt-tr${flip && P.mp > 1 ? " flip" : ""}">${monSpark(P.main[0], p)}</div>` +
+    `<footer class="gd-mt-sn">${P.chips.length ? `<div class="gd-mt-sg${flip && P.cp > 1 ? " flip" : ""}">${P.chips.map(x =>
+      `<div class="${esc(x.level)}">${snIco(x.kind)}<b>${esc(x.say)}${znB(x)}</b><em>${esc(x.name)}</em></div>`).join("")}</div>` + dots(P.cp, P.cpg) : ""}</footer></article>`;
 }
-// 판넬에 달린 센서(대표 온습도 빼고) — 한 칸에 MON_SN개. 위험·주의 센서는 늘 고정해 보이고(넘치면 그것끼리 돌고),
-// 남은 자리에서만 정상 센서가 MON_SN_SEC초마다 다음 묶음으로 넘어간다
-const MON_SN = 4, MON_SN_SEC = 4, MON_R = {crit: 2, warn: 1, ok: 0};
-function monSnPick(p){
-  const all = (p.sensors || []).map((x, i) => [x, i]).sort((a, b) => (MON_R[b[0].level] || 0) - (MON_R[a[0].level] || 0) || a[1] - b[1]).map(a => a[0]);
-  const bad = all.filter(x => x.level !== "ok"), ok = all.filter(x => x.level === "ok"), t = MON.snTick || 0;
-  if (bad.length >= MON_SN){ const pages = Math.ceil(bad.length / MON_SN), pg = t % pages; return {show: bad.slice(pg * MON_SN, pg * MON_SN + MON_SN), pages, pg}; }
-  const slots = MON_SN - bad.length, pages = Math.max(1, Math.ceil(ok.length / slots)), pg = t % pages;
-  return {show: bad.concat(ok.slice(pg * slots, pg * slots + slots)), pages, pg};
-}
-function monSnHTML(p, flip){
-  if (!(p.sensors || []).length) return "";
-  const {show, pages, pg} = monSnPick(p);
-  return `<div class="gd-mt-sg${flip && pages > 1 ? " flip" : ""}">${show.map(x =>
-      `<div class="${esc(x.level)}">${snIco(x.kind)}<b>${esc(x.say)}${znB(x)}</b><em>${esc(x.name)}</em></div>`).join("")}</div>` +
-    (pages > 1 ? `<div class="gd-mt-pg" aria-hidden="true">${Array.from({length: pages}, (_, i) => `<i class="${i === pg ? "on" : ""}"></i>`).join("")}</div>` : "");
-}
-function monSnRotate(){
+function monRotate(){
   if (!MON.on || !G.d) return;
-  MON.snTick = (MON.snTick || 0) + 1;
+  MON.tick = (MON.tick || 0) + 1;
   document.querySelectorAll("#gd-mon-grid .gd-mt[data-p]").forEach(el => {
-    const p = (G.d.panels || []).find(x => x.panel === el.dataset.p), f = el.querySelector(".gd-mt-sn");
-    if (p && f && (p.sensors || []).length > MON_SN) f.innerHTML = monSnHTML(p, true);
+    const p = (G.d.panels || []).find(x => x.panel === el.dataset.p);
+    if (p) el.outerHTML = monTile(p, true);
   });
 }
 // 판넬 수에 맞춰 칸을 나눈다: 다 들어가면 가장 크게, 안 들어가면 페이지로(문제 판넬이 첫 페이지)
@@ -2633,7 +2648,7 @@ function monOpen(){
   try { localStorage.setItem("gd-mon", "1"); } catch(_){}
   $("#gd-mon").hidden = false; document.body.classList.add("gd-mon-on");
   paintMon(); monLive(); monWake();
-  MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000), setInterval(monSnRotate, MON_SN_SEC * 1000),
+  MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000), setInterval(monRotate, MON_SEC * 1000),
     setInterval(() => { if (MON.pages > 1){ MON.page = (MON.page + 1) % MON.pages; paintMon(); } }, 12000),
     setInterval(() => { const s = [[0, 0], [2, 1], [1, -1], [-1, 2], [-2, -1]][++MON.shift % 5];   // 번인 방지 — 몇 분마다 화면을 1~2px 옮긴다
       $("#gd-mon").style.transform = `translate(${s[0]}px, ${s[1]}px)`; }, 180000)];

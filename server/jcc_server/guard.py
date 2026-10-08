@@ -183,15 +183,18 @@ def _latest(storage) -> dict:
                 v = s.get("value")
                 if _kind(s) == "temp" and v is not None and d["temp"] is None and "cabinet" in s["sensor_key"]:
                     d["temp"] = round(v, 1)
+                    d["temp_id"], d["temp_level"] = f"{c['device_id']}:{s['sensor_key']}", _lv(lvl, c["device_id"], s, "temp")
                     picked.add((c["device_id"], s["sensor_key"]))
                 if _kind(s) == "humidity" and v is not None and d["humidity"] is None:
                     d["humidity"] = round(v)
+                    d["humidity_id"], d["humidity_level"] = f"{c['device_id']}:{s['sensor_key']}", _lv(lvl, c["device_id"], s, "humidity")
                     picked.add((c["device_id"], s["sensor_key"]))
         if d["temp"] is None:      # 함내 온도가 없으면 첫 온도 센서
             first = next(((c["device_id"], s) for c in p["ccms"] for s in c.get("latest") or []
                           if _kind(s) == "temp" and s.get("value") is not None), None)
             if first:
                 d["temp"] = round(first[1]["value"], 1)
+                d["temp_id"], d["temp_level"] = f"{first[0]}:{first[1]['sensor_key']}", _lv(lvl, first[0], first[1], "temp")
                 picked.add((first[0], first[1]["sensor_key"]))
         seen: dict = {}
         for c in p["ccms"]:
@@ -205,7 +208,7 @@ def _latest(storage) -> dict:
                         or s.get("enabled") is False):
                     continue
                 seen[name] = seen.get(name, 0) + 1
-                item = {"name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
+                item = {"id": f"{c['device_id']}:{s['sensor_key']}", "name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
                         "say": _say(s, kind), "level": max(lvl.get((c["device_id"], s["sensor_key"]), "ok"),
                                                            _level(s, kind), key=_RANK.get)}
                 if kind == "vibration":     # ISO 10816 존(A~D) — 그 센서의 주의·위험 기준에서(vibration.py)
@@ -214,11 +217,18 @@ def _latest(storage) -> dict:
     return out
 
 
+def _lv(lvl: dict, dev: str, s: dict, kind: str) -> str:
+    """센서 하나의 상태 — 열린 경보와 기준값 비교 중 나쁜 쪽."""
+    return max(lvl.get((dev, s["sensor_key"]), "ok"), _level(s, kind), key=_RANK.get)
+
+
 def _panel_model(p, lat) -> dict:
     pr = p.get("predict") or {}
     return {"panel": p["panel"], "panel_name": p["panel_name"], "site": p.get("site") or "",
             "status": p["status"], "word": _STATUS_WORD.get(p["status"], p["status"]), "why": p.get("why") or [],
             "temp": (lat or {}).get("temp"), "humidity": (lat or {}).get("humidity"), "sensors": (lat or {}).get("sensors", []),
+            "temp_id": (lat or {}).get("temp_id"), "humidity_id": (lat or {}).get("humidity_id"),
+            "temp_level": (lat or {}).get("temp_level", "ok"), "humidity_level": (lat or {}).get("humidity_level", "ok"),
             "fire": _WORD["fire"].get(pr.get("fire") or "", "—"), "contact": _WORD["contact"].get(pr.get("contact") or "", "—"),
             "dew": _WORD["dew"].get(pr.get("dew") or "", "—"), "vent_open": bool(pr.get("vent_open")),
             "life": _life(p.get("life")), "alarms": p.get("alarms"), "next_inspection": p.get("next_inspection"),
@@ -607,7 +617,8 @@ def _who(et: str, alarm_kinds) -> str | None:
 
 
 def live(storage, panels: set | None, now: float | None = None) -> dict:
-    """모니터링 모드(사무실 벽 모니터) — 판넬별 지난 24시간 대표 온도(시간별 실제 평균)와 최근 활동 피드."""
+    """모니터링 모드(사무실 벽 모니터) — 판넬별 지난 24시간 대표 온도(trends), 센서마다 지난 24시간(series, 시간별 실제 평균),
+    최근 활동 피드. series는 메인 숫자가 다른 센서로 넘어갈 때 그 센서의 그래프로 쓴다(문·연기 같은 켜짐/꺼짐 신호는 뺌)."""
     from .fleet import fleet
     from .storage import Storage as _S
     from . import forecast as fc
@@ -624,6 +635,20 @@ def live(storage, panels: set | None, now: float | None = None) -> dict:
         s = fc.series(storage, dev, key, now - 25 * 3600)
         pts = [[round(h), round(v, 2)] for h, v in sorted(s.items()) if h >= now - 24 * 3600]
         trends[r["panel"]] = {"points": pts, "warn": warn}
+    thr = {(c["device_id"], x["sensor_key"]): x for p in storage.list_panels() for c in p["ccms"] for x in c.get("latest") or []}
+    series = {}
+    for r in rows:
+        la = lat.get(r["panel"]) or {}
+        ids = [la.get("temp_id"), la.get("humidity_id")] + [x["id"] for x in la.get("sensors", []) if x["kind"] not in ("door", "smoke")]
+        out = {}
+        for sid in filter(None, ids):
+            dev, key = sid.split(":", 1)
+            s = fc.series(storage, dev, key, now - 25 * 3600)
+            pts = [[round(h), round(v, 2)] for h, v in sorted(s.items()) if h >= now - 24 * 3600]
+            if pts:
+                x = thr.get((dev, key)) or {}
+                out[sid] = {"points": pts, "warn": x.get("alarm_warn") if x.get("alarm_warn") is not None else x.get("alarm_max")}
+        series[r["panel"]] = out
     keys = None if panels is None else set().union(*(lat.get(p, {}).get("keys", {p}) for p in panels)) if panels else set()
     feed = []
     if keys is None or keys:
@@ -636,7 +661,7 @@ def live(storage, panels: set | None, now: float | None = None) -> dict:
             feed.append({"ts": e["ts"], "who": who, "kind": e["etype"], "panel_name": names.get(pid, ""), "text": _plain(e["detail"])})
             if len(feed) >= 30:
                 break
-    return {"now": now, "trends": trends, "feed": feed}
+    return {"now": now, "trends": trends, "series": series, "feed": feed}
 
 
 def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
