@@ -108,7 +108,8 @@ ROUTES = [
     ("GET", "/manifest.webmanifest", "public"), ("GET", "/sw.js", "public"),
     ("GET", "/health", "public"), ("GET", "/api/auth/status", "public"),
     ("POST", "/api/login", "public"), ("POST", "/api/logout", "public"), ("POST", "/api/signup", "public"), ("GET", r"/img/.+", "public"), ("GET", r"/fonts/.+", "public"),
-    ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"),
+    ("GET", r"/ota/.+", "device"), ("POST", "/v1/telemetry", "device"), ("POST", r"/v1/gateway/\d+", "device"),
+    ("GET", "/api/admin/gateways", "admin"),
     ("POST", "/api/me/password", "self"),
     ("GET", "/api/devices", "read"), ("GET", "/api/panels", "read"), ("GET", "/api/alarms", "read"),
     ("GET", "/api/incidents", "read"), ("GET", "/api/report", "read"), ("GET", "/api/predict", "read"),
@@ -784,6 +785,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._ai_status()
         if path == "/api/commission/reports":
             return self._json({"reports": self.storage.list_commission_reports(None if sc is None else sc["panels"])})
+        if path == "/api/admin/gateways":             # 외부 게이트웨이 목록(토큰은 안 보임)
+            from . import gateway
+            return self._json({"gateways": gateway.list_all(self.storage)})
         if path == "/api/admin/backups":              # 데이터 백업 목록(운영자)
             from . import backup
             return self._json({"backups": backup.list_backups(self.storage), "keep_days": backup._keep(),
@@ -892,6 +896,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._logout()
         if parsed.path == "/api/signup":
             return self._signup()
+        mg = re.fullmatch(r"/v1/gateway/(\d+)", parsed.path)
+        if mg:                                   # 외부 게이트웨이 HTTP 수신 — 게이트웨이마다 Bearer 토큰(gateway.py)
+            return self._gateway(int(mg.group(1)))
         # 그 밖은 권한 표로(장비 텔레메트리는 Bearer 키로 따로 인증)
         if not self._gate("POST", parsed.path):
             return
@@ -1596,6 +1603,22 @@ class Handler(BaseHTTPRequestHandler):
                 ac.assign_panel(panel, cid)
                 audit(f"판넬 {panel} → " + ("배정 해제(JCC만)" if cid is None else f"고객사 #{cid}"))
                 return self._json({"ok": True})
+            if action in ("gateway", "gateway/rotate", "gateway/enable"):   # 외부 게이트웨이 HTTP 수신 등록·토큰 새로·켜고 끄기
+                from . import gateway
+                if action == "gateway":
+                    gid, tok = gateway.create(self.storage, str(b.get("name", "")), str(b.get("panel", "")))
+                    audit(f"외부 게이트웨이 등록: #{gid} {b.get('name')} → 판넬 {b.get('panel')}")
+                    return self._json({"ok": True, "id": gid, "token": tok, "path": f"/v1/gateway/{gid}"})
+                gid = as_id(b.get("id"))
+                if gid is None:
+                    return self._json({"error": "게이트웨이를 확인하세요"}, 400)
+                if action == "gateway/rotate":
+                    tok = gateway.rotate(self.storage, gid)
+                    audit(f"외부 게이트웨이 #{gid} 토큰 새로 발급(예전 토큰은 못 씀)")
+                    return self._json({"ok": True, "id": gid, "token": tok, "path": f"/v1/gateway/{gid}"})
+                gateway.set_enabled(self.storage, gid, bool(b.get("on")))
+                audit(f"외부 게이트웨이 #{gid} {'켬' if b.get('on') else '끔'}")
+                return self._json({"ok": True})
             if action == "monthly_notify":
                 cid = as_id(b.get("customer_id"))
                 if cid is None or not ac.customer_exists(cid):
@@ -1757,6 +1780,25 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         return self._json({"error": "없는 관리 작업입니다"}, 404)
+
+    def _gateway(self, gid: int) -> None:
+        from . import gateway
+        auth = self.headers.get("Authorization", "")
+        tok = auth[7:].strip() if auth.lower().startswith("bearer ") else (parse_qs(urlparse(self.path).query).get("token") or [""])[0]
+        gw = gateway.check(self.storage, gid, tok)
+        if gw is None:
+            return self._json({"error": "게이트웨이 토큰이 맞지 않거나 꺼져 있습니다"}, 401)
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        if length <= 0 or length > 1_000_000:
+            return self._json({"error": "빈 요청이거나 너무 큼"}, 400)
+        try:
+            body = json.loads(self.rfile.read(length).decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        res = gateway.receive(self.storage, gw, body)
+        if not res["stored"]:
+            return self._json(dict(res, ok=False, error="숫자 값이 없습니다 — {\"temperature\": 25.1} 같은 모양으로 보내세요"), 400)
+        return self._json(res)
 
     def _commission(self, action: str) -> None:
         """설치 점검: 출력 시험 시작·완료 기록(JCC 관리자 — 권한 표에서 걸렀다)."""

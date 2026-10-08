@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import statistics
 import threading
@@ -207,6 +208,10 @@ def _as_float_or_none(v):
         return float(v)
     except (TypeError, ValueError):
         return None
+
+
+# 외부 게이트웨이 장치의 침묵 기준(초) — LoRa 센서는 10분에 한 번쯤 보낸다
+GATEWAY_TIMEOUT = float(os.environ.get("JCC_GATEWAY_TIMEOUT") or 3600)
 
 
 @dataclass
@@ -1592,21 +1597,25 @@ class Storage:
                     "SELECT device_id, sensor_key, name, enabled FROM discovered").fetchall():
                 disc.setdefault(r["device_id"], []).append(dict(r))
 
+        from .heal import is_gateway_device
         to_log: list[tuple] = []
         for dev, sensors in disc.items():
             if dev in self._powered_off:        # 일부러 끈 CCM은 침묵 경보 대상 아님
                 continue
             ls = devs.get(dev, 0)
-            dev_up = bool(ls) and (now - ls) < device_timeout
+            gw = is_gateway_device(dev)              # 외부 게이트웨이 장치는 드물게 보낸다(LoRa 10분 등) — 기준을 길게
+            d_to, s_to = (GATEWAY_TIMEOUT, GATEWAY_TIMEOUT) if gw else (device_timeout, sensor_timeout)
+            what = "외부 게이트웨이 장치" if gw else "CCM"
+            dev_up = bool(ls) and (now - ls) < d_to
             dkey = ("dev", dev)
             prev = self._live_state.get(dkey)
             if dev_up:
                 if prev == "down":
-                    to_log.append((dev, "", "recovered", f"CCM {dev} 통신 복구"))
+                    to_log.append((dev, "", "recovered", f"{what} {dev} 통신 복구"))
                 self._live_state[dkey] = "up"
             else:
                 if prev == "up":
-                    to_log.append((dev, "", "silent", f"CCM {dev} 응답 없음 — {int(now - ls)}초 침묵"))
+                    to_log.append((dev, "", "silent", f"{what} {dev} 응답 없음 — {int(now - ls)}초 침묵"))
                     self._live_state[dkey] = "down"
                 elif prev is None:
                     self._live_state[dkey] = "down"   # 시작이 침묵이면 조용히 기록(오탐 방지)
@@ -1621,7 +1630,7 @@ class Storage:
                 skey = ("sen", dev, key)
                 sprev = self._live_state.get(skey)
                 nm = s.get("name") or key
-                if dev_up and (now - lt) < sensor_timeout:
+                if dev_up and (now - lt) < s_to:
                     if sprev == "down":
                         to_log.append((dev, key, "recovered", f"{nm} 데이터 복구"))
                     self._live_state[skey] = "up"

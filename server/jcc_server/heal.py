@@ -28,10 +28,16 @@ L3(사람 승인이 필요한 위험 조치)는 아직 하지 않는다.
 from __future__ import annotations
 
 import os
+import re
 import time
 
 # 자동 재시작으로 풀릴 법한, 채널 수준의 일시 장애만 L1 대상으로 한다.
 HEAL_TARGETS = ("silent", "stuck")
+
+
+def is_gateway_device(dev: str) -> bool:
+    """외부 게이트웨이(gateway.py)로 들어온 장치 — 'gw<번호>' 또는 'gw<번호>-<장치>'."""
+    return bool(re.fullmatch(r"gw\d+(-[A-Za-z0-9]+)?", dev or ""))
 
 
 class Healer:
@@ -96,6 +102,8 @@ class Healer:
             if not key or a.get("kind") not in HEAL_TARGETS:
                 continue                              # 센서 채널 장애만(CCM 침묵은 L2)
             dev = a["device_id"]
+            if is_gateway_device(dev):
+                continue                              # 외부 게이트웨이 장치는 우리 재시작 명령을 받지 않는다 — 사람이 확인
             sk = (dev, key)
             seen.add(sk)
             rec = self._attempts.get(sk)
@@ -150,7 +158,7 @@ class Healer:
         # 재시작 대상 CCM 모으기: dev -> (reason, episode, acked)
         targets: dict = {}
         for a in active_alarms:
-            if a.get("kind") == "silent" and not a.get("sensor_key"):
+            if a.get("kind") == "silent" and not a.get("sensor_key") and not is_gateway_device(a["device_id"]):
                 targets[a["device_id"]] = ("silent", a.get("raised_at"), bool(a.get("acked_at")))
         if self.l2_on_channel_fail:
             # L1이 포기한 채널의 부모 CCM으로 승격(형제 센서까지 잠깐 끊김 — 상한 엄격).

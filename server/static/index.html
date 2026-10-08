@@ -1124,6 +1124,9 @@
   .acct-panel.other{opacity:.72}
   .acct-rcv{width:100%;min-height:62px;resize:vertical;font-family:var(--mono)}
   .acct-permrow td{background:var(--canvas)}
+  .acct-gw{margin-top:18px;display:flex;flex-direction:column;gap:8px}
+  .acct-gw select{font:600 12px var(--sans);padding:6px;border:1px solid var(--rule);border-radius:var(--r);background:var(--canvas);color:var(--ink)}
+  .acct-gw code{font:500 11.5px var(--mono);word-break:break-all}
   .acct-perms{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:4px 0}
   .acct-perms label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
   .acct-perms .acct-note{flex-basis:100%;margin:2px 0 0}
@@ -5997,6 +6000,35 @@ async function acctLoad(){
   acctRender();
 }
 function acctMsg(t, bad){ const m = $("#acct-msg"); m.textContent = t || ""; m.className = "acct-msg" + (bad ? " bad" : t ? " ok" : ""); }
+// ── 외부 게이트웨이(HTTP 수신) — 다른 회사 게이트웨이가 보내는 값을 판넬 감시에 넣는다(서버 gateway.py) ──
+// 토큰은 등록·새로 발급 때 한 번만 보인다. 게이트웨이 장치는 1시간 조용해야 침묵, 원격 재시작 대상이 아님
+async function acctGw(d){
+  const box = $("#acct-gw"); if (!box) return;
+  let gws = [];
+  try { const r = await fetch("/api/admin/gateways", {cache: "no-store"}); gws = (await r.json()).gateways || []; } catch(_){}
+  const when = t => t ? new Date(t * 1000).toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"}) : "아직 없음";
+  box.innerHTML = `<h4>외부 게이트웨이<span>Milesight·Banner DXM 등이 HTTP로 보내는 값을 판넬 감시에 넣습니다</span></h4>` +
+    (gws.length ? `<table class="acct-users"><thead><tr><th>이름</th><th>붙인 판넬</th><th>받은 값</th><th>마지막</th><th></th></tr></thead><tbody>` +
+      gws.map(g => `<tr><td class="u">${acctEsc(g.name)}<small>/v1/gateway/${g.id}</small></td><td>${acctEsc(g.panel_name || g.panel)}</td>` +
+        `<td>${g.received}</td><td class="${g.enabled ? "" : "off"}">${g.enabled ? when(g.last_seen) : "꺼짐"}</td>` +
+        `<td class="act"><button class="acct-btn" data-gwrot="${g.id}">토큰 새로</button> <button class="acct-btn warn" data-gwon="${g.id}" data-on="${g.enabled ? 0 : 1}">${g.enabled ? "끄기" : "켜기"}</button></td></tr>`).join("") +
+      `</tbody></table>` : `<p class="acct-note">등록된 게이트웨이가 없습니다.</p>`) +
+    `<form class="acct-add" id="acct-gw-form"><input id="acct-gw-name" maxlength="60" placeholder="게이트웨이 이름(예: 1층 LoRa)" aria-label="게이트웨이 이름">` +
+    `<select id="acct-gw-panel" aria-label="붙일 판넬">${(d.panels || []).map(p => `<option value="${acctEsc(p.panel)}">${acctEsc(p.panel_name || p.panel)}</option>`).join("")}</select>` +
+    `<button class="acct-btn primary" type="submit">등록</button></form><div id="acct-gw-tok"></div>`;
+  const showTok = j => { $("#acct-gw-tok").innerHTML = `<div class="acct-temp" role="status">주소 <code>${acctEsc(location.origin + j.path)}</code><br>` +
+      `머리말 <code>Authorization: Bearer ${acctEsc(j.token)}</code> <button class="acct-btn" id="acct-gw-copy">토큰 복사</button>` +
+      `<span>토큰은 지금만 보입니다 — 게이트웨이 HTTP 전송 설정에 넣으세요. {"temperature": 25.1} 같은 JSON이나 JCC readings 형식을 받습니다.</span></div>`;
+    $("#acct-gw-copy").onclick = () => { try { navigator.clipboard.writeText(j.token); acctMsg("토큰을 복사했습니다"); } catch(_){ acctMsg("복사가 막혀 있습니다 — 직접 적어 주세요", true); } }; };
+  $("#acct-gw-form").addEventListener("submit", async e => { e.preventDefault();
+    try { const j = await acctPost("gateway", {name: $("#acct-gw-name").value, panel: $("#acct-gw-panel").value}); await acctGw(d); showTok(j); acctMsg("게이트웨이를 등록했습니다"); }
+    catch(err){ acctMsg(err.message, true); } });
+  box.querySelectorAll("[data-gwrot]").forEach(b => b.onclick = async () => {
+    if (b.dataset.armed !== "1"){ b.dataset.armed = "1"; b.textContent = "예전 토큰 끊김 — 한 번 더"; setTimeout(() => { b.dataset.armed = ""; b.textContent = "토큰 새로"; }, 4000); return; }
+    try { const j = await acctPost("gateway/rotate", {id: Number(b.dataset.gwrot)}); await acctGw(d); showTok(j); } catch(err){ acctMsg(err.message, true); } });
+  box.querySelectorAll("[data-gwon]").forEach(b => b.onclick = async () => {
+    try { await acctPost("gateway/enable", {id: Number(b.dataset.gwon), on: b.dataset.on === "1"}); await acctGw(d); } catch(err){ acctMsg(err.message, true); } });
+}
 // 사람별 권한 칸 — 서버 accounts.PERMS와 같은 순서·이름
 const ACCT_PERMS = [["ack", "경보 확인"], ["receivers", "알림 받는 사람 관리"], ["export", "기록 내보내기"], ["request", "JCC에 요청"],
   ["reports", "보고서·인증서 보기"], ["analysis", "기록 분석"], ["ai", "AI에게 물어보기"]];
@@ -6060,7 +6092,9 @@ function acctRender(){
     main.innerHTML = `<div><h4>JCC 관리자 계정<span>모든 판넬·기능</span></h4>${table(admins)}` +
       (d.env_admin ? `<p class="acct-note">비상 계정 <b>${acctEsc(d.env_admin)}</b> — 서버 환경변수로 관리합니다(여기서 바꿀 수 없음).</p>` : "") + `</div>` +
       `<form class="acct-add" id="acct-user-form"><input id="acct-user-name" maxlength="40" placeholder="새 관리자 아이디" aria-label="새 관리자 아이디">` +
-      `<input type="hidden" id="acct-user-role" value="admin"><button class="acct-btn primary" type="submit">관리자 추가</button></form><div id="acct-temp"></div>`;
+      `<input type="hidden" id="acct-user-role" value="admin"><button class="acct-btn primary" type="submit">관리자 추가</button></form><div id="acct-temp"></div>` +
+      `<div class="acct-gw" id="acct-gw"></div>`;
+    acctGw(d);
   } else {
     const c = d.customers.find(x => x.id === ACCT.sel);
     const own = {}; d.customers.forEach(x => { own[x.id] = x.name; });
