@@ -552,6 +552,7 @@
       if (compare) { const pp = bucket(ser, t0 - span, t0); item.prev = { points: pp.map(p => [p[0] + span, r3(p[1])]), stats: anStats(pp), alarms: cnt(t0 - span, t0) }; }
       return item; }) };
   }
+  const MONP = { prefs: {} };   // 모니터링 보기 설정(시연: 이 창에서만 — 실서버는 계정마다 저장)
   // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
   const LIVE = { cache: {} };
   function gdLive() {
@@ -2223,7 +2224,12 @@
         if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
         return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
       if (p === "/api/guard/live") return Promise.resolve(J(gdLive()));
+      if (p === "/api/guard/monitor_prefs" && method === "GET") return Promise.resolve(J({ prefs: MONP.prefs }));
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
+      if (p === "/api/guard/monitor_prefs" && method === "POST") { const b2 = body || {}, ok = v => Array.isArray(v) ? v.filter(x => typeof x === "string").slice(0, 200) : [];
+        MONP.prefs = { hidden: ok(b2.hidden), order: ok(b2.order), pin: b2.pin && typeof b2.pin === "object" ? Object.fromEntries(Object.entries(b2.pin).filter(([, v]) => typeof v === "string" && v)) : {},
+          problems_first: b2.problems_first !== false };
+        return Promise.resolve(J({ ok: true, prefs: MONP.prefs })); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
         if (!gdRows().some(x => x.panel === pid)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));

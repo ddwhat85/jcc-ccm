@@ -312,6 +312,24 @@ class Accounts:
         with self._lock:
             return self._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
 
+    # ── 사람별 화면 설정(모니터링 모드 보기 설정 등) — 벽 모니터를 다시 켜도 그대로 ──
+    def get_pref(self, uid: int, key: str) -> dict:
+        with self._lock:
+            self._conn.execute("CREATE TABLE IF NOT EXISTS user_prefs (user_id INTEGER, key TEXT, value TEXT, updated_at REAL, PRIMARY KEY (user_id, key))")
+            r = self._conn.execute("SELECT value FROM user_prefs WHERE user_id=? AND key=?", (uid, key)).fetchone()
+        try:
+            v = json.loads(r["value"]) if r else {}
+        except ValueError:
+            v = {}
+        return v if isinstance(v, dict) else {}
+
+    def set_pref(self, uid: int, key: str, value: dict) -> None:
+        with self._lock:
+            self._conn.execute("CREATE TABLE IF NOT EXISTS user_prefs (user_id INTEGER, key TEXT, value TEXT, updated_at REAL, PRIMARY KEY (user_id, key))")
+            self._conn.execute("INSERT OR REPLACE INTO user_prefs (user_id, key, value, updated_at) VALUES (?, ?, ?, ?)",
+                               (uid, key, json.dumps(value, ensure_ascii=False), time.time()))
+            self._conn.commit()
+
     def set_perms(self, uid: int, perms: dict) -> dict:
         """사람별 권한 — 고객 계정(관리자·보기 전용)만. 등급 기본값과 같은 칸은 저장하지 않는다(기본값이 바뀌면 따라가게)."""
         with self._lock:

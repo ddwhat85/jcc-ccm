@@ -139,6 +139,7 @@ ROUTES = [
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
     ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/outages", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
     ("GET", "/api/guard/receivers", "read"), ("GET", "/api/guard/live", "read"), ("POST", "/api/guard/receivers", "read"),
+    ("GET", "/api/guard/monitor_prefs", "read"), ("POST", "/api/guard/monitor_prefs", "read"),
     ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"), ("GET", "/api/admin/aircon_profiles", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
@@ -412,6 +413,8 @@ class Handler(BaseHTTPRequestHandler):
                 panels, site = None, "전체 현장 · JCC 미리보기"
         if path == "/api/guard":
             return self._json(guard.guard_view(self.storage, panels, site, customer=cust))
+        if path == "/api/guard/monitor_prefs":   # 모니터링 모드 보기 설정(계정마다 — 벽 모니터를 다시 켜도 그대로)
+            return self._json({"prefs": self.storage.accounts.get_pref(self._user()["id"], "monitor")})
         if path == "/api/guard/live":            # 모니터링 모드: 판넬별 24시간 온도 흐름 + 최근 활동(고객은 자기 판넬만)
             return self._json(guard.live(self.storage, panels))
         if path == "/api/guard/receivers":       # 알림 받는 사람 — 고객 관리자는 고치고, 보기 전용은 이름·시간만(번호 가림)
@@ -754,7 +757,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm",
                     "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal", "/api/guard/receivers", "/api/guard/live",
-                    "/api/guard/outages"):   # 고객 화면 데이터
+                    "/api/guard/outages", "/api/guard/monitor_prefs"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)
             from .handover import summary
@@ -906,6 +909,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._change_password()
         if parsed.path.startswith("/api/admin/"):
             return self._admin(parsed.path[len("/api/admin/"):])
+        if parsed.path == "/api/guard/monitor_prefs":
+            return self._monitor_prefs()
         if parsed.path == "/api/monthly/issue":
             from .monthly import issue, valid_period
             length = int(self.headers.get("Content-Length", 0) or 0)
@@ -1780,6 +1785,26 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as exc:
             return self._json({"error": str(exc)}, 400)
         return self._json({"error": "없는 관리 작업입니다"}, 404)
+
+    def _monitor_prefs(self) -> None:
+        """모니터링 모드 보기 설정 저장 — {hidden:[판넬], order:[판넬], pin:{판넬: 센서 id}, problems_first: bool}.
+        판넬은 이 계정 범위 안의 것만 남긴다(남의 판넬 이름을 저장하지 않게)."""
+        length = int(self.headers.get("Content-Length", 0) or 0)
+        try:
+            b = json.loads(self.rfile.read(length).decode("utf-8")) if 0 < length <= 50_000 else {}
+        except (ValueError, UnicodeDecodeError):
+            return self._json({"error": "잘못된 JSON"}, 400)
+        if not isinstance(b, dict):
+            return self._json({"error": "설정은 {…} 모양이어야 합니다"}, 400)
+        sc = self._scope()
+        ok = (lambda p: isinstance(p, str) and len(p) <= 80 and (sc is None or p in sc["panels"]))
+        lst = (lambda v: [p for p in (v if isinstance(v, list) else [])[:200] if ok(p)])
+        pin = b.get("pin") if isinstance(b.get("pin"), dict) else {}
+        prefs = {"hidden": lst(b.get("hidden")), "order": lst(b.get("order")),
+                 "pin": {p: str(s)[:120] for p, s in list(pin.items())[:200] if ok(p) and isinstance(s, str) and s},
+                 "problems_first": b.get("problems_first") is not False}
+        self.storage.accounts.set_pref(self._user()["id"], "monitor", prefs)
+        return self._json({"ok": True, "prefs": prefs})
 
     def _gateway(self, gid: int) -> None:
         from . import gateway

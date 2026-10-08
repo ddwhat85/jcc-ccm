@@ -718,6 +718,27 @@
     --ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff3d6e;--crit-ink:#ffb3c7;color-scheme:dark;
     --u:19.2px;position:fixed;inset:0;z-index:40;overflow:hidden;background:var(--bg);color:var(--ink);transition:transform 2s ease}
   .gd-mon[hidden]{display:none}
+  /* 모니터링 보기 설정 — 판 바깥(확대·축소 안 됨)에 보통 크기로 */
+  .gd-mon-setp{position:absolute;top:max(16px,env(safe-area-inset-top));right:16px;z-index:5;width:min(460px,calc(100% - 32px));max-height:calc(100% - 32px);
+    display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:var(--r-l);background:var(--card);border:1px solid var(--line);box-shadow:0 24px 64px rgba(0,0,0,.5);color:var(--ink)}
+  .gd-mon-setp[hidden]{display:none}
+  .gd-mon-setp .hd{display:flex;align-items:center;justify-content:space-between}
+  .gd-mon-setp .hd b{font:700 17px var(--sans)}
+  .gd-mon-setp .x{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink-2);display:grid;place-items:center;cursor:pointer}
+  .gd-mon-setp .x svg{width:18px;height:18px}
+  .gd-mon-setp .pf{display:flex;align-items:center;gap:8px;font:500 14px var(--sans);color:var(--ink-2)}
+  .gd-mon-setp ol{list-style:none;margin:0;padding:0;overflow:auto;display:flex;flex-direction:column;gap:6px}
+  .gd-mon-setp li{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"sh mv" "mp mp";gap:6px 8px;padding:10px;border-radius:var(--r-s);background:var(--card-2);border:1px solid var(--line-2)}
+  .gd-mon-setp li.off{opacity:.5}
+  .gd-mon-setp .sh{grid-area:sh;display:flex;align-items:center;gap:8px;min-width:0;font:600 14px var(--sans)}
+  .gd-mon-setp .sh span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-mon-setp select{grid-area:mp;min-height:36px;padding:0 8px;border-radius:var(--r-s);border:1px solid var(--line);background:var(--bg);color:var(--ink);font:500 13px var(--sans)}
+  .gd-mon-setp .mv{grid-area:mv;display:flex;gap:4px}
+  .gd-mon-setp .mv button{width:36px;height:36px;border-radius:var(--r-s);border:1px solid var(--line);background:none;color:var(--ink-2);cursor:pointer}
+  .gd-mon-setp .mv button:disabled{opacity:.3;cursor:default}
+  .gd-mon-setp .ft{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .gd-mon-setp .ft span{font:500 13px var(--sans);color:var(--crit)}
+  .gd-mon-setp .sv{min-height:40px;padding:0 22px;border-radius:var(--pill);border:0;background:var(--ok);color:var(--bg);font:700 14px var(--sans);cursor:pointer}
   /* 판 하나(기본 1920x1080)를 화면에 맞춰 통째로 확대·축소 — 휴대폰·태블릿·모니터 어디서나 같은 배치 */
   .gd-mon-stage{position:absolute;left:50%;top:50%;width:1920px;height:1080px;transform-origin:0 0;
     display:flex;flex-direction:column;padding:clamp(12px,calc(1.4 * var(--u)),28px);gap:clamp(10px,calc(1 * var(--u)),18px)}
@@ -1024,6 +1045,7 @@
     <div class="gd-mon-sp"></div>
     <div class="gd-mon-live" id="gd-mon-live"><i aria-hidden="true"></i><span>실시간</span></div>
     <div class="gd-mon-clock" data-notr><b id="gd-mon-time">--:--:--</b><span id="gd-mon-date"></span></div>
+    <button class="gd-mon-btn" id="gd-mon-set" aria-label="보기 설정" title="보기 설정"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
     <button class="gd-mon-btn" id="gd-mon-sound" aria-label="경보 소리 켜기" title="경보 소리"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
     <button class="gd-mon-btn" id="gd-mon-full" aria-label="전체 화면" title="전체 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
     <button class="gd-mon-btn" id="gd-mon-x" aria-label="모니터링 모드 끝내기" title="끝내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -1039,6 +1061,12 @@
     </aside>
   </div>
   <footer class="gd-mon-foot"><span id="gd-mon-page"></span><span>JCC GUARD · 24시간 감시</span></footer>
+ </div>
+ <div class="gd-mon-setp" id="gd-mon-setp" role="dialog" aria-modal="true" aria-labelledby="gd-mon-set-t" hidden>
+  <div class="hd"><b id="gd-mon-set-t">보기 설정</b><button type="button" class="x" id="gd-mon-set-x" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <label class="pf"><input type="checkbox" id="gd-mon-pf"><span>문제 판넬은 늘 맨 앞</span></label>
+  <ol id="gd-mon-setl"></ol>
+  <div class="ft"><span id="gd-mon-set-msg" aria-live="polite"></span><button type="button" class="sv" id="gd-mon-set-sv">저장</button></div>
  </div>
  <div class="gd-mon-turn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M3 14a9 9 0 0 0 6 6M3 14l-.5 3M3 14l3 .5"/></svg><span>가로로 돌리면 크게 보입니다</span><button type="button" id="gd-mon-x2">끝내기</button></div>
 </section>
@@ -2075,6 +2103,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (compare) { const pp = bucket(ser, t0 - span, t0); item.prev = { points: pp.map(p => [p[0] + span, r3(p[1])]), stats: anStats(pp), alarms: cnt(t0 - span, t0) }; }
       return item; }) };
   }
+  const MONP = { prefs: {} };   // 모니터링 보기 설정(시연: 이 창에서만 — 실서버는 계정마다 저장)
   // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
   const LIVE = { cache: {} };
   function gdLive() {
@@ -3746,7 +3775,12 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
         return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
       if (p === "/api/guard/live") return Promise.resolve(J(gdLive()));
+      if (p === "/api/guard/monitor_prefs" && method === "GET") return Promise.resolve(J({ prefs: MONP.prefs }));
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
+      if (p === "/api/guard/monitor_prefs" && method === "POST") { const b2 = body || {}, ok = v => Array.isArray(v) ? v.filter(x => typeof x === "string").slice(0, 200) : [];
+        MONP.prefs = { hidden: ok(b2.hidden), order: ok(b2.order), pin: b2.pin && typeof b2.pin === "object" ? Object.fromEntries(Object.entries(b2.pin).filter(([, v]) => typeof v === "string" && v)) : {},
+          problems_first: b2.problems_first !== false };
+        return Promise.resolve(J({ ok: true, prefs: MONP.prefs })); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
         if (!gdRows().some(x => x.panel === pid)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
@@ -4201,7 +4235,8 @@ const EN = {
   "실시간": "LIVE", "최근 활동": "Recent activity", "지난 24시간": "Last 24 h", "온도 흐름 기록이 쌓이는 중": "Building up temperature history",
   "경과": "Elapsed", "끊김": "Offline", "이번 달": "This month", "이번 달 지켰습니다": "protected this month", "JCC GUARD · 24시간 감시": "JCC GUARD · monitoring 24/7",
   "지난 24시간 동안 특별한 일이 없었습니다.": "Nothing notable in the last 24 hours.", "경보 소리 켜기": "Turn alarm sound on", "경보 소리 끄기": "Turn alarm sound off",
-  "경보 소리": "Alarm sound", "전체 화면": "Full screen", "모니터링 모드 끝내기": "Exit monitoring mode", "끝내기": "Exit", "자동 복구": "Auto-recovery",
+  "경보 소리": "Alarm sound", "보기 설정": "View settings", "문제 판넬은 늘 맨 앞": "Panels with problems always first",
+  "메인: 자동 순환": "Main: auto rotate", "저장 중": "Saving", "위로": "Move up", "아래로": "Move down", "전체 화면": "Full screen", "모니터링 모드 끝내기": "Exit monitoring mode", "끝내기": "Exit", "자동 복구": "Auto-recovery",
   "이 화면에서는 전체 화면을 쓸 수 없습니다 — 브라우저의 전체 화면(F11)을 쓰세요": "Full screen isn't available here — use the browser's full screen (F11)",
   "재시작 확인 — CCM 프로그램이 다시 켜져 보고했습니다": "Restart confirmed — the CCM program is back and reporting",
   "채널 재시작 확인 — CCM이 센서 연결을 다시 초기화했습니다": "Channel restart confirmed — the CCM re-initialized the sensor link",
@@ -4285,7 +4320,8 @@ const EN_RE = [
   [/^JCC에 전화 (.+)$/, "Call JCC $1"], [/^어제·오늘 실제 온도와 내일 예측 그래프\. 내일 가장 높을 때 (.+) ([\d.]+)도$/, (m, h, v) => `Yesterday and today's actual temperature and tomorrow's forecast. Tomorrow's peak ${enDates(h)} ${v}°`],
   [/^벤트 열림, 판넬 안 (.+)$/, (m, a) => `Vent open, inside the panel ${enText(a) || a}`],
   [/^센서 (\d+)개 모두 정상$/, "All $1 sensors OK"],
-  [/^내일 살펴볼 센서 (\d+)개$/, "$1 sensors to watch tomorrow"],
+  [/^내일 살펴볼 센서 (\d+)개$/, "$1 sensors to watch tomorrow"], [/^메인 고정: (.+)$/, (m, n) => `Main pinned: ${enName(n)}`],
+  [/^(.+) 메인 고정 센서$/, (m, n) => `${enName(n)} pinned main sensor`],
   [/^ISO 10816 진동 존 ([A-D]) — (.+)$/, (m, z, w) => `ISO 10816 vibration zone ${z} — ${({"우수": "good", "양호": "satisfactory", "주의 · 점검 계획": "watch · plan maintenance", "위험 · 즉시 조치": "danger · act now"})[w] || w}`], [/^센서 (\d+)개 예측$/, "$1 sensors forecast"],
   [/^기록 쌓는 중 (\d+)일째$/, "Building history · day $1"], [/^경고선까지 약 (\d+)(주|일)$/, (m, a, u) => `~${a} ${u === "주" ? "wk" : "d"} to warning line`],
   [/^경고선까지(\(기준선 드리프트\))? 약 (\d+)(주|일)(?: \((\d+)~(\d+)(주|일)\))?$/, (m, g, a, u, lo, hi) => `about ${a} ${u === "주" ? "weeks" : "days"} to the warning line${g ? " (baseline drift)" : ""}${lo ? ` (${lo}–${hi} ${u === "주" ? "weeks" : "days"})` : ""}`],
@@ -5403,7 +5439,10 @@ function monItems(p){
 const monSort = a => a.map((x, i) => [x, i]).sort((x, y) => (MON_R[y[0].level] || 0) - (MON_R[x[0].level] || 0) || x[1] - y[1]).map(x => x[0]);
 function monPick(p){
   const all = monItems(p), mains = monSort(all.filter(x => !MON_SIGNAL.includes(x.kind))), t = MON.tick || 0;
-  const mp = Math.max(1, Math.ceil(mains.length / 2)), mpg = t % mp, main = mains.slice(mpg * 2, mpg * 2 + 2);
+  const pin = mains.find(x => x.id && x.id === ((MON.prefs || {}).pin || {})[p.panel]);
+  let mp, mpg, main;
+  if (pin){ const others = mains.filter(x => x !== pin); mp = Math.max(1, others.length); mpg = t % mp; main = [pin].concat(others.slice(mpg, mpg + 1)); }
+  else { mp = Math.max(1, Math.ceil(mains.length / 2)); mpg = t % mp; main = mains.slice(mpg * 2, mpg * 2 + 2); }
   const rest = monSort(all.filter(x => !main.includes(x))), bad = rest.filter(x => x.level !== "ok"), ok = rest.filter(x => x.level === "ok");
   let chips, cp = 1, cpg = 0;
   if (bad.length >= MON_SN){ cp = Math.ceil(bad.length / MON_SN); cpg = t % cp; chips = bad.slice(cpg * MON_SN, cpg * MON_SN + MON_SN); }
@@ -5477,7 +5516,7 @@ function monFit(){
 function paintMon(){
   if (!MON.on || !G.d) return;
   monFit();
-  const d = G.d, ix = d.index || {}, ps = (d.panels || []).slice().sort((a, b) => (monRank[a.status] ?? 9) - (monRank[b.status] ?? 9));
+  const d = G.d, ix = d.index || {}, ps = monOrder(d.panels || []);
   $("#gd-mon-site").textContent = d.site || "";
   // 판넬 칸
   const g = $("#gd-mon-grid"), L = monLayout(ps.length || 1);
@@ -5543,7 +5582,7 @@ function monOpen(){
   MON.on = true; MON.page = 0; MON.seen = new Set();
   try { localStorage.setItem("gd-mon", "1"); } catch(_){}
   $("#gd-mon").hidden = false; document.body.classList.add("gd-mon-on");
-  paintMon(); monLive(); monWake();
+  paintMon(); monLive(); monWake(); monPrefsLoad();
   MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000), setInterval(monRotate, MON_SEC * 1000),
     setInterval(() => { if (MON.pages > 1){ MON.page = (MON.page + 1) % MON.pages; paintMon(); } }, 12000),
     setInterval(() => { const s = [[0, 0], [2, 1], [1, -1], [-1, 2], [-2, -1]][++MON.shift % 5];   // 번인 방지 — 몇 분마다 화면을 1~2px 옮긴다
@@ -5560,6 +5599,50 @@ function monClose(){
 const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
 $("#gd-mon-open").onclick = monOpen;
 $("#gd-mon-x").onclick = $("#gd-mon-x2").onclick = monClose;
+// ── 모니터링 모드 보기 설정(계정마다 서버에 — 벽 모니터를 다시 켜도 그대로) ──
+// 보일 판넬·순서·판넬마다 메인에 늘 고정할 센서 하나(나머지 메인 한 칸은 계속 돈다)·문제 판넬 맨 앞
+async function monPrefsLoad(){
+  try { const r = await fetch("/api/guard/monitor_prefs?" + q(), {cache: "no-store"}); if (r.ok){ MON.prefs = (await r.json()).prefs || {}; paintMon(); } } catch(_){}
+}
+function monOrder(panels){
+  const P = MON.prefs || {}, hid = new Set(P.hidden || []), ord = P.order || [];
+  const idx = p => { const i = ord.indexOf(p.panel); return i < 0 ? 1e6 : i; };
+  let ps = panels.filter(p => !hid.has(p.panel)).map((p, i) => [p, i]);
+  ps.sort((a, b) => (P.problems_first === false ? 0 : (monRank[a[0].status] ?? 9) - (monRank[b[0].status] ?? 9)) || idx(a[0]) - idx(b[0]) || a[1] - b[1]);
+  return ps.map(x => x[0]);
+}
+function monSetOpen(){
+  const P = MON.prefs || {}, panels = (G.d && G.d.panels) || [], ord = P.order || [], hid = new Set(P.hidden || []);
+  MON.setList = panels.slice().sort((a, b) => { const ia = ord.indexOf(a.panel), ib = ord.indexOf(b.panel); return (ia < 0 ? 1e6 : ia) - (ib < 0 ? 1e6 : ib); })
+    .map(p => ({panel: p.panel, name: p.panel_name, show: !hid.has(p.panel), pin: (P.pin || {})[p.panel] || "",
+      opts: monItems(p).filter(x => !MON_SIGNAL.includes(x.kind) && x.id).map(x => [x.id, x.name])}));
+  $("#gd-mon-pf").checked = P.problems_first !== false;
+  monSetPaint(); $("#gd-mon-set-msg").textContent = ""; $("#gd-mon-setp").hidden = false; $("#gd-mon-set-sv").focus();
+}
+function monSetPaint(){
+  const L = MON.setList;
+  $("#gd-mon-setl").innerHTML = L.map((x, i) => `<li class="${x.show ? "" : "off"}"><label class="sh"><input type="checkbox" data-ms="${i}"${x.show ? " checked" : ""}><span>${esc(x.name)}</span></label>` +
+    `<select data-mp="${i}" aria-label="${esc(x.name)} 메인 고정 센서"><option value="">메인: 자동 순환</option>${x.opts.map(([id, n]) => `<option value="${esc(id)}"${id === x.pin ? " selected" : ""}>메인 고정: ${esc(n)}</option>`).join("")}</select>` +
+    `<span class="mv"><button type="button" data-mu="${i}" aria-label="위로"${i ? "" : " disabled"}>▲</button><button type="button" data-md="${i}" aria-label="아래로"${i < L.length - 1 ? "" : " disabled"}>▼</button></span></li>`).join("");
+  const box = $("#gd-mon-setl");
+  box.querySelectorAll("[data-ms]").forEach(c => c.onchange = () => { L[+c.dataset.ms].show = c.checked; c.closest("li").classList.toggle("off", !c.checked); });
+  box.querySelectorAll("[data-mp]").forEach(c => c.onchange = () => { L[+c.dataset.mp].pin = c.value; });
+  box.querySelectorAll("[data-mu],[data-md]").forEach(b => b.onclick = () => { const i = +(b.dataset.mu ?? b.dataset.md), j = b.dataset.mu != null ? i - 1 : i + 1;
+    [L[i], L[j]] = [L[j], L[i]]; monSetPaint(); const nb = box.querySelector(`[data-${b.dataset.mu != null ? "mu" : "md"}="${j}"]`); if (nb && !nb.disabled) nb.focus(); });
+}
+async function monSetSave(){
+  const L = MON.setList, body = {order: L.map(x => x.panel), hidden: L.filter(x => !x.show).map(x => x.panel),
+    pin: Object.fromEntries(L.filter(x => x.pin).map(x => [x.panel, x.pin])), problems_first: $("#gd-mon-pf").checked};
+  $("#gd-mon-set-msg").textContent = "저장 중";
+  try { const r = await fetch("/api/guard/monitor_prefs?" + q(), {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "저장하지 못했습니다");
+    MON.prefs = j.prefs; MON.page = 0; paintMon(); $("#gd-mon-setp").hidden = true; }
+  catch(e){ $("#gd-mon-set-msg").textContent = e.message; }
+}
+$("#gd-mon-set").onclick = monSetOpen;
+$("#gd-mon-set-x").onclick = () => { $("#gd-mon-setp").hidden = true; };
+$("#gd-mon-set-sv").onclick = monSetSave;
+
 $("#gd-mon-sound").onclick = () => { MON.sound = !MON.sound; $("#gd-mon-sound").setAttribute("aria-pressed", String(MON.sound));
   $("#gd-mon-sound").setAttribute("aria-label", MON.sound ? "경보 소리 끄기" : "경보 소리 켜기"); if (MON.sound) monBeep(); };
 $("#gd-mon-full").onclick = () => { const e = document.documentElement;
