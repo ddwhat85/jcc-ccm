@@ -17,9 +17,40 @@ import hashlib
 import hmac
 import re
 import secrets
+import json
 import time
 
 ROLES = ("admin", "manager", "viewer")
+
+# 사람별 권한(하이퍼커널의 메뉴별 접근·수정 권한에 해당) — 고객 계정만. 기본값은 등급이 하던 그대로
+PERMS = {
+    "ack": "경보 확인",
+    "receivers": "알림 받는 사람 관리",
+    "export": "기록 내보내기",
+    "request": "JCC에 요청",
+    "reports": "보고서·인증서 보기",
+    "analysis": "기록 분석",
+    "ai": "AI에게 물어보기",
+}
+PERM_DEFAULT = {
+    "manager": {k: True for k in PERMS},
+    "viewer": dict({k: True for k in PERMS}, ack=False, receivers=False),
+}
+
+
+def _load_perms(raw) -> dict:
+    try:
+        v = json.loads(raw or "{}")
+    except ValueError:
+        return {}
+    return {k: bool(x) for k, x in v.items() if k in PERMS} if isinstance(v, dict) else {}
+
+
+def effective_perms(role: str, over: dict | None = None) -> dict:
+    """등급 기본값 + 사람별 덮어쓰기. JCC 관리자는 전부."""
+    if role not in PERM_DEFAULT:
+        return {k: True for k in PERMS}
+    return dict(PERM_DEFAULT[role], **(over or {}))
 ITERATIONS = 200_000
 SESSION_TTL = 7 * 86400
 MIN_PW = 10
@@ -133,6 +164,11 @@ class Accounts:
                     self._conn.execute(f"ALTER TABLE customer_receivers ADD COLUMN {col} {ddl}")
                 except Exception:  # noqa: BLE001 - 이미 있음
                     pass
+            #   perms: 사람별 권한 덮어쓰기 JSON {"ack": true, …} — 비면 등급 기본값(PERM_DEFAULT)
+            try:
+                self._conn.execute("ALTER TABLE users ADD COLUMN perms TEXT DEFAULT ''")
+            except Exception:  # noqa: BLE001 - 이미 있음
+                pass
             #   full_name·phone: 가입할 때 받은 이름·휴대폰(계정 관리에서 누구인지 알아보게)
             for col in ("full_name", "phone"):
                 try:
@@ -276,6 +312,20 @@ class Accounts:
         with self._lock:
             return self._conn.execute("SELECT 1 FROM users LIMIT 1").fetchone() is not None
 
+    def set_perms(self, uid: int, perms: dict) -> dict:
+        """사람별 권한 — 고객 계정(관리자·보기 전용)만. 등급 기본값과 같은 칸은 저장하지 않는다(기본값이 바뀌면 따라가게)."""
+        with self._lock:
+            r = self._conn.execute("SELECT role FROM users WHERE id=?", (uid,)).fetchone()
+            if not r:
+                raise ValueError("없는 계정입니다")
+            if r["role"] not in PERM_DEFAULT:
+                raise ValueError("JCC 관리자는 모든 권한을 가집니다")
+            base = PERM_DEFAULT[r["role"]]
+            over = {k: bool(v) for k, v in (perms or {}).items() if k in PERMS and bool(v) != base[k]}
+            self._conn.execute("UPDATE users SET perms=? WHERE id=?", (json.dumps(over) if over else "", uid))
+            self._conn.commit()
+        return effective_perms(r["role"], over)
+
     def _user_view(self, r) -> dict:
         name = None
         if r["customer_id"] is not None:
@@ -285,7 +335,8 @@ class Accounts:
         return {"id": r["id"], "username": r["username"], "role": r["role"], "customer_id": r["customer_id"],
                 "customer": name, "must_change": bool(r["must_change"]), "disabled": bool(r["disabled"]),
                 "full_name": (r["full_name"] if "full_name" in keys else "") or "",
-                "phone": (r["phone"] if "phone" in keys else "") or ""}
+                "phone": (r["phone"] if "phone" in keys else "") or "",
+                "perms": effective_perms(r["role"], _load_perms(r["perms"] if "perms" in keys else ""))}
 
     def create_user(self, username: str, role: str, customer_id):
         """새 계정 + 임시 비번(한 번만 돌려줌). admin은 고객사 없음, 고객 등급은 고객사 필수."""

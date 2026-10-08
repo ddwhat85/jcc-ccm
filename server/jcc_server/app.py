@@ -160,6 +160,21 @@ def route_policy(method: str, path: str):
 
 _ROLE_OK = {"read": ("admin", "manager", "viewer"), "operate": ("admin", "manager"), "admin": ("admin",)}
 
+# 사람별 권한이 걸린 경로 — 고객 계정은 등급 대신 그 사람의 권한 칸으로 거른다(accounts.PERMS)
+_PERM_ROUTES = [
+    ("POST", re.compile(r"/api/alarm/ack\Z"), "ack"),
+    ("POST", re.compile(r"/api/guard/receivers\Z"), "receivers"),
+    ("GET", re.compile(r"/api/export/[a-z]+\.csv\Z"), "export"),
+    ("POST", re.compile(r"/api/guard/request\Z"), "request"),
+    ("GET", re.compile(r"/api/(monthly|certificates)\Z"), "reports"),
+    ("GET", re.compile(r"/api/analysis\Z"), "analysis"),
+    ("POST", re.compile(r"/api/ai/ask\Z"), "ai"),
+]
+
+
+def perm_of(method: str, path: str):
+    return next((k for m, rx, k in _PERM_ROUTES if m == method and rx.match(path)), None)
+
 
 # 같은 아이디로는 IP가 달라도 LOGIN_USER_MAX번 틀리면 잠근다(프록시 헤더를 속여 IP 잠금을 피해도 막히게)
 LOGIN_USER_MAX = 10
@@ -312,6 +327,13 @@ class Handler(BaseHTTPRequestHandler):
         if u.get("must_change"):
             self._json({"error": "임시 비번입니다 — 먼저 비번을 바꾸세요", "must_change": True}, 403)
             return False
+        need = perm_of(method, path)
+        if need and u["role"] != "admin":
+            if not (u.get("perms") or {}).get(need):
+                from .accounts import PERMS
+                self._json({"error": f"이 계정은 '{PERMS[need]}' 권한이 없습니다 — 고객사 관리자나 JCC에 요청하세요"}, 403)
+                return False
+            return True
         if u["role"] not in _ROLE_OK[pol]:
             self._json({"error": "이 계정 등급으로는 할 수 없는 작업입니다"}, 403)
             return False
@@ -357,8 +379,8 @@ class Handler(BaseHTTPRequestHandler):
             cid = b.get("customer_id")
             if not isinstance(cid, int) or isinstance(cid, bool) or not self.storage.accounts.customer_exists(cid):
                 return self._json({"error": "고객사를 확인하세요"}, 400)
-        elif u["role"] == "manager" and u.get("customer_id") is not None:
-            cid = u["customer_id"]                       # 고객 관리자는 자기 고객사만
+        elif u.get("customer_id") is not None and (u.get("perms") or {}).get("receivers"):
+            cid = u["customer_id"]                       # 권한 있는 고객 계정은 자기 고객사만
         else:
             return self._json({"error": "알림 받는 사람은 관리자 계정만 바꿀 수 있습니다"}, 403)
         if not isinstance(b.get("receivers"), list) or len(b["receivers"]) > 40:
@@ -396,7 +418,7 @@ class Handler(BaseHTTPRequestHandler):
             rcid = u.get("customer_id") if sc is not None else (cust or {}).get("id")
             if rcid is None:
                 return self._json({"receivers": [], "can_edit": False})
-            edit = u["role"] in ("manager", "admin")
+            edit = u["role"] == "admin" or bool((u.get("perms") or {}).get("receivers"))
             rows = self.storage.accounts.list_receivers(rcid)
             if not edit:
                 rows = [dict(r, number=r["number"][:3] + "-****-" + r["number"][-4:]) for r in rows]
@@ -595,8 +617,9 @@ class Handler(BaseHTTPRequestHandler):
                                           if sc is None or p.get("panel") in sc["panels"]]})
         if path == "/api/auth/status":
             u = self._user()
+            from .accounts import effective_perms
             pub = None if u is None else dict({k: u[k] for k in ("username", "role", "customer", "must_change")},
-                                               env=bool(u.get("env")))
+                                               env=bool(u.get("env")), perms=u.get("perms") or effective_perms(u["role"]))
             return self._json({"enabled": self._auth_on(), "authed": u is not None, "user": pub,
                                "role": u["role"] if u else None, "customer": u["customer"] if u else None,
                                # 로그인 화면의 '아이디·비밀번호 찾기' 안내용 공통 문의 번호(공개 정보)
@@ -1720,6 +1743,10 @@ class Handler(BaseHTTPRequestHandler):
                 temp = ac.reset_password(uid)
                 audit(f"비번 초기화: {target['username']}")
                 return self._json({"ok": True, "temp_password": temp})
+            if action == "user/perms":             # 사람별 권한(고객 계정만) — 등급 기본값과 다른 칸만 저장
+                eff = ac.set_perms(uid, b.get("perms") if isinstance(b.get("perms"), dict) else {})
+                audit(f"권한 변경: {target['username']} — " + ", ".join(f"{k}={'O' if v else 'X'}" for k, v in eff.items()))
+                return self._json({"ok": True, "perms": eff})
             if action == "user/disable":
                 if uid == me.get("id") and not me.get("env"):
                     return self._json({"error": "자기 계정은 끌 수 없습니다"}, 400)

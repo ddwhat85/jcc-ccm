@@ -1123,6 +1123,10 @@
   .acct-panel small{display:block;color:var(--ink-3);font-size:10.5px;margin-top:2px}
   .acct-panel.other{opacity:.72}
   .acct-rcv{width:100%;min-height:62px;resize:vertical;font-family:var(--mono)}
+  .acct-permrow td{background:var(--canvas)}
+  .acct-perms{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:4px 0}
+  .acct-perms label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-2)}
+  .acct-perms .acct-note{flex-basis:100%;margin:2px 0 0}
   .acct-users{width:100%;border-collapse:collapse;font-size:12px}
   .acct-users th{text-align:left;font:600 11px var(--sans);color:var(--ink-3);padding:4px 6px;border-bottom:1px solid var(--rule)}
   .acct-users td{padding:6px;border-bottom:1px solid var(--rule-2);vertical-align:middle}
@@ -5993,6 +5997,9 @@ async function acctLoad(){
   acctRender();
 }
 function acctMsg(t, bad){ const m = $("#acct-msg"); m.textContent = t || ""; m.className = "acct-msg" + (bad ? " bad" : t ? " ok" : ""); }
+// 사람별 권한 칸 — 서버 accounts.PERMS와 같은 순서·이름
+const ACCT_PERMS = [["ack", "경보 확인"], ["receivers", "알림 받는 사람 관리"], ["export", "기록 내보내기"], ["request", "JCC에 요청"],
+  ["reports", "보고서·인증서 보기"], ["analysis", "기록 분석"], ["ai", "AI에게 물어보기"]];
 async function acctPost(path, body){
   const r = await fetch("/api/admin/" + path, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body)});
   const j = await r.json().catch(() => ({}));
@@ -6015,8 +6022,13 @@ function acctRender(){
   const table = list => list.length ? `<table class="acct-users"><thead><tr><th>아이디</th><th>등급</th><th>상태</th><th></th></tr></thead><tbody>` +
     list.map(u => `<tr><td class="u">${acctEsc(u.username)}${u.full_name || u.phone ? `<small>${acctEsc([u.full_name, u.phone].filter(Boolean).join(" · "))}</small>` : ""}</td><td>${ROLE_WORD[u.role]}</td>` +
       `<td class="${u.disabled ? "off" : ""}">${u.disabled ? "꺼짐" : u.must_change ? "임시 비번(첫 로그인 전)" : "사용 중"}</td>` +
-      `<td class="act"><button class="acct-btn" data-reset="${u.id}">비번 초기화</button> ` +
-      `<button class="acct-btn warn" data-dis="${u.id}" data-off="${u.disabled ? 0 : 1}">${u.disabled ? "켜기" : "끄기"}</button></td></tr>`).join("") +
+      `<td class="act">${u.role !== "admin" && u.perms ? `<button class="acct-btn" data-perm="${u.id}" aria-expanded="false">권한 ${ACCT_PERMS.filter(([k]) => u.perms[k]).length}/${ACCT_PERMS.length}</button> ` : ""}` +
+      `<button class="acct-btn" data-reset="${u.id}">비번 초기화</button> ` +
+      `<button class="acct-btn warn" data-dis="${u.id}" data-off="${u.disabled ? 0 : 1}">${u.disabled ? "켜기" : "끄기"}</button></td></tr>` +
+      // 사람별 권한(하이퍼커널의 메뉴별 접근·수정 권한) — 바꾸면 바로 저장·적용. 등급 기본값과 다른 칸만 서버에 남는다
+      (u.role !== "admin" && u.perms ? `<tr class="acct-permrow" data-permrow="${u.id}" hidden><td colspan="4"><div class="acct-perms" role="group" aria-label="${acctEsc(u.username)} 권한">` +
+        ACCT_PERMS.map(([k, n]) => `<label><input type="checkbox" data-pk="${k}" data-pu="${u.id}"${u.perms[k] ? " checked" : ""}>${n}</label>`).join("") +
+        `<span class="acct-note">기본값: ${u.role === "manager" ? "관리자 — 전부" : "보기 전용 — 경보 확인·알림 받는 사람 관리 빼고 전부"}</span></div></td></tr>` : "")).join("") +
     `</tbody></table>` : `<p class="acct-note">아직 계정이 없습니다.</p>`;
   if (ACCT.sel === "req"){
     const opts = sel => `<option value="">고객사 고르기</option>` + d.customers.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${acctEsc(c.name)}</option>`).join("");
@@ -6155,6 +6167,18 @@ function acctRender(){
     ACCT.armed = null;
     try { const j = await acctPost("user/reset", {user_id: id}); await acctLoad(); acctShowTemp(u.username, j.temp_password, "비번 초기화");
     } catch(e){ acctMsg(e.message, true); }
+  });
+  main.querySelectorAll("[data-perm]").forEach(b => b.onclick = () => {
+    const row = main.querySelector(`[data-permrow="${b.dataset.perm}"]`); if (!row) return;
+    row.hidden = !row.hidden; b.setAttribute("aria-expanded", String(!row.hidden)); });
+  main.querySelectorAll("[data-pk]").forEach(c => c.onchange = async () => {
+    const id = Number(c.dataset.pu), perms = {};
+    main.querySelectorAll(`[data-pu="${id}"]`).forEach(x => { perms[x.dataset.pk] = x.checked; });
+    try { const j = await acctPost("user/perms", {user_id: id, perms});
+      const u = users.find(x => x.id === id); if (u) u.perms = j.perms;
+      const b = main.querySelector(`[data-perm="${id}"]`); if (b) b.textContent = `권한 ${ACCT_PERMS.filter(([k]) => j.perms[k]).length}/${ACCT_PERMS.length}`;
+      acctMsg(`${u ? u.username : "계정"}: ${ACCT_PERMS.find(([k]) => k === c.dataset.pk)[1]} ${c.checked ? "허용" : "막음"} — 바로 적용됩니다`);
+    } catch(e){ acctMsg(e.message, true); c.checked = !c.checked; }
   });
   main.querySelectorAll("[data-dis]").forEach(b => b.onclick = async () => {
     try { await acctPost("user/disable", {user_id: Number(b.dataset.dis), disabled: b.dataset.off === "1"});

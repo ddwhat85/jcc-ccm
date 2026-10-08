@@ -1661,6 +1661,7 @@ $("#gd-out").onclick = async () => {
 
 async function start(s){
   G.user = s.user; G.auth = !!s.enabled;
+  gdPerms();
   $("#gd-login").hidden = true; $("#gd-app").hidden = false;
   const admin = !s.enabled || (s.user && s.user.role === "admin");
   if (window.JCC_DEMO){ if (!G.storied){ G.storied = true; story(); } } else if (admin) pickers();
@@ -1778,7 +1779,7 @@ function countUp(el, from, to){
 function paintIncident(inc){
   const box = $("#gd-inc");
   if (!inc){ box.hidden = true; setHTML(box, ""); return; }
-  const canAck = G.user && G.user.role === "manager" && !inc.acked_at;
+  const canAck = G.user && gdCan("ack") && G.user.role !== "admin" && !inc.acked_at;
   box.hidden = false;
   const html = `<div class="gd-inc"><span class="gd-pill">위험 · ${ago(inc.raised_at)}</span>` +
     `<h2>${esc(inc.panel_name)}에서<br>${esc(inc.sensor_name)} 이상을 감지했습니다</h2><div class="d">${esc(clean(inc.detail))}</div>` +
@@ -2025,7 +2026,7 @@ function tkHTML(t){
   const acts = t.actions.length ? `<div class="gd-tk-sub">할 일 — 위에서부터</div><ol class="gd-tk-acts">${t.actions.map(a =>
     `<li><div><b>${esc(a.title)}</b><em>${esc(a.who)}</em></div><span>${esc(a.why)}</span>` +
     (a.request ? (req ? `<p class="gd-tk-done">요청됨 · ${fmtT(req.created_at)} — JCC 담당자가 연락드립니다</p>`
-      : `<button class="gd-tk-btn" id="gd-tk-req">JCC에 냉각 용량 검토 요청</button>`) : "") + `</li>`).join("")}</ol>` : "";
+      : gdCan("request") ? `<button class="gd-tk-btn" id="gd-tk-req">JCC에 냉각 용량 검토 요청</button>` : "") : "") + `</li>`).join("")}</ol>` : "";
   return title + `<p class="gd-tk-head"><i class="${LV[1]}"></i><b>${LV[0]}</b> ${esc(head)}</p>` + causes + acts +
     `<p class="gd-note">이유는 이 판넬 기록의 모양(평일·주말, 시간대, 주별 추세)으로 추정한 것입니다. 인버터 부하와 바깥 온도는 아직 재지 않습니다. ` +
     `설정 변경·교체는 JCC가 확인한 뒤 사람이 합니다.${t.demo ? " (시연판 — 가상 기록)" : ""}</p>`;
@@ -2407,6 +2408,11 @@ async function openAlarmLink(){
 
 // ── 보고서 고르기 · 바로 가기(휴대폰 아래 메뉴) ─────────────────
 document.querySelectorAll(".gd-tile").forEach(t => t.addEventListener("click", e => { if (e.target.closest("a,button")) return; const b = t.querySelector(".gd-more"); if (b) b.click(); }));
+// 사람별 권한(서버 accounts.PERMS) — 없는 기능의 버튼은 숨긴다(서버도 요청마다 다시 거른다). JCC 직원·로그인 없는 시연은 전부
+function gdCan(k){ const p = G.user && G.user.perms; return !p || G.user.role === "admin" || p[k] !== false; }
+function gdPerms(){
+  [["#gd-docs-m", "reports"], ["#gd-docs-c", "reports"], ["#gd-docs-d", "export"]].forEach(([q, k]) => { const el = $(q); if (el) el.hidden = !gdCan(k); });
+}
 $("#gd-docs-m").onclick = () => openMonthly(); $("#gd-docs-i").onclick = () => openInspections();
 $("#gd-docs-c").onclick = () => openCerts();
 $("#gd-docs-d").onclick = () => openExport();
@@ -2414,11 +2420,11 @@ $("#gd-docs-x").onclick = () => openIncidents((G.month || G.d.month).period); $(
 $("#gd-state-more").onclick = () => $("#gd-ring").click();
 function openDocs(){
   sheet(`<h4 id="gd-sheet-t">보고서</h4><div class="sub">JCC가 발행하고 고객이 확인한 기록입니다. 그대로 보관됩니다.</div><div class="gd-docs">` +
-    `<button class="gd-doc" id="gd-d-m"><span>월간 보고서</span><span>매달 초 지난달 것 ›</span></button>` +
+    (gdCan("reports") ? `<button class="gd-doc" id="gd-d-m"><span>월간 보고서</span><span>매달 초 지난달 것 ›</span></button>` : "") +
     `<button class="gd-doc" id="gd-d-i"><span>정기 점검 보고서</span><span>고객 서명 포함 ›</span></button>` +
     `<button class="gd-doc" id="gd-d-x"><span>사건 보고서</span><span>경보마다 한 장 ›</span></button>` +
     `<button class="gd-doc" id="gd-d-o"><span>감시 끊김 기록</span><span>언제·왜 ›</span></button></div>`);
-  $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections; $("#gd-d-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-d-o").onclick = () => openOutages((G.month || G.d.month).period);
+  if ($("#gd-d-m")) $("#gd-d-m").onclick = openMonthly; $("#gd-d-i").onclick = openInspections; $("#gd-d-x").onclick = () => openIncidents((G.month || G.d.month).period); $("#gd-d-o").onclick = () => openOutages((G.month || G.d.month).period);
 }
 const TAB_TARGET = { panels: "#gd-sec-panels", month: "#gd-sec-month", docs: "#gd-sec-docs" };
 document.querySelectorAll("#gd-tab [data-go]").forEach(b => b.onclick = () => {

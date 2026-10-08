@@ -1957,10 +1957,14 @@
   SIM.ccms.forEach(c => { ACC.owner[c.panel || SIM.panel] = 1; });                      // 시연: 데모 판넬은 데모 고객사 소속
   function accTemp() { const a = "abcdefghjkmnpqrstuvwxyzACDEFGHJKLMNPQRSTUVWXYZ23456789"; let s = "";
     for (let i = 0; i < 14; i++) s += a[Math.floor(Math.random() * a.length)]; return s; }
+  // 사람별 권한(서버 accounts.PERMS·PERM_DEFAULT와 같게) — 기본값과 다른 칸만 u.perm_over에
+  const ACC_PERMS = ["ack", "receivers", "export", "request", "reports", "analysis", "ai"];
+  const accPerms = u => { const base = {}; ACC_PERMS.forEach(k => { base[k] = u.role === "manager" || u.role === "admin" || !["ack", "receivers"].includes(k); });
+    return Object.assign(base, u.role === "admin" ? {} : (u.perm_over || {})); };
   function accView() {
     return { customers: ACC.customers.map(c => Object.assign({}, c, {
         panels: Object.keys(ACC.owner).filter(p => ACC.owner[p] === c.id).sort(), receivers: ACC.receivers[c.id] || [] })),
-      users: ACC.users.map(u => Object.assign({}, u)), env_admin: false, signup_on: true,
+      users: ACC.users.map(u => Object.assign({}, u, { perms: accPerms(u) })), env_admin: false, signup_on: true,
       signup_requests: ACC.requests.map(r => Object.assign({}, r)),
       panels: panelList().map(p => ({ panel: p.panel, panel_name: p.panel_name, customer_id: ACC.owner[p.panel] ?? null, online: p.online })) };
   }
@@ -2042,6 +2046,10 @@
     if (!u) return [{ error: "없는 계정입니다" }, 400];
     if (action === "user/reset") { u.must_change = true; return [{ ok: true, temp_password: accTemp() }, 200]; }
     if (action === "user/disable") { u.disabled = !!b.disabled; return [{ ok: true }, 200]; }
+    if (action === "user/perms") { if (u.role === "admin") return [{ error: "JCC 관리자는 모든 권한을 가집니다" }, 400];
+      const base = accPerms(Object.assign({}, u, { perm_over: {} })), want = b.perms || {}; u.perm_over = {};
+      ACC_PERMS.forEach(k => { if (k in want && !!want[k] !== base[k]) u.perm_over[k] = !!want[k]; });
+      logEvent("", "", "account", `권한 변경: ${u.username}`, "user"); return [{ ok: true, perms: accPerms(u) }, 200]; }
     return [{ error: "없는 관리 작업입니다" }, 404];
   }
 
