@@ -1171,6 +1171,20 @@
   .ps-f input{width:100%;min-width:0;font:500 13px var(--sans);color:var(--ink);background:var(--canvas);border:1px solid var(--rule);border-radius:2px;padding:6px 7px}
   @media (max-width:560px){.ps-sensor{grid-template-columns:repeat(3,minmax(0,1fr))} .ps-sn{grid-column:1/-1}}
   .ps-calc{margin-top:14px}
+  .acc{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px;border:1px solid var(--rule);border-radius:var(--r);font-size:12px}
+  .acc.lock{opacity:.6}
+  .acc-lock{flex-basis:100%;margin:0;color:var(--crit);font-weight:600}
+  .acc-n{display:inline-flex;align-items:center;gap:6px}
+  .acc-n b{font-weight:600;color:var(--ink-2)}
+  .acc-n button{width:28px;height:28px;border:1px solid var(--rule);border-radius:var(--r);background:var(--canvas);color:var(--ink);cursor:pointer;font-weight:700}
+  .acc-n button:disabled{opacity:.4;cursor:default}
+  .acc-n em{min-width:54px;text-align:center;font:600 13px var(--mono);font-style:normal} .acc-n em.chg{color:var(--warn)}
+  .acc-n small{color:var(--ink-3);font-size:10.5px}
+  .acc-sw{display:inline-flex;align-items:center;gap:6px}
+  .acc-bar{flex-basis:100%;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-top:8px;border-top:1px solid var(--rule)}
+  .acc-bar span{flex:1;min-width:0;color:var(--ink-2)} .acc-bar b{color:var(--warn)}
+  .acc .acct-note{flex-basis:100%;margin:0}
+  .acc-log{flex-basis:100%;margin:0;padding-left:16px;color:var(--ink-3);font-size:11px}
   .ac-box{grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;border:1px dashed var(--rule);border-radius:2px;font-size:12px}
   .ac-box .ac-off{flex:1;color:var(--ink-3)} .ac-box .ac-v{flex:1;color:var(--ink-2);line-height:1.5}
   .ac-st{font-weight:700} .ac-st.ok{color:var(--ok)} .ac-st.wait{color:var(--warn)} .ac-st.bad{color:var(--crit)}
@@ -5094,7 +5108,37 @@ function acLinkHTML(x, i){
   return `<div class="ac-box"><span class="ac-st ${S[1]}">${S[0]}${st && st.reason ? " — " + escapeHtml(st.reason) : ""}</span>` +
     `<span class="ac-v">${escapeHtml(lk.host)}:${lk.port} · 유닛 ${lk.slave} · ${escapeHtml(lk.profile)} · ${escapeHtml(lk.device_id)} (${escapeHtml(lk.tag)})${v ? "<br>" + escapeHtml(v) : ""}</span>` +
     `<button class="cmsn-btn" type="button" data-acopen="${i}">바꾸기</button><button class="cmsn-btn" type="button" data-acoff="${i}">끊기</button></div>` +
-    `<div class="ac-form" id="ac-form-${i}" hidden></div>`;
+    acCtlHTML(i, st) + `<div class="ac-form" id="ac-form-${i}" hidden></div>`;
+}
+// 에어컨 원격 조작 — 틀만(서버 aircon_ctl.py). 바꾸면 '변경 대기' → [적용]/[되돌리기], 통신 끊기면 잠금.
+// 지금은 장비로 보내지 않는다(쓰기 레지스터·펌웨어 쓰기 없음) — 적용하면 '보류'로 기록된다
+function acCtlHTML(i, st){
+  const C = PS.ctl; if (!C) return "";
+  const u = (C.units || {})[String(i)] || {pending: [], recent: []}, live = st && st.state === "live", F = C.fields;
+  const pend = Object.fromEntries(u.pending.map(p => [p.field, p.value]));
+  const cur = {run: st && st.running != null ? (st.running ? 1 : 0) : null, setpoint: st ? st.setpoint : null, alarm_temp: null};
+  const val = k => pend[k] != null ? pend[k] : cur[k];
+  const num = k => { const f = F[k], v = val(k); return `<span class="acc-n"><b>${F[k].word}</b><button type="button" data-accn="${i}:${k}:-1"${live ? "" : " disabled"} aria-label="${f.word} 내리기">−</button>` +
+    `<em class="${pend[k] != null ? "chg" : ""}">${v == null ? "—" : v + f.unit}</em><button type="button" data-accn="${i}:${k}:1"${live ? "" : " disabled"} aria-label="${f.word} 올리기">+</button><small>${f.min}~${f.max}${f.unit}</small></span>`; };
+  const W = (f, v) => F[f].kind === "bool" ? (v >= 0.5 ? "켜기" : "끄기") : v + F[f].unit;
+  return `<div class="acc ${live ? "" : "lock"}">` +
+    (live ? "" : `<p class="acc-lock">통신 끊김 · 조작 잠금 — 연결이 돌아오면 바꿀 수 있습니다</p>`) +
+    `<span class="acc-n"><b>원격 운전</b><label class="acc-sw"><input type="checkbox" data-accrun="${i}"${val("run") >= 0.5 ? " checked" : ""}${live ? "" : " disabled"}>${val("run") == null ? "상태 모름" : val("run") >= 0.5 ? "운전" : "정지"}</label></span>` +
+    num("setpoint") + num("alarm_temp") +
+    `<div class="acc-bar"><span>${u.pending.length ? `변경 대기 <b>${u.pending.length}건</b> — ${u.pending.map(p => `${F[p.field].word} ${W(p.field, p.value)}`).join(", ")}` : "변경 없음"}</span>` +
+    `<button class="cmsn-btn" type="button" data-accrv="${i}"${u.pending.length ? "" : " disabled"}>되돌리기</button>` +
+    `<button class="cmsn-btn primary" type="button" data-accap="${i}"${u.pending.length && live ? "" : " disabled"}>적용</button></div>` +
+    (C.can_send ? "" : `<p class="acct-note">${escapeHtml(C.hold_reason)}. 에어컨 Modbus 설명서의 쓰기 레지스터와 펌웨어 지원이 갖춰지면 실제로 보냅니다.</p>`) +
+    (u.recent.length ? `<ul class="acc-log">${u.recent.map(r => `<li>${new Date((r.at || 0) * 1000).toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})} · ${F[r.field].word} ${W(r.field, r.value)} · ${r.status === "held" ? "보류" : r.status === "sent" ? "보냄" : "되돌림"} · ${escapeHtml(r.by || "")}</li>`).join("")}</ul>` : "") +
+    `</div>`;
+}
+async function accPost(action, body){
+  const r = await fetch("/api/admin/" + action, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(Object.assign({panel: PS.panel}, body))});
+  const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || "처리하지 못했습니다"); return j;
+}
+async function accDo(fn, okMsg){
+  try { const j = await fn(); if (j && j.ctl) PS.ctl = j.ctl; await psLoad(PS.panel); psOpen("cool"); if (okMsg) psMsg(typeof okMsg === "function" ? okMsg(j) : okMsg); }
+  catch(e){ psMsg(e.message, true); }
 }
 async function acProfiles(){ const r = await fetch("/api/admin/aircon_profiles", {cache:"no-store"}); return r.json(); }
 async function acOpenForm(i){
@@ -5179,7 +5223,7 @@ async function psLoad(pid){
   try {
     const [pr, sr] = await Promise.all([fetch("/api/panels", {cache:"no-store"}), fetch(`/api/admin/panel_spec?panel=${encodeURIComponent(pid)}`, {cache:"no-store"})]);
     const pj = await pr.json(), sj = await sr.json(); if (!sr.ok) throw new Error(sj.error || "불러오지 못함");
-    PS.panelRow = (pj.panels || []).find(x => x.panel === pid) || null; PS.spec = sj.spec || {}; PS.eqv = sj.view; PS.ac = sj.aircon || [];
+    PS.panelRow = (pj.panels || []).find(x => x.panel === pid) || null; PS.spec = sj.spec || {}; PS.eqv = sj.view; PS.ac = sj.aircon || []; PS.ctl = sj.aircon_ctl || null;
   } catch(e){ psMsg(e.message, true); }
 }
 async function openPs(pid, view){
@@ -5226,10 +5270,24 @@ $("#ps-save").onclick = psSave;
 $("#ps-panel").onchange = async e => { await psLoad(e.target.value); PS.view === "grid" ? psGrid() : psOpen(PS.view); };
 $("#ps-overlay").addEventListener("input", e => { if (e.target.closest("#eq-heat,#eq-units,.eq-row") && !e.target.closest(".ac-form")) eqPreview(); });
 $("#ps-overlay").addEventListener("change", e => {
+  if (e.target.dataset.accrun != null){ const i = +e.target.dataset.accrun, on = e.target.checked;
+    accDo(() => accPost("aircon_cmd", {index: i, field: "run", value: on ? 1 : 0}), `운전 ${on ? "켜기" : "끄기"} — 변경 대기(끄면 냉각이 멈춥니다 · 적용을 눌러야 보냅니다)`); return; }
   if (e.target.dataset.k === "kind"){ const c = e.target.closest("[data-unit]").querySelector("[data-cap]"); if (c) c.textContent = e.target.value === "fan_filter" ? "풍량 m³/h" : "냉각 W"; }
   if (e.target.closest("#eq-heat,#eq-units,.eq-row")) eqPreview(); });
 $("#ps-overlay").addEventListener("click", async e => {
   const del = e.target.closest("[data-del]"); if (del){ (del.closest("[data-unit]") || del.parentElement).remove(); eqPreview(); return; }
+  const an = e.target.closest("[data-accn],[data-accrv],[data-accap]");
+  if (an){
+    if (an.dataset.accn){ const [i, k, d] = an.dataset.accn.split(":"), f = PS.ctl.fields[k], st = (PS.ac || []).find(a => a.index === +i) || {};
+      const u = ((PS.ctl.units || {})[i] || {pending: []}), pv = (u.pending.find(p => p.field === k) || {}).value;
+      const base = pv != null ? pv : k === "setpoint" && st.setpoint != null ? st.setpoint : (f.min + f.max) / 2;
+      const v = Math.min(f.max, Math.max(f.min, Math.round((base + Number(d) * f.step) / f.step) * f.step));
+      return accDo(() => accPost("aircon_cmd", {index: +i, field: k, value: v}), `${f.word} ${v}${f.unit} — 변경 대기(적용을 눌러야 보냅니다)`); }
+    if (an.dataset.accrv) return accDo(() => accPost("aircon_revert", {index: +an.dataset.accrv}), j => `되돌렸습니다 (${j.cancelled}건)`);
+    if (an.dataset.accap){
+      if (an.dataset.armed !== "1"){ an.dataset.armed = "1"; an.textContent = "정말 적용? (다시 클릭)"; setTimeout(() => { an.dataset.armed = ""; an.textContent = "적용"; }, 4000); return; }
+      return accDo(() => accPost("aircon_apply", {index: +an.dataset.accap}), j => j.results.every(r => r.status === "held") ? "보류로 기록했습니다 — 장비로는 보내지 않았습니다" : "장비로 보냈습니다"); }
+  }
   const t = e.target.closest("[data-acopen],[data-acgo],[data-acoff],[data-acprof],[data-acpick]");
   if (t){
     if (t.dataset.acopen != null) return acOpenForm(Number(t.dataset.acopen));

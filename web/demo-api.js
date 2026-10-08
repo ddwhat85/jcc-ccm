@@ -710,10 +710,15 @@
     alarm: { register: 120, type: "holding", datatype: "uint16", scale: 1, offset: 0 } } }];
   (function () { const u = EQS["panel-03"].equipment[0];
     u.link = { device_id: "ccm-3102", host: "192.168.10.61", port: 502, slave: 1, profile: AC_PROF[0].name, tag: "ac1" }; })();
+  const ACC_FIELDS = { run: { word: "운전", kind: "bool" }, setpoint: { word: "설정 온도", kind: "num", min: 20, max: 50, step: 0.5, unit: "℃" },
+    alarm_temp: { word: "고온 알람 온도", kind: "num", min: 30, max: 60, step: 1, unit: "℃" } };
+  const ACC_HOLD = "보류 — 쓰기 레지스터가 등록되지 않았고 CCM 펌웨어가 에어컨 쓰기를 아직 지원하지 않아 장비로 보내지 않았습니다", ACCTL = {};
+  const acCtlView = pid => ({ units: Object.fromEntries(Object.entries(ACCTL[pid] || {}).map(([k, v]) => [k, { pending: v.pending, recent: v.recent }])),
+    fields: ACC_FIELDS, can_send: false, hold_reason: ACC_HOLD });
   function acStatus(pid) {
     const sp = EQS[pid]; if (!sp) return [];
-    const t = now(), h0 = Math.floor(t / FC.H) * FC.H; gdForecast(pid);
-    const temp = FC.cache[pid + "|" + Math.floor(t / FC.H)], out = [];
+    const t = now(), h0 = Math.floor(t / FC.H) * FC.H, fc = gdForecast(pid), pr = fc && (fc.sensors || []).find(x => x.primary);
+    const temp = (pr && FC.cache[pid + "|" + pr.id.replace(":", "|")]) || new Map(), out = [];   // 대표 온도의 가상 시간별 기록(gdForecast가 만든 것)
     (sp.equipment || []).forEach((e, i) => { if (!e.link) return;
       const sp35 = 35, runAt = u => temp.has(u) && temp.get(u) >= sp35 - 3 ? 1 : 0;   // 시연: 판넬이 설정-3℃ 넘으면 가동
       const day = Array.from({ length: 24 }, (_, k) => runAt(h0 - (k + 1) * FC.H)), hot = [];
@@ -2018,6 +2023,25 @@
     if (action === "request_done") { const r = TK.reqs.find(x => x.id === b.request_id && x.status === "open");
       if (!r) return [{ error: "이미 처리했거나 없는 요청입니다" }, 400]; r.status = "done"; return [{ ok: true }, 200]; }
     // 외부 게이트웨이(시연: 등록·토큰 흉내만 — 실제로 값을 받지는 않는다)
+    // 에어컨 원격 조작(서버 aircon_ctl.py와 같은 규칙) — 시연도 장비로 보내지 않고 '보류'로 기록
+    if (action === "aircon_cmd" || action === "aircon_apply" || action === "aircon_revert") {
+      const pid = String(b.panel || ""), i = b.index, u = acStatus(pid).find(x => x.index === i);
+      if (!Number.isInteger(i) || !u) return [{ error: "통신으로 연결된 에어컨이 아닙니다" }, 400];
+      const box = ((ACCTL[pid] = ACCTL[pid] || {})[i] = ACCTL[pid][i] || { pending: [], recent: [] });
+      if (action === "aircon_revert") { const n = box.pending.length; box.pending.forEach(x => box.recent.unshift(Object.assign({}, x, { status: "cancelled", at: now() }))); box.pending = [];
+        box.recent = box.recent.slice(0, 5); return [{ ok: true, cancelled: n, ctl: acCtlView(pid) }, 200]; }
+      if (u.state !== "live") return [{ error: "통신 끊김 · 조작 잠금 — 연결이 돌아오면 바꿀 수 있습니다" }, 400];
+      if (action === "aircon_cmd") { const f = ACC_FIELDS[b.field]; if (!f) return [{ error: "바꿀 수 없는 항목입니다" }, 400];
+        let v; if (f.kind === "bool") v = [1, true, "1", "on"].includes(b.value) ? 1 : 0;
+        else { v = Number(b.value); if (!(v >= f.min && v <= f.max)) return [{ error: `${f.word}는 ${f.min}~${f.max}${f.unit} 사이만 됩니다` }, 400]; }
+        box.pending = box.pending.filter(x => x.field !== b.field).concat({ field: b.field, value: v, by: "시연 운영자", at: now() });
+        return [{ ok: true, ctl: acCtlView(pid) }, 200]; }
+      if (!box.pending.length) return [{ error: "적용할 변경이 없습니다" }, 400];
+      const results = box.pending.map(x => ({ field: x.field, value: x.value, status: "held", note: ACC_HOLD }));
+      box.pending.forEach(x => { box.recent.unshift({ field: x.field, value: x.value, status: "held", note: ACC_HOLD, by: "시연 운영자", at: now() });
+        logEvent("", "", "aircon_cmd", `에어컨 #${i + 1} ${ACC_FIELDS[x.field].word} — 보류(장비로 보내지 않음)`, "user"); });
+      box.pending = []; box.recent = box.recent.slice(0, 5);
+      return [{ ok: true, results, ctl: acCtlView(pid) }, 200]; }
     if (action === "gateway") { const pn = String(b.panel || ""), nm = String(b.name || "").trim().slice(0, 60);
       if (!nm || !pn) return [{ error: "게이트웨이 이름과 붙일 판넬이 필요합니다" }, 400];
       const pl = panelList().find(p => p.panel === pn), id = (ACC.gws = ACC.gws || []).length + 1;
@@ -2233,7 +2257,7 @@
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
         if (!gdRows().some(x => x.panel === pid)) return Promise.resolve(J({ error: "없는 판넬입니다" }, 404));
-        return Promise.resolve(J({ panel: pid, spec: EQS[pid] || null, view: eqView(EQS[pid]), aircon: acStatus(pid) })); }
+        return Promise.resolve(J({ panel: pid, spec: EQS[pid] || null, view: eqView(EQS[pid]), aircon: acStatus(pid), aircon_ctl: acCtlView(pid) })); }
       if (p === "/api/admin/aircon_profiles") return Promise.resolve(J({ profiles: AC_PROF, items: AC_ITEMS.map(([key, name, unit, required]) => ({ key, name, unit, required })) }));
       if (p === "/api/admin/thermal") return Promise.resolve(J({ panels: gdThermalCandidates() }));
       if (p === "/api/guard/forecast") { const d = gdForecast(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }

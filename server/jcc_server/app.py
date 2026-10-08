@@ -818,7 +818,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "없는 판넬입니다"}, 404)
             sp = eqm.get(self.storage, pid)
             from .aircon import panel_status
-            return self._json({"panel": pid, "spec": sp, "view": eqm.view(sp), "aircon": panel_status(self.storage, pid)})
+            from .aircon_ctl import pending_view
+            return self._json({"panel": pid, "spec": sp, "view": eqm.view(sp), "aircon": panel_status(self.storage, pid),
+                               "aircon_ctl": pending_view(self.storage, pid)})
         if path == "/api/admin/aircon_profiles":     # 에어컨 레지스터 표(기종별)
             from .aircon import ITEMS, profiles
             return self._json({"profiles": profiles(self.storage),
@@ -1659,6 +1661,19 @@ class Handler(BaseHTTPRequestHandler):
                         drop_link(self.storage, lk, me["username"])
                 audit(f"{pid} 판넬 설비 저장(공조 {len(sp['equipment'])}종 · 발열 {len(sp['heat'])}종)")
                 return self._json({"ok": True, "view": eqm.view(sp)})
+            if action in ("aircon_cmd", "aircon_apply", "aircon_revert"):   # 에어컨 원격 조작 — 틀만(장비로 보내지 않고 '보류' 기록)
+                from . import aircon_ctl as acc
+                pid, idx = str(b.get("panel", "")), b.get("index")
+                if not isinstance(idx, int) or isinstance(idx, bool):
+                    return self._json({"error": "장치를 확인하세요"}, 400)
+                if action == "aircon_cmd":
+                    return self._json({"ok": True, "ctl": acc.stage(self.storage, pid, idx, str(b.get("field", "")), b.get("value"), me["username"])})
+                if action == "aircon_revert":
+                    n = acc.revert(self.storage, pid, idx, me["username"])
+                    return self._json({"ok": True, "cancelled": n, "ctl": acc.pending_view(self.storage, pid)})
+                res = acc.apply(self.storage, pid, idx, me["username"])
+                audit(f"{pid} 에어컨 #{idx + 1} 원격 조작 {len(res['results'])}건 — " + ", ".join(r["status"] for r in res["results"]))
+                return self._json(dict(res, ok=True, ctl=res["pending"]))
             if action in ("aircon_profile", "aircon_link", "aircon_unlink"):   # 에어컨 통신(읽기 전용)
                 from . import aircon as acm
                 if action == "aircon_profile":
