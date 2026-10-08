@@ -671,6 +671,131 @@
   .gd-inc-list .gd-doc small{font-size:var(--t-cap);color:var(--ink-3)}
   @media print{.gd-head,.gd-main,.gd-sec,.gd-scrim,.gd-x,.gd-tab,.gd-story,.gd-toast,.gd-grab,.gd-noprint{display:none!important}
     .gd-sheet{position:static;transform:none!important;opacity:1!important;max-height:none;border:0;width:auto}}
+  /* ── 모니터링 모드: 관제실 상황판. 낮·밤 설정과 무관하게 늘 어둡게(오래 켜 두고 멀리서 본다) ── */
+  body.gd-mon-on{overflow:hidden}
+  body.gd-mon-on .gd-app,body.gd-mon-on .gd-login{display:none!important}
+  .gd-mon{--bg:#0b0d10;--card:#15191d;--card-2:#111418;--line:#2a2e33;--line-2:#23282e;--track:#23282e;
+    --ink:#e9e6df;--ink-2:#bdb8ae;--ink-3:#8d8a83;--ok:#7fd1a8;--warn:#e9b45a;--crit:#ff3d6e;--crit-ink:#ffb3c7;color-scheme:dark;
+    position:fixed;inset:0;z-index:40;display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+    padding:clamp(12px,1.4vw,28px);gap:clamp(10px,1vw,18px);transition:transform 2s ease}
+  .gd-mon[hidden]{display:none}
+  .gd-mon-top{display:flex;align-items:center;gap:clamp(10px,1.2vw,22px);min-height:clamp(44px,4.4vw,72px);padding:0 4px}
+  .gd-mon-brand{display:flex;align-items:center;gap:10px;font:700 clamp(12px,.9vw,16px) var(--sans);letter-spacing:.16em}
+  .gd-mon-brand svg{width:clamp(22px,1.8vw,32px);height:auto}
+  .gd-mon-site{font:500 clamp(14px,1.2vw,22px) var(--sans);color:var(--ink-2);padding-left:clamp(10px,1.2vw,22px);border-left:1px solid var(--line);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .gd-mon-sp{flex:1}
+  .gd-mon-live{display:inline-flex;align-items:center;gap:8px;font:700 clamp(11px,.8vw,14px) var(--sans);letter-spacing:.12em;color:var(--ok)}
+  .gd-mon-live i{width:9px;height:9px;border-radius:50%;background:currentColor;animation:gd-mon-blink 2s ease-in-out infinite}
+  .gd-mon-live.off{color:var(--crit)} .gd-mon-live.off i{animation:none}
+  @keyframes gd-mon-blink{50%{opacity:.25}}
+  .gd-mon-clock{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+  .gd-mon-clock b{font:300 clamp(22px,2.2vw,42px)/1 var(--sans);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .gd-mon-clock span{font:500 clamp(11px,.75vw,13px) var(--sans);color:var(--ink-3);margin-top:4px}
+  .gd-mon-btn{width:clamp(38px,2.6vw,48px);height:clamp(38px,2.6vw,48px);border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink-2);
+    display:grid;place-items:center;cursor:pointer}
+  .gd-mon-btn:hover{border-color:var(--ink-3);color:var(--ink)}
+  .gd-mon-btn svg{width:46%;height:46%}
+  #gd-mon-sound .on{display:none} #gd-mon-sound[aria-pressed="true"] .on{display:inline} #gd-mon-sound[aria-pressed="true"] .off{display:none}
+  #gd-mon-sound[aria-pressed="true"]{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+
+  /* 위험 띠 — 위험이 있을 때만, 리탈 레드 */
+  .gd-mon-alert{display:flex;align-items:center;gap:clamp(12px,1.4vw,28px);padding:clamp(12px,1.1vw,20px) clamp(16px,1.6vw,28px);border-radius:var(--r-l);
+    background:var(--night-crit);color:#ffffff}
+  .gd-mon-alert .pill{flex:none;font:800 clamp(12px,.9vw,16px) var(--sans);letter-spacing:.12em;padding:6px 12px;border-radius:var(--pill);background:#ffffff;color:var(--night-crit)}
+  .gd-mon-alert .what{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+  .gd-mon-alert .what b{font:700 clamp(18px,1.6vw,30px)/1.2 var(--sans);letter-spacing:-.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gd-mon-alert .what span{font:500 clamp(12px,.9vw,16px) var(--sans);opacity:.85}
+  .gd-mon-steps{display:flex;gap:6px;flex:none}
+  .gd-mon-steps i{display:flex;flex-direction:column;align-items:center;gap:6px;font:600 clamp(10px,.7vw,13px) var(--sans);font-style:normal;opacity:.6}
+  .gd-mon-steps i::before{content:"";width:clamp(36px,3.4vw,64px);height:6px;border-radius:var(--pill);background:rgba(255,255,255,.3)}
+  .gd-mon-steps i.done{opacity:1} .gd-mon-steps i.done::before{background:#ffffff}
+  .gd-mon-steps i.now{opacity:1} .gd-mon-steps i.now::before{background:repeating-linear-gradient(-45deg,#ffffff 0 6px,rgba(255,255,255,.35) 6px 12px)}
+  .gd-mon-alert .el{flex:none;display:flex;flex-direction:column;align-items:flex-end;font:600 clamp(11px,.75vw,13px) var(--sans);opacity:.9}
+  .gd-mon-alert .el b{font:300 clamp(24px,2.4vw,44px)/1 var(--sans);font-variant-numeric:tabular-nums;opacity:1}
+
+  .gd-mon-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(280px,23vw,440px);gap:clamp(10px,1vw,18px)}
+  .gd-mon-grid{min-height:0;display:grid;gap:clamp(8px,.8vw,14px)}
+
+  /* 판넬 타일 — 크기에 맞춰 글자가 커진다(컨테이너 단위) */
+  .gd-mt{container-type:size;position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;gap:clamp(6px,3cqh,14px);
+    padding:clamp(12px,5cqh,24px) clamp(14px,5cqw,26px);border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);overflow:hidden}
+  .gd-mt.s-warn{border:2px solid var(--warn)}
+  .gd-mt.s-crit{border:2px solid var(--crit);animation:gd-mt-pulse 1.8s ease-in-out infinite}
+  .gd-mt.s-offline .gd-mt-v,.gd-mt.s-offline .gd-mt-tr{opacity:.45}
+  @keyframes gd-mt-pulse{50%{background:color-mix(in srgb,var(--crit) 16%,var(--card))}}
+  .gd-mt header{display:flex;align-items:center;gap:10px;min-width:0}
+  .gd-mt header b{font:700 clamp(14px,8cqh,26px)/1.2 var(--sans);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0}
+  .gd-mt-chip{flex:none;display:inline-flex;align-items:center;gap:6px;padding:5px 12px 5px 8px;border-radius:var(--pill);font:700 clamp(11px,5.5cqh,16px) var(--sans);color:var(--ink-3)}
+  .gd-mt-chip svg{width:1.2em;height:1.2em}
+  .gd-mt-chip.ok{color:var(--ink-2)} .gd-mt-chip.ok svg{color:var(--ok)}
+  .gd-mt-chip.warn{background:var(--warn);color:var(--bg)} .gd-mt-chip.crit{background:var(--crit);color:var(--bg)}
+  .gd-mt-v{display:flex;align-items:baseline;gap:clamp(14px,8cqw,40px)}
+  .gd-mt-v div{display:flex;flex-direction:column;min-width:0}
+  .gd-mt-v b{font:300 clamp(26px,22cqh,96px)/1 var(--sans);letter-spacing:-.04em;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .gd-mt-v b small{font-size:.42em;letter-spacing:0;margin-left:2px;color:var(--ink-2)}
+  .gd-mt-v span{font:500 clamp(10px,4.5cqh,14px) var(--sans);color:var(--ink-3);margin-top:4px}
+  .gd-mt.s-crit .gd-mt-v .hot b{color:var(--crit-ink)}
+  .gd-mt-v .w b{font:700 clamp(14px,9cqh,40px)/1.1 var(--sans);letter-spacing:-.01em}
+  .gd-mt.s-crit .gd-mt-v .w b{color:var(--crit)} .gd-mt.s-warn .gd-mt-v .w b{color:var(--warn)}
+  .gd-mt-tr{flex:1;min-height:clamp(28px,20cqh,130px);display:flex;flex-direction:column;gap:4px}
+  .gd-mt-tr .ch{flex:1;position:relative;min-height:0}
+  .gd-mt-tr svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  .gd-mt-tr .cap{display:flex;justify-content:space-between;font:500 clamp(9px,4cqh,12px) var(--sans);color:var(--ink-3)}
+  .gd-mt-tr .cap em{font-style:normal;color:var(--warn)}
+  .gd-mt-sn{display:flex;flex-wrap:wrap;gap:6px 12px;font:600 clamp(10px,4.8cqh,15px) var(--sans);color:var(--ink-3)}
+  .gd-mt-sn span{display:inline-flex;align-items:center;gap:6px}
+  .gd-mt-sn svg{width:1.25em;height:1.25em;color:var(--ok)}
+  .gd-mt-sn .warn,.gd-mt-sn .warn svg{color:var(--warn)} .gd-mt-sn .crit,.gd-mt-sn .crit svg{color:var(--crit)}
+  .gd-mt-nod{font:500 clamp(10px,4cqh,13px) var(--sans);color:var(--ink-3);align-self:center;margin:auto}
+
+  /* 오른쪽 칸 */
+  .gd-mon-side{min-height:0;display:flex;flex-direction:column;gap:clamp(10px,1vw,18px)}
+  .gd-mon-side>section{border-radius:var(--r-l);background:var(--card);border:1px solid var(--line-2);padding:clamp(14px,1.2vw,22px)}
+  .gd-mon-side h3{margin:0 0 10px;font:700 clamp(11px,.8vw,14px) var(--sans);letter-spacing:.12em;color:var(--ink-3)}
+  .gd-mon-state{display:flex;align-items:center;gap:clamp(12px,1.2vw,22px)}
+  .gd-mon-state svg{width:clamp(84px,7vw,132px);height:auto;flex:none}
+  .gd-mon-state .t{display:flex;flex-direction:column;gap:6px;min-width:0}
+  .gd-mon-state .t small{font:600 clamp(11px,.8vw,14px) var(--sans);color:var(--ink-3)}
+  .gd-mon-state .t b{font:600 clamp(18px,1.6vw,30px)/1.2 var(--sans);letter-spacing:-.02em}
+  .gd-mon-state.crit{background:var(--night-crit);border-color:transparent} .gd-mon-state.crit .t small{color:#ffffff;opacity:.85}
+  .gd-mon-state.warn .t b{color:var(--warn)}
+  .gd-mon-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;text-align:center}
+  .gd-mon-kpi div{display:flex;flex-direction:column;gap:4px;padding:4px 0}
+  .gd-mon-kpi div + div{border-left:1px solid var(--line-2)}
+  .gd-mon-kpi b{font:300 clamp(24px,2.2vw,42px)/1 var(--sans);font-variant-numeric:tabular-nums}
+  .gd-mon-kpi span{font:600 clamp(10px,.7vw,13px) var(--sans);color:var(--ink-3)}
+  .gd-mon-kpi .crit b{color:var(--crit)} .gd-mon-kpi .warn b{color:var(--warn)} .gd-mon-kpi .off b{color:var(--ink-2)}
+  .gd-mon-kpi .zero b{color:var(--ink-3)}
+  .gd-mon-feed{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .gd-mon-feed ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;overflow:hidden;
+    -webkit-mask-image:linear-gradient(var(--bg) 80%,transparent);mask-image:linear-gradient(var(--bg) 80%,transparent)}
+  .gd-mon-feed li{display:grid;grid-template-columns:auto auto minmax(0,1fr);align-items:start;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-2)}
+  .gd-mon-feed time{font:500 clamp(11px,.8vw,14px) var(--sans);color:var(--ink-3);font-variant-numeric:tabular-nums;padding-top:2px}
+  .gd-mon-feed i{width:clamp(18px,1.3vw,22px);height:clamp(18px,1.3vw,22px);font-style:normal;color:var(--ink-2)}
+  .gd-mon-feed i svg{width:100%;height:100%}
+  .gd-mon-feed i.ok{color:var(--ok)} .gd-mon-feed i.warn{color:var(--warn)} .gd-mon-feed i.crit{color:var(--crit)}
+  .gd-mon-feed p{margin:0;font:500 clamp(12px,.85vw,15px)/1.45 var(--sans);color:var(--ink-2);min-width:0}
+  .gd-mon-feed p b{color:var(--ink);font-weight:700}
+  .gd-mon-feed li.new{animation:gd-mon-new 1.2s ease-out}
+  @keyframes gd-mon-new{from{background:color-mix(in srgb,var(--ok) 14%,transparent)}to{background:transparent}}
+  .gd-mon-feed .none{font:500 clamp(12px,.85vw,15px) var(--sans);color:var(--ink-3);padding:6px 0}
+  .gd-mon-month{display:flex;justify-content:space-between;gap:12px}
+  .gd-mon-month div{display:flex;flex-direction:column;gap:4px}
+  .gd-mon-month b{font:300 clamp(20px,1.8vw,34px)/1 var(--sans);font-variant-numeric:tabular-nums;color:var(--ok)}
+  .gd-mon-month b small{font-size:.5em;color:var(--ink-2);margin-left:2px}
+  .gd-mon-month span{font:600 clamp(10px,.7vw,13px) var(--sans);color:var(--ink-3)}
+  .gd-mon-foot{display:flex;justify-content:space-between;font:600 clamp(10px,.7vw,12px) var(--sans);letter-spacing:.08em;color:var(--ink-3);padding:0 4px}
+  .gd-mon-foot i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--line);margin-right:6px}
+  .gd-mon-foot i.on{background:var(--ink-2)}
+  @media (max-width:900px){
+    .gd-mon{overflow:auto}
+    .gd-mon-body{grid-template-columns:minmax(0,1fr)}
+    .gd-mon-grid{grid-auto-rows:240px}
+    .gd-mon-site,.gd-mon-clock span{display:none}
+    .gd-mon-alert{flex-wrap:wrap} .gd-mon-steps{order:3;width:100%}
+  }
+  @media (prefers-reduced-motion:reduce){.gd-mt.s-crit,.gd-mon-live i,.gd-mon-feed li.new{animation:none}.gd-mon{transition:none}}
 </style>
 
 
@@ -780,6 +905,7 @@
     <span class="gd-brk" aria-hidden="true"></span>
     <select class="gd-pick" id="gd-pick" aria-label="미리 볼 고객사" hidden></select>
     <a class="gd-txt gd-ops" id="gd-ops" href="/ops" hidden>운영자 화면</a>
+    <button class="gd-ico" id="gd-mon-open" aria-label="모니터링 모드 — 사무실 모니터용 상황판" title="모니터링 모드"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/><path d="M7 12l2.5-3 2.5 2 3-4"/></svg></button>
     <button class="gd-ico gd-lang" id="gd-lang" data-lang-toggle data-notr>EN</button>
     <button class="gd-ico" id="gd-theme" aria-label="밤·낮 화면 바꾸기" title="밤·낮 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg></button>
     <button class="gd-ico" id="gd-out" aria-label="로그아웃" title="로그아웃"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></button>
@@ -834,6 +960,30 @@
   </nav>
 </div>
 
+<!-- 모니터링 모드 — 사무실 벽 모니터에 켜 두는 실시간 상황판. 늘 어두운 화면, 스크롤 없이 한 화면, 누르지 않아도 다 보이게 -->
+<section class="gd-mon" id="gd-mon" hidden aria-label="모니터링 모드">
+  
+    <div class="gd-mon-brand"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><circle cx="16" cy="16" r="13" stroke="#2a2e33" stroke-width="3"/><path d="M16 3a13 13 0 1 1-12.4 9" stroke="#7fd1a8" stroke-width="3" stroke-linecap="round"/><circle cx="16" cy="16" r="3.2" fill="#7fd1a8"/></svg>JCC GUARD</div>
+    <div class="gd-mon-site" id="gd-mon-site"></div>
+    <div class="gd-mon-sp"></div>
+    <div class="gd-mon-live" id="gd-mon-live"><i aria-hidden="true"></i><span>실시간</span></div>
+    <div class="gd-mon-clock" data-notr><b id="gd-mon-time">--:--:--</b><span id="gd-mon-date"></span></div>
+    <button class="gd-mon-btn" id="gd-mon-sound" aria-label="경보 소리 켜기" title="경보 소리"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="on" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/><path class="off" d="M16 9.5l5 5M21 9.5l-5 5"/></svg></button>
+    <button class="gd-mon-btn" id="gd-mon-full" aria-label="전체 화면" title="전체 화면"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    <button class="gd-mon-btn" id="gd-mon-x" aria-label="모니터링 모드 끝내기" title="끝내기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  
+  <div class="gd-mon-alert" id="gd-mon-alert" hidden role="alert"></div>
+  <div class="gd-mon-body">
+    <div class="gd-mon-grid" id="gd-mon-grid"></div>
+    <aside class="gd-mon-side">
+      <section class="gd-mon-state" id="gd-mon-state"></section>
+      <section class="gd-mon-kpi" id="gd-mon-kpi"></section>
+      <section class="gd-mon-feed"><h3>최근 활동</h3><ol id="gd-mon-feed"></ol></section>
+      <section class="gd-mon-month" id="gd-mon-month"></section>
+    </aside>
+  </div>
+  <footer class="gd-mon-foot"><span id="gd-mon-page"></span><span>JCC GUARD · 24시간 감시</span></footer>
+</section>
 <div class="gd-scrim" id="gd-scrim"></div>
 <div class="gd-sheet" id="gd-sheet" role="dialog" aria-modal="true" aria-labelledby="gd-sheet-t"><div class="gd-grab"></div>
   <button class="gd-ico gd-x" id="gd-sheet-x" aria-label="닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -1768,6 +1918,24 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
     return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
   }
+  // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
+  const LIVE = { cache: {} };
+  function gdLive() {
+    const SELF = ["vent_open", "vent_close", "dew_actuate", "edge_actuate"];   // vent_hold는 새 조치가 아니라 뺀다
+    const t = now(), rows = gdRows(), trends = {}, hk = Math.floor(t / FC.H);
+    rows.forEach(r => { if (r.temp == null) return;
+      const ck = r.panel + "|" + hk; if (!LIVE.cache[ck]) LIVE.cache[ck] = fcSynth(r.panel, r.temp, t);
+      const pts = []; LIVE.cache[ck].forEach((v, u) => { if (u >= t - 24 * FC.H) pts.push([u, Math.round(v * 100) / 100]); });
+      const fc = gdForecast(r.panel); trends[r.panel] = { points: pts.sort((a, b) => a[0] - b[0]), warn: fc ? fc.warn : 38 }; });
+    const names = {}; panelList().forEach(p => p.ccms.forEach(c => { names[c.device_id] = p.panel_name; }));
+    const WHO = e => SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : e.etype === "escalate" ? "알림 발송"
+      : ["restart_ok", "channel_restart_ok", "heal_ok", "heal2_ok"].includes(e.etype) ? "자동 복구"
+      : ["fire", "contact", "dew", "alarm", "alarm_warn", "actuator_fault"].includes(e.etype) ? "감지" : null;
+    const feed = S.events.filter(e => e.ts >= t - 86400 && WHO(e)).slice(0, 30)
+      .map(e => ({ ts: e.ts, who: WHO(e), kind: e.etype, panel_name: names[e.device_id] || "", text: gdPlain(e.detail) }));
+    return { now: t, trends, feed, demo: true };
+  }
+
   // ── 온도가 오르는 이유와 할 일(서버 thermal.py와 같은 규칙) — 시연판은 위 가상 1년 기록으로 ──
   const TK = { MIN_DAYS: 14, WINDOW: 28, LOAD_DIFF: 1.0, AMB: 1.5, DEG: 0.3, DEW: 3.0, reqs: [], seq: 1 };
   const tkK = t => { const k = new Date((t + 9 * FC.H) * 1000); return { h: k.getUTCHours(), wd: (k.getUTCDay() + 6) % 7, day: Math.floor((t + 9 * FC.H) / FC.D) }; };
@@ -3389,6 +3557,7 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/guard/receivers" && method === "POST") { const cid = Number.isInteger(body.customer_id) ? body.customer_id : (ACC.customers[0] || {}).id;
         if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
         return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
+      if (p === "/api/guard/live") return Promise.resolve(J(gdLive()));
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";
@@ -3827,6 +3996,15 @@ const EN = {
   "A동 배터리실 1번": "Bldg A Battery Room 1", "A동 배터리실 2번": "Bldg A Battery Room 2", "B동 수배전반": "Bldg B Switchgear",
   "B동 MCC 1": "Bldg B MCC 1", "생산 라인 제어반": "Production Line Control", "옥외 분전반": "Outdoor Distribution Board",
   "평택 2공장": "Pyeongtaek Plant 2", "평택 2공장 · 가상 공장": "Pyeongtaek Plant 2 · virtual plant", "김현장": "Kim Hyun-jang", "데모 고객사": "Demo Customer",
+  "모니터링 모드": "Monitoring mode", "모니터링 모드 — 사무실 모니터용 상황판": "Monitoring mode — wall display for the office",
+  "실시간": "LIVE", "최근 활동": "Recent activity", "지난 24시간": "Last 24 h", "온도 흐름 기록이 쌓이는 중": "Building up temperature history",
+  "경과": "Elapsed", "끊김": "Offline", "이번 달": "This month", "이번 달 지켰습니다": "protected this month", "JCC GUARD · 24시간 감시": "JCC GUARD · monitoring 24/7",
+  "지난 24시간 동안 특별한 일이 없었습니다.": "Nothing notable in the last 24 hours.", "경보 소리 켜기": "Turn alarm sound on", "경보 소리 끄기": "Turn alarm sound off",
+  "경보 소리": "Alarm sound", "전체 화면": "Full screen", "모니터링 모드 끝내기": "Exit monitoring mode", "끝내기": "Exit", "자동 복구": "Auto-recovery",
+  "이 화면에서는 전체 화면을 쓸 수 없습니다 — 브라우저의 전체 화면(F11)을 쓰세요": "Full screen isn't available here — use the browser's full screen (F11)",
+  "재시작 확인 — CCM 프로그램이 다시 켜져 보고했습니다": "Restart confirmed — the CCM program is back and reporting",
+  "채널 재시작 확인 — CCM이 센서 연결을 다시 초기화했습니다": "Channel restart confirmed — the CCM re-initialized the sensor link",
+  "벤트 자동 개방": "vent opened automatically", "벤트 닫힘": "vent closed", "팬 가동": "fan running", "히터·팬 가동": "heater and fan running", "습도 상승": "humidity rising",
   // 단위(작은 글씨)
   "건": "", "시간": "hours", "회": "times", "명": "people", "대": "units", "면": "panels", "개": "", "점": "pts", "초": "s", "분": "min", "일": "days", "번": "times",
 };
@@ -3904,6 +4082,8 @@ const EN_RE = [
   [/^(\d+)일, 주의 기준\(([\d.]+)℃\)을 넘었습니다$/, "$1 days over the watch limit ($2℃)"],
   [/^JCC에 전화 (.+)$/, "Call JCC $1"], [/^어제·오늘 실제 온도와 내일 예측 그래프\. 내일 가장 높을 때 (.+) ([\d.]+)도$/, (m, h, v) => `Yesterday and today's actual temperature and tomorrow's forecast. Tomorrow's peak ${enDates(h)} ${v}°`],
   [/^벤트 열림, 판넬 안 (.+)$/, (m, a) => `Vent open, inside the panel ${enText(a) || a}`],
+  [/^센서 (\d+)개 모두 정상$/, "All $1 sensors OK"],
+  [/^지난 24시간 · (.+)$/, "Last 24 h · $1"], [/^주의 ([\d.]+℃) ┄$/, "Watch $1 ┄"], [/^(\d+) \/ (\d+)$/, "$1 / $2"],
   [/^평일 ([^·—]+?) 평균 최고 ([\d.]+)℃$/, (m, h, a) => `Weekday ${enHours(h)} peaks average ${a}℃`],
   [/^주의 기준\(([\d.]+)℃\)에 가깝습니다\.$/, "close to the watch limit ($1℃)."],
   [/^주의 기준\(([\d.]+)℃\)보다 ([\d.]+)℃ 낮습니다\.$/, "$2℃ below the watch limit ($1℃)."],
@@ -4164,6 +4344,10 @@ async function start(s){
   $("#gd-out").hidden = !s.enabled && !window.JCC_DEMO;
   await load(); clearInterval(G.timer); G.timer = setInterval(load, 5000);
   loadRcv(); openAlarmLink(); iosHint();
+  // 모니터링 모드로 켜 두었던 화면이면(또는 주소에 ?monitor=1) 다시 켜도 상황판으로 — 벽 모니터 재부팅 대비
+  let mon = new URLSearchParams(location.search).get("monitor") === "1";
+  try { mon = mon || localStorage.getItem("gd-mon") === "1"; } catch(_){}
+  if (mon) monOpen();
 }
 async function pickers(){
   // JCC 직원: 고객사를 골라 그 고객이 보는 화면 그대로 미리 본다(주소의 ?customer_id= 도 받는다)
@@ -4225,6 +4409,7 @@ function paint(){
     (!c.phone ? `<small class="gd-mut">연락처가 아직 등록되지 않았습니다 — JCC 담당자에게 알려 주세요</small>` : "") +
     (c.phone ? `<a href="tel:${esc(c.phone.replace(/[^0-9+]/g, ""))}" aria-label="JCC에 전화 ${esc(c.phone)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h3.5l1.5 4-2 1.5a11 11 0 0 0 6.5 6.5l1.5-2 4 1.5V19a1 1 0 0 1-1 1A16 16 0 0 1 4 5a1 1 0 0 1 1-1z"/></svg>${esc(c.phone)}</a>` : ""));
   paintPanels(d.panels);
+  if (typeof MON !== "undefined" && MON.on) paintMon();
   if (!G.month || G.month.period === m.period){ G.month = m; paintMonth(); }
 }
 
@@ -4891,6 +5076,7 @@ function iosHint(){
 // ── 시작 ─────────────────────────────────────────────────
 (async () => {
   try { const s = await status(); G.support = s.support_phone || ""; G.signup = !!s.signup; G.minPw = s.min_pw || 10;
+    if (window.JCC_DEMO && new URLSearchParams(location.search).get("monitor") === "1") demoIn(true);   // 시연: 상황판 링크는 바로 열리게
     if (window.JCC_DEMO && !demoIn()) return showLogin();
     if (!s.enabled || s.authed){
       if (s.user && s.user.must_change) return showLogin("처음 로그인입니다 — 새 비밀번호를 정해 주세요");
@@ -4899,6 +5085,165 @@ function iosHint(){
     showLogin();
   } catch(_){ showLogin("서버에 연결하지 못했습니다 — 잠시 뒤 다시 시도해 주세요"); }
 })();
+
+// ── 모니터링 모드: 사무실 벽 모니터용 실시간 상황판 ────────────────────
+// 판넬 데이터는 첫 화면과 같은 5초 갱신(G.d)을 쓰고, 24시간 온도 흐름·활동 피드는 30초마다 /api/guard/live.
+// 누르지 않아도 다 보이게: 판넬이 많으면 문제 있는 판넬부터 페이지로 나눠 12초마다 넘긴다.
+const MON = { on: false, live: null, page: 0, pages: 1, sound: false, lastInc: null, wake: null, timers: [], shift: 0, seen: new Set() };
+const MON_FEED_ICO = { "판넬이 스스로": ["ok", '<path d="M3 8h10a3 3 0 1 0-3-3"/><path d="M3 12h15a3 3 0 1 1-3 3"/><path d="M3 16h7"/>'],
+  "감지": ["crit", '<path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.2v.3"/>'],
+  "확인": ["", '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.7 2.7L16 9.5"/>'],
+  "알림 발송": ["warn", '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'],
+  "자동 복구": ["ok", '<path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 4v4h4"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 20v-4h-4"/>'],
+  "JCC 점검": ["", '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4.5V3h6v1.5"/><path d="M9 12.5l2 2 4-4.5"/>'] };
+const monSvg = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const monRank = {crit: 0, offline: 1, warn: 2, ok: 3};
+
+function monClock(){
+  const d = new Date(), en = I18N.lang === "en";
+  $("#gd-mon-time").textContent = d.toLocaleTimeString(en ? "en-GB" : "ko-KR", {...KST, hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23"});
+  $("#gd-mon-date").textContent = d.toLocaleDateString(en ? "en-US" : "ko-KR", {...KST, month: "long", day: "numeric", weekday: "short"});
+  const inc = G.d && G.d.incident, el = $("#gd-mon-el");
+  if (inc && el){ const s = Math.max(0, Math.floor(Date.now() / 1000 - inc.raised_at)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+    el.textContent = (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s % 60).padStart(2, "0"); }
+  const stale = !G.at || Date.now() - G.at > 20000, lv = $("#gd-mon-live");
+  lv.classList.toggle("off", stale); lv.querySelector("span").textContent = stale ? "연결 끊김" : "실시간";
+}
+// 지난 24시간 실제 온도(시간별 평균) — 주의 기준선을 같이(가까울 때만), 마지막 점은 지금 값
+function monSpark(tr, p){
+  const pts = ((tr && tr.points) || []).slice(); if (p.temp != null) pts.push([Date.now() / 1000, p.temp]);
+  if (pts.length < 3) return `<div class="gd-mt-nod">온도 흐름 기록이 쌓이는 중</div>`;
+  const t1 = Date.now() / 1000, t0 = t1 - 24 * 3600, vs = pts.map(x => x[1]), warn = tr && tr.warn;
+  let lo = Math.min(...vs), hi = Math.max(...vs);
+  if (warn != null && warn - hi < 6) hi = Math.max(hi, warn);
+  if (hi - lo < 2){ const m = (hi + lo) / 2; lo = m - 1; hi = m + 1; }
+  const X = t => Math.max(0, Math.min(100, (t - t0) / (t1 - t0) * 100)), Y = v => 6 + (1 - (v - lo) / (hi - lo)) * 88;
+  const line = pts.filter(x => x[0] >= t0).map(x => `${X(x[0]).toFixed(1)},${Y(x[1]).toFixed(1)}`).join(" ");
+  const c = p.status === "crit" ? "var(--crit)" : p.status === "warn" ? "var(--warn)" : "var(--ok)", last = pts[pts.length - 1];
+  return `<span class="cap"><span>지난 24시간 · ${Math.min(...vs).toFixed(1)}~${Math.max(...vs).toFixed(1)}℃</span>${warn != null && warn <= hi ? `<em>주의 ${esc(warn)}℃ ┄</em>` : ""}</span><span class="ch"><svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">` +
+    (warn != null && warn <= hi ? `<line x1="0" x2="100" y1="${Y(warn).toFixed(1)}" y2="${Y(warn).toFixed(1)}" stroke="var(--warn)" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke" opacity=".7"/>` : "") +
+    `<polygon points="0,100 ${line} ${X(last[0]).toFixed(1)},100" fill="${c}" opacity=".10"/>` +
+    `<polyline points="${line}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg></span>`;
+}
+function monTile(p){
+  const st = ST_OF[p.status] || "ok", sens = p.sensors || [], bad = sens.filter(x => x.level !== "ok");
+  const third = p.fire && p.fire !== "—" && p.fire !== "낮음" ? ["화재 징조", p.fire] : p.contact && p.contact !== "—" && p.contact !== "정상" ? ["단자 발열", p.contact] : null;
+  const tr = MON.live && MON.live.trends ? MON.live.trends[p.panel] : null;
+  return `<article class="gd-mt s-${esc(p.status)}"><b>${esc(p.panel_name)}</b><span class="gd-mt-chip ${st}">${stIco(st)}${esc(p.word)}</span>` +
+    `<div class="gd-mt-v"><div class="hot"><b>${p.temp == null ? "—" : esc(p.temp)}<small>℃</small></b><span>온도</span></div>` +
+    `<div><b>${p.humidity == null ? "—" : esc(p.humidity)}<small>%</small></b><span>습도</span></div>` +
+    (third ? `<div class="w"><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</div>` +
+    `<div class="gd-mt-tr">${monSpark(tr, p)}</div>` +
+    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}${esc(x.name)} ${esc(x.say)}</span>`).join("")
+      : sens.length ? `<span>${stIco("ok")}센서 ${sens.length + (p.temp != null) + (p.humidity != null)}개 모두 정상</span>` : ""}</footer></article>`;
+}
+// 판넬 수에 맞춰 칸을 나눈다: 다 들어가면 가장 크게, 안 들어가면 페이지로(문제 판넬이 첫 페이지)
+function monLayout(n){
+  const g = $("#gd-mon-grid"), W = g.clientWidth, H = g.clientHeight, gap = 12, minW = 300, minH = 220;
+  let best = null;
+  for (let cols = 1; cols <= Math.max(1, n); cols++){
+    const rows = Math.ceil(n / cols), w = (W - gap * (cols - 1)) / cols, h = (H - gap * (rows - 1)) / rows;
+    if (w < minW || h < minH) continue;
+    const size = Math.min(w / 1.45, h);
+    if (!best || size > best.size) best = {cols, rows, size, cap: n};
+  }
+  if (best) return best;
+  const cols = Math.max(1, Math.floor((W + gap) / (minW + gap))), rows = Math.max(1, Math.floor((H + gap) / (minH + gap)));
+  return {cols, rows, cap: cols * rows};
+}
+function paintMon(){
+  if (!MON.on || !G.d) return;
+  const d = G.d, ix = d.index || {}, ps = (d.panels || []).slice().sort((a, b) => (monRank[a.status] ?? 9) - (monRank[b.status] ?? 9));
+  $("#gd-mon-site").textContent = d.site || "";
+  // 판넬 칸
+  const g = $("#gd-mon-grid"), L = monLayout(ps.length || 1);
+  MON.pages = Math.max(1, Math.ceil(ps.length / L.cap)); if (MON.page >= MON.pages) MON.page = 0;
+  const show = ps.slice(MON.page * L.cap, MON.page * L.cap + L.cap), rows = Math.ceil(show.length / L.cols) || 1;
+  g.style.gridTemplateColumns = `repeat(${L.cols}, minmax(0,1fr))`;
+  g.style.gridTemplateRows = matchMedia("(max-width:900px)").matches ? "" : `repeat(${Math.max(rows, MON.pages > 1 ? L.rows : rows)}, minmax(0,1fr))`;
+  setHTML(g, show.length ? show.map(monTile).join("") : `<div class="gd-mt-nod">아직 연결된 판넬이 없습니다.</div>`);
+  $("#gd-mon-page").innerHTML = MON.pages > 1 ? Array.from({length: MON.pages}, (_, i) => `<i class="${i === MON.page ? "on" : ""}"></i>`).join("") + ` ${MON.page + 1} / ${MON.pages}` : "";
+  // 위험 띠
+  const inc = d.incident, al = $("#gd-mon-alert");
+  if (inc){
+    const selfDone = (inc.steps || []).some(x => /^판넬이 스스로/.test(x.text || ""));
+    const steps = [["감지", true]].concat(selfDone ? [["판넬 자동 조치", true]] : []).concat([["JCC 확인", !!inc.acked_at], ["정상 복귀", false]]);
+    const nowI = steps.findIndex(x => !x[1]);
+    al.hidden = false;
+    setHTML(al, `<span class="pill">위험</span><div class="what"><b>${esc(inc.panel_name)} · ${esc(inc.sensor_name)}</b><span>${esc(clean(inc.detail))}</span></div>` +
+      `<div class="gd-mon-steps">${steps.map((x, i) => `<i class="${x[1] ? "done" : i === nowI ? "now" : ""}">${x[0]}</i>`).join("")}</div>` +
+      `<div class="el"><span>경과</span><b id="gd-mon-el">0:00</b></div>`);
+    if (MON.lastInc !== inc.id){ MON.lastInc = inc.id; if (MON.sound) monBeep(); }
+  } else { al.hidden = true; setHTML(al, ""); MON.lastInc = null; }
+  // 오른쪽: 상태
+  const C2 = 2 * Math.PI * 40, col = ix.color === "crit" ? "#ffffff" : ix.color === "warn" ? "var(--warn)" : ix.color === "off" ? "var(--ink-3)" : "var(--ok)";
+  const sEl = $("#gd-mon-state"); sEl.className = "gd-mon-state " + (ix.color || "");
+  setHTML(sEl, `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="40" fill="none" stroke="${ix.color === "crit" ? "rgba(255,255,255,.25)" : "var(--track)"}" stroke-width="7"/>` +
+    `<circle cx="50" cy="50" r="40" fill="none" stroke="${col}" stroke-width="7" stroke-linecap="round" stroke-dasharray="${C2.toFixed(1)}" stroke-dashoffset="${(C2 * (1 - (ix.score || 0) / 100)).toFixed(1)}" transform="rotate(-90 50 50)"/>` +
+    `<text x="50" y="58" text-anchor="middle" font-size="26" font-weight="300" fill="currentColor" font-family="inherit">${esc(ix.score ?? "—")}</text></svg>` +
+    `<div class="t"><small>안심 지수</small><b>${esc((d.state || {}).title || "")}</b></div>`);
+  // 숫자 넷
+  const cnt = s => ps.filter(p => p.status === s).length, k = [["판넬", ps.length, ""], ["위험", cnt("crit"), "crit"], ["주의", cnt("warn"), "warn"], ["끊김", cnt("offline"), "off"]];
+  setHTML($("#gd-mon-kpi"), k.map(([n, v, c]) => `<div class="${v || !c ? c : "zero"}"><b>${v}</b><span>${n}</span></div>`).join(""));
+  // 이번 달
+  const m = d.month || {};
+  setHTML($("#gd-mon-month"), m.building ? `<div><span>이번 달</span><b style="color:var(--ink-2);font-size:1em">기록이 쌓이는 중</b></div>`
+    : `<div><b>${(m.hours || 0).toLocaleString("ko-KR")}<small>시간</small></b><span>이번 달 지켰습니다</span></div>` +
+      `<div style="text-align:right"><b>${m.uptime == null ? "—" : pct(m.uptime)}</b><span>감시 가동률</span></div>`);
+  monFeed();
+  monClock();
+}
+function monFeed(){
+  const f = (MON.live && MON.live.feed) || [], ol = $("#gd-mon-feed");
+  const hm = t => new Date(t * 1000).toLocaleTimeString("ko-KR", {...KST, hour: "2-digit", minute: "2-digit", hourCycle: "h23"});
+  setHTML(ol, f.length ? f.slice(0, 14).map(x => { const [c, ic] = MON_FEED_ICO[x.who] || ["", MON_FEED_ICO["확인"][1]], k = x.ts + "|" + x.text;
+      const fresh = MON.seen.size && !MON.seen.has(k);
+      return `<li class="${fresh ? "new" : ""}"><time>${hm(x.ts)}</time><i class="${c}">${monSvg(ic)}</i><p>${x.panel_name ? `<b>${esc(x.panel_name)}</b> ` : ""}${esc(clean(x.text))}</p></li>`; }).join("")
+    : `<li class="none">지난 24시간 동안 특별한 일이 없었습니다.</li>`);
+  f.forEach(x => MON.seen.add(x.ts + "|" + x.text));
+}
+async function monLive(){
+  try { const r = await fetch("/api/guard/live?" + q(), {cache: "no-store"}); if (r.ok){ MON.live = await r.json(); paintMon(); } } catch(_){}
+}
+// 경보 소리 — 켜 둔 경우만(브라우저는 누른 뒤에만 소리를 낸다). 새 위험 경보가 뜰 때 짧게 세 번
+function monBeep(){
+  try { const A = window.AudioContext || window.webkitAudioContext; MON.ac = MON.ac || new A(); const ac = MON.ac;
+    [0, .35, .7].forEach(s => { const o = ac.createOscillator(), g2 = ac.createGain(); o.type = "square"; o.frequency.value = 880;
+      g2.gain.setValueAtTime(.0001, ac.currentTime + s); g2.gain.exponentialRampToValueAtTime(.18, ac.currentTime + s + .02);
+      g2.gain.exponentialRampToValueAtTime(.0001, ac.currentTime + s + .25); o.connect(g2).connect(ac.destination); o.start(ac.currentTime + s); o.stop(ac.currentTime + s + .27); });
+  } catch(_){}
+}
+async function monWake(){ try { if (MON.on && navigator.wakeLock && document.visibilityState === "visible") MON.wake = await navigator.wakeLock.request("screen"); } catch(_){} }
+function monOpen(){
+  if (MON.on) return;
+  MON.on = true; MON.page = 0; MON.seen = new Set();
+  try { localStorage.setItem("gd-mon", "1"); } catch(_){}
+  $("#gd-mon").hidden = false; document.body.classList.add("gd-mon-on");
+  paintMon(); monLive(); monWake();
+  MON.timers = [setInterval(monClock, 1000), setInterval(monLive, 30000),
+    setInterval(() => { if (MON.pages > 1){ MON.page = (MON.page + 1) % MON.pages; paintMon(); } }, 12000),
+    setInterval(() => { const s = [[0, 0], [2, 1], [1, -1], [-1, 2], [-2, -1]][++MON.shift % 5];   // 번인 방지 — 몇 분마다 화면을 1~2px 옮긴다
+      $("#gd-mon").style.transform = `translate(${s[0]}px, ${s[1]}px)`; }, 180000)];
+}
+function monClose(){
+  if (!MON.on) return;
+  MON.on = false; MON.timers.forEach(clearInterval); MON.timers = [];
+  try { localStorage.removeItem("gd-mon"); } catch(_){}
+  $("#gd-mon").hidden = true; document.body.classList.remove("gd-mon-on");
+  try { MON.wake && MON.wake.release(); } catch(_){} MON.wake = null;
+  if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen || (() => {})).call(document);
+}
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+$("#gd-mon-open").onclick = monOpen;
+$("#gd-mon-x").onclick = monClose;
+$("#gd-mon-sound").onclick = () => { MON.sound = !MON.sound; $("#gd-mon-sound").setAttribute("aria-pressed", String(MON.sound));
+  $("#gd-mon-sound").setAttribute("aria-label", MON.sound ? "경보 소리 끄기" : "경보 소리 켜기"); if (MON.sound) monBeep(); };
+$("#gd-mon-full").onclick = () => { const e = document.documentElement;
+  if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  else (e.requestFullscreen || e.webkitRequestFullscreen || (() => Promise.reject())).call(e).catch(() => toast("이 화면에서는 전체 화면을 쓸 수 없습니다 — 브라우저의 전체 화면(F11)을 쓰세요")); };
+document.addEventListener("keydown", e => { if (e.key === "Escape" && MON.on && !fsOn()) monClose(); });
+document.addEventListener("visibilitychange", monWake);
+addEventListener("resize", () => { if (MON.on) paintMon(); });
 </script>
 
 

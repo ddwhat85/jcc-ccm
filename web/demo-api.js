@@ -453,6 +453,24 @@
     const warn = sd ? (sd.alarm_warn != null ? sd.alarm_warn : sd.alarm_max) : 38;
     return Object.assign(fcBuild(FC.cache[key], t, warn), { panel: pid, sensor_name: (sd && sd.name) || "함내 온도", unit: "℃", now: t, demo: true });
   }
+  // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
+  const LIVE = { cache: {} };
+  function gdLive() {
+    const SELF = ["vent_open", "vent_close", "dew_actuate", "edge_actuate"];   // vent_hold는 새 조치가 아니라 뺀다
+    const t = now(), rows = gdRows(), trends = {}, hk = Math.floor(t / FC.H);
+    rows.forEach(r => { if (r.temp == null) return;
+      const ck = r.panel + "|" + hk; if (!LIVE.cache[ck]) LIVE.cache[ck] = fcSynth(r.panel, r.temp, t);
+      const pts = []; LIVE.cache[ck].forEach((v, u) => { if (u >= t - 24 * FC.H) pts.push([u, Math.round(v * 100) / 100]); });
+      const fc = gdForecast(r.panel); trends[r.panel] = { points: pts.sort((a, b) => a[0] - b[0]), warn: fc ? fc.warn : 38 }; });
+    const names = {}; panelList().forEach(p => p.ccms.forEach(c => { names[c.device_id] = p.panel_name; }));
+    const WHO = e => SELF.includes(e.etype) ? "판넬이 스스로" : e.etype === "ack" ? "확인" : e.etype === "escalate" ? "알림 발송"
+      : ["restart_ok", "channel_restart_ok", "heal_ok", "heal2_ok"].includes(e.etype) ? "자동 복구"
+      : ["fire", "contact", "dew", "alarm", "alarm_warn", "actuator_fault"].includes(e.etype) ? "감지" : null;
+    const feed = S.events.filter(e => e.ts >= t - 86400 && WHO(e)).slice(0, 30)
+      .map(e => ({ ts: e.ts, who: WHO(e), kind: e.etype, panel_name: names[e.device_id] || "", text: gdPlain(e.detail) }));
+    return { now: t, trends, feed, demo: true };
+  }
+
   // ── 온도가 오르는 이유와 할 일(서버 thermal.py와 같은 규칙) — 시연판은 위 가상 1년 기록으로 ──
   const TK = { MIN_DAYS: 14, WINDOW: 28, LOAD_DIFF: 1.0, AMB: 1.5, DEG: 0.3, DEW: 3.0, reqs: [], seq: 1 };
   const tkK = t => { const k = new Date((t + 9 * FC.H) * 1000); return { h: k.getUTCHours(), wd: (k.getUTCDay() + 6) % 7, day: Math.floor((t + 9 * FC.H) / FC.D) }; };
@@ -2074,6 +2092,7 @@
       if (p === "/api/guard/receivers" && method === "POST") { const cid = Number.isInteger(body.customer_id) ? body.customer_id : (ACC.customers[0] || {}).id;
         if (!Array.isArray(body.receivers)) return Promise.resolve(J({ error: "받는 사람 목록이 필요합니다" }, 400));
         return Promise.resolve(J({ ok: true, receivers: rcvSet(cid, body.receivers) })); }
+      if (p === "/api/guard/live") return Promise.resolve(J(gdLive()));
       if (p === "/api/guard/thermal") { const d = gdThermal(qs.get("panel") || ""); return Promise.resolve(d ? J(d) : J({ error: "볼 수 없는 판넬입니다" }, 404)); }
       if (p === "/api/guard/request" && method === "POST") { const [o, st] = gdRequest(body || {}); return Promise.resolve(J(o, st)); }
       if (p === "/api/admin/panel_spec" && method !== "POST") { const pid = qs.get("panel") || "";

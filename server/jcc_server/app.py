@@ -137,7 +137,7 @@ ROUTES = [
     ("GET", "/api/guard", "read"), ("GET", "/api/guard/month", "read"), ("GET", "/api/guard/panel", "read"),
     ("GET", "/api/guard/alarm", "read"), ("GET", "/api/guard/incidents", "read"), ("GET", "/api/guard/incident", "read"),
     ("GET", "/api/guard/forecast", "read"), ("GET", "/api/guard/outages", "read"), ("GET", "/api/guard/thermal", "read"), ("POST", "/api/guard/request", "read"),
-    ("GET", "/api/guard/receivers", "read"), ("POST", "/api/guard/receivers", "read"),
+    ("GET", "/api/guard/receivers", "read"), ("GET", "/api/guard/live", "read"), ("POST", "/api/guard/receivers", "read"),
     ("GET", "/api/admin/thermal", "admin"), ("GET", "/api/admin/panel_spec", "admin"), ("GET", "/api/admin/aircon_profiles", "admin"),
     ("GET", "/api/inspection", "admin"), ("GET", "/api/inspections", "read"),
     ("GET", r"/api/inspection/\d+", "read"), ("GET", r"/api/inspection/photo/\d+", "read"),
@@ -388,6 +388,8 @@ class Handler(BaseHTTPRequestHandler):
                 panels, site = None, "전체 현장 · JCC 미리보기"
         if path == "/api/guard":
             return self._json(guard.guard_view(self.storage, panels, site, customer=cust))
+        if path == "/api/guard/live":            # 모니터링 모드: 판넬별 24시간 온도 흐름 + 최근 활동(고객은 자기 판넬만)
+            return self._json(guard.live(self.storage, panels))
         if path == "/api/guard/receivers":       # 알림 받는 사람 — 고객 관리자는 고치고, 보기 전용은 이름·시간만(번호 가림)
             u = self._user()
             rcid = u.get("customer_id") if sc is not None else (cust or {}).get("id")
@@ -713,7 +715,7 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if path in ("/api/guard", "/api/guard/month", "/api/guard/panel", "/api/guard/alarm",
-                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal", "/api/guard/receivers",
+                    "/api/guard/incidents", "/api/guard/incident", "/api/guard/forecast", "/api/guard/thermal", "/api/guard/receivers", "/api/guard/live",
                     "/api/guard/outages"):   # 고객 화면 데이터
             return self._guard(path, parse_qs(parsed.query), sc)
         if path == "/api/handover":                   # 근무 인계 요약(내가 마지막으로 확인한 뒤)

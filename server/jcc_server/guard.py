@@ -582,6 +582,59 @@ def _mins(m: float) -> str:
     return f"{m / 60:.1f}시간"
 
 
+_HEAL_OK = ("restart_ok", "channel_restart_ok", "heal_ok", "heal2_ok")
+
+
+def _who(et: str, alarm_kinds) -> str | None:
+    """활동 기록 한 줄의 '누가' — 판넬 상세 기록·모니터링 피드가 같은 규칙."""
+    if et in _SELF:
+        return "판넬이 스스로"
+    if et == "ack":
+        return "확인"
+    if et in ("inspection", "commission"):
+        return "JCC 점검"
+    if et == "escalate":
+        return "알림 발송"
+    if et in _HEAL_OK:
+        return "자동 복구"
+    if et in alarm_kinds:
+        return "감지"
+    return None
+
+
+def live(storage, panels: set | None, now: float | None = None) -> dict:
+    """모니터링 모드(사무실 벽 모니터) — 판넬별 지난 24시간 대표 온도(시간별 실제 평균)와 최근 활동 피드."""
+    from .fleet import fleet
+    from .storage import Storage as _S
+    from . import forecast as fc
+    now = time.time() if now is None else now
+    rows = fleet(storage, panels)
+    lat = _latest(storage)
+    names = {r["panel"]: r["panel_name"] for r in rows}
+    trends = {}
+    for r in rows:
+        src = fc.panel_forecast_source(storage, r["panel"])
+        if not src:
+            continue
+        dev, key, _nm, warn = src[0], src[1], src[2], src[3]
+        s = fc.series(storage, dev, key, now - 25 * 3600)
+        pts = [[round(h), round(v, 2)] for h, v in sorted(s.items()) if h >= now - 24 * 3600]
+        trends[r["panel"]] = {"points": pts, "warn": warn}
+    keys = None if panels is None else set().union(*(lat.get(p, {}).get("keys", {p}) for p in panels)) if panels else set()
+    feed = []
+    if keys is None or keys:
+        alarm_kinds = set(_S._SEVERITY)
+        for e in _events(storage, keys, now - 86400, None, 120, newest=True):
+            who = _who(e["etype"], alarm_kinds)
+            if who is None:
+                continue
+            pid = _panel_of(lat, e["device_id"]) if e["device_id"] else ""
+            feed.append({"ts": e["ts"], "who": who, "kind": e["etype"], "panel_name": names.get(pid, ""), "text": _plain(e["detail"])})
+            if len(feed) >= 30:
+                break
+    return {"now": now, "trends": trends, "feed": feed}
+
+
 def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     from .fleet import fleet
     now = time.time() if now is None else now
@@ -594,18 +647,8 @@ def panel_detail(storage, panel: str, now: float | None = None) -> dict | None:
     alarm_kinds = set(_S._SEVERITY)
     tl = []
     for e in _events(storage, keys, now - 7 * 86400, None, 200, newest=True):
-        et = e["etype"]
-        if et in _SELF:
-            who = "판넬이 스스로"
-        elif et == "ack":
-            who = "확인"
-        elif et in ("inspection", "commission"):
-            who = "JCC 점검"
-        elif et == "escalate":
-            who = "알림 발송"
-        elif et in alarm_kinds:
-            who = "감지"
-        else:
+        who = _who(e["etype"], alarm_kinds)
+        if who is None:
             continue
         tl.append({"ts": e["ts"], "who": who, "text": _plain(e["detail"])})
     from .equipment import get as eq_get, view as eq_view
