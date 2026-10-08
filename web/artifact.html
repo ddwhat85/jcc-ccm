@@ -887,6 +887,37 @@
   }
 
   /* ── 경보 이력(alh-): 지난 경보·원인 적기·기준 검토 후보 ── */
+  #an-overlay .cmsn-shell{width:min(980px,calc(100vw - 32px))}
+  .an-body{display:flex;flex-direction:column;gap:14px}
+  .an-bar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px 16px}
+  .an-chk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-2);min-height:34px}
+  .an-pick-n{margin-left:auto;font:400 11px var(--mono);color:var(--ink-3)}
+  .an-pick{display:flex;flex-direction:column;gap:8px;max-height:180px;overflow:auto;padding:10px;border:1px solid var(--rule);border-radius:var(--r)}
+  .an-pick .g{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+  .an-pick .g b{font-size:12px;min-width:120px;color:var(--ink)}
+  .an-pick button{font:600 11.5px var(--sans);padding:5px 9px;border:1px solid var(--rule);border-radius:var(--r);background:var(--canvas);color:var(--ink-2);cursor:pointer}
+  .an-pick button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+  .an-pick button:disabled{opacity:.4;cursor:default}
+  .an-s{border:1px solid var(--rule);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+  .an-s h4{margin:0;font-size:13px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:baseline}
+  .an-s h4 small{font:400 11px var(--mono);color:var(--ink-3)}
+  .an-ch{display:block;width:100%;height:auto;font-family:var(--mono)}
+  .an-ch .g{stroke:var(--rule);stroke-width:1} .an-ch .yl,.an-ch .xl{font-size:10px;fill:var(--ink-3)} .an-ch .yl{text-anchor:end} .an-ch .xl{text-anchor:middle}
+  .an-ch .band{fill:var(--layer);opacity:.14} .an-ch .avg{fill:none;stroke:var(--layer);stroke-width:1.6;stroke-linejoin:round}
+  .an-ch .prev{fill:none;stroke:var(--ink-3);stroke-width:1.2;stroke-dasharray:4 3}
+  .an-ch .w{stroke:var(--warn);stroke-dasharray:4 3} .an-ch .x{stroke:var(--crit);stroke-dasharray:4 3}
+  .an-ch .pk circle{fill:var(--surface);stroke:var(--crit);stroke-width:1.6} .an-ch .pk text{font-size:10px;fill:var(--crit);text-anchor:middle;font-weight:700}
+  .an-key{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11px;color:var(--ink-3)}
+  .an-key i{display:inline-block;width:16px;height:0;border-top:2px solid var(--layer);vertical-align:middle;margin-right:5px}
+  .an-key i.p{border-top:2px dashed var(--ink-3)} .an-key i.b{height:8px;border:0;background:var(--layer);opacity:.25}
+  .an-key i.k{width:8px;height:8px;border:1.6px solid var(--crit);border-radius:50%}
+  .an-tw{overflow-x:auto}
+  .an-t{width:100%;min-width:640px;border-collapse:collapse;font-size:12px}
+  .an-t th{text-align:left;font-weight:600;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--rule)}
+  .an-t td{padding:6px 8px;border-bottom:1px solid var(--rule);font-variant-numeric:tabular-nums;vertical-align:top}
+  .an-t td small{display:block;color:var(--ink-3);font-size:10.5px}
+  .an-t .up{color:var(--crit)} .an-t .dn{color:var(--ok)}
+  .an-empty{padding:28px;text-align:center;color:var(--ink-3);font-size:12.5px;border:1px dashed var(--rule);border-radius:var(--r)}
   #alh-overlay .cmsn-shell{width:min(880px,calc(100vw - 32px))}
   .alh-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) minmax(0,2fr);gap:10px 12px}
   .alh-bar select,.alh-bar input{width:100%;min-width:0;box-sizing:border-box}
@@ -1759,6 +1790,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <button class="mb-item" id="btn-cmsn-reports">설치 보고서</button>
         <div class="mb-div"></div>
         <button class="mb-item" id="btn-alh">경보 이력</button>
+        <button class="mb-item" id="btn-an">기록 분석</button>
         <button class="mb-item" id="btn-monthly">월간 리포트</button>
         <button class="mb-item" id="btn-cert">안전 관리 확인서</button>
         <button class="mb-item" id="btn-report">기간 리포트</button>
@@ -2036,6 +2068,24 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div class="alh-sum" id="alh-sum"></div>
         <div id="alh-list"></div>
         <div class="cmsn-msg" id="alh-msg" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 기록 분석: 센서 몇 개를 골라 기간 그래프·통계·피크, 바로 앞 같은 길이 기간과 겹쳐 비교(저장된 실제 기록) -->
+  <div class="overlay" id="an-overlay">
+    <section class="cmsn-shell" role="dialog" aria-modal="true" aria-labelledby="an-title">
+      <h3 id="an-title">기록 분석</h3>
+        <button class="cmsn-x" id="an-close" aria-label="닫기"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+      <div class="cmsn-body an-body">
+        <div class="an-bar">
+          <label class="acct-f">기간<select id="an-days"><option value="1">최근 24시간</option><option value="7" selected>최근 7일</option><option value="30">최근 30일</option><option value="90">최근 90일</option><option value="365">최근 1년</option></select></label>
+          <label class="an-chk"><input type="checkbox" id="an-prev" checked>바로 앞 같은 기간 겹쳐 보기</label>
+          <span class="an-pick-n" id="an-pick-n"></span>
+        </div>
+        <div class="an-pick" id="an-pick" role="group" aria-label="분석할 센서(최대 4개)"></div>
+        <div id="an-out"></div>
+        <div class="cmsn-msg" id="an-msg" aria-live="polite"></div>
       </div>
     </section>
   </div>
@@ -3215,6 +3265,37 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     const top = sensors.find(f => f.primary);
     return Object.assign({}, top || { building: true, days: 0, forecast: [] }, { panel: pid, now: t, demo: true, sensors, signals },
       top ? { sensor_name: top.name, unit: "℃" } : {});
+  }
+  // ── 기록 분석(서버 analysis.py와 같은 계산) — 시연판은 내일 예측과 같은 가상 1년 시간별 기록에서 ──
+  function anStats(pts) {
+    if (!pts.length) return null;
+    const avgs = pts.map(p => p[1]), lo = pts.reduce((a, p) => p[2] < a[2] ? p : a), hi = pts.reduce((a, p) => p[3] > a[3] ? p : a);
+    const mean = avgs.reduce((a, b) => a + b, 0) / avgs.length, sd = Math.sqrt(avgs.reduce((a, b) => a + (b - mean) ** 2, 0) / avgs.length);
+    const r3 = v => Math.round(v * 1000) / 1000, f = avgs[0], l = avgs[avgs.length - 1];
+    return { n: pts.length, mean: r3(mean), std: r3(sd), min: r3(lo[2]), min_ts: lo[0], max: r3(hi[3]), max_ts: hi[0],
+      change_pct: f && avgs.length > 1 ? Math.round((l - f) / Math.abs(f) * 1000) / 10 : null };
+  }
+  function anPeaks(pts, n = 5, gap = 6) {
+    const c = []; for (let i = 0; i < pts.length; i++) if ((i === 0 || pts[i][3] >= pts[i - 1][3]) && (i === pts.length - 1 || pts[i][3] >= pts[i + 1][3])) c.push(i);
+    c.sort((a, b) => pts[b][3] - pts[a][3]); const out = [];
+    for (const i of c) { if (out.every(j => Math.abs(i - j) >= gap)) out.push(i); if (out.length >= n) break; }
+    return out.sort((a, b) => a - b).map(i => [pts[i][0], Math.round(pts[i][3] * 1000) / 1000]);
+  }
+  function anDemo(ids, days, compare) {
+    const t1 = now(), t0 = t1 - days * FC.D, span = t1 - t0, meta = {};
+    deviceList().forEach(d => d.latest.forEach(x => { meta[d.device_id + ":" + x.sensor_key] = Object.assign({ panel_name: d.panel_name }, x); }));
+    const bucket = (ser, a, b) => { const o = []; if (!ser) return o;
+      ser.forEach((v, u) => { if (u >= a && u < b) { const j = Math.abs(Math.sin(u / 7919)) * Math.max(.02 * Math.abs(v), .05); o.push([u, v, v - j, v + j]); } });
+      return o.sort((x, y) => x[0] - y[0]); };
+    return { from: t0, to: t1, demo: true, sensors: ids.slice(0, 4).map(id => {
+      const [dev, key] = [id.split(":")[0], id.slice(id.indexOf(":") + 1)], pid = panelOf(dev), x = meta[id] || {};
+      gdForecast(pid);
+      const ser = FC.cache[pid + "|" + dev + "|" + key], pts = bucket(ser, t0, t1), r3 = v => Math.round(v * 1000) / 1000;
+      const cnt = (a, b) => S.alarms.filter(al => al.device_id === dev && al.sensor_key === key && al.kind !== "silent" && al.raised_at >= a && al.raised_at < b).length;
+      const item = { id, panel_name: x.panel_name || S.panelNames[pid] || pid, name: x.name || key, unit: x.unit || "", kind: x.kind || "", warn: x.alarm_warn, max_limit: x.alarm_max, step: 3600,
+        points: pts.map(p => [p[0], r3(p[1]), r3(p[2]), r3(p[3])]), stats: anStats(pts), peaks: anPeaks(pts), alarms: cnt(t0, t1) };
+      if (compare) { const pp = bucket(ser, t0 - span, t0); item.prev = { points: pp.map(p => [p[0] + span, r3(p[1])]), stats: anStats(pp), alarms: cnt(t0 - span, t0) }; }
+      return item; }) };
   }
   // ── 모니터링 모드(서버 guard.live와 같은 모양) — 판넬별 지난 24시간 시간별 온도 + 최근 활동 ──
   const LIVE = { cache: {} };
@@ -4855,6 +4936,9 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (p === "/api/admin/backups") return Promise.resolve(J({ backups: [], keep_days: 7, demo: true }));
       if (p === "/api/ai/status") return Promise.resolve(J(aiDemoStatus()));
       if (p === "/api/rul") return Promise.resolve(J({ panels: rulView() }));
+      if (p === "/api/analysis") { const ids = (qs.get("ids") || "").split(",").filter(i => i.includes(":"));
+        if (!ids.length) return Promise.resolve(J({ error: "센서를 고르세요" }, 400));
+        return Promise.resolve(J(anDemo(ids, Math.min(1830, Math.max(.04, parseFloat(qs.get("days") || "7") || 7)), qs.get("compare") !== "0"))); }
       if (p === "/api/sensor/profiles") return Promise.resolve(J({ profiles: profileList() }));
       if (p === "/api/fleet") return Promise.resolve(J({ panels: fleetView() }));
       if (p === "/api/guard") return Promise.resolve(J(guardDemo()));
@@ -8144,6 +8228,71 @@ $("#btn-alh").onclick = () => { $("#alh-overlay").classList.add("open"); ALH.ope
 $("#alh-close").onclick = () => $("#alh-overlay").classList.remove("open");
 $("#alh-days").onchange = $("#alh-cause").onchange = () => { ALH.open = null; alhLoad(); };
 $("#alh-q").oninput = () => alhPaint();
+// ── 기록 분석 ─────────────────────────────────────────
+// 센서 최대 4개 · 기간 · 바로 앞 같은 기간 겹쳐 보기. 서버(analysis.py)가 저장된 실제 기록으로 칸·통계·피크를 낸다
+const AN = { pick: [], d: null };
+const anFmt = v => v == null ? "—" : Math.abs(v) >= 100 ? String(Math.round(v)) : (Math.round(v * 100) / 100).toString();
+const anWhen = (t, step) => { const d = new Date(t * 1000); return step < 3600 ? d.toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit"})
+  : d.toLocaleString("ko-KR", {month: "numeric", day: "numeric", hour: "2-digit"}); };
+function anPickPaint(){
+  const groups = (lastPanels || []).map(p => [p.panel_name || p.panel, (p.ccms || []).flatMap(c => (c.latest || [])
+    .filter(x => !["door", "smoke"].includes(x.kind) && x.enabled !== false).map(x => [c.device_id + ":" + x.sensor_key, x.name || x.sensor_key]))]).filter(g => g[1].length);
+  $("#an-pick").innerHTML = groups.length ? groups.map(([pn, xs]) => `<div class="g"><b>${escapeHtml(pn)}</b>${xs.map(([id, nm]) =>
+    `<button type="button" data-an="${escapeHtml(id)}" aria-pressed="${AN.pick.includes(id)}"${!AN.pick.includes(id) && AN.pick.length >= 4 ? " disabled" : ""}>${escapeHtml(nm)}</button>`).join("")}</div>`).join("")
+    : `<div class="an-empty">연결된 센서가 없습니다</div>`;
+  $("#an-pick-n").textContent = `${AN.pick.length} / 4개 선택`;
+  $("#an-pick").querySelectorAll("[data-an]").forEach(b => b.onclick = () => {
+    const id = b.dataset.an; AN.pick = AN.pick.includes(id) ? AN.pick.filter(x => x !== id) : AN.pick.concat(id).slice(0, 4);
+    anPickPaint(); anLoad(); });
+}
+async function anLoad(){
+  if (!AN.pick.length){ $("#an-out").innerHTML = `<div class="an-empty">위에서 센서를 고르면 그 기간의 그래프와 통계가 나옵니다(최대 4개)</div>`; return; }
+  $("#an-msg").textContent = "불러오는 중";
+  try { const r = await fetch(`/api/analysis?ids=${encodeURIComponent(AN.pick.join(","))}&days=${$("#an-days").value}&compare=${$("#an-prev").checked ? 1 : 0}`, {cache: "no-store"});
+    const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || `불러오지 못함 (${r.status})`); AN.d = j; $("#an-msg").textContent = ""; }
+  catch(e){ $("#an-msg").textContent = e.message; return; }
+  anPaint();
+}
+function anChart(x, t0, t1){
+  const W = 900, H = 200, L = 46, R = 10, T = 12, B = 24, pts = x.points, pv = (x.prev && x.prev.points) || [];
+  if (!pts.length) return `<div class="an-empty">이 기간에 저장된 기록이 없습니다</div>`;
+  const vs = pts.flatMap(p => [p[2], p[3]]).concat(pv.map(p => p[1]));
+  let y0 = Math.min(...vs), y1 = Math.max(...vs);
+  const near = Math.max((y1 - y0) * .6, Math.abs(y1) * .05, .5);
+  [x.warn, x.max_limit].forEach(l => { if (l != null && l > y1 && l - y1 < near) y1 = l; });
+  if (y1 - y0 < 1e-6){ y0 -= 1; y1 += 1; }
+  const pad = (y1 - y0) * .08; y0 -= pad; y1 += pad;
+  const X = t => L + (t - t0) / (t1 - t0) * (W - L - R), Y = v => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+  const line = a => a.map((p, i) => `${i ? "L" : "M"}${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join("");
+  const band = `M${pts.map(p => `${X(p[0]).toFixed(1)},${Y(p[3]).toFixed(1)}`).join("L")}L${pts.slice().reverse().map(p => `${X(p[0]).toFixed(1)},${Y(p[2]).toFixed(1)}`).join("L")}Z`;
+  const ticks = [0, .5, 1].map(f => y0 + (y1 - y0) * f).map(v => `<line class="g" x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"/><text class="yl" x="${L - 6}" y="${(Y(v) + 3.5).toFixed(1)}">${anFmt(v)}</text>`).join("");
+  const xt = [0, .25, .5, .75, 1].map(f => t0 + (t1 - t0) * f).map((t, i) => `<text class="xl" x="${Math.min(W - R - 46, Math.max(L + 40, X(t))).toFixed(1)}" y="${H - 6}">${anWhen(t, x.step)}</text>`).join("");
+  const lim = [[x.warn, "w", "주의"], [x.max_limit, "x", "위험"]].filter(l => l[0] != null && l[0] >= y0 && l[0] <= y1)
+    .map(([v, c, n]) => `<line class="${c}" x1="${L}" x2="${W - R}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}"><title>${n} ${anFmt(v)}${x.unit}</title></line>`).join("");
+  const pk = (x.peaks || []).map((p, i) => `<g class="pk"><circle cx="${X(p[0]).toFixed(1)}" cy="${Y(p[1]).toFixed(1)}" r="4"/><text x="${X(p[0]).toFixed(1)}" y="${(Y(p[1]) - 8).toFixed(1)}">${i + 1}</text><title>피크 ${i + 1}: ${anWhen(p[0], x.step)} ${anFmt(p[1])}${x.unit}</title></g>`).join("");
+  return `<svg class="an-ch" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escapeHtml(x.name)} 기간 그래프">${ticks}${lim}<path class="band" d="${band}"/>` +
+    (pv.length ? `<path class="prev" d="${line(pv)}"/>` : "") + `<path class="avg" d="${line(pts)}"/>${pk}${xt}</svg>`;
+}
+function anPaint(){
+  const d = AN.d; if (!d) return;
+  const rows = d.sensors.map(x => {
+    const s = x.stats || {}, ps = (x.prev && x.prev.stats) || null, u = x.unit || "";
+    const vs = ps && s.mean != null ? s.mean - ps.mean : null;
+    return `<tr><td><b>${escapeHtml(x.name)}</b><small>${escapeHtml(x.panel_name)}</small></td><td>${anFmt(s.mean)} ${escapeHtml(u)}</td>` +
+      `<td>${anFmt(s.min)}<small>${s.min_ts ? anWhen(s.min_ts, x.step) : ""}</small></td><td>${anFmt(s.max)}<small>${s.max_ts ? anWhen(s.max_ts, x.step) : ""}</small></td>` +
+      `<td>${anFmt(s.std)}</td><td>${s.change_pct == null ? "—" : (s.change_pct > 0 ? "+" : "") + s.change_pct + "%"}</td>` +
+      `<td>${ps ? `<span class="${vs > 0.005 ? "up" : vs < -0.005 ? "dn" : ""}">${Math.abs(vs) < 0.005 ? "≈ 같음" : (vs > 0 ? "▲" : "▼") + anFmt(Math.abs(vs))}</span><small>지난 평균 ${anFmt(ps.mean)} · 최고 ${anFmt(ps.max)}</small>` : "—"}</td>` +
+      `<td>${x.alarms}건${x.prev ? `<small>지난 ${x.prev.alarms}건</small>` : ""}</td></tr>`;
+  }).join("");
+  $("#an-out").innerHTML = d.sensors.map(x => `<div class="an-s"><h4>${escapeHtml(x.name)} <small>${escapeHtml(x.panel_name)} · ${x.step < 3600 ? "5분 칸" : "시간별"} · ${escapeHtml(x.unit || "")}</small></h4>` +
+      anChart(x, d.from, d.to) + `<div class="an-key"><span><i></i>평균</span><span><i class="b"></i>최저~최고</span>${x.prev ? `<span><i class="p"></i>바로 앞 같은 기간</span>` : ""}<span><i class="k"></i>피크(높은 순 번호)</span></div></div>`).join("") +
+    `<div class="an-tw"><table class="an-t"><thead><tr><th>센서</th><th>평균</th><th>최저</th><th>최고</th><th>표준편차</th><th>변화율</th><th>지난 기간 대비 평균</th><th>경보</th></tr></thead><tbody>${rows}</tbody></table></div>` +
+    `<p class="alh-sum">저장된 실제 기록: 2일 이하는 원본 값 5분 칸, 그보다 길면 시간별 평균. 변화율 = 첫 칸 → 마지막 칸 평균. 피크 = 서로 떨어진 봉우리 중 높은 순.</p>`;
+}
+$("#btn-an").onclick = () => { $("#an-overlay").classList.add("open"); $("#an-msg").textContent = ""; anPickPaint(); anLoad(); };
+$("#an-close").onclick = () => $("#an-overlay").classList.remove("open");
+$("#an-days").onchange = $("#an-prev").onchange = () => anLoad();
+
 
 // ── 정기 점검 일지 ─────────────────────────────────────
 // 직원이 현장을 점검한 기록. 서버(inspection.py)가 '이번에 볼 곳'을 데이터에서 뽑아 주고,

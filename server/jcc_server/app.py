@@ -144,6 +144,7 @@ ROUTES = [
     ("POST", r"/api/inspection/[a-z_]+", "admin"),
     ("GET", "/api/export/alarms.csv", "read"), ("GET", "/api/export/readings.csv", "read"),
     ("GET", "/api/export/events.csv", "read"), ("GET", "/api/export/hourly.csv", "read"),
+    ("GET", "/api/analysis", "read"),
 ]
 _ROUTE_RE = [(m, re.compile((p if any(c in p for c in "[+") else re.escape(p)) + r"\Z"), pol)   # 일반 경로는 글자 그대로
              for m, p, pol in ROUTES]
@@ -674,6 +675,19 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(ph[1])
             return
+        if path == "/api/analysis":               # 기록 분석 — 센서 몇 개의 기간 그래프·통계·피크·지난 기간 비교(계정 범위 안만)
+            from . import analysis
+            q = parse_qs(parsed.query)
+            ids = [i for i in (q.get("ids") or [""])[0].split(",") if ":" in i][:analysis.MAX_SENSORS]
+            if not ids:
+                return self._json({"error": "센서를 고르세요"}, 400)
+            if any(not self._in_scope(i.split(":", 1)[0]) for i in ids):
+                return self._json({"error": "이 계정 범위 밖의 기기입니다"}, 403)
+            try:
+                t0, t1 = analysis.parse_range(q, time.time())
+            except ValueError as e:
+                return self._json({"error": str(e)}, 400)
+            return self._json(analysis.analyze(self.storage, ids, t0, t1, (q.get("compare") or ["1"])[0] != "0"))
         if path in ("/api/export/alarms.csv", "/api/export/readings.csv", "/api/export/events.csv", "/api/export/hourly.csv"):
             from . import export
             from .retention import plan
