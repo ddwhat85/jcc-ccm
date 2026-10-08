@@ -19,6 +19,19 @@ def test_identify_known_profile():
     assert p["emits"][0]["key"] == "vibration"
 
 
+def test_qm30vt2_registers_match_banner_datasheet():
+    # Banner P/N 210732 Rev. D 'Holding Registers' 표 — 지어낸 번호가 끼어들지 않게 표 그대로 고정
+    want = {"vibration": (45202, 0.001), "vibration_x": (45206, 0.001), "vib_hf_z": (45221, 0.001), "vib_hf_x": (45222, 0.001),
+            "vib_kurt_z": (45213, 0.001), "vib_kurt_x": (45214, 0.001), "vib_crest_z": (45215, 0.001), "vib_crest_x": (45216, 0.001),
+            "vib_temp": (45204, 0.01)}
+    got = {e["key"]: e["modbus"] for e in profiles.identify("BANNER-QM30VT")["emits"]}
+    assert set(got) == set(want)
+    for k, (reg, scale) in want.items():
+        m = got[k]
+        assert m["register"] == reg and m["pdu"] == reg - 40001 and m["scale"] == scale and m["type"] == "holding", k
+    assert got["vib_temp"]["datatype"] == "int16"   # 온도는 부호 있는 값(표의 최소 -32768)
+
+
 def test_identify_unknown_returns_none():
     assert profiles.identify("NOPE-9999") is None
 

@@ -31,9 +31,32 @@ PROFILES = [
     },
     {
         "ident": "BANNER-QM30VT", "brand": "Banner Engineering", "product": "QM30VT2 진동·온도 센서",
-        "part_no": "806276", "manual": "2m 케이블. RMS 속도(mm/s)와 온도 출력. 설치축·감도 파라미터로 설정. 베어링·모터 이상진동 감시용.",
-        "emits": [{"key": "vibration", "name": "진동", "unit": "mm/s", "kind": "vibration",
-                   "alarm_min": 0, "alarm_warn": 2.5, "alarm_max": 4.0}],
+        "part_no": "806276",
+        "manual": ("2m 케이블. X·Z 두 축의 RMS 속도(mm/s, 10Hz~1kHz)·고주파 RMS 가속도(G, 1~4kHz)·첨도·파고율과 온도 출력. "
+                   "베어링·모터 이상진동 감시용. 레지스터는 Banner 데이터시트 P/N 210732 Rev. D 표 그대로(값 = 레지스터 ÷ 표의 배수). "
+                   "설치 때 한 번 실측으로 주소 오프셋(4xxxx 표기 → 0부터 세는 주소)을 확인할 것. "
+                   "첨도(정상 ≈3)·파고율 주의값은 업계 참고값 — 설비에 맞게 고칠 것. 고주파 가속도는 설비마다 달라 기준을 비워 둠."),
+        # modbus: register = 데이터시트의 'Modbus Register'(4xxxx 표기), pdu = 0부터 세는 주소(= register − 40001), scale = 1/표의 배수
+        "emits": [
+            {"key": "vibration", "name": "진동(Z축)", "unit": "mm/s", "kind": "vibration", "alarm_min": 0, "alarm_warn": 2.5, "alarm_max": 4.0,
+             "modbus": {"register": 45202, "pdu": 5201, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vibration_x", "name": "진동(X축)", "unit": "mm/s", "kind": "vibration", "alarm_min": 0, "alarm_warn": 2.5, "alarm_max": 4.0,
+             "modbus": {"register": 45206, "pdu": 5205, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_hf_z", "name": "고주파 가속도(Z축)", "unit": "G", "kind": "vib_hf",
+             "modbus": {"register": 45221, "pdu": 5220, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_hf_x", "name": "고주파 가속도(X축)", "unit": "G", "kind": "vib_hf",
+             "modbus": {"register": 45222, "pdu": 5221, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_kurt_z", "name": "첨도(Z축)", "unit": "", "kind": "vib_kurt", "alarm_warn": 5,
+             "modbus": {"register": 45213, "pdu": 5212, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_kurt_x", "name": "첨도(X축)", "unit": "", "kind": "vib_kurt", "alarm_warn": 5,
+             "modbus": {"register": 45214, "pdu": 5213, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_crest_z", "name": "파고율(Z축)", "unit": "", "kind": "vib_crest", "alarm_warn": 6,
+             "modbus": {"register": 45215, "pdu": 5214, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_crest_x", "name": "파고율(X축)", "unit": "", "kind": "vib_crest", "alarm_warn": 6,
+             "modbus": {"register": 45216, "pdu": 5215, "type": "holding", "datatype": "uint16", "scale": 0.001}},
+            {"key": "vib_temp", "name": "진동센서 온도", "unit": "C", "kind": "temp",
+             "modbus": {"register": 45204, "pdu": 5203, "type": "holding", "datatype": "int16", "scale": 0.01}},
+        ],
     },
     {
         "ident": "BANNER-CT20A", "brand": "Banner Engineering", "product": "S15C-CT20A-MQ 전류센서",

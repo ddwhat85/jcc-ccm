@@ -580,6 +580,16 @@
     background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
   .iso-z.zC{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)} .iso-z.zD{background:var(--crit);color:#fff}
   .insp-live .iso-z{margin-left:8px;align-self:center}
+  .vib-dx{width:100%;border-collapse:collapse;font-size:11.5px;margin-top:4px;table-layout:fixed}
+  .vib-dx th{font-weight:600;color:var(--ink-3);padding:4px;text-align:center}
+  .vib-dx th small{display:block;font-weight:400;font-size:10px}
+  .vib-dx tbody th{text-align:left;width:34px}
+  .vib-dx td{padding:7px 4px;text-align:center;font:600 12px var(--mono);border:1px solid var(--rule);background:color-mix(in srgb,var(--ok) 12%,transparent)}
+  .vib-dx td.warn{background:color-mix(in srgb,var(--warn) 22%,transparent);color:var(--warn)}
+  .vib-dx td.crit{background:var(--crit);color:#fff}
+  .vib-dx td.na{background:none;color:var(--ink-3)}
+  .vib-dx td i{font-style:normal;font-size:10px;margin-left:3px;opacity:.75}
+  .vib-dx-n{margin:6px 0 0;font-size:11px;color:var(--ink-3);line-height:1.45}
   .insp-btn{width:100%;margin-top:8px;padding:8px;border:1px solid var(--accent);border-radius:2px;
             background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
   .insp-btn:hover{filter:brightness(1.06)} .insp-btn.saved{background:var(--canvas);color:var(--accent)}
@@ -2390,9 +2400,26 @@ const ISO_CLS = {I: [0.71, 1.8, 4.5, "Ⅰ 소형 (~15 kW)"], II: [1.12, 2.8, 7.1
 const ISO_WORD = {A: "우수", B: "양호", C: "주의 · 점검 계획", D: "위험 · 즉시 조치"};
 function isoZone(v, w, x){ if(v==null || w==null) return null; if(x==null) x = w*2.5; return v>=x ? "D" : v>w ? "C" : v<w*0.4 ? "A" : "B"; }
 function isoClassOf(w, x){ return Object.keys(ISO_CLS).find(c => w!=null && x!=null && Math.abs(ISO_CLS[c][1]-w)<1e-6 && Math.abs(ISO_CLS[c][2]-x)<1e-6) || ""; }
+// 진동 진단표 — 같은 QM30VT2의 축(X·Z) × 지표(RMS 속도·고주파 가속도·첨도·파고율). 칸 색 = 그 센서의 기준 판정.
+// 키는 펌웨어 profiles.py(Banner 210732 Rev. D 레지스터 표)와 같다. 그 센서가 없으면 칸은 '—'
+const VIB_DX = [["vibration", "vibration_x", "RMS 속도", "mm/s"], ["vib_hf_z", "vib_hf_x", "고주파 가속도", "G"],
+  ["vib_kurt_z", "vib_kurt_x", "첨도", ""], ["vib_crest_z", "vib_crest_x", "파고율", ""]];
+function vibDxHTML(dev, kind){
+  if (!["vibration", "vib_hf", "vib_kurt", "vib_crest"].includes(kind)) return "";
+  const rec = k => sensorRec[dev + ":" + k];
+  if (!VIB_DX.some(([z, x]) => rec(z) && rec(x))) return "";
+  const cell = k => { const r = rec(k); if (!r || r.value == null) return `<td class="na">—</td>`;
+    const sv = severity(k, r.value, r) || "ok", z = r.kind === "vibration" ? isoZone(r.value, r.alarm_warn, r.alarm_max) : "";
+    return `<td class="${sv}" title="${escapeHtml(r.name || k)} ${fmtValue(r.value)}${escapeHtml(r.unit || "")}${r.alarm_warn != null ? " · 주의 " + fmtValue(r.alarm_warn) : " · 기준 없음"}">` +
+      `${fmtValue(r.value)}${z ? `<i>${z}</i>` : ""}</td>`; };
+  return `<div class="insp-sec">진동 진단 — 축 × 지표</div><table class="vib-dx"><thead><tr><th></th>${VIB_DX.map(([, , n, u]) => `<th>${n}${u ? `<small>${u}</small>` : ""}</th>`).join("")}</tr></thead>` +
+    `<tbody><tr><th>Z축</th>${VIB_DX.map(([z]) => cell(z)).join("")}</tr><tr><th>X축</th>${VIB_DX.map(([, x]) => cell(x)).join("")}</tr></tbody></table>` +
+    `<p class="vib-dx-n">RMS 속도는 ISO 10816 존, 첨도(정상 ≈3)·파고율은 참고 기준으로 주의. 고주파 가속도는 설비마다 달라 기준을 직접 정하세요 — 베어링 초기 손상은 고주파·첨도에 먼저 보입니다.</p>`;
+}
 const isoChip = (z, long) => z ? `<span class="iso-z z${z}" title="ISO 10816 진동 존 ${z} — ${ISO_WORD[z]}">ISO ${z}${long ? " · " + ISO_WORD[z] : ""}</span>` : "";
 const KINDNAME = {temp:"온도",humidity:"습도",vibration:"진동",current:"전류",h2:"수소",
-                  smoke:"열연기",door:"도어",ratio:"가스/비율",pressure:"압력",analog:"아날로그",unknown:"미확인"};
+                  smoke:"열연기",door:"도어",ratio:"가스/비율",pressure:"압력",analog:"아날로그",unknown:"미확인",
+                  vib_hf:"고주파 진동",vib_kurt:"진동 첨도",vib_crest:"진동 파고율"};
 // AI 자동연결 등장 연출: revealSet이 있으면 그 안의 노드만 보이고, 양 끝이 다 보이는
 // 배선만 그린다(=아직 안 나온 장비의 선은 숨김). null이면 평소처럼 전부 표시.
 let revealSet = null;
@@ -3714,6 +3741,7 @@ function renderInspector(id, n){
         `<span class="lu">${escapeHtml(unit)}</span>`+
         (r.kind==="vibration" ? isoChip(isoZone(r.value, r.alarm_warn, r.alarm_max), true) : "")+
         `<span class="lk ${sev}" id="insp-live-st">${sevLabel(sev)}</span></div>`+
+      vibDxHTML(id.split(":")[1], r.kind)+
       `<div class="insp-row"><span class="k">측정 항목</span><span class="v">${escapeHtml(r.name||key)}</span></div>`+
       `<div class="insp-row"><span class="k">제품 품번</span><span class="v">${escapeHtml(r.part_no||"—")}</span></div>`+
       `<div class="insp-row"><span class="k">소속 · 주소</span><span class="v">${escapeHtml(dev)} · ${escapeHtml(addr)}</span></div>`+

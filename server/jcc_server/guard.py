@@ -113,7 +113,7 @@ def _kind(s) -> str:
 
 
 # 고객 카드에 뜻이 없는 값(미확인·원시 아날로그)과 공조 연동 상태값은 센서 목록에서 뺀다(공조는 '공조' 탭에)
-_SKIP_KINDS = {"unknown", "analog"}
+_SKIP_KINDS = {"unknown", "analog", "vib_hf", "vib_kurt", "vib_crest"}   # 진동 심화 지표는 직원 화면 진단표에서(고객은 진동·ISO 존만)
 _UNIT = {"C": "℃", "°C": "℃", "DEGC": "℃", "%RH": "%"}
 
 
