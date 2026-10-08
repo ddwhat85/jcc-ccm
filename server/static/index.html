@@ -575,6 +575,11 @@
   .insp-set input:focus{outline:none;border-color:var(--accent)}
   .insp-set input.wide{width:100%;text-align:left;font-family:var(--sans);font-size:13px;font-weight:600}
   .insp-set .un{width:26px;font-size:11px;color:var(--ink-3)}
+  .insp-set select{max-width:150px;font:600 12px var(--sans);padding:5px 6px;background:var(--canvas);border:1px solid var(--rule);border-radius:2px;color:var(--ink)}
+  .iso-z{display:inline-flex;align-items:center;padding:2px 7px;border-radius:999px;font:700 10.5px var(--sans);letter-spacing:.02em;white-space:nowrap;
+    background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok)}
+  .iso-z.zC{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn)} .iso-z.zD{background:var(--crit);color:#fff}
+  .insp-live .iso-z{margin-left:8px;align-self:center}
   .insp-btn{width:100%;margin-top:8px;padding:8px;border:1px solid var(--accent);border-radius:2px;
             background:var(--accent);color:#fff;font-weight:600;font-size:12.5px;cursor:pointer}
   .insp-btn:hover{filter:brightness(1.06)} .insp-btn.saved{background:var(--canvas);color:var(--accent)}
@@ -2305,6 +2310,13 @@ let lastAlarms = [];           // 마지막 활성 경보 목록(개요 카운�
 let lastIncidents = [];        // 원인별로 묶은 사건(한 사건 = 원인 1개 + 관련 경보들)
 const incOpen = new Set();     // 경보 패널에서 펼쳐 둔 사건 key
 // 센서 kind → 사람이 읽는 이름 (개요의 '센서 종류' 집계용)
+// 진동 ISO 10816 존 — 서버 vibration.py와 같은 규칙(B/C 경계 = 주의, C/D 경계 = 위험, A/B = 주의×0.4)
+const ISO_CLS = {I: [0.71, 1.8, 4.5, "Ⅰ 소형 (~15 kW)"], II: [1.12, 2.8, 7.1, "Ⅱ 중형 (15~75 kW)"],
+                 III: [1.8, 4.5, 11.2, "Ⅲ 대형 · 강성 기초"], IV: [2.8, 7.1, 18, "Ⅳ 대형 · 유연 기초"]};
+const ISO_WORD = {A: "우수", B: "양호", C: "주의 · 점검 계획", D: "위험 · 즉시 조치"};
+function isoZone(v, w, x){ if(v==null || w==null) return null; if(x==null) x = w*2.5; return v>=x ? "D" : v>w ? "C" : v<w*0.4 ? "A" : "B"; }
+function isoClassOf(w, x){ return Object.keys(ISO_CLS).find(c => w!=null && x!=null && Math.abs(ISO_CLS[c][1]-w)<1e-6 && Math.abs(ISO_CLS[c][2]-x)<1e-6) || ""; }
+const isoChip = (z, long) => z ? `<span class="iso-z z${z}" title="ISO 10816 진동 존 ${z} — ${ISO_WORD[z]}">ISO ${z}${long ? " · " + ISO_WORD[z] : ""}</span>` : "";
 const KINDNAME = {temp:"온도",humidity:"습도",vibration:"진동",current:"전류",h2:"수소",
                   smoke:"열연기",door:"도어",ratio:"가스/비율",pressure:"압력",analog:"아날로그",unknown:"미확인"};
 // AI 자동연결 등장 연출: revealSet이 있으면 그 안의 노드만 보이고, 양 끝이 다 보이는
@@ -2839,6 +2851,7 @@ function spotShow(i){
   const chips = [`<span class="spot-chip">${escapeHtml((kindLabel||"센서")+(rec.brand?" · "+rec.brand:""))}</span>`, `<span class="spot-chip">${escapeHtml(dev)}</span>`];
   if(rec.part_no) chips.push(`<span class="spot-chip">${escapeHtml(rec.part_no)}</span>`);
   if(rec.address!=null) chips.push(`<span class="spot-chip">Modbus #${rec.address}</span>`);
+  if(rec.kind==="vibration" && rec.ok!==false) chips.push(isoChip(isoZone(v, rec.alarm_warn, rec.alarm_max), true));
   const th=[];
   if(rec.alarm_warn!=null) th.push(`<span class="warn">경고<b>${fmtValue(rec.alarm_warn)}</b></span>`);
   if(rec.alarm_max!=null)  th.push(`<span class="crit">위험<b>${fmtValue(rec.alarm_max)}</b></span>`);
@@ -3615,6 +3628,7 @@ function renderInspector(id, n){
       // 현재 측정값
       `<div class="insp-live"><span class="lv" id="insp-live-v">${fmtValue(r.value)}</span>`+
         `<span class="lu">${escapeHtml(unit)}</span>`+
+        (r.kind==="vibration" ? isoChip(isoZone(r.value, r.alarm_warn, r.alarm_max), true) : "")+
         `<span class="lk ${sev}" id="insp-live-st">${sevLabel(sev)}</span></div>`+
       `<div class="insp-row"><span class="k">측정 항목</span><span class="v">${escapeHtml(r.name||key)}</span></div>`+
       `<div class="insp-row"><span class="k">제품 품번</span><span class="v">${escapeHtml(r.part_no||"—")}</span></div>`+
@@ -3625,6 +3639,10 @@ function renderInspector(id, n){
       `<div class="insp-sec">설정 · 알람 기준</div>`+
       `<div class="insp-set"><label>셋팅값</label>`+
         `<input id="set-sp" type="number" step="any" value="${num(r.setpoint)}" placeholder="미설정"><span class="un">${escapeHtml(unit)}</span></div>`+
+      // 진동: 설비 등급을 고르면 ISO 10816 표준값(B/C → 경고, C/D → 최대치)을 채운다. 저장 전까지는 화면만 바뀐다
+      (r.kind==="vibration" ? `<div class="insp-set"><label>ISO 10816 설비 등급</label><select id="set-iso">` +
+        [["", "현장 맞춤"]].concat(Object.keys(ISO_CLS).map(c => [c, ISO_CLS[c][3]])).map(([c, t]) =>
+          `<option value="${c}"${isoClassOf(r.alarm_warn, r.alarm_max)===c ? " selected" : ""}>${t}</option>`).join("") + `</select></div>` : "")+
       `<div class="insp-set"><label>경고 기준</label>`+
         `<input id="set-awarn" type="number" step="any" value="${num(r.alarm_warn)}" placeholder="${num(r.alarm_warn_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<div class="insp-set"><label>알람 최대치</label>`+
@@ -3728,6 +3746,8 @@ function renderInspector(id, n){
   box.innerHTML = html;
   $("#insp-close").onclick = ()=> showOverview();   // 닫으면 개요로 복귀
 
+  const isoSel = $("#set-iso");
+  if(isoSel) isoSel.onchange = ()=>{ const c = ISO_CLS[isoSel.value]; if(!c) return; $("#set-awarn").value = c[1]; $("#set-amax").value = c[2]; };
   // 센서 설정 저장 배선
   const saveBtn = $("#set-save");
   if(saveBtn){

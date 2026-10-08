@@ -261,6 +261,9 @@
   .gd-sn svg{grid-row:span 2;width:20px;height:20px;color:var(--ink-3)}
   .gd-sn b{font:600 var(--t-cap)/1.25 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .gd-sn small{font-size:var(--t-cap);line-height:1.25;color:var(--ink-3)}
+  .gd-zn{display:inline-grid;place-items:center;min-width:1.45em;height:1.45em;margin-left:6px;padding:0 3px;border-radius:5px;vertical-align:1px;
+    font:800 .78em/1 var(--sans);font-style:normal;background:color-mix(in srgb,var(--ok) 18%,transparent);color:var(--ok)}
+  .gd-zn.zC{background:var(--fill-warn);color:var(--on-warn)} .gd-zn.zD{background:var(--fill-crit);color:var(--on-crit)}
   .gd-snl{margin-top:18px}
   .gd-snl h5{margin:0 0 4px;font:700 var(--t-body) var(--sans)}
   .gd-snl>div{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-2);font-size:var(--t-body)}
@@ -1717,6 +1720,8 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
     if (s.alarm_warn != null && (kind === "door" ? v >= s.alarm_warn : v > s.alarm_warn)) return "warn";
     return "ok";
   }
+  // 진동 ISO 10816 존 — vibration.zone과 같은 규칙(B/C = 주의, C/D = 위험, A/B = 주의×0.4)
+  function gdZone(v, w, x) { if (v == null || w == null) return null; if (x == null) x = w * 2.5; return v >= x ? "D" : v > w ? "C" : v < w * 0.4 ? "A" : "B"; }
   function gdLatest(ccms) {
     const lvl = {};
     S.alarms.filter(a => !a.cleared_at).forEach(a => { const k = a.device_id + ":" + (a.sensor_key || ""); if (lvl[k] !== "crit") lvl[k] = a.severity === "crit" ? "crit" : "warn"; });
@@ -1733,7 +1738,9 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
       if (picked.has(dev + ":" + s.sensor_key)) { seen[name] = (seen[name] || 0) + 1; return; }
       if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || s.unit === "?" || s.enabled === false) return;
       seen[name] = (seen[name] || 0) + 1;
-      d.sensors.push({ name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] });
+      const item = { name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] };
+      if (kind === "vibration") item.zone = gdZone(s.value, s.alarm_warn, s.alarm_max);
+      d.sensors.push(item);
     });
     return d;
   }
@@ -4200,7 +4207,8 @@ const EN_RE = [
   [/^JCC에 전화 (.+)$/, "Call JCC $1"], [/^어제·오늘 실제 온도와 내일 예측 그래프\. 내일 가장 높을 때 (.+) ([\d.]+)도$/, (m, h, v) => `Yesterday and today's actual temperature and tomorrow's forecast. Tomorrow's peak ${enDates(h)} ${v}°`],
   [/^벤트 열림, 판넬 안 (.+)$/, (m, a) => `Vent open, inside the panel ${enText(a) || a}`],
   [/^센서 (\d+)개 모두 정상$/, "All $1 sensors OK"],
-  [/^내일 살펴볼 센서 (\d+)개$/, "$1 sensors to watch tomorrow"], [/^센서 (\d+)개 예측$/, "$1 sensors forecast"],
+  [/^내일 살펴볼 센서 (\d+)개$/, "$1 sensors to watch tomorrow"],
+  [/^ISO 10816 진동 존 ([A-D]) — (.+)$/, (m, z, w) => `ISO 10816 vibration zone ${z} — ${({"우수": "good", "양호": "satisfactory", "주의 · 점검 계획": "watch · plan maintenance", "위험 · 즉시 조치": "danger · act now"})[w] || w}`], [/^센서 (\d+)개 예측$/, "$1 sensors forecast"],
   [/^기록 쌓는 중 (\d+)일째$/, "Building history · day $1"], [/^경고선까지 약 (\d+)(주|일)$/, (m, a, u) => `~${a} ${u === "주" ? "wk" : "d"} to warning line`],
   [/^경고선까지(\(기준선 드리프트\))? 약 (\d+)(주|일)(?: \((\d+)~(\d+)(주|일)\))?$/, (m, g, a, u, lo, hi) => `about ${a} ${u === "주" ? "weeks" : "days"} to the warning line${g ? " (baseline drift)" : ""}${lo ? ` (${lo}–${hi} ${u === "주" ? "weeks" : "days"})` : ""}`],
   [/^데이터 (\d+)일 — 7일 쌓이면 예측$/, "$1 days of data — trend after 7"],
@@ -4616,6 +4624,9 @@ const SN_ICO = {
   door: '<rect x="6" y="3" width="12" height="18" rx="1.5"/><path d="M15 11.5v1"/>',
   pressure: '<path d="M4 16a8 8 0 1 1 16 0"/><path d="M12 16l4-5"/>',
   other: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.5"/>' };
+// 진동 ISO 10816 존 글자(A·B 초록, C 노랑, D 빨강) — 서버 vibration.py가 그 센서의 주의·위험 기준으로 정한 것
+const ZN_WORD = {A: "우수", B: "양호", C: "주의 · 점검 계획", D: "위험 · 즉시 조치"};
+const znB = x => x.zone ? `<i class="gd-zn z${esc(x.zone)}" title="ISO 10816 진동 존 ${esc(x.zone)} — ${ZN_WORD[x.zone] || ""}" data-notr>${esc(x.zone)}</i>` : "";
 const snIco = k => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SN_ICO[k] || (k === "gas" ? SN_ICO.voc : SN_ICO.other)}</svg>`;
 function paintPanels(ps){
   const box = $("#gd-panels");
@@ -4626,7 +4637,7 @@ function paintPanels(ps){
     return `<span class="h"><b>${esc(p.panel_name)}</b><span class="gd-stc ${ST_OF[p.status] || "ok"}">${stIco(ST_OF[p.status] || "ok")}${esc(p.word)}</span></span>` +
       `<span class="v"><div><b>${p.temp == null ? "—" : p.temp + "℃"}</b><span>온도</span></div><div><b>${p.humidity == null ? "—" : p.humidity + "%"}</b><span>습도</span></div>` +
       (third ? `<div><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</span>` +
-      ((p.sensors || []).length ? `<span class="gd-sens">${p.sensors.map(x => `<span class="gd-sn ${esc(x.level)}" title="${esc(x.name)}">${snIco(x.kind)}<b>${esc(x.say)}</b><small>${esc(x.name)}</small></span>`).join("")}</span>` : "");
+      ((p.sensors || []).length ? `<span class="gd-sens">${p.sensors.map(x => `<span class="gd-sn ${esc(x.level)}" title="${esc(x.name)}">${snIco(x.kind)}<b>${esc(x.say)}${znB(x)}</b><small>${esc(x.name)}</small></span>`).join("")}</span>` : "");
   };
   const cls = p => "gd-card" + (["warn", "crit", "offline"].includes(p.status) ? " " + p.status : "");
   const ids = ps.map(p => p.panel).join("\n");
@@ -4705,7 +4716,7 @@ async function openPanel(pid){
       `<div class="gd-g"><b>${p.humidity == null ? "—" : p.humidity}<small>%</small></b><span>습도${p.dew !== "—" ? " · " + esc(p.dew) : ""}</span></div>` +
       (p.fire !== "—" ? `<div class="gd-g"><b>${esc(p.fire)}</b><span>화재 징조</span></div>` : "") +
       (p.contact !== "—" ? `<div class="gd-g"><b>${esc(p.contact)}</b><span>단자 발열</span></div>` : "") + `</div>` +
-      ((p.sensors || []).length ? `<div class="gd-snl"><h5>달린 센서 ${p.sensors.length + (p.temp != null) + (p.humidity != null)}개</h5>${p.sensors.map(x => `<div class="${esc(x.level)}">${snIco(x.kind)}<span>${esc(x.name)}</span><b><i class="gd-st ${esc(x.level)}">${stIco(x.level)}</i>${esc(x.say)}</b></div>`).join("")}</div>` : "") +
+      ((p.sensors || []).length ? `<div class="gd-snl"><h5>달린 센서 ${p.sensors.length + (p.temp != null) + (p.humidity != null)}개</h5>${p.sensors.map(x => `<div class="${esc(x.level)}">${snIco(x.kind)}<span>${esc(x.name)}</span><b><i class="gd-st ${esc(x.level)}">${stIco(x.level)}</i>${esc(x.say)}${znB(x)}</b></div>`).join("")}</div>` : "") +
       (lf ? `<div class="gd-life"><b>${esc(lf.label)} — ${esc(lf.say)}</b><p>${lf.status === "reached" ? "기준에 닿았습니다. JCC가 조치 일정을 잡아 연락드립니다." : "지금 추세 그대로라면 이 무렵 점검이 필요합니다. 정기 점검 때 함께 봅니다."}</p></div>` : "") +
       `</section>` +
       `<section class="gd-pane" id="gd-pane-fc" role="tabpanel" aria-labelledby="gd-tab-fc" hidden><div class="gd-fc" id="gd-fc"><div class="gd-note">불러오는 중</div></div></section>` +
@@ -5318,7 +5329,7 @@ function monTile(p){
     `<div><b>${p.humidity == null ? "—" : esc(p.humidity)}<small>%</small></b><span>습도</span></div>` +
     (third ? `<div class="w"><b>${esc(third[1])}</b><span>${third[0]}</span></div>` : "") + `</div>` +
     `<div class="gd-mt-tr">${monSpark(tr, p)}</div>` +
-    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}<em>${esc(x.name)}</em> ${esc(x.say)}</span>`).join("")
+    `<footer class="gd-mt-sn">${bad.length ? bad.slice(0, 4).map(x => `<span class="${esc(x.level)}">${snIco(x.kind)}<em>${esc(x.name)}</em> ${esc(x.say)}${znB(x)}</span>`).join("")
       : sens.length ? `<span>${stIco("ok")}센서 ${sens.length + (p.temp != null) + (p.humidity != null)}개 모두 정상</span>` : ""}</footer></article>`;
 }
 // 판넬 수에 맞춰 칸을 나눈다: 다 들어가면 가장 크게, 안 들어가면 페이지로(문제 판넬이 첫 페이지)

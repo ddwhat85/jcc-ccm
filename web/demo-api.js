@@ -211,6 +211,8 @@
     if (s.alarm_warn != null && (kind === "door" ? v >= s.alarm_warn : v > s.alarm_warn)) return "warn";
     return "ok";
   }
+  // 진동 ISO 10816 존 — vibration.zone과 같은 규칙(B/C = 주의, C/D = 위험, A/B = 주의×0.4)
+  function gdZone(v, w, x) { if (v == null || w == null) return null; if (x == null) x = w * 2.5; return v >= x ? "D" : v > w ? "C" : v < w * 0.4 ? "A" : "B"; }
   function gdLatest(ccms) {
     const lvl = {};
     S.alarms.filter(a => !a.cleared_at).forEach(a => { const k = a.device_id + ":" + (a.sensor_key || ""); if (lvl[k] !== "crit") lvl[k] = a.severity === "crit" ? "crit" : "warn"; });
@@ -227,7 +229,9 @@
       if (picked.has(dev + ":" + s.sensor_key)) { seen[name] = (seen[name] || 0) + 1; return; }
       if (["unknown", "analog"].includes(kind) || kind.startsWith("aircon") || s.unit === "?" || s.enabled === false) return;
       seen[name] = (seen[name] || 0) + 1;
-      d.sensors.push({ name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] });
+      const item = { name: name + (seen[name] > 1 ? " " + seen[name] : ""), kind, say: gdSay(s, kind), level: [lvl[dev + ":" + s.sensor_key] || "ok", gdLevel(s, kind)].sort((a, b) => GD_RANK[b] - GD_RANK[a])[0] };
+      if (kind === "vibration") item.zone = gdZone(s.value, s.alarm_warn, s.alarm_max);
+      d.sensors.push(item);
     });
     return d;
   }

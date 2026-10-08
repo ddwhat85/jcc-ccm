@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 import time
 from datetime import datetime, timedelta, timezone
+from .vibration import zone as vib_zone
 
 KST = timezone(timedelta(hours=9))
 PENALTY = {"crit": 20, "warn": 5, "offline": 10, "fire_watch": 5, "caution": 3, "life": 3, "overdue": 5}
@@ -204,9 +205,12 @@ def _latest(storage) -> dict:
                         or s.get("enabled") is False):
                     continue
                 seen[name] = seen.get(name, 0) + 1
-                d["sensors"].append({"name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
-                                     "say": _say(s, kind), "level": max(lvl.get((c["device_id"], s["sensor_key"]), "ok"),
-                                                                          _level(s, kind), key=_RANK.get)})
+                item = {"name": name + (f" {seen[name]}" if seen[name] > 1 else ""), "kind": kind,
+                        "say": _say(s, kind), "level": max(lvl.get((c["device_id"], s["sensor_key"]), "ok"),
+                                                           _level(s, kind), key=_RANK.get)}
+                if kind == "vibration":     # ISO 10816 존(A~D) — 그 센서의 주의·위험 기준에서(vibration.py)
+                    item["zone"] = vib_zone(s.get("value"), s.get("alarm_warn"), s.get("alarm_max"))
+                d["sensors"].append(item)
     return out
 
 
