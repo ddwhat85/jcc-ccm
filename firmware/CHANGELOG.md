@@ -4,6 +4,12 @@
 `jcc_ccm/__init__.py`의 `__version__`을 올리고 여기에 무엇이 바뀌었는지 적는다.
 번들은 `python tools/ota_build.py`(서명 키는 저장소·서버·CCM 어디에도 두지 않는다).
 
+## 다음 판(아직 버전 안 올림)
+
+- **진동 센서 프로파일(Banner QM30VT2)**: 한 채널(진동) → X·Z축 RMS 속도, 고주파 RMS 가속도, 첨도, 파고율, 센서 온도 9채널.
+  레지스터는 Banner 데이터시트 P/N 210732 Rev. D 'Holding Registers' 표 그대로(`modbus.register`·`pdu`·`scale`),
+  `tests/test_discovery.py`가 표 값을 고정. 현장 첫 설치 때 주소 오프셋(4xxxx → 0부터)을 실측 한 번으로 확인할 것.
+
 ## 0.2.0 — 첫 현장 배포 기준 (2026-10-03)
 
 0.1.0은 개발 중 기본값이었다. 현장에 처음 올리는 판이 0.2.0이다.
