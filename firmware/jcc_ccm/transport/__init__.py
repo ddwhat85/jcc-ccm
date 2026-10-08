@@ -39,7 +39,12 @@ def parse_commands(obj) -> list[dict]:
         if (isinstance(c, dict) and isinstance(c.get("actuator"), str)
                 and isinstance(c.get("action"), str)):
             out.append({"actuator": c["actuator"], "action": c["action"]})
+        elif isinstance(c, dict) and c.get("system") in _SYSTEM:      # 원격 재시작·채널 재초기화(정해 둔 것만)
+            out.append({"system": c["system"], "sensor_key": str(c.get("sensor_key") or "")[:64]})
     return out
+
+
+_SYSTEM = ("restart_agent", "restart_channel")
 
 
 def parse_tuning(obj):

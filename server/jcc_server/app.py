@@ -965,6 +965,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             # 엣지 보고(CCM이 직접 판정·구동한 결과) 반영 + 대기 중인 수동 조작 명령을 응답으로 하향
             self.storage.ingest_edge(dev, payload.get("edge"))
+            self.storage.note_command_results(dev, payload)   # 원격 재시작·채널 재초기화가 실제로 됐는지
             cmds = self.storage.take_edge_commands(dev)
             if cmds:
                 resp["commands"] = cmds
@@ -1263,13 +1264,22 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "잘못된 JSON"}, 400)
         dev = str(body.get("device_id", ""))
         action = str(body.get("action", ""))
-        if not dev or action not in ("restart", "shutdown"):
-            return self._json({"error": "device_id와 action(restart|shutdown)이 필요합니다"}, 400)
-        ok = self.storage.device_command(dev, action)
+        if not dev or action not in ("restart", "shutdown", "restart_channel"):
+            return self._json({"error": "device_id와 action(restart|shutdown|restart_channel)이 필요합니다"}, 400)
+        if action == "restart_channel":
+            key = str(body.get("sensor_key", ""))[:64]
+            ok, why = self.storage.channel_command(dev, key)
+            if ok:
+                self.storage.log_event(dev, key, "channel_restart", "채널 재시작 명령 — CCM이 다음 보고 때 센서 연결을 다시 초기화합니다", source="user")
+                return self._json({"ok": True, "device_id": dev, "action": action})
+            return self._json({"ok": False, "error": why, "device_id": dev, "action": action}, 409)
+        ok, why = self.storage.device_command(dev, action)
         if ok:
             self.storage.log_event(dev, "", action,
-                                   "재시작 명령" if action == "restart" else "전원 끄기 명령")
-        return self._json({"ok": ok, "device_id": dev, "action": action})
+                                   ("재시작 명령 — CCM이 다음 보고 때 받아 다시 켭니다" if action == "restart" else "전원 끄기 명령"),
+                                   source="user")
+            return self._json({"ok": True, "device_id": dev, "action": action})
+        return self._json({"ok": False, "error": why, "device_id": dev, "action": action}, 409)
 
     # ── 자가진단 ────────────────────────────────────────────
     def _diagnose(self) -> None:

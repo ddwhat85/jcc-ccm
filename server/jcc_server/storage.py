@@ -229,6 +229,7 @@ class Storage:
         self._pred_alarm: dict = {}     # (dev,key,kind) -> 예지 경보 열림 여부(전이 추적)
         self._edge: dict = {}           # device_id -> 최신 엣지 보고(CCM이 직접 판정·구동한 결과)
         self._edge_cmds: dict = {}      # device_id -> [대기 중인 출력 명령] (텔레메트리 응답으로 전달)
+        self._sys_pending: dict = {}    # device_id -> {"restart_agent": 보낸 시각, "ch:<key>": 보낸 시각} — 확인되면 지운다
         self._edge_lock = threading.Lock()
         self._fw: dict = {}             # device_id -> 마지막 보고된 펌웨어 버전
         self._ota_seen: set = set()     # 기록한 OTA 사건(제안·시험·롤백) — 같은 걸 매번 로그하지 않게
@@ -547,23 +548,86 @@ class Storage:
             self._live_state.pop(("health", device_id, sensor_key), None)
         return ok
 
-    def device_command(self, device_id: str, action: str) -> bool:
-        """CCM에 전원 명령을 보낸다(재시작/전원끄기). = 실기에서는 SSH로 reboot/poweroff.
+    @staticmethod
+    def _sim() -> bool:
+        """데모 서버(JCC_DEMO)는 CCM이 가짜라 명령이 '바로 먹힌 것처럼' 보여 준다. 실기는 명령을 보내고 확인을 기다린다."""
+        import os
+        return bool(os.environ.get("JCC_DEMO"))
 
-        시뮬레이션에서는 그 즉시 장비를 오프라인 처리(last_seen=0)해, 명령이 하드웨어에
-        실제로 먹혔음을 화면에 반영한다. 재시작한 CCM은 다시 접속해 텔레메트리를 올리면
-        자동으로 온라인으로 돌아온다."""
+    def device_online(self, device_id: str, within: float = 60.0) -> bool | None:
+        """None = 모르는 기기."""
         with self._lock:
-            cur = self._conn.execute(
-                "UPDATE devices SET last_seen=0 WHERE device_id=?", (device_id,))
-            self._conn.commit()
-            ok = cur.rowcount > 0
-        # 전원 끄기는 데모 피더가 이 CCM에 값을 더 넣지 않게 표시한다(재시작은 해제).
+            r = self._conn.execute("SELECT last_seen FROM devices WHERE device_id=?", (device_id,)).fetchone()
+        return None if r is None else (time.time() - (r["last_seen"] or 0)) < within
+
+    def queue_system(self, device_id: str, system: str, sensor_key: str = "") -> None:
+        """CCM에 시스템 명령(restart_agent·restart_channel)을 다음 텔레메트리 응답에 실어 보낸다.
+        서버는 클라우드, CCM은 고객 내부망이라 서버가 먼저 접속할 수 없다 — 끊긴 CCM에는 닿지 않는다."""
+        now = time.time()
+        with self._edge_lock:
+            q = [c for c in self._edge_cmds.get(device_id, []) if not (c.get("system") == system and c.get("sensor_key", "") == sensor_key)]
+            q.append({"system": system, "sensor_key": sensor_key, "ts": now})
+            self._edge_cmds[device_id] = q
+            self._sys_pending.setdefault(device_id, {})["restart_agent" if system == "restart_agent" else "ch:" + sensor_key] = now
+
+    def device_command(self, device_id: str, action: str) -> tuple:
+        """사람이 누른 재시작/전원 끄기 → (ok, 이유).
+        실기: 재시작 = CCM 프로그램 재시작 명령을 다음 보고 응답으로 내려보내고, 다시 켜진 보고가 오면 '재시작 확인'.
+              연결이 끊긴 CCM에는 보낼 길이 없어 거절. 전원 끄기는 원격으로 다시 켤 수 없어 실기에선 막는다.
+        데모: 예전처럼 바로 꺼진 것처럼(last_seen=0) 보여 준다."""
+        on = self.device_online(device_id)
+        if on is None:
+            return False, "없는 장비입니다"
+        if self._sim():
+            with self._lock:
+                self._conn.execute("UPDATE devices SET last_seen=0 WHERE device_id=?", (device_id,))
+                self._conn.commit()
+            if action == "shutdown":
+                self._powered_off.add(device_id)
+            else:
+                self._powered_off.discard(device_id)
+            return True, ""
         if action == "shutdown":
-            self._powered_off.add(device_id)
-        else:
-            self._powered_off.discard(device_id)
-        return ok
+            return False, "실제 CCM은 원격으로 끄지 않습니다 — 끄면 다시 켤 방법이 없어 현장에 가야 합니다"
+        if not on:
+            return False, "연결이 끊긴 CCM이라 명령을 보낼 수 없습니다 — CCM이 스스로 다시 켜지기를 기다리거나 현장 전원을 확인하세요"
+        self.queue_system(device_id, "restart_agent")
+        return True, ""
+
+    def channel_command(self, device_id: str, sensor_key: str) -> tuple:
+        """사람이 누른 센서 재시작 → 그 CCM에 채널 재초기화 명령(연결돼 있을 때만)."""
+        on = self.device_online(device_id)
+        if on is None or not sensor_key:
+            return False, "장비·센서를 확인하세요"
+        if self._sim():
+            self._heal_at[(device_id, sensor_key)] = time.time()
+            self.log_event(device_id, sensor_key, "channel_restart_ok", "채널 재시작 확인(데모)", source="system")
+            return True, ""
+        if not on:
+            return False, "연결이 끊긴 CCM이라 명령을 보낼 수 없습니다"
+        self.queue_system(device_id, "restart_channel", sensor_key)
+        return True, ""
+
+    def note_command_results(self, device_id: str, payload: dict) -> None:
+        """CCM 보고에서 시스템 명령의 결과를 확인한다: 켜진 시각이 명령 뒤면 '재시작 확인', 채널 재초기화 보고면 '채널 재시작 확인'."""
+        pend = self._sys_pending.get(device_id)
+        if not pend:
+            return
+        start = payload.get("agent_start")
+        sent = pend.get("restart_agent")
+        if sent is not None and isinstance(start, (int, float)) and start >= sent - 2:
+            pend.pop("restart_agent", None)
+            self.log_event(device_id, "", "restart_ok", "재시작 확인 — CCM 프로그램이 다시 켜져 보고했습니다", source="system")
+        for d in payload.get("cmd_done") or []:
+            if isinstance(d, dict) and d.get("system") == "restart_channel":
+                k = str(d.get("sensor_key") or "")
+                if pend.pop("ch:" + k, None) is not None:
+                    self.log_event(device_id, k, "channel_restart_ok", "채널 재시작 확인 — CCM이 센서 연결을 다시 초기화했습니다", source="system")
+        for k, t in list(pend.items()):            # 10분 넘게 확인이 없으면 잊는다(명령이 버려졌거나 CCM이 못 받음)
+            if time.time() - t > 600:
+                pend.pop(k, None)
+        if not pend:
+            self._sys_pending.pop(device_id, None)
 
     def restart_channel(self, device_id: str, sensor_key: str, note: str = "채널 재시작") -> bool:
         """센서 채널을 재시작한다(자가치유 L1). = 실기에서는 CCM에 해당 Modbus 채널
@@ -574,6 +638,10 @@ class Storage:
         """
         self._heal_at[(device_id, sensor_key)] = time.time()
         self.log_event(device_id, sensor_key, "heal_restart", note, source="system")
+        if self._sim():                              # 데모: CCM이 가짜라 바로 된 것으로
+            self.log_event(device_id, sensor_key, "channel_restart_ok", "채널 재시작 확인(데모)", source="system")
+        else:
+            self.queue_system(device_id, "restart_channel", sensor_key)
         return True
 
     def restart_device(self, device_id: str, note: str = "CCM 재시작") -> bool:
@@ -584,7 +652,15 @@ class Storage:
         시뮬레이션에서는 재시작 시각을 남겨, 데모 피더가 CCM 침묵 구간을 해제하게 한다.
         """
         self._heal_dev_at[device_id] = time.time()
-        self.log_event(device_id, "", "heal2_restart", note, source="system")
+        if self._sim():
+            self.log_event(device_id, "", "heal2_restart", note, source="system")
+            self.log_event(device_id, "", "restart_ok", "재시작 확인(데모)", source="system")
+        elif self.device_online(device_id):
+            self.log_event(device_id, "", "heal2_restart", note, source="system")
+            self.queue_system(device_id, "restart_agent")
+        else:                                        # 끊긴 CCM에는 명령이 닿지 않는다 — 했다고 기록하지 않는다
+            self.log_event(device_id, "", "heal2_restart",
+                           note + " — 연결이 끊겨 원격 명령은 닿지 않음(CCM 자체 재시작·현장 확인 필요)", source="system")
         return True
 
     def enable_all_channels(self) -> int:
@@ -1894,7 +1970,8 @@ class Storage:
         now = time.time()
         with self._edge_lock:
             cmds = self._edge_cmds.pop(device_id, [])
-        return [{"actuator": c["actuator"], "action": c["action"]}
+        return [({"system": c["system"], "sensor_key": c.get("sensor_key", "")} if c.get("system")
+                 else {"actuator": c["actuator"], "action": c["action"]})
                 for c in cmds if now - c["ts"] <= self.EDGE_CMD_TTL]
 
     # ── 보존 정리 (상시 운영용) ─────────────────────────────

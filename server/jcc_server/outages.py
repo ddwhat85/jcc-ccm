@@ -53,7 +53,8 @@ def classify(storage, a: dict, now: float | None = None) -> tuple:
     dev, start, end = a["device_id"], _gap_start(a), a["cleared_at"]
     with storage._lock:
         ev = {r["etype"] for r in storage._conn.execute(
-            "SELECT etype FROM events WHERE device_id=? AND ts >= ? AND ts <= ? AND etype IN ('restart', 'shutdown', 'heal_restart')",
+            "SELECT etype FROM events WHERE device_id=? AND ts >= ? AND ts <= ? AND etype IN "
+            "('restart', 'shutdown', 'heal_restart', 'heal2_restart', 'restart_ok', 'channel_restart_ok')",
             (dev, start - 300, end + 60))}
         n = storage._conn.execute("SELECT COUNT(DISTINCT CAST(ts / ? AS INTEGER)) AS n FROM readings WHERE device_id=? AND ts >= ? AND ts < ?",
                                   (BUCKET, dev, start, end)).fetchone()["n"]
@@ -63,7 +64,8 @@ def classify(storage, a: dict, now: float | None = None) -> tuple:
     covered = round(min(1.0, n / total), 2)
     if ev & {"restart", "shutdown"}:
         return "operator", covered
-    if "heal_restart" in ev:
+    # 원격 재시작으로 살렸다 = 재시작을 시도했고 CCM이 '다시 켜졌다/재초기화했다'고 확인해 온 경우만(시도만으론 아니다)
+    if ev & {"heal_restart", "heal2_restart"} and ev & {"restart_ok", "channel_restart_ok"}:
         return "heal", covered
     if covered >= COVER:
         return "network", covered

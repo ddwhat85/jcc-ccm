@@ -791,10 +791,12 @@
   function restartChannel(dev, key, note) {
     healAt[K(dev, key)] = now();
     logEvent(dev, key, "heal_restart", note, "system");
+    logEvent(dev, key, "channel_restart_ok", "채널 재시작 확인(시연)", "system");
   }
   function restartDevice(dev, note) {
     healDevAt[dev] = now();
     logEvent(dev, "", "heal2_restart", note, "system");
+    logEvent(dev, "", "restart_ok", "재시작 확인(시연)", "system");
   }
   function healTick() {
     if (!HEAL.enabled) return;
@@ -2225,8 +2227,12 @@
         }
         if (p === "/api/device/command") {
           const dev = String(body.device_id || ""), act = String(body.action || "");
-          if (!dev || (act !== "restart" && act !== "shutdown"))
-            return Promise.resolve(J({ error: "device_id와 action(restart|shutdown)이 필요합니다" }, 400));
+          if (!dev || !["restart", "shutdown", "restart_channel"].includes(act))
+            return Promise.resolve(J({ error: "device_id와 action(restart|shutdown|restart_channel)이 필요합니다" }, 400));
+          if (act === "restart_channel") { const key = String(body.sensor_key || "");   // 시연: 바로 재초기화된 것으로
+            healAt[K(dev, key)] = now(); logEvent(dev, key, "channel_restart", "채널 재시작 명령", "user");
+            logEvent(dev, key, "channel_restart_ok", "채널 재시작 확인(시연)", "system");
+            return Promise.resolve(J({ ok: true, device_id: dev, action: act })); }
           S.lastSeen[dev] = 0;
           if (act === "shutdown") S.poweredOff[dev] = true;   // 값 공급 중단 → 실제로 꺼짐
           else delete S.poweredOff[dev];                       // 재시작 → 다시 살아남

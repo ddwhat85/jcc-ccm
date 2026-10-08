@@ -100,6 +100,8 @@ def run():
     check("JCC가 재시작 명령 → JCC 작업", O.classify(st, a, now)[0] == "operator")
     a = alarm("n5", "", T, T + 900)
     ev("n5", "heal_restart", T + 400)
+    check("시도만 하고 확인이 없으면 원격 재시작이라 하지 않음", O.classify(st, a, now)[0] != "heal")
+    ev("n5", "channel_restart_ok", T + 405)
     check("서버가 원격 재시작으로 살림 → 원격 재시작", O.classify(st, a, now)[0] == "heal")
     a = alarm("n1", "cabinet_temp", T + 7200, T + 9000)
     check("센서 하나만 → 센서 데이터 없음", O.classify(st, a, now)[0] == "sensor")

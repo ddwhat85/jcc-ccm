@@ -65,6 +65,9 @@ class Agent:
             from .ota import OtaManager
             self._ota = OtaManager(cfg)
         self._restart = False
+        # 원격 재시작 확인용: 이 프로그램이 켜진 시각(서버는 재시작 명령 뒤 이 값이 바뀌면 '재시작 확인')
+        self._started = time.time()
+        self._cmd_done: list = []      # 처리한 시스템 명령(다음 보고에 실어 서버가 '확인'으로 기록)
 
     # ── 수명주기 ──────────────────────────────────────────────
     def _install_signals(self) -> None:
@@ -152,16 +155,34 @@ class Agent:
             log.exception("OTA 처리 오류(수집은 계속): %s", exc)
 
     def _apply_commands(self) -> None:
-        """서버가 내려보낸 수동 조작 명령을 엣지 출력에 반영한다(다음 보고에 결과가 실린다)."""
+        """서버가 내려보낸 명령: 시스템 명령(재시작·채널 재초기화)은 여기서, 출력 조작은 엣지에(결과는 다음 보고에)."""
         edge = getattr(self, "_edge", None)
         take = getattr(self._transport, "take_commands", None)
-        if edge is None or take is None:
+        if take is None:
             return
         try:
             for cmd in take():
-                edge.apply_command(cmd)
+                if cmd.get("system"):
+                    self._system_command(cmd)
+                elif edge is not None:
+                    edge.apply_command(cmd)
         except Exception as exc:  # noqa: BLE001
             log.exception("원격 명령 처리 오류: %s", exc)
+
+    def _system_command(self, cmd: dict) -> None:
+        """restart_agent: 이 프로그램을 끝낸다 → systemd(Restart=always)가 5초 뒤 다시 띄운다(켜진 시각이 바뀌어 서버가 확인).
+        restart_channel: 센서 드라이버를 새로 만든다(Modbus 연결·폴링 재초기화) — 그 센서만 멈췄을 때."""
+        what = cmd.get("system")
+        if what == "restart_agent":
+            log.warning("원격 명령: 프로그램 재시작(서버 요청)")
+            self._restart = self._stop = True
+        elif what == "restart_channel":
+            manual = getattr(self, "_manual", None)
+            self._drivers = build_drivers(self._cfg.sensors + (manual.configs() if manual else []), self._cfg.modbus)
+            self._cmd_done.append({"system": "restart_channel", "sensor_key": str(cmd.get("sensor_key") or ""), "ts": round(time.time(), 3)})
+            log.warning("원격 명령: 센서 채널 재초기화 (%s)", cmd.get("sensor_key") or "전체")
+        else:
+            log.warning("알 수 없는 시스템 명령 무시: %s", cmd)
 
     def _apply_tuning(self) -> None:
         """서버가 내려보낸 예지 기준 설정을 엣지에 넘긴다(검증·적용은 엣지가). 결과는 다음 보고에."""
@@ -198,12 +219,18 @@ class Agent:
             "ts": round(time.time(), 3),
             "fw": __version__,
             "boot_ts": boot_ts(),
+            "agent_start": round(getattr(self, "_started", 0) or 0, 3),
+            **({"cmd_done": self._take_done()} if getattr(self, "_cmd_done", None) else {}),
             # 아직 못 보낸 묶음 수 — 서버는 이것이 0이 될 때까지 끊김 원인(통신/전원)을 확정하지 않는다
             "backlog": len(getattr(self, "_queue", ())) + (len(self._spool) if getattr(self, "_spool", None) is not None else 0),
             "readings": [r.as_dict() for r in readings],
             **({"ota": self._ota.status()} if getattr(self, "_ota", None) else {}),
             **({"sensor_config": self._manual.report()} if getattr(self, "_manual", None) else {}),
         }
+
+    def _take_done(self) -> list:
+        done, self._cmd_done = self._cmd_done, []
+        return done
 
     # ── 전송 큐 (오프라인 내구성) ──────────────────────────────
     def _enqueue(self, payload: dict) -> None:

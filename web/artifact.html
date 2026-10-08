@@ -570,6 +570,7 @@
   .insp-btn.danger{background:var(--canvas);color:var(--crit);border-color:var(--crit)}
   .insp-btn.danger:hover,.insp-btn.warn:hover{filter:none;color:#fff}
   .insp-btn.danger:hover{background:var(--crit)} .insp-btn.warn:hover{background:var(--warn)}
+  .insp-note{margin:6px 2px 0;font-size:11px;line-height:1.5;color:var(--ink-3)}
   .insp-manual{margin-top:10px;padding:9px 11px;background:var(--canvas);border:1px solid var(--rule);
                border-radius:2px;font-size:11.5px;line-height:1.5;color:var(--ink-2)}
   .insp-manual .mh{font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
@@ -3477,10 +3478,12 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
   function restartChannel(dev, key, note) {
     healAt[K(dev, key)] = now();
     logEvent(dev, key, "heal_restart", note, "system");
+    logEvent(dev, key, "channel_restart_ok", "채널 재시작 확인(시연)", "system");
   }
   function restartDevice(dev, note) {
     healDevAt[dev] = now();
     logEvent(dev, "", "heal2_restart", note, "system");
+    logEvent(dev, "", "restart_ok", "재시작 확인(시연)", "system");
   }
   function healTick() {
     if (!HEAL.enabled) return;
@@ -4911,8 +4914,12 @@ window.JCC_TUNING_DATA = {"params":{"params":[{"key":"fire.h2.warn","group":"fir
         }
         if (p === "/api/device/command") {
           const dev = String(body.device_id || ""), act = String(body.action || "");
-          if (!dev || (act !== "restart" && act !== "shutdown"))
-            return Promise.resolve(J({ error: "device_id와 action(restart|shutdown)이 필요합니다" }, 400));
+          if (!dev || !["restart", "shutdown", "restart_channel"].includes(act))
+            return Promise.resolve(J({ error: "device_id와 action(restart|shutdown|restart_channel)이 필요합니다" }, 400));
+          if (act === "restart_channel") { const key = String(body.sensor_key || "");   // 시연: 바로 재초기화된 것으로
+            healAt[K(dev, key)] = now(); logEvent(dev, key, "channel_restart", "채널 재시작 명령", "user");
+            logEvent(dev, key, "channel_restart_ok", "채널 재시작 확인(시연)", "system");
+            return Promise.resolve(J({ ok: true, device_id: dev, action: act })); }
           S.lastSeen[dev] = 0;
           if (act === "shutdown") S.poweredOff[dev] = true;   // 값 공급 중단 → 실제로 꺼짐
           else delete S.poweredOff[dev];                       // 재시작 → 다시 살아남
@@ -6204,6 +6211,9 @@ function setSetting(dev, key, patch){
 // 활동 기록(로그) — 이벤트 종류별 라벨·색
 const EVENT_META = {
   restart:     {label:"재시작 명령",  dot:"info", ic:"↻"},
+  restart_ok:  {label:"재시작 확인",  dot:"ok",   ic:"✓"},
+  channel_restart:    {label:"채널 재시작 명령", dot:"info", ic:"↻"},
+  channel_restart_ok: {label:"채널 재시작 확인", dot:"ok",   ic:"✓"},
   shutdown:    {label:"전원 끄기",    dot:"crit", ic:"⏻"},
   channel_off: {label:"센서 끄기",    dot:"warn", ic:"⏸"},
   channel_on:  {label:"센서 켜기",    dot:"ok",   ic:"▶"},
@@ -6417,11 +6427,14 @@ function renderInspector(id, n){
       `<div class="insp-row"><span class="k">상행 연결</span><span class="v">이더넷 → 판넬</span></div>`+
       `<div class="insp-sec">전원 제어</div>`+
       `<div class="insp-btnrow">`+
-        `<button class="insp-btn ghost" id="ccm-restart">↻ 재시작</button>`+
-        (clientOff.has(id)
+        `<button class="insp-btn ghost" id="ccm-restart"${on ? "" : " disabled"}>↻ 재시작</button>`+
+        // 전원 끄기는 시연판만 — 실제 CCM은 원격으로 끄면 다시 켤 방법이 없다(현장에 가야 함)
+        (!window.JCC_DEMO ? "" : clientOff.has(id)
           ? `<button class="insp-btn" id="ccm-poweron">⏻ 전원 켜기</button>`
           : `<button class="insp-btn danger" id="ccm-shutdown">⏻ 전원 끄기</button>`)+
       `</div>`+
+      `<p class="insp-note">${on ? "재시작 = CCM 프로그램을 다시 켭니다(다음 보고 때 명령이 전달되고, 다시 켜지면 활동 기록에 '재시작 확인')."
+        : "연결이 끊긴 CCM에는 원격 명령이 닿지 않습니다 — CCM이 스스로 다시 켜지기를 기다리거나 현장 전원을 확인하세요."}</p>`+
       `<button class="insp-btn ghost" id="node-diag" style="margin-top:8px">자가진단</button>`+
       `<div id="diag-out"></div>`+
       `<div class="insp-sec">활동 기록</div><div class="evt-list" id="evt-list">불러오는 중…</div>`+
@@ -6504,7 +6517,9 @@ function renderInspector(id, n){
     if(restart) restart.onclick = ()=>{
       restart.disabled=true; restart.textContent="재시작 중…"; spin();
       clientOff.delete(id); nodeEl && nodeEl.classList.remove("node-off");
-      deviceCommand(dev,"restart").then(()=>{ topoSig=""; setStatus(dev+" 재시작 — 재부팅 후 다시 접속합니다"); refresh(); })
+      deviceCommand(dev,"restart").then(j=>{ topoSig="";
+        if (j && j.ok === false){ restart.disabled=false; restart.textContent="↻ 재시작"; setStatus(dev+": "+(j.error||"명령을 보내지 못했습니다")); return; }
+        setStatus(window.JCC_DEMO ? dev+" 재시작 — 재부팅 후 다시 접속합니다" : dev+" 재시작 명령 전송 — 다음 보고 때 받아 다시 켭니다(확인되면 활동 기록에 '재시작 확인')"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
     if(shutdown){
       // confirm()은 샌드박스 iframe(아티팩트)에서 막히므로 쓰지 않는다.
@@ -6543,8 +6558,11 @@ function renderInspector(id, n){
       senRestart.disabled=true; senRestart.textContent="재시작 중…";
       const sEl = nodes.get(id)?.el;
       if(sEl){ sEl.classList.add("restarting"); setTimeout(()=>sEl.classList.remove("restarting"),3500); }
-      setChannel(dev,key,false).then(()=> setChannel(dev,key,true)).then(()=>{ topoSig="";
-        setStatus("센서 재시작 — 채널을 껐다 켜 폴링을 재초기화합니다"); refresh(); })
+      // 실제 CCM에 '채널 재초기화' 명령(센서 연결·폴링을 새로) — 확인되면 활동 기록에 '채널 재시작 확인'
+      fetch("/api/device/command",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({device_id:dev, action:"restart_channel", sensor_key:key})}).then(r=>r.json()).then(j=>{ topoSig="";
+        if (j && j.ok === false){ senRestart.disabled=false; senRestart.textContent="↻ 재시작"; setStatus(j.error||"명령을 보내지 못했습니다"); return; }
+        setStatus("센서 재시작 명령 전송 — CCM이 다음 보고 때 센서 연결을 다시 초기화합니다"); refresh(); })
         .catch(()=> setStatus("명령 실패")); };
   }
 
