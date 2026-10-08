@@ -3,6 +3,7 @@
 아무 일 없을 때도 JCC가 지키고 있다는 걸 느끼게 하는 장치. 실제 발송이라 비용이 들므로
 고객사별 스위치(weekly_notify, 기본 꺼짐)를 켠 곳만, 그 고객사 알림 번호로만 보낸다.
 숫자는 모두 실제 기록(경보·예지·자동 조치·감시 끊김)에서 만든다.
+지난주와 견준다(같은 길이로): 경보 수 ▲▼, 가장 더웠던 판넬의 최고 온도, 많이 울린 경보 TOP3.
 """
 from __future__ import annotations
 
@@ -35,6 +36,41 @@ def _week_range(now: float):
     return (monday - timedelta(days=7)).timestamp(), monday.timestamp()
 
 
+def _alarms(storage, keys: set, since: float, end: float) -> list:
+    """그 기간 경보(침묵 제외 — 고객 화면 사건 목록과 같은 기준)."""
+    frag, fa = storage._in_devices(keys)
+    with storage._lock:
+        return storage._conn.execute(f"SELECT severity, device_id, sensor_key FROM alarms WHERE raised_at >= ? AND raised_at < ? "
+                                     f"AND kind != 'silent' AND {frag}", (since, end, *fa)).fetchall()
+
+
+def _hottest(storage, panels: set, since: float, end: float):
+    """판넬마다 대표 온도(forecast와 같은 센서)의 시간별 최고 중 가장 높은 값 → (값, 판넬 이름) 또는 None."""
+    from .forecast import ensure, panel_forecast_source
+    ensure(storage)
+    names = {p["panel"]: p["panel_name"] for p in storage.list_panels()}
+    best = None
+    for pid in panels:
+        src = panel_forecast_source(storage, pid)
+        if not src:
+            continue
+        with storage._lock:
+            # 시간 칸이 기간에 걸치면 넣는다(설치한 시간의 칸은 설치 전 정시에서 시작한다)
+            r = storage._conn.execute("SELECT MAX(COALESCE(vmax, avg)) AS m FROM hourly WHERE device_id=? AND sensor_key=? "
+                                      "AND hour > ? AND hour < ?", (src[0], src[1], since - 3600, end)).fetchone()
+        if r and r["m"] is not None and (best is None or r["m"] > best[0]):
+            best = (round(r["m"], 1), names.get(pid) or pid)
+    return best
+
+
+def _arrow(d: float, unit: str = "", nd: int = 0) -> str:
+    """지난주보다 ▲ n / ▼ n / 같음."""
+    if abs(d) < (0.05 if nd else 0.5):
+        return "지난주와 같음"
+    v = f"{abs(d):.{nd}f}{unit}"
+    return f"지난주보다 ▲{v}" if d > 0 else f"지난주보다 ▼{v}"
+
+
 def build(storage, customer_id: int, now: float | None = None, so_far: bool = False) -> dict | None:
     """고객사 한 곳의 지난주 요약(문구 포함). 판넬이 없으면 None.
     so_far=True: 운영자 미리 보기용 — 이번 주 월요일부터 지금까지(다음 월요일에 나갈 문자의 모양)."""
@@ -60,11 +96,25 @@ def build(storage, customer_id: int, now: float | None = None, so_far: bool = Fa
     base = storage.build_report(devices=keys, since=start, until=end)
     pr = base["summary"]["predict"]
     # 경보 건수는 고객 화면 사건 목록과 같은 기준 — 감시 장치 끊김(침묵)은 '위험 경보'가 아니라 가동률로 보인다
-    frag, fa = storage._in_devices(keys)
-    with storage._lock:
-        rows = storage._conn.execute(f"SELECT severity FROM alarms WHERE raised_at >= ? AND raised_at < ? AND kind != 'silent' "
-                                     f"AND {frag}", (since, end, *fa)).fetchall()
+    rows = _alarms(storage, keys, since, end)
     al = {"crit": sum(1 for r in rows if r["severity"] == "crit"), "warn": sum(1 for r in rows if r["severity"] == "warn")}
+    # 지난주 같은 길이(미리 보기면 지난주의 같은 요일·시각까지) — 설치 전이면 견주지 않는다
+    p0, p1 = start - 7 * 86400, end - 7 * 86400
+    prev_n = len(_alarms(storage, keys, max(p0, first), p1)) if first < p1 else None
+    hot, hot_prev = _hottest(storage, panels, since, end), (_hottest(storage, panels, max(p0, first), p1) if first < p1 else None)
+    # 많이 울린 경보 TOP3 — 판넬 이름 · 센서 이름
+    pname, sname = {}, {}
+    for p in storage.list_panels():
+        for c in p["ccms"]:
+            pname[c["device_id"]] = p["panel_name"]
+            for x in c.get("latest") or []:
+                sname[(c["device_id"], x["sensor_key"])] = x.get("name") or x["sensor_key"]
+    cnt: dict = {}
+    for r in rows:
+        k = (r["device_id"], r["sensor_key"] or "")
+        cnt[k] = cnt.get(k, 0) + 1
+    top = [{"panel": pname.get(d, d), "sensor": sname.get((d, k), k), "n": n}
+           for (d, k), n in sorted(cnt.items(), key=lambda kv: -kv[1])[:3]]
     down = sum(_downtime(storage, devs, start, end).values())
     uptime = round(max(0.0, 1.0 - down / max(1.0, (end - since) * len(devs))) * 100, 1)
     if 99.95 <= uptime < 100:
@@ -77,7 +127,14 @@ def build(storage, customer_id: int, now: float | None = None, so_far: bool = Fa
     head = f"[JCC GUARD] {cust['name']} 주간 안전 요약 ({span})"
     lines = [f"판넬 {len(panels)}면 — " + ("한 주 동안 이상 없었습니다." if quiet else "아래 일이 있었고 모두 기록했습니다.")]
     if not quiet:
-        lines.append(f"위험 경보 {al['crit']}건 · 주의 경보 {al['warn']}건 · 미리 잡은 징조 {prec}건")
+        lines.append(f"위험 경보 {al['crit']}건 · 주의 경보 {al['warn']}건 · 미리 잡은 징조 {prec}건"
+                     + (f" ({_arrow(len(rows) - prev_n, '건')})" if prev_n is not None else ""))
+        if top:
+            lines.append("많이 울린 경보: " + " · ".join(f"{t['panel']} {t['sensor']} {t['n']}건" for t in top))
+    elif prev_n:
+        lines.append(f"지난주 경보 {prev_n}건 → 이번 주 0건")
+    if hot:
+        lines.append(f"가장 더웠던 판넬 {hot[1]} 최고 {hot[0]:g}℃" + (f" ({_arrow(hot[0] - hot_prev[0], '℃', 1)})" if hot_prev else ""))
     if acts:
         lines.append(f"판넬이 스스로 한 조치 {acts}회")
     lines.append(f"감시 가동률 {uptime:g}%")
@@ -86,6 +143,8 @@ def build(storage, customer_id: int, now: float | None = None, so_far: bool = Fa
         lines.append(f"자세히 보기: {url}/")
     return {"customer": cust["name"], "week": week_key(now), "range": [start, end], "quiet": quiet,
             "crit": al["crit"], "warn": al["warn"], "precursors": prec, "actions": acts, "uptime": uptime,
+            "prev_alarms": prev_n, "top": top, "hottest": hot and {"panel": hot[1], "max": hot[0]},
+            "hottest_prev": hot_prev and hot_prev[0],
             "text": head + "\n" + "\n".join(lines)}
 
 

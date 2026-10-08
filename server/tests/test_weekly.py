@@ -82,6 +82,20 @@ def run():
     st.raise_alarm("ccm-1", "", "silent", "CCM 응답 없음")
     r = weekly.build(st, cid, mon10)
     check("감시 장치 끊김(침묵)은 '위험 경보'로 세지 않음", r["crit"] == 1, str(r["crit"]))
+    check("많이 울린 경보 TOP3: 판넬·센서 이름", r["top"] == [{"panel": "A동", "sensor": "함내 온도", "n": 1}]
+          and "많이 울린 경보: A동 함내 온도 1건" in r["text"], str(r["top"]))
+    check("설치 전 지난주와는 견주지 않음", r["prev_alarms"] is None and "지난주" not in r["text"], r["text"])
+    from jcc_server import forecast
+    forecast.ensure(st)
+    h0 = (now // 3600) * 3600
+    with st._lock:   # 대표 온도의 시간별 최고: 경보 난 주 33.0℃, 그다음 주 34.5℃
+        st._conn.executemany("INSERT OR REPLACE INTO hourly (device_id, sensor_key, hour, avg, vmin, vmax, n) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                             [("ccm-1", "cabinet_temp", h0, 31.0, 30.0, 33.0, 6), ("ccm-1", "cabinet_temp", h0 + 7 * 86400, 32.0, 31.0, 34.5, 6)])
+        st._conn.commit()
+    r2 = weekly.build(st, cid, mon10 + 7 * 86400)
+    check("다음 주: 경보 0건이면 '지난주 n건 → 이번 주 0건'", r2["quiet"] and r2["prev_alarms"] == 1 and "지난주 경보 1건 → 이번 주 0건" in r2["text"], r2["text"])
+    check("가장 더웠던 판넬과 지난주 대비", r2["hottest"] == {"panel": "A동", "max": 34.5} and "A동 최고 34.5℃ (지난주보다 ▲1.5℃)" in r2["text"], r2["text"])
+    check("이번 주 경보가 지난주와 같으면 '같음'", weekly._arrow(0, "건") == "지난주와 같음" and weekly._arrow(-2, "건") == "지난주보다 ▼2건")
 
     # 장문 제목: 주간 요약이 '경보' 제목으로 가면 안 된다 — 실제 전송 함수를 가짜로 바꿔 필드만 본다(네트워크 없음)
     from jcc_server import notify
