@@ -175,6 +175,7 @@ _MIGRATIONS = [
     "ALTER TABLE discovered ADD COLUMN photo TEXT",        # 제품 사진 경로
     "ALTER TABLE settings ADD COLUMN alarm_warn REAL",     # 경고 단계 사용자 재정의
     "ALTER TABLE settings ADD COLUMN relay_modes TEXT",    # 릴레이 NO/NC 현장 설정 JSON
+    "ALTER TABLE settings ADD COLUMN rate_up REAL",        # 변화율 규칙: 10분 새 이만큼 넘게 오르면 '급상승' 주의(빈칸 = 안 봄)
     "ALTER TABLE discovered ADD COLUMN brand TEXT",
     "ALTER TABLE discovered ADD COLUMN product TEXT",
     "ALTER TABLE discovered ADD COLUMN part_no TEXT",
@@ -219,6 +220,7 @@ class Storage:
         self._conn.execute("PRAGMA journal_mode=WAL;")   # 동시 읽기/쓰기 견고
         self._lock = threading.Lock()
         self._alarm_state: dict = {}   # (device_id, key) -> "ok"|"alarm"  경보 전이 감지용
+        self._rate_state: dict = {}    # (device_id, key) -> True  변화율(급상승) 경보가 열려 있음
         self._live_state: dict = {}    # ("dev",id)/("sen",id,key) -> "up"|"down"  침묵 전이 감지용
         self._powered_off: set = set() # 전원 끈 CCM(데모 피더 제외·침묵 경보 억제)
         self._backlog: dict = {}       # device_id -> (묶음 시각, CCM이 아직 못 보낸 묶음 수) — 끊김 원인 확정을 미룰지
@@ -266,6 +268,8 @@ class Storage:
                 self._alarm_state[(dev, key)] = "alarm"
             elif kind == "alarm_warn":
                 self._alarm_state[(dev, key)] = "warn"
+            elif kind == "alarm_rate":
+                self._rate_state[(dev, key)] = True
             elif kind == "silent":
                 self._live_state[("sen", dev, key) if key else ("dev", dev)] = "down"
             elif kind in ("stuck", "drift", "anomaly"):
@@ -388,6 +392,7 @@ class Storage:
                         self._open_alarm(cur, device_id, key, "alarm", detail, now)
                     elif state == "warn":
                         self._open_alarm(cur, device_id, key, "alarm_warn", detail, now)
+            self._check_rate(cur, device_id, readings, disabled, now)
             self._conn.commit()
         if booted is not None:                         # 락 밖에서 기록(재진입 회피)
             from datetime import datetime, timedelta, timezone
@@ -479,13 +484,13 @@ class Storage:
         """{(device_id, sensor_key): {setpoint, alarm_min, alarm_max}} 사용자 재정의."""
         with self._lock:
             rows = self._conn.execute(
-                "SELECT device_id, sensor_key, setpoint, alarm_min, alarm_max, alarm_warn, relay_modes "
+                "SELECT device_id, sensor_key, setpoint, alarm_min, alarm_max, alarm_warn, relay_modes, rate_up "
                 "FROM settings").fetchall()
         return {(r["device_id"], r["sensor_key"]): dict(r) for r in rows}
 
     def set_setting(self, device_id: str, sensor_key: str,
                     setpoint=None, alarm_min=None, alarm_max=None,
-                    alarm_warn=None, relay_modes=None) -> dict:
+                    alarm_warn=None, relay_modes=None, rate_up=None) -> dict:
         """센서의 사용자 설정(셋팅값·알람 상/하한)을 upsert. 넘어온 필드만 갱신한다.
         None은 '변경 없음', 빈 문자열은 '해제(기본값으로 복귀)'로 다룬다."""
         def norm(v):
@@ -495,14 +500,16 @@ class Storage:
                 return None          # 해제 → NULL
             return _as_float_or_none(v)
         sp, amin, amax = norm(setpoint), norm(alarm_min), norm(alarm_max)
-        awarn = norm(alarm_warn)
+        awarn, rup = norm(alarm_warn), norm(rate_up)
+        if rup not in ("keep", None) and rup <= 0:
+            rup = None                # 0 이하 = 끄기
         now = time.time()
         with self._lock:
             cur = self._conn.execute(
-                "SELECT setpoint, alarm_min, alarm_max, alarm_warn, relay_modes FROM settings "
+                "SELECT setpoint, alarm_min, alarm_max, alarm_warn, relay_modes, rate_up FROM settings "
                 "WHERE device_id=? AND sensor_key=?", (device_id, sensor_key)).fetchone()
             old = dict(cur) if cur else {"setpoint": None, "alarm_min": None, "alarm_max": None,
-                                         "alarm_warn": None, "relay_modes": None}
+                                         "alarm_warn": None, "relay_modes": None, "rate_up": None}
             new = {
                 "setpoint":  old["setpoint"]  if sp == "keep"   else sp,
                 "alarm_min": old["alarm_min"] if amin == "keep" else amin,
@@ -510,17 +517,18 @@ class Storage:
                 "alarm_warn": old["alarm_warn"] if awarn == "keep" else awarn,
                 "relay_modes": (old["relay_modes"] if relay_modes is None
                                 else json.dumps(relay_modes, ensure_ascii=False)),
+                "rate_up": old["rate_up"] if rup == "keep" else rup,
             }
             self._conn.execute(
                 """INSERT INTO settings (device_id, sensor_key, setpoint, alarm_min, alarm_max,
-                                         alarm_warn, relay_modes, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                         alarm_warn, relay_modes, rate_up, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                    ON CONFLICT(device_id, sensor_key) DO UPDATE SET
                      setpoint=excluded.setpoint, alarm_min=excluded.alarm_min,
                      alarm_max=excluded.alarm_max, alarm_warn=excluded.alarm_warn,
-                     relay_modes=excluded.relay_modes, updated_at=excluded.updated_at""",
+                     relay_modes=excluded.relay_modes, rate_up=excluded.rate_up, updated_at=excluded.updated_at""",
                 (device_id, sensor_key, new["setpoint"], new["alarm_min"], new["alarm_max"],
-                 new["alarm_warn"], new["relay_modes"], now),
+                 new["alarm_warn"], new["relay_modes"], new["rate_up"], now),
             )
             self._conn.commit()
         return new
@@ -740,7 +748,7 @@ class Storage:
                         # 제품정보(AI 자동 식별) + 설정/알람
                         "brand": s.get("brand") or "", "product": s.get("product") or "",
                         "part_no": s.get("part_no") or "", "manual": s.get("manual") or "",
-                        "alarm_min": eff_min, "alarm_max": eff_max, "alarm_warn": eff_warn,
+                        "alarm_min": eff_min, "alarm_max": eff_max, "alarm_warn": eff_warn, "rate_up": us.get("rate_up"),
                         "alarm_min_default": s.get("alarm_min"), "alarm_max_default": s.get("alarm_max"),
                         "alarm_warn_default": s.get("alarm_warn"),
                         "setpoint": us.get("setpoint"),
@@ -981,9 +989,52 @@ class Storage:
 
     # ── 활성 경보 생명주기 (발생·확인·해제·상향) ────────────
     _SEVERITY = {"alarm": "crit", "silent": "crit", "anomaly": "warn",
-                 "stuck": "warn", "drift": "warn", "alarm_warn": "warn",
+                 "stuck": "warn", "drift": "warn", "alarm_warn": "warn", "alarm_rate": "warn",
                  "fire": "crit", "contact": "crit", "dew": "warn",
                  "actuator_fault": "crit"}      # 벤트·히터·팬이 명령대로 안 움직임(현장 CCM 확인)
+
+    RATE_WIN = 600          # 변화율 규칙: 10분 동안
+    RATE_MIN_SPAN = 300     # 비교할 기록이 5분 이상 있어야 판정(갓 켜진 센서의 첫 값으로 오판하지 않게)
+    RATE_CLEAR = 0.6        # 상승이 한도의 60% 아래로 내려오면 해제(경계에서 깜빡이지 않게)
+
+    def _check_rate(self, cur, device_id, readings, disabled, now) -> None:
+        """변화율 규칙 — settings.rate_up이 있는 센서만. 10분 전 값보다 그만큼 넘게 오르면 '급상승' 주의(alarm_rate).
+        화재 지수가 온도·가스 상승을 따로 보지만, 이건 어떤 센서든 운영자가 정한 한도로 본다(전류·습도 등)."""
+        rules = {r["sensor_key"]: r["rate_up"] for r in cur.execute(
+            "SELECT sensor_key, rate_up FROM settings WHERE device_id=? AND rate_up IS NOT NULL", (device_id,))}
+        if not rules:
+            return
+        for r in readings:
+            if not isinstance(r, dict):
+                continue
+            key = str(r.get("key", ""))
+            v = _as_float_or_none(r.get("value"))
+            if v is None or key in disabled or key not in rules or not r.get("ok"):
+                continue
+            ts = _as_float(r.get("ts"), now)
+            first = cur.execute("SELECT value, ts FROM readings WHERE device_id=? AND sensor_key=? AND ok=1 AND value IS NOT NULL "
+                                "AND ts >= ? AND ts < ? ORDER BY ts LIMIT 1", (device_id, key, ts - self.RATE_WIN, ts)).fetchone()
+            on = self._rate_state.get((device_id, key), False)
+            if not first:                   # 10분 안에 기록이 없으면 바로 앞 값과(끊겼다 돌아온 경우 해제 판정용)
+                first = cur.execute("SELECT value, ts FROM readings WHERE device_id=? AND sensor_key=? AND ok=1 AND value IS NOT NULL "
+                                    "AND ts < ? ORDER BY ts DESC LIMIT 1", (device_id, key, ts)).fetchone()
+            if not first or (not on and ts - first["ts"] < self.RATE_MIN_SPAN):
+                continue
+            rise, lim = v - first["value"], rules[key]
+            if not on and rise > lim:
+                self._rate_state[(device_id, key)] = True
+                nm, un = r.get("name", key), r.get("unit", "")
+                mins = max(1, round((ts - first["ts"]) / 60))
+                detail = f"{nm} {mins}분 새 +{rise:.1f}{un} — 급상승(기준 +{lim:g}{un}/10분)"
+                cur.execute("INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) VALUES (?, ?, ?, ?, ?, ?)",
+                            (now, device_id, key, "alarm_rate", detail, "system"))
+                self._open_alarm(cur, device_id, key, "alarm_rate", detail, now)
+            elif on and rise <= lim * self.RATE_CLEAR:
+                self._rate_state[(device_id, key)] = False
+                nm = r.get("name", key)
+                cur.execute("INSERT INTO events (ts, device_id, sensor_key, etype, detail, source) VALUES (?, ?, ?, ?, ?, ?)",
+                            (now, device_id, key, "alarm_clear", f"{nm} 급상승 멈춤 — 정상 복귀", "system"))
+                self._close_alarm(cur, device_id, key, "alarm_rate", now)
 
     def _open_alarm(self, cur, dev, key, kind, detail, now) -> None:
         """열린(미해제) 경보가 없으면 새로 연다. (락을 쥔 호출자의 cursor를 받는다)"""

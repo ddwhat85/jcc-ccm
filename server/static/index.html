@@ -2753,6 +2753,7 @@ function ovCell(value, label, tone){    // tone: ""|"ok"|"warn"
 const ACTION_NEED = {
   alarm:      "즉시 현장 확인 — 환기·차단 검토, 원인 제거",
   alarm_warn: "추이 관찰 · 현장 점검 준비 (위험 도달 전 대응)",
+  alarm_rate: "급하게 오르는 원인 확인 — 부하·냉각·환기 점검(값 기준에 닿기 전)",
   silent:     "CCM·센서 통신/전원/케이블 점검",
   stuck:      "센서 재시작 후 점검 · 필요 시 교체",
   drift:      "센서 보정(캘리브레이션) 점검",
@@ -3504,6 +3505,7 @@ const EVENT_META = {
   diagnose:    {label:"자가진단",      dot:"info", ic:"🩺"},
   alarm:       {label:"위험 경보",    dot:"crit", ic:"⚠"},
   alarm_warn:  {label:"경고",         dot:"warn", ic:"⚠"},
+  alarm_rate:  {label:"급상승",       dot:"warn", ic:"⚠"},
   alarm_clear: {label:"정상 복귀",    dot:"ok",   ic:"✓"},
   silent:      {label:"응답 없음",    dot:"crit", ic:"🔇"},
   recovered:   {label:"통신 복구",    dot:"ok",   ic:"✓"},
@@ -3660,6 +3662,9 @@ function renderInspector(id, n){
         `<input id="set-amax" type="number" step="any" value="${num(r.alarm_max)}" placeholder="${num(r.alarm_max_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
       `<div class="insp-set"><label>알람 최저치</label>`+
         `<input id="set-amin" type="number" step="any" value="${num(r.alarm_min)}" placeholder="${num(r.alarm_min_default)}"><span class="un">${escapeHtml(unit)}</span></div>`+
+      // 변화율 규칙: 10분 새 이만큼 넘게 오르면 '급상승' 주의(빈칸 = 안 봄). 값 기준보다 먼저 이상을 잡는다
+      `<div class="insp-set"><label title="10분 동안 이만큼 넘게 오르면 급상승 주의 — 빈칸이면 안 봄">10분 상승 한도</label>`+
+        `<input id="set-rate" type="number" step="any" min="0" value="${num(r.rate_up)}" placeholder="안 봄"><span class="un">${escapeHtml(unit)}</span></div>`+
       // 판정 미리보기 — 고치는 동안 '이 기준이면 지금 값은 ○○'(빈칸 = 제품 기본값)
       `<div class="insp-prev" id="set-prev"></div>`+
       `<button class="insp-btn" id="set-save">설정 저장 (CCM 적용)</button>`+
@@ -3787,7 +3792,7 @@ function renderInspector(id, n){
       if(!armed){ armed = true; sameBtn.textContent = `${targets.map(t=>t.device_id).join(", ")}에 적용? (다시 클릭)`;
         armT = setTimeout(()=>{ armed=false; sameBtn.textContent=label; }, 4000); return; }
       clearTimeout(armT); armed = false; sameBtn.disabled = true; sameBtn.textContent = "적용 중…";
-      const patch = {alarm_max: $("#set-amax").value, alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value};
+      const patch = {alarm_max: $("#set-amax").value, alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value, rate_up: $("#set-rate").value};
       let ok = 0;
       for(const t of targets){
         try{ const res = await setSetting(t.device_id, t.sensor_key, patch); const rr = sensorRec[t.device_id+":"+t.sensor_key];
@@ -3821,14 +3826,14 @@ function renderInspector(id, n){
     });
     saveBtn.onclick = ()=>{
       const patch = {setpoint: $("#set-sp").value, alarm_max: $("#set-amax").value,
-                     alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value,
+                     alarm_min: $("#set-amin").value, alarm_warn: $("#set-awarn").value, rate_up: $("#set-rate").value,
                      relay_modes: relayModes()};
       saveBtn.textContent = "저장 중…"; saveBtn.disabled = true;
       setSetting(dev, key, patch).then(res=>{
         // 로컬 레코드 즉시 반영(다음 새로고침 전까지)
         const rec = sensorRec[dev+":"+key];
         if(rec){ rec.setpoint=res.setpoint; rec.alarm_min=res.alarm_min;
-                 rec.alarm_max=res.alarm_max; rec.alarm_warn=res.alarm_warn; }
+                 rec.alarm_max=res.alarm_max; rec.alarm_warn=res.alarm_warn; rec.rate_up=res.rate_up; }
         saveBtn.textContent = "저장됨 ✓"; saveBtn.classList.add("saved");
         setStatus("센서 설정 저장 — CCM 알람 기준·셋팅값 적용");
         setTimeout(()=>{ saveBtn.textContent="설정 저장 (CCM 적용)"; saveBtn.classList.remove("saved"); saveBtn.disabled=false; }, 1400);
@@ -6460,7 +6465,7 @@ $("#hc-close").onclick = ()=> $("#health-overlay").classList.remove("open");
 $("#health-overlay").onclick = e=>{ if(e.target===$("#health-overlay")) $("#health-overlay").classList.remove("open"); };
 
 // ── 이력 리포트 ───────────────────────────────────────
-const PROB_KO = {alarm:"위험", alarm_warn:"경고", silent:"침묵", stuck:"고착", drift:"드리프트", anomaly:"이상",
+const PROB_KO = {alarm:"위험", alarm_warn:"경고", alarm_rate:"급상승", silent:"침묵", stuck:"고착", drift:"드리프트", anomaly:"이상",
                  fire:"화재 징조", contact:"접점 발열", dew:"결로"};
 let reportDays = 7;
 function ovC(n, label, cls){ return `<div class="rp-card"><div class="n ${cls||""}">${n}</div><div class="l">${escapeHtml(label)}</div></div>`; }

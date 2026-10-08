@@ -127,7 +127,7 @@
     liveState: {},    // 키 -> up|down|stuck|drift|anomaly
     seq: 1, eseq: 1, t0: Date.now() / 1000, started: false,
   };
-  const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn",
+  const SEV = { alarm: "crit", silent: "crit", anomaly: "warn", stuck: "warn", drift: "warn", alarm_warn: "warn", alarm_rate: "warn",
                 fire: "crit", contact: "crit", dew: "warn", actuator_fault: "crit" };
   const now = () => Date.now() / 1000;
   const K = (d, k) => d + ":" + k;
@@ -1345,7 +1345,7 @@
           value: last ? last.value : null, ok: last ? last.ok : 0, ts: last ? last.ts : null,
           brand: s.brand || "", product: s.product || "", part_no: s.part_no || "",
           manual: s.manual || "", photo: s.photo || "",
-          alarm_min: amin, alarm_max: amax, alarm_warn: awarn,
+          alarm_min: amin, alarm_max: amax, alarm_warn: awarn, rate_up: us.rate_up != null ? us.rate_up : null,
           alarm_min_default: s.alarm_min, alarm_max_default: s.alarm_max, alarm_warn_default: s.alarm_warn,
           setpoint: us.setpoint != null ? us.setpoint : null, relays };
       });
@@ -2313,7 +2313,7 @@
           const dev = String(body.device_id || ""), key = String(body.sensor_key || "");
           const cur = S.settings[K(dev, key)] || (S.settings[K(dev, key)] = {});
           const norm = v => (v == null ? undefined : (v === "" || v === "null" ? null : (isNaN(parseFloat(v)) ? null : parseFloat(v))));
-          ["setpoint", "alarm_min", "alarm_max", "alarm_warn"].forEach(f => {
+          ["setpoint", "alarm_min", "alarm_max", "alarm_warn", "rate_up"].forEach(f => {
             const v = norm(body[f]); if (v !== undefined) cur[f] = v;
           });
           if (body.relay_modes && typeof body.relay_modes === "object") cur.relay_modes = body.relay_modes;
