@@ -62,7 +62,10 @@ def run():
     check("가장 높을 때는 오후(패턴대로)", 11 <= pk_h <= 17, str(pk_h))
     check("작년 같은 날 24시간", len(o["last_year"]) == 24)
     check("어제 실제 24시간", len(o["yesterday"]) == 24)
-    check("주의 기준 가까우면 알림 표시", o["near_warn"] is True)
+    # 요일에 따라 내일 최고가 달라진다(가상 판넬은 평일 낮만 가동 열) — 기준을 내일 예측 범위에 맞춰 놓고 본다
+    hi = o["peak"]["hi"]
+    check("주의 기준 가까우면 알림 표시", F.build(s, now, warn=round(hi - 0.2, 2))["near_warn"] is True
+          and F.build(s, now, warn=round(hi + 3, 2))["near_warn"] is False, f"내일 최고 범위 위끝 {hi}")
     check("주의 기준이 멀면 표시 안 함", F.build(s, now, warn=60.0)["near_warn"] is False)
     # 진짜로 맞는지: 마지막 하루를 가리고 예측 → 실제와 비교
     d0 = F._day0(now) - 86400

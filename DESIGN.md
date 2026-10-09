@@ -1,360 +1,210 @@
 ---
 name: JCC-CCM 노드 모니터
-description: Staff dashboard for panel monitoring, drawn as a living electrical drawing set.
+description: Staff dashboard for panel monitoring, built like a native iOS/macOS app.
 colors:
-  ground: "#eceeec"
-  canvas: "#f6f7f5"
+  ground: "#f2f2f7"
+  canvas: "#f2f2f7"
   surface: "#ffffff"
-  surface-2: "#eceeeb"
-  ink: "#111416"
-  ink-2: "#3e4448"
-  ink-3: "#656c71"
-  rule: "#c2c7ca"
-  rule-2: "#dde0e1"
-  line-3: "#111416"
-  accent: "#15191c"
-  accent-soft: "#e3e6e8"
-  wire: "#1d6f87"
-  port-sensor: "#2a7048"
-  port-agg: "#5d4f86"
-  grid: "#e3e6e5"
-  grid-major: "#d3d7d7"
-  ok: "#22683f"
-  ok-soft: "#e1efe6"
-  warn: "#8f6200"
-  warn-soft: "#f7edd2"
-  crit: "#c0231a"
-  crit-soft: "#fbe5e2"
-  ground-dark: "#0b0d0f"
-  canvas-dark: "#0f1215"
-  surface-dark: "#14181c"
-  surface-2-dark: "#1b2025"
-  ink-dark: "#e9ecee"
-  ink-2-dark: "#b4bbc0"
-  ink-3-dark: "#88919a"
-  rule-dark: "#2f363d"
-  rule-2-dark: "#21272d"
-  line-3-dark: "#e9ecee"
-  accent-dark: "#1b7c96"
-  accent-soft-dark: "#11303a"
-  wire-dark: "#5cc4dc"
-  ok-dark: "#6fcf91"
-  ok-soft-dark: "#14291c"
-  warn-dark: "#e8b53f"
-  warn-soft-dark: "#33290f"
-  crit-dark: "#ff6a5e"
-  crit-soft-dark: "#3a1714"
+  surface-2: "#f2f2f7"
+  ink: "#1c1c1e"
+  ink-2: "#3c3c43"
+  ink-3: "#8a8a8e"
+  rule: "#d8d8dc"
+  rule-2: "#e9e9ee"
+  line-3: "#c6c6c8"
+  accent: "#007aff"
+  accent-soft: "#e5f0ff"
+  wire: "#007aff"
+  port-sensor: "#34c759"
+  port-agg: "#af52de"
+  grid: "#e9e9ee"
+  grid-major: "#e5e5ea"
+  ok: "#248a3d"
+  ok-soft: "#e3f6e8"
+  warn: "#c93400"
+  warn-soft: "#fff1e0"
+  crit: "#d70015"
+  crit-soft: "#ffe5e7"
+  menubar: "rgba(249,249,251,.78)"
+  menu-hover: "rgba(118,118,128,.12)"
+  ground-dark: "#000000"
+  canvas-dark: "#000000"
+  surface-dark: "#1c1c1e"
+  surface-2-dark: "#2c2c2e"
+  ink-dark: "#f5f5f7"
+  ink-2-dark: "#d1d1d6"
+  ink-3-dark: "#98989f"
+  rule-dark: "#38383a"
+  rule-2-dark: "#2c2c2e"
+  line-3-dark: "#48484a"
+  accent-dark: "#0a84ff"
+  accent-soft-dark: "#0a2a4d"
+  wire-dark: "#0a84ff"
+  ok-dark: "#30d158"
+  ok-soft-dark: "#0f2e19"
+  warn-dark: "#ff9f0a"
+  warn-soft-dark: "#3a2706"
+  crit-dark: "#ff453a"
+  crit-soft-dark: "#3d1210"
+  menubar-dark: "rgba(28,28,30,.72)"
+  menu-hover-dark: "rgba(118,118,128,.24)"
 typography:
-  display:
-    fontFamily: "Gothic A1, -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "22px"
-    fontWeight: 800
-    lineHeight: 1.15
-    letterSpacing: "-0.03em"
-  headline:
-    fontFamily: "Gothic A1, -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "19px"
-    fontWeight: 800
-    lineHeight: 1.2
-    letterSpacing: "-0.025em"
+  large-title:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Pretendard, Apple SD Gothic Neo, system-ui, sans-serif"
+    fontSize: "34px"
+    fontWeight: 700
+    lineHeight: 1.1
+    letterSpacing: "-0.022em"
   title:
-    fontFamily: "Gothic A1, -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "14.5px"
-    fontWeight: 800
-    lineHeight: 1.4
-    letterSpacing: "-0.02em"
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif"
+    fontSize: "17px"
+    fontWeight: 600
+    lineHeight: 1.3
+    letterSpacing: "-0.01em"
+  row-title:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif"
+    fontSize: "15px"
+    fontWeight: 600
+    lineHeight: 1.35
+    letterSpacing: "-0.01em"
   body:
-    fontFamily: "Gothic A1, -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif"
     fontSize: "13px"
     fontWeight: 400
     lineHeight: 1.5
     letterSpacing: "0"
-    fontFeature: "\"tnum\" 1"
-  label:
-    fontFamily: "Gothic A1, -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI, sans-serif"
-    fontSize: "10.5px"
-    fontWeight: 700
+    fontFeature: "tabular-nums"
+  footnote:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif"
+    fontSize: "12px"
+    fontWeight: 600
     lineHeight: 1.4
-    letterSpacing: "0.02em"
-  numeral-display:
-    fontFamily: "B612, B612 Mono, ui-monospace, monospace"
-    fontSize: "42px"
-    fontWeight: 400
-    lineHeight: 1
-    letterSpacing: "-0.02em"
+    letterSpacing: "0"
   numeral:
-    fontFamily: "B612, B612 Mono, ui-monospace, monospace"
-    fontSize: "21px"
-    fontWeight: 400
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Pretendard, Apple SD Gothic Neo, system-ui, sans-serif"
+    fontSize: "22px"
+    fontWeight: 600
     lineHeight: 1.1
-  mono:
-    fontFamily: "B612 Mono, SF Mono, Cascadia Mono, Consolas, ui-monospace, monospace"
-    fontSize: "11.5px"
-    fontWeight: 400
-    lineHeight: 1.4
-  coordinate:
-    fontFamily: "B612 Mono, SF Mono, Cascadia Mono, Consolas, ui-monospace, monospace"
-    fontSize: "9.5px"
-    fontWeight: 400
-    lineHeight: 1.25
+    letterSpacing: "-0.02em"
+    fontFeature: "tabular-nums"
 rounded:
-  r: "2px"
-  inner: "1px"
-  none: "0"
+  r: "10px"
+  control: "8px"
+  card: "14px"
+  dialog: "22px"
+  pill: "999px"
 spacing:
   hair: "4px"
   xs: "6px"
   sm: "8px"
   md: "12px"
-  lg: "14px"
-  sheet: "22px"
+  lg: "16px"
+  page: "24px"
 components:
   button-primary:
     backgroundColor: "{colors.accent}"
     textColor: "#ffffff"
     typography: "{typography.body}"
-    rounded: "{rounded.r}"
+    rounded: "{rounded.control}"
     padding: "7px 13px"
     height: "36px"
-  button-secondary:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.r}"
+  button-tinted:
+    backgroundColor: "{colors.menu-hover}"
+    textColor: "{colors.accent}"
+    rounded: "{rounded.control}"
     padding: "7px 13px"
     height: "36px"
-  button-danger:
-    backgroundColor: "{colors.canvas}"
-    textColor: "{colors.crit}"
-    rounded: "{rounded.r}"
-    padding: "8px"
-  button-danger-hover:
-    backgroundColor: "{colors.crit}"
-    textColor: "#ffffff"
-  segmented-option:
-    backgroundColor: "{colors.surface}"
-    textColor: "{colors.ink-2}"
-    padding: "6px 12px"
-    height: "32px"
+  segmented-control:
+    backgroundColor: "{colors.menu-hover}"
+    rounded: "9px"
+    padding: "2px"
   segmented-option-active:
-    backgroundColor: "{colors.accent}"
-    textColor: "#ffffff"
-  input-search:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.r}"
-    padding: "7px 10px"
-    width: "200px"
-  status-tag-crit:
-    backgroundColor: "{colors.crit-soft}"
-    textColor: "{colors.crit}"
-    rounded: "{rounded.r}"
-    padding: "2px 8px"
-  status-tag-warn:
-    backgroundColor: "{colors.warn-soft}"
-    textColor: "{colors.warn}"
-    rounded: "{rounded.r}"
-    padding: "2px 8px"
-  status-tag-ok:
-    textColor: "{colors.ok}"
-    rounded: "{rounded.r}"
-    padding: "2px 8px"
-  status-tag-off:
-    textColor: "{colors.ink-2}"
-    rounded: "{rounded.r}"
-    padding: "2px 8px"
-  fleet-row:
+    rounded: "7px"
+  search-field:
+    backgroundColor: "{colors.menu-hover}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
-    padding: "12px 6px"
-  fleet-row-hover:
-    backgroundColor: "{colors.canvas}"
-  title-block-cell:
+    rounded: "{rounded.r}"
+    padding: "8px 12px"
+  status-pill:
+    rounded: "{rounded.pill}"
+    padding: "4px 10px"
+  grouped-row:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.ink}"
-    padding: "21px 12px 9px"
-  value-pill:
-    backgroundColor: "{colors.surface-2}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.r}"
-    padding: "1px 6px"
+    padding: "13px 16px"
+  dialog:
+    backgroundColor: "{colors.surface}"
+    rounded: "{rounded.card}"
 ---
 
 # Design System: JCC-CCM 노드 모니터
 
 ## Overview
 
-**Creative North Star: "The Living Electrical Drawing"**
+**Creative North Star: "A native Apple app for the electrical room"**
 
-The staff dashboard is one sheet of a live electrical drawing set. Every major screen sits inside a heavy sheet border with zone coordinates along the edges (1–8 across the top, A–D down the left), carries a title block (drawing name, panel status, author), and lists panels the way a drawing register lists sheets. State is spoken the way a drafter speaks it: with line weight, revision marks, and a written word, never with glow. The graph view continues the same world as a single-line diagram: inked device boxes on a drafting grid, teal wires on the CAD data layer.
+The staff dashboard looks and behaves like an iOS/macOS app (2026-10-09 redesign; it replaced the earlier
+"living electrical drawing" world — sheet borders, zone coordinates, title block, B612 numerals, 2px corners, BIOS login).
+A quiet grouped-gray ground (#F2F2F7) carries white cards; the menubar and menus are translucent material
+(`backdrop-filter: saturate(180%) blur(20px)`) with content passing under; one accent, system blue, marks every action
+and selection. Status speaks only through the iOS system green, orange and red, always with a word.
 
-Light mode is a plotted sheet: white paper, black ink. Dark mode is CAD model space: ink-black ground, white linework, the data layer in bright teal. Both themes are first-class and toggleable. The density is a working drawing's density: small precise type, tight rows, lots of hairlines, numbers that read like an instrument cluster (Airbus cockpit faces B612 / B612 Mono). The world explicitly rejects the industry default of neon-dark SCADA and frosted glass cards; the build's own overrides strip the earlier glass menubar and gradient AI button down to flat ink.
-
-The bar this system answers to (from PRODUCT.md) is premium instrument clusters, Siemens/Schneider control software, and measuring instruments: restraint, legibility under bright plant light and in dark electrical rooms, and status that never depends on color alone.
+The first view of the fleet is a large title "현장 목록" (34px, -0.022em) with the panel-status pills beside it,
+a segmented control and a search field, then customer groups as inset grouped lists like the Settings app:
+a grey 13px group header, white rows with hairline separators, 14px outer corners, a status pill with a dot on the left.
 
 **Key Characteristics:**
-- A sheet, not a card grid: double-ruled border, zone coordinates, title block, register rows.
-- Three line weights carry all hierarchy: hairline, standard rule, heavy 2px outline.
-- Square-cut geometry: 2px corners everywhere a corner exists.
-- Red means revision and danger only; teal means live data and selection only.
-- Numerals in B612 (proportional, compact decimals), codes and coordinates in B612 Mono, Korean in Gothic A1.
-- Every status is a word plus a color, and the critical status adds a red revision triangle and a heavy red underline.
-
-**Known exceptions in the build (recorded, not canonized):**
-- The boot/login screen is still a green-on-black "secure terminal" demo (its own hard-coded greens and reds, all-caps mono, a ⚠ glyph). It is not in the drawing-sheet world; whether it moves in is an open owner decision. Do not borrow from it for any other surface.
-- Fonts load from Google Fonts by `@import` (Gothic A1, B612, B612 Mono) and are not self-hosted yet; offline, the system fallbacks in each stack apply.
-- The auto-scan HUD log and node self-heal labels still use emoji/glyphs (⚡, 🔌, ⚠, ♻) and a bright terminal green; graph port and self-heal states use hard-coded system hues outside the token set. These are defects the build carries.
+- Grouped-gray ground, white cards, hairline (0.5px) separators; depth from soft shadows only where something floats.
+- Translucent menubar and dropdowns; reduced transparency switches them to solid.
+- One accent: system blue (#007AFF / #0A84FF dark). Selection, primary buttons, focus rings, wires.
+- iOS status colors: green #248A3D(text)/#34C759, orange #C93400(text)/#FF9F0A, red #D70015/#FF453A.
+- Corners: 10px default, 8px controls, 14px cards and dialogs, 22px sign-in card, pills 999px.
+- Type: system font on Apple devices (SF Pro / Apple SD Gothic Neo), Pretendard elsewhere (self-hosted, OFL).
+  Large text tightens (-0.02em), body stays at 0; all numbers use tabular figures of the same face.
+- Sign-in is an Apple-style card (로그인 title, two link-status dots, filled fields, full-width blue button, thin progress bar).
 
 ## Colors
+- **Ground / Canvas** `#F2F2F7` (dark `#000`): app background, graph canvas (with a faint 24px dot grid).
+- **Surface** `#FFF` (dark `#1C1C1E`): cards, grouped rows, dialogs, inspector. **Surface 2** `#F2F2F7` (dark `#2C2C2E`): filled fields, value pills.
+- **Ink** `#1C1C1E` / `#3C3C43` / `#8A8A8E` (dark `#F5F5F7` / `#D1D1D6` / `#98989F`): label, secondary label, tertiary label.
+- **Separator** rule `#D8D8DC` (dark `#38383A`), hairline rule-2 `#E9E9EE`.
+- **Fill** menu-hover `rgba(118,118,128,.12)` (dark `.24`): segmented-control track, tinted buttons, search field, menu hover.
+- **Accent** system blue — the only decorative-free hue for action and selection; wires on the single-line diagram use it too.
+- **Status** green/orange/red with their soft washes for pills; red is danger only.
 
-A near-monochrome ink-on-paper palette with two meaningful hues: drafting teal for the live data layer and revision red for danger, plus a muted amber and green that exist only as status.
-
-### Primary
-- **Drafting Ink** (accent, `#15191c` light / CAD Teal `#1b7c96` dark): the action and selection fill. Primary buttons, the pressed segment of a segmented control, open menu titles, checked checkboxes, focus outlines, text selection. On paper it is ink-black; in model space it becomes teal so a filled control does not vanish into the black ground. White text sits on it in both themes.
-
-### Secondary
-- **CAD Layer Teal** (wire, `#1d6f87` light / `#5cc4dc` dark): the live-data layer. Wires in the single-line diagram, data ports, the selected node outline and selected wire (the `sel` token carries the same value). It is never used for decoration or for status.
-
-### Tertiary
-- **Port Sensor Green** (`#2a7048` / `#6fcf91` dark) and **Aggregator Violet** (`#5d4f86` / `#a596d8` dark): port-type coding on graph nodes only.
-
-### Status
-- **Revision Red** (crit, `#c0231a` / `#ff6a5e` dark) on **Red Wash** (crit-soft): danger. Critical status tags, the revision triangle, the 2px red underline under a critical register row, danger buttons, alarm bell, offline relay pills. This is the JCC red's working role inside the UI; the logo image carries the brand mark itself.
-- **Caution Amber** (warn, `#8f6200` / `#e8b53f` dark) on **Amber Wash** (warn-soft): needs attention soon.
-- **Running Green** (ok, `#22683f` / `#6fcf91` dark) on **Green Wash** (ok-soft): normal. The ok tag is outline-only (no wash), so a healthy fleet reads quiet.
-
-### Neutral
-- **Plot Ground** (ground, `#eceeec` / `#0b0d0f`): the table the sheet lies on; app background behind the fleet sheet.
-- **Drafting Canvas** (canvas, `#f6f7f5` / `#0f1215`): the graph canvas and row hover wash.
-- **Paper** (surface, `#ffffff` / `#14181c`): the sheet itself, inputs, panels, menus.
-- **Paper Shade** (surface-2, `#eceeeb` / `#1b2025`): value pills, neutral chips, off-state fills.
-- **Ink / Ink 2 / Ink 3** (`#111416`, `#3e4448`, `#656c71`; dark `#e9ecee`, `#b4bbc0`, `#88919a`): primary text, secondary text, captions and coordinates.
-- **Rule** (`#c2c7ca` / `#2f363d`) and **Hairline** (rule-2, `#dde0e1` / `#21272d`): standard rules between rows and cells; hairlines for zone dividers and quiet separators.
-- **Heavy Outline** (line-3, `#111416` / `#e9ecee`): the 2px sheet border, title-block frame, menubar baseline, dock top edge, group-heading underline, modal frames.
-- **Drafting Grid** (grid `#e3e6e5`, grid-major `#d3d7d7`; dark `#161b20`, `#1e252b`): the graph canvas grid, 24px minor and 120px major.
-
-### Named Rules
-**The Two Hues Rule.** Teal is the data layer and selection; red is revision and danger. Neither appears anywhere else. Amber and green appear only as status.
-
-**The Word-Plus-Color Rule.** No status is ever color alone. Every status color is paired with a written label (위험, 주의, 정상, 연결 끊김), and the critical status additionally gets the revision triangle and a heavy red rule.
-
-**The Ink Inversion Rule.** The accent is ink on paper and teal in model space. When designing a filled control, check it in both themes; never hard-code the light-theme black.
+**The Word-Plus-Color Rule** still holds: every status color comes with a written label (위험, 주의, 정상, 연결 끊김).
 
 ## Typography
-
-**Body Font:** Gothic A1 (with -apple-system, Apple SD Gothic Neo, Malgun Gothic, Segoe UI)
-**Numeral Font:** B612 (with B612 Mono, ui-monospace)
-**Code/Coordinate Font:** B612 Mono (with SF Mono, Cascadia Mono, Consolas)
-
-**Character:** A clean Korean grotesque does all the talking, and the Airbus cockpit faces do all the measuring. Measured values use proportional B612 so the decimal point does not eat a full cell; codes, timestamps, IDs and sheet coordinates use B612 Mono. Tabular figures are on globally.
-
-### Hierarchy
-- **Display** (800, 22px, 1.15, -0.03em): the drawing name in the title block (현장 목록). One per sheet.
-- **Headline** (800, 19px, 1.2, -0.025em): the inspector spotlight name; modal heads use the same voice at 15px.
-- **Title** (800, 14.5px, -0.02em): the panel name on a register row; node titles use 700 11.5px.
-- **Body** (400, 13px, 1.5): everything else. Secondary row text 12.5px; captions 11–11.5px in ink-3.
-- **Label** (700, 10.5px, 0.02em, sentence case, Gothic A1): section heads (group heading, dock head, alarm panel head, inspector section). Title-block field captions use 600 9.5px ink-3.
-- **Numeral Display** (B612 400, 42px, -0.02em): the spotlight reading, unit beside it at 13px mono ink-3.
-- **Numeral** (B612 400, 21px): overview cells; 10.5px in value pills.
-- **Mono** (B612 Mono 400, 11.5px): connection state, clock (12px), shortcuts (10.5px), wire labels (9.5px, 0.04em).
-- **Coordinate** (B612 Mono 400, 9.5px, ink-3): zone numbers and letters on the sheet border.
-
-### Named Rules
-**The Korean-Stays-Sans Rule.** Any label that can contain Hangul is set in Gothic A1 at small tracking (0.02em max). Monospace tracking spreads Hangul apart, so the build moved every small heading off B612 Mono; keep it there.
-
-**The Instrument Numeral Rule.** A measured value is set in B612, its unit smaller in mono ink-3, and it is never bolded for emphasis. Emphasis is the status color.
-
-## Layout
-
-The fleet screen is a single centered sheet (max 1160px) on the plot ground, with asymmetric sheet padding (22px top, 26px right/bottom, 40px left) so the left margin can hold the A–D zone column. The top zone strip (1–8) runs inside the border, 8px from the top; the title block is a three-cell grid (1.2fr / 1.4fr / 1fr) with a tool strip spanning beneath it. Register rows are a five-column grid (84px status column, then name, site, reason, last-inspection) with 12px/6px padding and a single standard rule between rows; group headings sit on a heavy 2px rule.
-
-The graph view is a full-bleed drafting canvas (24px minor, 120px major grid) with a right inspector and a bottom dock separated by a heavy top rule. The menubar is 44px with a 2px baseline.
-
-Spacing rhythm is small and drafted: 4 / 6 / 8 / 12 / 14px inside components, 22–26px for sheet margins. Controls meet a 32px (segmented) or 36px (buttons) minimum height.
-
-Responsive: at 1000px the register columns rebalance; at 760px the sheet keeps its border at 10px/8px margins with a tighter double rule, the top zone strip drops to 1–4, the title block becomes two columns with the drawing name spanning, and rows collapse to status + content; at 640px the menubar sheds the edit menu and sound button and tightens to fit 375px phones without horizontal scroll. The clock hides below 1040px and connection text below 900px.
-
-## Elevation & Depth
-
-The sheet is flat. Hierarchy inside the drawing comes from line weight and spacing, never from shadow or gradient. Shadows exist only on layers that genuinely float above the sheet: dropdown menus, modal sheets, and device nodes lifted off the drafting canvas. The sheet's double border is drawn with inset rings (6px paper gap, then a 1px rule inside the 2px outline), which is linework, not elevation.
-
-### Shadow Vocabulary
-- **Menu lift** (`box-shadow: 0 12px 28px rgba(8,10,12,.18), 0 2px 6px rgba(8,10,12,.10)`): dropdown menus.
-- **Sheet over sheet** (`box-shadow: 0 30px 70px -20px rgba(0,0,0,.5)`): modals, commissioning shell, quick-find, over a `rgba(8,10,12,.58)` scrim.
-- **Device on canvas** (`box-shadow: 0 1px 0 rgba(8,10,12,.06), 0 6px 14px -8px rgba(8,10,12,.28)`): graph nodes at rest; selected adds a 1px teal ring.
-- **Sheet double rule** (`box-shadow: inset 0 0 0 6px <surface>, inset 0 0 0 7px <rule>`): the fleet sheet border (4px/5px on phones).
-
-### Named Rules
-**The Line-Weight Rule.** Three weights only: hairline (rule-2, 1px), standard (rule, 1px), heavy (line-3, 2px). Heavy marks a boundary of a whole thing: the sheet, the title block, the menubar, the dock, a group, a modal head, a critical row.
-
-**The Flat Sheet Rule.** Nothing printed on the sheet casts a shadow. Only menus, modals and canvas nodes float.
-
-## Shapes
-
-Square-cut drafting geometry. Every corner that exists is 2px (`--r`); node heads use 1px inner corners; register rows and the sheet itself are fully square. Circles are reserved for indicator dots (connection, ports, alarm dots). The one silhouette with meaning is the revision triangle (9×8px, clip-path) that precedes a critical status. Step numbers sit in 18px square outlined boxes. Checkboxes are 14px square outlined boxes that fill with accent and an inset paper gap when checked.
+- Stack: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui`.
+  `--mono` uses the same stack (Apple uses SF everywhere except code); numbers rely on `tabular-nums`.
+- Large title 34/700/-0.022em · dialog title 17/600/-0.01em · row title 15/600 · body 13/400 · footnote and section headers 12–13/600 in ink-3 (no all-caps, no tracking).
 
 ## Components
-
-### Buttons
-Flat, square, ink-filled; they look like stamped boxes on a drawing.
-- **Shape:** 2px corners.
-- **Primary:** accent fill, white text, 600–700 12.5px Gothic A1, 7px 13px padding, 36px min height.
-- **Secondary:** paper fill, ink text, heavy-outline border in dialogs (standard rule elsewhere); hover darkens the border to ink-3.
-- **Danger / Warn (inspector):** paper fill with crit or warn text and border; hover fills solid with white text.
-- **Focus:** 2px accent outline, 1px offset.
-
-### Chips and Status Tags
-- **Status tag:** 700 11px sans, 2px 8px, 1px border in currentColor, 2px corners. Crit = red on red wash with the revision triangle; warn = amber on amber wash; ok = green outline only; off = ink-2 outline only.
-- **Fleet chip:** B612 11px, 1px rule border, transparent; crit variant takes red border and wash.
-- **Value pill (graph):** B612 10.5px on paper shade with a rule border; warn/crit switch to their wash, border and text color; stale values drop to ink-3.
-
-### Cards / Containers
-There are no floating cards on the sheet. Containers are ruled regions: title-block cells separated by standard rules inside a heavy frame; the inspector spotlight is a 1px-ruled 2px-corner box on paper with 15px padding, its border shifting to accent on hover.
-
-### Inputs / Fields
-- **Style:** paper fill, 1px rule border, 2px corners, 500 13px Gothic A1, 7px 10px padding.
-- **Focus:** 2px accent outline at 1px offset. (The inspector settings field currently drops the outline and only recolors its border; that is a gap in the build, not a variant.)
-
-### Navigation
-- **Menubar:** 44px, paper fill, 2px heavy baseline, no blur. Menu titles 600 13px; the open title fills with accent. Dropdowns are paper with a heavy 1px frame and the menu-lift shadow; items 500 13px, hover fills accent with white text; shortcuts in B612 Mono 10.5px at 60% opacity.
-- **View switch (현장 목록 / 배선 보기):** a segmented control with ink dividers; the pressed segment fills accent.
-- **Icon buttons:** 17px line icons, 24-unit viewBox, 1.8 stroke, round caps and joins, `currentColor` (sun, moon, expand, shrink, sound, mute, bell, fit). The alarm bell turns red when alarms are active.
-
-### Signature: The Fleet Sheet
-The first viewport. A heavy-bordered sheet with zone coordinates (1–8 top, A–D left, B612 Mono 9.5px ink-3 between hairline dividers), a title block whose cells carry small drafting field captions (도면명, 판넬 현황, 작성) above their values, a tool strip (filter segments + search), then register rows grouped under heavy-ruled group heads. A critical row is underlined with a 2px red rule and led by the red revision-triangle tag. Rows hover to the canvas wash; they are the entry into the panel's single-line diagram.
-
-### Signature: The Single-Line Diagram
-Device nodes are inked boxes: dark head band (node-head, `#15191c` / `#232a31`) with 700 11.5px white title and a 7.5px mono kind code, a paper body with port rows, value pills on the right. Wires are 1.6px teal paths with 9.5px mono labels; live wires animate a 5/6 dash flow. The canvas is the drafting grid.
+- **Buttons:** primary = filled blue, white text; secondary = tinted (fill + blue text); destructive keeps red text on fill. Press scales to 0.98.
+- **Segmented control:** grey track, the selected segment is a white raised chip (`0 1px 3px rgba(0,0,0,.12)`).
+- **Grouped list rows:** fleet rows; the first and last rows round to 14px; hover darkens the row by 8% ink.
+- **Status pill:** 999px, soft wash, 7px dot + word.
+- **Dialogs (cmsn-shell, modal):** 14px corners, 0.5px border, popover shadow, header with a hairline; close is a round grey 30px button.
+- **Nodes (single-line diagram):** white 12px-corner cards with a hairline header; warn/crit heads keep the solid state color.
+- **Menubar:** 46px translucent bar; view switcher is a segmented control; icons in ink-2.
 
 ## Do's and Don'ts
-
-### Do:
-- **Do** put every new staff screen inside the sheet grammar: heavy outer border, title block, ruled regions.
-- **Do** use only the three line weights (1px rule-2, 1px rule, 2px line-3) to build hierarchy.
-- **Do** keep corners at 2px (`--r`) and reference the token, not a literal.
-- **Do** pair every status color with its written word; give critical the revision triangle and the 2px red rule.
-- **Do** set measured values in B612 with a smaller mono unit in ink-3, and Hangul-bearing labels in Gothic A1.
-- **Do** use the line-icon set (24 viewBox, 1.8 stroke, round, currentColor) for every icon.
-- **Do** check every filled control in both themes; the accent changes from ink to teal.
-- **Do** give every looping or entrance animation a `prefers-reduced-motion` fallback, as the build does.
-
-### Don't:
-- **Don't** use frosted glass, backdrop blur, gradients or ambient glow; the build removed them from the menubar, dropdowns and AI button. The one sanctioned halo is the selected wire's 3px teal drop-shadow.
-- **Don't** build the neon-dark SCADA look (glowing green-on-black dashboards); dark mode is CAD model space, not a control-room terminal.
-- **Don't** use teal or red for decoration, branding accents, or emphasis; they are data and danger.
-- **Don't** put drop shadows on anything printed on the sheet (rows, title block, spotlight, chips).
-- **Don't** set Hangul in monospace or track it wider than 0.02em.
-- **Don't** use emoji or Unicode glyphs as icons or status markers.
-- **Don't** hard-code color hexes in component CSS; use the theme tokens so both themes stay correct.
-- **Don't** remove a focus outline without replacing it with the 2px accent outline.
+- **Do** put new colors on the tokens above (both themes); never hard-code a hex in component CSS.
+- **Do** keep reduced motion and reduced transparency fallbacks.
+- **Don't** bring back the drawing-sheet devices (heavy 2px outlines, zone coordinates, title-block cells, mono all-caps labels, square corners).
+- **Don't** use emoji as icons; drawn line icons only.
+- **Don't** add a second accent hue; status colors are not decoration.
 
 ### Panel settings hub (staff, `#ps-overlay`)
-One square dialog per panel: a 3×3 grid of tiles (온도·습도·화재 징조 / 단자 발열·내부 발열·공조 장치 / 설치 환경·기타 센서·판넬 정보).
+One dialog per panel: a 3×3 grid of tiles (온도·습도·화재 징조 / 단자 발열·내부 발열·공조 장치 / 설치 환경·기타 센서·판넬 정보).
 Each tile is centered: a large drawn line icon (46px, 1.4 stroke — no emoji) on an 84px round plate, name, one-line current value, and a corner dot. State colors the plate (dashed = not entered, warn / crit ring and icon) and the dot; no sensors = dimmed. Hover tints the plate with --accent.
-Opening a tile swaps the body for that item's form only (back arrow returns to the grid); each item saves on its own. Staff tokens only (2px radius, --rule borders, --accent on hover).
+Opening a tile swaps the body for that item's form only (back arrow returns to the grid); each item saves on its own. Staff tokens only (10px radius, hairline separators, --accent on hover).
 
 ## Customer surface — JCC GUARD (`server/static/guard.html`)
 
-A separate visual world for customer accounts and sales demos; the drawing-sheet rules above do not apply there.
+A separate visual world for customer accounts and sales demos; the staff (Apple) rules above do not apply there.
 The tokens live in `guard.html` `:root` (day) with the dark night values under `prefers-color-scheme: dark` and `[data-theme="dark"]`.
 
 - **Concept:** premium car instrument cluster. One large ring "안심 지수" (0-100) is the hero; everything else is quiet.

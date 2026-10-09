@@ -56,7 +56,10 @@ def _artifact(html: str, core_js: str, tuning_js: str, api_src: str) -> str:
                       lambda _m: "<script>\n" + api_src + "\n</script>", body, count=1)
     # 인코딩 선언은 반드시 남긴다(위에서 <meta>를 전부 지웠다) — 호스트가 charset을 안 붙여도 한글이 안 깨지게
     body = '<meta charset="utf-8">\n' + body.lstrip()
-    # 아티팩트는 글꼴 파일을 함께 올리지 않으므로 서버 보관 글꼴 블록을 구글 글꼴 불러오기로 바꾼다
+    # 직원 화면(Pretendard)은 글꼴 파일을 아티팩트에 함께 올리므로(fonts/Pretendard-*.woff2) 블록을 그대로 둔다.
+    # 그 밖(예전 Gothic A1·B612)은 글꼴 파일 없이 구글 글꼴 불러오기로 바꾼다
+    if "Pretendard" in body[:20000]:
+        return body
     return re.sub(r"/\*@FONTS-LOCAL.*?/\*@FONTS-END\*/",
                   lambda _m: '@import url("https://fonts.googleapis.com/css2?family=Gothic+A1:wght@300;400;500;600;700;800'
                              '&family=B612:wght@400;700&family=B612+Mono:wght@400;700&display=swap");',
