@@ -80,6 +80,24 @@ typography:
     fontWeight: 600
     lineHeight: 1.4
     letterSpacing: "0"
+  caption:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, Pretendard, Apple SD Gothic Neo, Malgun Gothic, system-ui, sans-serif"
+    fontSize: "11px"
+    fontWeight: 500
+    lineHeight: 1.35
+    letterSpacing: "0"
+  title-3:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Pretendard, Apple SD Gothic Neo, system-ui, sans-serif"
+    fontSize: "20px"
+    fontWeight: 600
+    lineHeight: 1.2
+    letterSpacing: "-0.015em"
+  title-1:
+    fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Pretendard, Apple SD Gothic Neo, system-ui, sans-serif"
+    fontSize: "28px"
+    fontWeight: 700
+    lineHeight: 1.15
+    letterSpacing: "-0.022em"
   numeral:
     fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Display, Pretendard, Apple SD Gothic Neo, system-ui, sans-serif"
     fontSize: "22px"
@@ -180,6 +198,7 @@ a grey 13px group header, white rows with hairline separators, 14px outer corner
 - Stack: `-apple-system, BlinkMacSystemFont, "SF Pro Text", "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui`.
   `--mono` uses the same stack (Apple uses SF everywhere except code); numbers rely on `tabular-nums`.
 - Large title 34/700/-0.022em · dialog title 17/600/-0.01em · row title 15/600 · body 13/400 · footnote and section headers 12–13/600 in ink-3 (no all-caps, no tracking).
+- **Size ramp = iOS text styles only:** 11 (caption, the floor — nothing smaller) · 12 · 13 · 15 · 17 · 20 · 22 · 28 · 34px. Odd sizes (7.5–10.5, 11.5, 12.5, 14, 19…) were folded onto this ramp on 2026-10-09; long node labels ellipsize and show in full in the inspector.
 
 ## Components
 - **Buttons:** primary = filled blue, white text; secondary = tinted (fill + blue text); destructive keeps red text on fill. Press scales to 0.98.
